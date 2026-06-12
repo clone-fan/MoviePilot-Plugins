@@ -202,6 +202,7 @@ class AgentOpsAssistant(_PluginBase):
 
     def get_api(self) -> List[Dict[str, Any]]:
         return [
+            {"path": "/dashboard", "endpoint": self.api_dashboard, "auth": "bear", "methods": ["GET"], "summary": "仪表盘数据：模块状态、最近执行、健康概览"},
             {"path": "/run_daily_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "立即发送每日汇报"},
             {"path": "/preview_daily_report", "endpoint": self.api_preview_daily_report, "auth": "bear", "methods": ["POST"], "summary": "预览每日汇报（不发送）"},
             {"path": "/run_health_check", "endpoint": self.api_run_health_check, "auth": "bear", "methods": ["POST"], "summary": "立即执行健康巡查"},
@@ -241,9 +242,9 @@ class AgentOpsAssistant(_PluginBase):
         """Vue 模式下配置页由 Config 组件渲染，这里只返回安全配置模型。"""
         return [], self._default_config()
 
-    def get_page(self) -> None:
-        """无独立详情页：点击插件直接进入设置页，不再显示查看数据入口。"""
-        return None
+    def get_page(self) -> List[dict]:
+        """Vue 模式下详情页由 Page 组件（仪表盘）渲染，这里返回空列表以注册入口。"""
+        return []
 
     def stop_service(self):
         pass
@@ -337,6 +338,46 @@ class AgentOpsAssistant(_PluginBase):
 
     def api_run_health_check(self) -> Dict[str, Any]:
         return self._api_run_task("健康巡查", self.run_health_check)
+
+    def api_dashboard(self) -> Dict[str, Any]:
+        """仪表盘数据：插件总状态、各模块快照、最近健康巡查概览。"""
+        try:
+            tasks = []
+            for item in self._task_snapshot():
+                latest = item.get("latest") or {}
+                tasks.append({
+                    "key": item.get("key"),
+                    "name": item.get("name"),
+                    "icon": item.get("icon"),
+                    "enabled": bool(item.get("enabled")),
+                    "state": item.get("state"),
+                    "color": item.get("color"),
+                    "next": item.get("next"),
+                    "last_time": latest.get("time") or "",
+                    "last_summary": self._task_result_summary(latest),
+                })
+            failed = [t for t in tasks if t["state"] == "失败"]
+            health = self.get_data("last_health_check") or {}
+            return {
+                "code": 0,
+                "data": {
+                    "enabled": bool(self._enabled),
+                    "summary": self._build_summary(),
+                    "tasks": tasks,
+                    "task_total": len(tasks),
+                    "task_on": len([t for t in tasks if t["enabled"]]),
+                    "task_failed": len(failed),
+                    "health": {
+                        "time": health.get("time") or "",
+                        "success": health.get("success"),
+                        "output": (health.get("output") or "")[:600],
+                    },
+                },
+            }
+        except Exception as err:
+            logger.error(f"仪表盘数据获取失败：{err}")
+            return {"code": 1, "msg": f"仪表盘数据获取失败：{err}", "data": {}}
+
 
     def api_preview_log_clean(self) -> Dict[str, Any]:
         data = self._build_log_preview()

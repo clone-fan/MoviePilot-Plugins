@@ -1,10 +1,32 @@
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { postPluginApi } from './api'
 
-const props = defineProps({ initialConfig: { type: Object, default: () => ({}) } })
-const emit = defineEmits(['save', 'close'])
+const props = defineProps({
+  api: { type: [Object, Function], default: null },
+  initialConfig: { type: Object, default: () => ({}) },
+})
+const emit = defineEmits(['save', 'close', 'switch'])
 
 const form = reactive({})
+const action = reactive({ running: '', message: '', color: 'success', show: false })
+
+async function runAction(path, label) {
+  if (action.running) return
+  action.running = path
+  try {
+    const res = await postPluginApi(props.api, path)
+    const ok = !res || res.code === 0 || res.code === undefined
+    action.message = (res && res.msg) || `${label}已${ok ? '触发' : '失败'}`
+    action.color = ok ? 'success' : 'error'
+  } catch (err) {
+    action.message = err?.message || `${label}失败`
+    action.color = 'error'
+  } finally {
+    action.running = ''
+    action.show = true
+  }
+}
 const activeMain = reactive({ value: 'report' })
 const activeSub = reactive({
   report: 'basic',
@@ -89,9 +111,9 @@ const mainTabs = [
 const subTabs = {
   report: [
     { key: 'basic', title: '基础设置', icon: 'mdi-tune-variant' },
-    { key: 'columns', title: '汇报栏目', icon: 'mdi-view-list-outline' },
     { key: 'subscribe', title: '订阅提醒', icon: 'mdi-bell-ring-outline' },
-    { key: 'sites', title: '站点统计', icon: 'mdi-chart-line' },
+    { key: 'sites', title: '站点数据统计', icon: 'mdi-chart-line' },
+    { key: 'health', title: '健康巡查', icon: 'mdi-heart-pulse' },
   ],
   backup: [
     { key: 'local', title: '基础设置', icon: 'mdi-tune-variant' },
@@ -181,17 +203,25 @@ function selectMain(key) {
             <template v-if="activeMain.value === 'report'">
               <VWindowItem value="basic" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.enabled" label="启用插件" color="primary" hint="关闭后不注册本插件的定时任务，也不会自动发送汇报。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.daily_report_enabled" label="启用每日汇报" color="primary" hint="开启后按下方时间自动发送 MP 运维汇报。" persistent-hint /></VCol>
+                  <VCol cols="12" md="6"><VSwitch v-model="form.enabled" label="启用 MP 运维助手" color="primary" hint="关闭后不注册本插件的定时任务，也不会自动发送汇报。" persistent-hint /></VCol>
+                  <VCol cols="12" md="6"><VSwitch v-model="form.daily_report_enabled" label="启用定时日报" color="primary" hint="开启后按下方时间自动发送 MP 运维汇报。" persistent-hint /></VCol>
                   <VCol cols="12" md="6"><VSelect v-model="form.daily_report_cron" :items="cronPresets" label="每日汇报时间" variant="outlined" density="comfortable" hint="推荐选择每天 22:00；也可以手动输入 Cron。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.health_in_report" label="加入健康巡查摘要" color="primary" hint="在汇报中显示下载器、站点、入库和存储等状态摘要。" persistent-hint /></VCol>
                 </VRow>
-              </VWindowItem>
-              <VWindowItem value="columns" class="pa-3">
+                <VDivider class="my-3" />
+                <div class="text-caption text-medium-emphasis mb-2">汇报栏目</div>
                 <VRow>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.subscribe_in_report" label="显示订阅追新" color="primary" hint="开启后每日汇报会包含今日订阅更新；不需要订阅栏目时关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.site_stat_in_report" label="显示站点统计" color="primary" hint="开启后每日汇报会包含站点状态和增量数据。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.health_in_report" label="健康巡查摘要" color="primary" hint="汇报中显示下载器、站点、入库、存储状态。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.subscribe_in_report" label="订阅追新" color="primary" hint="汇报中包含今日订阅更新。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.site_stat_in_report" label="站点统计" color="primary" hint="汇报中包含站点状态和增量数据。" persistent-hint /></VCol>
                 </VRow>
+                <VDivider class="my-3" />
+                <div class="text-caption text-medium-emphasis mb-2">手动触发</div>
+                <VAlert v-if="actionMsg" :type="actionOk ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="actionMsg" />
+                <div class="d-flex flex-wrap ga-2">
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-send" class="text-none" :loading="actionLoading === 'run_daily_report'" @click="runAction('run_daily_report', '发送每日汇报')">发送日报</VBtn>
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline" class="text-none" :loading="actionLoading === 'preview_daily_report'" @click="runAction('preview_daily_report', '预览每日汇报')">预览日报</VBtn>
+                  <VBtn color="cyan" variant="outlined" prepend-icon="mdi-heart-pulse" class="text-none" :loading="actionLoading === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">立即巡查</VBtn>
+                </div>
               </VWindowItem>
               <VWindowItem value="subscribe" class="pa-3">
                 <VRow>

@@ -9,3 +9,9 @@ export async function postPluginApi(api, path, payload = {}) {
   const response = await api.post(`plugin/AgentOpsAssistant/${path}`, payload)
   return unwrapResponse(response)
 }
+
+export async function getPluginApi(api, path) {
+  if (!api?.get) throw new Error('MoviePilot 插件 API 未就绪')
+  const response = await api.get(`plugin/AgentOpsAssistant/${path}`)
+  return unwrapResponse(response)
+}

@@ -1,12 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-
-const _export_sfc = (sfc, props) => {
-  const target = sfc.__vccOpts || sfc;
-  for (const [key, val] of props) {
-    target[key] = val;
-  }
-  return target;
-};
+import { _ as _export_sfc, p as postPluginApi } from './_plugin-vue_export-helper-DGWTz_NE.js';
 
 const {createElementVNode:_createElementVNode,resolveComponent:_resolveComponent,createVNode:_createVNode,createTextVNode:_createTextVNode,withCtx:_withCtx,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock,createElementBlock:_createElementBlock,toDisplayString:_toDisplayString,createBlock:_createBlock,createCommentVNode:_createCommentVNode,unref:_unref} = await importShared('vue');
 
@@ -14,21 +7,42 @@ const {createElementVNode:_createElementVNode,resolveComponent:_resolveComponent
 const _hoisted_1 = { class: "agentops-config" };
 const _hoisted_2 = { class: "pa-3" };
 const _hoisted_3 = { class: "d-flex flex-wrap ga-2" };
+const _hoisted_4 = { class: "d-flex flex-wrap ga-2" };
 
-const {computed,reactive,watch} = await importShared('vue');
-
+const {computed,reactive,ref,watch} = await importShared('vue');
 
 
 const _sfc_main = {
   __name: 'Config',
-  props: { initialConfig: { type: Object, default: () => ({}) } },
-  emits: ['save', 'close'],
+  props: {
+  api: { type: [Object, Function], default: null },
+  initialConfig: { type: Object, default: () => ({}) },
+},
+  emits: ['save', 'close', 'switch'],
   setup(__props, { emit: __emit }) {
 
 const props = __props;
 const emit = __emit;
 
 const form = reactive({});
+const action = reactive({ running: '', message: '', color: 'success', show: false });
+
+async function runAction(path, label) {
+  if (action.running) return
+  action.running = path;
+  try {
+    const res = await postPluginApi(props.api, path);
+    const ok = !res || res.code === 0 || res.code === undefined;
+    action.message = (res && res.msg) || `${label}已${ok ? '触发' : '失败'}`;
+    action.color = ok ? 'success' : 'error';
+  } catch (err) {
+    action.message = err?.message || `${label}失败`;
+    action.color = 'error';
+  } finally {
+    action.running = '';
+    action.show = true;
+  }
+}
 const activeMain = reactive({ value: 'report' });
 const activeSub = reactive({
   report: 'basic',
@@ -113,9 +127,9 @@ const mainTabs = [
 const subTabs = {
   report: [
     { key: 'basic', title: '基础设置', icon: 'mdi-tune-variant' },
-    { key: 'columns', title: '汇报栏目', icon: 'mdi-view-list-outline' },
     { key: 'subscribe', title: '订阅提醒', icon: 'mdi-bell-ring-outline' },
-    { key: 'sites', title: '站点统计', icon: 'mdi-chart-line' },
+    { key: 'sites', title: '站点数据统计', icon: 'mdi-chart-line' },
+    { key: 'health', title: '健康巡查', icon: 'mdi-heart-pulse' },
   ],
   backup: [
     { key: 'local', title: '基础设置', icon: 'mdi-tune-variant' },
@@ -186,6 +200,7 @@ return (_ctx, _cache) => {
   const _component_VCol = _resolveComponent("VCol");
   const _component_VSelect = _resolveComponent("VSelect");
   const _component_VRow = _resolveComponent("VRow");
+  const _component_VAlert = _resolveComponent("VAlert");
   const _component_VWindowItem = _resolveComponent("VWindowItem");
   const _component_VTextField = _resolveComponent("VTextField");
   const _component_VCombobox = _resolveComponent("VCombobox");
@@ -198,7 +213,7 @@ return (_ctx, _cache) => {
       class: "agentops-toolbar"
     }, {
       default: _withCtx(() => [
-        _cache[65] || (_cache[65] = _createElementVNode("div", { class: "text-h6 ms-3" }, "MP 运维助手配置", -1)),
+        _cache[68] || (_cache[68] = _createElementVNode("div", { class: "text-h6 ms-3" }, "MP 运维助手配置", -1)),
         _createVNode(_component_VSpacer),
         _createVNode(_component_VBtn, {
           color: "primary",
@@ -207,7 +222,7 @@ return (_ctx, _cache) => {
           class: "text-none",
           onClick: saveConfig
         }, {
-          default: _withCtx(() => [...(_cache[64] || (_cache[64] = [
+          default: _withCtx(() => [...(_cache[67] || (_cache[67] = [
             _createTextVNode("保存配置", -1)
           ]))]),
           _: 1
@@ -315,7 +330,7 @@ return (_ctx, _cache) => {
               _createVNode(_component_VDivider),
               _createVNode(_component_VWindow, {
                 modelValue: activeSub[activeMain.value],
-                "onUpdate:modelValue": _cache[63] || (_cache[63] = $event => ((activeSub[activeMain.value]) = $event)),
+                "onUpdate:modelValue": _cache[66] || (_cache[66] = $event => ((activeSub[activeMain.value]) = $event)),
                 touch: false
               }, {
                 default: _withCtx(() => [
@@ -336,7 +351,7 @@ return (_ctx, _cache) => {
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.enabled,
                                       "onUpdate:modelValue": _cache[2] || (_cache[2] = $event => ((form.enabled) = $event)),
-                                      label: "启用插件",
+                                      label: "启用 MP 运维助手",
                                       color: "primary",
                                       hint: "关闭后不注册本插件的定时任务，也不会自动发送汇报。",
                                       "persistent-hint": ""
@@ -352,7 +367,7 @@ return (_ctx, _cache) => {
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.daily_report_enabled,
                                       "onUpdate:modelValue": _cache[3] || (_cache[3] = $event => ((form.daily_report_enabled) = $event)),
-                                      label: "启用每日汇报",
+                                      label: "启用定时日报",
                                       color: "primary",
                                       hint: "开启后按下方时间自动发送 MP 运维汇报。",
                                       "persistent-hint": ""
@@ -377,47 +392,25 @@ return (_ctx, _cache) => {
                                     }, null, 8, ["modelValue"])
                                   ]),
                                   _: 1
-                                }),
+                                })
+                              ]),
+                              _: 1
+                            }),
+                            _createVNode(_component_VDivider, { class: "my-3" }),
+                            _cache[72] || (_cache[72] = _createElementVNode("div", { class: "text-caption text-medium-emphasis mb-2" }, "汇报栏目", -1)),
+                            _createVNode(_component_VRow, null, {
+                              default: _withCtx(() => [
                                 _createVNode(_component_VCol, {
                                   cols: "12",
-                                  md: "6"
+                                  md: "4"
                                 }, {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.health_in_report,
                                       "onUpdate:modelValue": _cache[5] || (_cache[5] = $event => ((form.health_in_report) = $event)),
-                                      label: "加入健康巡查摘要",
+                                      label: "健康巡查摘要",
                                       color: "primary",
-                                      hint: "在汇报中显示下载器、站点、入库和存储等状态摘要。",
-                                      "persistent-hint": ""
-                                    }, null, 8, ["modelValue"])
-                                  ]),
-                                  _: 1
-                                })
-                              ]),
-                              _: 1
-                            })
-                          ]),
-                          _: 1
-                        }),
-                        _createVNode(_component_VWindowItem, {
-                          value: "columns",
-                          class: "pa-3"
-                        }, {
-                          default: _withCtx(() => [
-                            _createVNode(_component_VRow, null, {
-                              default: _withCtx(() => [
-                                _createVNode(_component_VCol, {
-                                  cols: "12",
-                                  md: "6"
-                                }, {
-                                  default: _withCtx(() => [
-                                    _createVNode(_component_VSwitch, {
-                                      modelValue: form.subscribe_in_report,
-                                      "onUpdate:modelValue": _cache[6] || (_cache[6] = $event => ((form.subscribe_in_report) = $event)),
-                                      label: "显示订阅追新",
-                                      color: "primary",
-                                      hint: "开启后每日汇报会包含今日订阅更新；不需要订阅栏目时关闭。",
+                                      hint: "汇报中显示下载器、站点、入库、存储状态。",
                                       "persistent-hint": ""
                                     }, null, 8, ["modelValue"])
                                   ]),
@@ -425,15 +418,31 @@ return (_ctx, _cache) => {
                                 }),
                                 _createVNode(_component_VCol, {
                                   cols: "12",
-                                  md: "6"
+                                  md: "4"
+                                }, {
+                                  default: _withCtx(() => [
+                                    _createVNode(_component_VSwitch, {
+                                      modelValue: form.subscribe_in_report,
+                                      "onUpdate:modelValue": _cache[6] || (_cache[6] = $event => ((form.subscribe_in_report) = $event)),
+                                      label: "订阅追新",
+                                      color: "primary",
+                                      hint: "汇报中包含今日订阅更新。",
+                                      "persistent-hint": ""
+                                    }, null, 8, ["modelValue"])
+                                  ]),
+                                  _: 1
+                                }),
+                                _createVNode(_component_VCol, {
+                                  cols: "12",
+                                  md: "4"
                                 }, {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.site_stat_in_report,
                                       "onUpdate:modelValue": _cache[7] || (_cache[7] = $event => ((form.site_stat_in_report) = $event)),
-                                      label: "显示站点统计",
+                                      label: "站点统计",
                                       color: "primary",
-                                      hint: "开启后每日汇报会包含站点状态和增量数据。",
+                                      hint: "汇报中包含站点状态和增量数据。",
                                       "persistent-hint": ""
                                     }, null, 8, ["modelValue"])
                                   ]),
@@ -441,7 +450,60 @@ return (_ctx, _cache) => {
                                 })
                               ]),
                               _: 1
-                            })
+                            }),
+                            _createVNode(_component_VDivider, { class: "my-3" }),
+                            _cache[73] || (_cache[73] = _createElementVNode("div", { class: "text-caption text-medium-emphasis mb-2" }, "手动触发", -1)),
+                            (_ctx.actionMsg)
+                              ? (_openBlock(), _createBlock(_component_VAlert, {
+                                  key: 0,
+                                  type: _ctx.actionOk ? 'success' : 'error',
+                                  variant: "tonal",
+                                  density: "compact",
+                                  class: "mb-3",
+                                  text: _ctx.actionMsg
+                                }, null, 8, ["type", "text"]))
+                              : _createCommentVNode("", true),
+                            _createElementVNode("div", _hoisted_4, [
+                              _createVNode(_component_VBtn, {
+                                color: "primary",
+                                variant: "tonal",
+                                "prepend-icon": "mdi-send",
+                                class: "text-none",
+                                loading: _ctx.actionLoading === 'run_daily_report',
+                                onClick: _cache[8] || (_cache[8] = $event => (runAction('run_daily_report', '发送每日汇报')))
+                              }, {
+                                default: _withCtx(() => [...(_cache[69] || (_cache[69] = [
+                                  _createTextVNode("发送日报", -1)
+                                ]))]),
+                                _: 1
+                              }, 8, ["loading"]),
+                              _createVNode(_component_VBtn, {
+                                color: "primary",
+                                variant: "outlined",
+                                "prepend-icon": "mdi-eye-outline",
+                                class: "text-none",
+                                loading: _ctx.actionLoading === 'preview_daily_report',
+                                onClick: _cache[9] || (_cache[9] = $event => (runAction('preview_daily_report', '预览每日汇报')))
+                              }, {
+                                default: _withCtx(() => [...(_cache[70] || (_cache[70] = [
+                                  _createTextVNode("预览日报", -1)
+                                ]))]),
+                                _: 1
+                              }, 8, ["loading"]),
+                              _createVNode(_component_VBtn, {
+                                color: "cyan",
+                                variant: "outlined",
+                                "prepend-icon": "mdi-heart-pulse",
+                                class: "text-none",
+                                loading: _ctx.actionLoading === 'run_health_check',
+                                onClick: _cache[10] || (_cache[10] = $event => (runAction('run_health_check', '健康巡查')))
+                              }, {
+                                default: _withCtx(() => [...(_cache[71] || (_cache[71] = [
+                                  _createTextVNode("立即巡查", -1)
+                                ]))]),
+                                _: 1
+                              }, 8, ["loading"])
+                            ])
                           ]),
                           _: 1
                         }),
@@ -459,7 +521,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.subscribe_reminder_enabled,
-                                      "onUpdate:modelValue": _cache[8] || (_cache[8] = $event => ((form.subscribe_reminder_enabled) = $event)),
+                                      "onUpdate:modelValue": _cache[11] || (_cache[11] = $event => ((form.subscribe_reminder_enabled) = $event)),
                                       label: "启用订阅提醒",
                                       color: "cyan",
                                       hint: "开启后订阅追新数据会参与提醒和汇报。",
@@ -475,7 +537,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.subscribe_reminder_onlyonce,
-                                      "onUpdate:modelValue": _cache[9] || (_cache[9] = $event => ((form.subscribe_reminder_onlyonce) = $event)),
+                                      "onUpdate:modelValue": _cache[12] || (_cache[12] = $event => ((form.subscribe_reminder_onlyonce) = $event)),
                                       label: "保存后立即运行一次",
                                       color: "cyan",
                                       hint: "只适合手动测试；运行后建议关闭。",
@@ -491,7 +553,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.subscribe_reminder_time,
-                                      "onUpdate:modelValue": _cache[10] || (_cache[10] = $event => ((form.subscribe_reminder_time) = $event)),
+                                      "onUpdate:modelValue": _cache[13] || (_cache[13] = $event => ((form.subscribe_reminder_time) = $event)),
                                       label: "提醒小时",
                                       variant: "outlined",
                                       density: "comfortable",
@@ -508,7 +570,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.subscribe_reminder_subtype,
-                                      "onUpdate:modelValue": _cache[11] || (_cache[11] = $event => ((form.subscribe_reminder_subtype) = $event)),
+                                      "onUpdate:modelValue": _cache[14] || (_cache[14] = $event => ((form.subscribe_reminder_subtype) = $event)),
                                       items: subscribeSubtypeItems,
                                       label: "提醒媒体类型",
                                       variant: "outlined",
@@ -529,7 +591,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.subscribe_reminder_msgtype,
-                                      "onUpdate:modelValue": _cache[12] || (_cache[12] = $event => ((form.subscribe_reminder_msgtype) = $event)),
+                                      "onUpdate:modelValue": _cache[15] || (_cache[15] = $event => ((form.subscribe_reminder_msgtype) = $event)),
                                       items: messageTypeItems,
                                       label: "通知类型",
                                       variant: "outlined",
@@ -560,7 +622,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.site_stat_enabled,
-                                      "onUpdate:modelValue": _cache[13] || (_cache[13] = $event => ((form.site_stat_enabled) = $event)),
+                                      "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((form.site_stat_enabled) = $event)),
                                       label: "启用站点统计",
                                       color: "cyan",
                                       hint: "开启后采集站点状态，用于汇报和通知。",
@@ -576,7 +638,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.site_stat_onlyonce,
-                                      "onUpdate:modelValue": _cache[14] || (_cache[14] = $event => ((form.site_stat_onlyonce) = $event)),
+                                      "onUpdate:modelValue": _cache[17] || (_cache[17] = $event => ((form.site_stat_onlyonce) = $event)),
                                       label: "保存后立即刷新一次",
                                       color: "cyan",
                                       hint: "用于手动更新站点数据；运行后建议关闭。",
@@ -592,7 +654,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.site_stat_dashboard_type,
-                                      "onUpdate:modelValue": _cache[15] || (_cache[15] = $event => ((form.site_stat_dashboard_type) = $event)),
+                                      "onUpdate:modelValue": _cache[18] || (_cache[18] = $event => ((form.site_stat_dashboard_type) = $event)),
                                       items: siteStatRangeItems,
                                       label: "统计范围",
                                       variant: "outlined",
@@ -610,7 +672,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.site_stat_notify_type,
-                                      "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((form.site_stat_notify_type) = $event)),
+                                      "onUpdate:modelValue": _cache[19] || (_cache[19] = $event => ((form.site_stat_notify_type) = $event)),
                                       items: siteNotifyItems,
                                       label: "通知内容",
                                       variant: "outlined",
@@ -645,7 +707,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.backup_enabled,
-                                      "onUpdate:modelValue": _cache[17] || (_cache[17] = $event => ((form.backup_enabled) = $event)),
+                                      "onUpdate:modelValue": _cache[20] || (_cache[20] = $event => ((form.backup_enabled) = $event)),
                                       label: "启用自动备份",
                                       color: "success",
                                       hint: "开启后按备份时间自动打包配置和关键数据。",
@@ -661,7 +723,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.backup_onlyonce,
-                                      "onUpdate:modelValue": _cache[18] || (_cache[18] = $event => ((form.backup_onlyonce) = $event)),
+                                      "onUpdate:modelValue": _cache[21] || (_cache[21] = $event => ((form.backup_onlyonce) = $event)),
                                       label: "保存后立即备份一次",
                                       color: "success",
                                       hint: "用于手动生成一次备份；运行后建议关闭。",
@@ -677,7 +739,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.backup_notify,
-                                      "onUpdate:modelValue": _cache[19] || (_cache[19] = $event => ((form.backup_notify) = $event)),
+                                      "onUpdate:modelValue": _cache[22] || (_cache[22] = $event => ((form.backup_notify) = $event)),
                                       label: "备份后通知",
                                       color: "success",
                                       hint: "备份成功或失败后发送通知。",
@@ -693,7 +755,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.backup_cron,
-                                      "onUpdate:modelValue": _cache[20] || (_cache[20] = $event => ((form.backup_cron) = $event)),
+                                      "onUpdate:modelValue": _cache[23] || (_cache[23] = $event => ((form.backup_cron) = $event)),
                                       items: cronPresets,
                                       label: "备份时间",
                                       variant: "outlined",
@@ -711,7 +773,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.backup_keep_count,
-                                      "onUpdate:modelValue": _cache[21] || (_cache[21] = $event => ((form.backup_keep_count) = $event)),
+                                      "onUpdate:modelValue": _cache[24] || (_cache[24] = $event => ((form.backup_keep_count) = $event)),
                                       items: _unref(keepCountPresets),
                                       label: "本地保留数量",
                                       variant: "outlined",
@@ -729,7 +791,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.backup_path,
-                                      "onUpdate:modelValue": _cache[22] || (_cache[22] = $event => ((form.backup_path) = $event)),
+                                      "onUpdate:modelValue": _cache[25] || (_cache[25] = $event => ((form.backup_path) = $event)),
                                       label: "备份保存路径",
                                       variant: "outlined",
                                       density: "comfortable",
@@ -759,7 +821,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.backup_webdav_enabled,
-                                      "onUpdate:modelValue": _cache[23] || (_cache[23] = $event => ((form.backup_webdav_enabled) = $event)),
+                                      "onUpdate:modelValue": _cache[26] || (_cache[26] = $event => ((form.backup_webdav_enabled) = $event)),
                                       label: "启用 WebDAV 备份",
                                       color: "success",
                                       hint: "开启后会把备份同步到 WebDAV。",
@@ -775,7 +837,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.backup_webdav_notify,
-                                      "onUpdate:modelValue": _cache[24] || (_cache[24] = $event => ((form.backup_webdav_notify) = $event)),
+                                      "onUpdate:modelValue": _cache[27] || (_cache[27] = $event => ((form.backup_webdav_notify) = $event)),
                                       label: "WebDAV 结果通知",
                                       color: "success",
                                       hint: "上传成功或失败后发送通知。",
@@ -791,7 +853,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.backup_webdav_digest_auth,
-                                      "onUpdate:modelValue": _cache[25] || (_cache[25] = $event => ((form.backup_webdav_digest_auth) = $event)),
+                                      "onUpdate:modelValue": _cache[28] || (_cache[28] = $event => ((form.backup_webdav_digest_auth) = $event)),
                                       label: "使用 Digest 认证",
                                       color: "success",
                                       hint: "服务端要求 Digest 时开启；普通账号密码认证保持关闭。",
@@ -807,7 +869,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.backup_webdav_disable_check,
-                                      "onUpdate:modelValue": _cache[26] || (_cache[26] = $event => ((form.backup_webdav_disable_check) = $event)),
+                                      "onUpdate:modelValue": _cache[29] || (_cache[29] = $event => ((form.backup_webdav_disable_check) = $event)),
                                       label: "跳过连通检查",
                                       color: "warning",
                                       hint: "只有服务端检查异常但实际可上传时才开启。",
@@ -823,7 +885,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.backup_webdav_hostname,
-                                      "onUpdate:modelValue": _cache[27] || (_cache[27] = $event => ((form.backup_webdav_hostname) = $event)),
+                                      "onUpdate:modelValue": _cache[30] || (_cache[30] = $event => ((form.backup_webdav_hostname) = $event)),
                                       label: "WebDAV 地址",
                                       variant: "outlined",
                                       density: "comfortable",
@@ -840,7 +902,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.backup_webdav_login,
-                                      "onUpdate:modelValue": _cache[28] || (_cache[28] = $event => ((form.backup_webdav_login) = $event)),
+                                      "onUpdate:modelValue": _cache[31] || (_cache[31] = $event => ((form.backup_webdav_login) = $event)),
                                       label: "WebDAV 用户名",
                                       variant: "outlined",
                                       density: "comfortable"
@@ -855,7 +917,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.backup_webdav_password,
-                                      "onUpdate:modelValue": _cache[29] || (_cache[29] = $event => ((form.backup_webdav_password) = $event)),
+                                      "onUpdate:modelValue": _cache[32] || (_cache[32] = $event => ((form.backup_webdav_password) = $event)),
                                       label: "WebDAV 密码",
                                       type: "password",
                                       variant: "outlined",
@@ -871,7 +933,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.backup_webdav_max_count,
-                                      "onUpdate:modelValue": _cache[30] || (_cache[30] = $event => ((form.backup_webdav_max_count) = $event)),
+                                      "onUpdate:modelValue": _cache[33] || (_cache[33] = $event => ((form.backup_webdav_max_count) = $event)),
                                       items: _unref(keepCountPresets),
                                       label: "远端保留数量",
                                       variant: "outlined",
@@ -906,7 +968,7 @@ return (_ctx, _cache) => {
                                 default: _withCtx(() => [
                                   _createVNode(_component_VSwitch, {
                                     modelValue: form.log_clean_enabled,
-                                    "onUpdate:modelValue": _cache[31] || (_cache[31] = $event => ((form.log_clean_enabled) = $event)),
+                                    "onUpdate:modelValue": _cache[34] || (_cache[34] = $event => ((form.log_clean_enabled) = $event)),
                                     label: "启用插件日志定时清理",
                                     color: "warning",
                                     hint: "开启后按设定时间截断插件日志。",
@@ -922,7 +984,7 @@ return (_ctx, _cache) => {
                                 default: _withCtx(() => [
                                   _createVNode(_component_VSwitch, {
                                     modelValue: form.log_clean_onlyonce,
-                                    "onUpdate:modelValue": _cache[32] || (_cache[32] = $event => ((form.log_clean_onlyonce) = $event)),
+                                    "onUpdate:modelValue": _cache[35] || (_cache[35] = $event => ((form.log_clean_onlyonce) = $event)),
                                     label: "保存后立即清理一次",
                                     color: "warning",
                                     hint: "用于手动清理；运行后建议关闭。",
@@ -938,7 +1000,7 @@ return (_ctx, _cache) => {
                                 default: _withCtx(() => [
                                   _createVNode(_component_VSwitch, {
                                     modelValue: form.log_clean_notify,
-                                    "onUpdate:modelValue": _cache[33] || (_cache[33] = $event => ((form.log_clean_notify) = $event)),
+                                    "onUpdate:modelValue": _cache[36] || (_cache[36] = $event => ((form.log_clean_notify) = $event)),
                                     label: "清理后通知",
                                     color: "warning",
                                     hint: "清理完成后发送处理结果。",
@@ -954,7 +1016,7 @@ return (_ctx, _cache) => {
                                 default: _withCtx(() => [
                                   _createVNode(_component_VSelect, {
                                     modelValue: form.log_clean_cron,
-                                    "onUpdate:modelValue": _cache[34] || (_cache[34] = $event => ((form.log_clean_cron) = $event)),
+                                    "onUpdate:modelValue": _cache[37] || (_cache[37] = $event => ((form.log_clean_cron) = $event)),
                                     items: cronPresets,
                                     label: "日志清理时间",
                                     variant: "outlined",
@@ -972,7 +1034,7 @@ return (_ctx, _cache) => {
                                 default: _withCtx(() => [
                                   _createVNode(_component_VSelect, {
                                     modelValue: form.log_clean_rows,
-                                    "onUpdate:modelValue": _cache[35] || (_cache[35] = $event => ((form.log_clean_rows) = $event)),
+                                    "onUpdate:modelValue": _cache[38] || (_cache[38] = $event => ((form.log_clean_rows) = $event)),
                                     items: _unref(logRowsPresets),
                                     label: "每个日志保留行数",
                                     variant: "outlined",
@@ -990,7 +1052,7 @@ return (_ctx, _cache) => {
                                 default: _withCtx(() => [
                                   _createVNode(_component_VTextField, {
                                     modelValue: form.log_clean_selected_ids,
-                                    "onUpdate:modelValue": _cache[36] || (_cache[36] = $event => ((form.log_clean_selected_ids) = $event)),
+                                    "onUpdate:modelValue": _cache[39] || (_cache[39] = $event => ((form.log_clean_selected_ids) = $event)),
                                     label: "限定插件 ID",
                                     variant: "outlined",
                                     density: "comfortable",
@@ -1023,7 +1085,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.mp_update_enabled,
-                                      "onUpdate:modelValue": _cache[37] || (_cache[37] = $event => ((form.mp_update_enabled) = $event)),
+                                      "onUpdate:modelValue": _cache[40] || (_cache[40] = $event => ((form.mp_update_enabled) = $event)),
                                       label: "启用主程序更新检查",
                                       color: "info",
                                       hint: "只检查并通知，不会自动升级。",
@@ -1039,7 +1101,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.mp_update_cron,
-                                      "onUpdate:modelValue": _cache[38] || (_cache[38] = $event => ((form.mp_update_cron) = $event)),
+                                      "onUpdate:modelValue": _cache[41] || (_cache[41] = $event => ((form.mp_update_cron) = $event)),
                                       items: cronPresets,
                                       label: "检查时间",
                                       variant: "outlined",
@@ -1057,7 +1119,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.mp_update_notify,
-                                      "onUpdate:modelValue": _cache[39] || (_cache[39] = $event => ((form.mp_update_notify) = $event)),
+                                      "onUpdate:modelValue": _cache[42] || (_cache[42] = $event => ((form.mp_update_notify) = $event)),
                                       label: "检查后通知",
                                       color: "info",
                                       hint: "有无更新都会按插件逻辑发送结果。",
@@ -1073,7 +1135,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.mp_update_types,
-                                      "onUpdate:modelValue": _cache[40] || (_cache[40] = $event => ((form.mp_update_types) = $event)),
+                                      "onUpdate:modelValue": _cache[43] || (_cache[43] = $event => ((form.mp_update_types) = $event)),
                                       items: _unref(mpUpdateTypes),
                                       label: "检查对象",
                                       variant: "outlined",
@@ -1094,7 +1156,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.mp_update_restart_confirm,
-                                      "onUpdate:modelValue": _cache[41] || (_cache[41] = $event => ((form.mp_update_restart_confirm) = $event)),
+                                      "onUpdate:modelValue": _cache[44] || (_cache[44] = $event => ((form.mp_update_restart_confirm) = $event)),
                                       label: "允许更新后重启",
                                       color: "error",
                                       hint: "开启后更新流程可在需要时重启 MoviePilot；不想自动重启就关闭。",
@@ -1123,7 +1185,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.market_update_enabled,
-                                      "onUpdate:modelValue": _cache[42] || (_cache[42] = $event => ((form.market_update_enabled) = $event)),
+                                      "onUpdate:modelValue": _cache[45] || (_cache[45] = $event => ((form.market_update_enabled) = $event)),
                                       label: "启用插件库更新检查",
                                       color: "info",
                                       hint: "定期检查插件库地址是否变化。",
@@ -1139,7 +1201,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.market_update_onlyonce,
-                                      "onUpdate:modelValue": _cache[43] || (_cache[43] = $event => ((form.market_update_onlyonce) = $event)),
+                                      "onUpdate:modelValue": _cache[46] || (_cache[46] = $event => ((form.market_update_onlyonce) = $event)),
                                       label: "保存后立即检查一次",
                                       color: "info",
                                       hint: "用于手动测试；运行后建议关闭。",
@@ -1155,7 +1217,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.market_update_interval,
-                                      "onUpdate:modelValue": _cache[44] || (_cache[44] = $event => ((form.market_update_interval) = $event)),
+                                      "onUpdate:modelValue": _cache[47] || (_cache[47] = $event => ((form.market_update_interval) = $event)),
                                       items: _unref(intervalPresets),
                                       label: "检查间隔",
                                       variant: "outlined",
@@ -1173,7 +1235,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.market_update_notify,
-                                      "onUpdate:modelValue": _cache[45] || (_cache[45] = $event => ((form.market_update_notify) = $event)),
+                                      "onUpdate:modelValue": _cache[48] || (_cache[48] = $event => ((form.market_update_notify) = $event)),
                                       label: "变化时通知",
                                       color: "info",
                                       hint: "发现插件库地址变化时发送通知。",
@@ -1189,7 +1251,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.market_update_write_notify,
-                                      "onUpdate:modelValue": _cache[46] || (_cache[46] = $event => ((form.market_update_write_notify) = $event)),
+                                      "onUpdate:modelValue": _cache[49] || (_cache[49] = $event => ((form.market_update_write_notify) = $event)),
                                       label: "写入后通知",
                                       color: "info",
                                       hint: "启用写入时，写入完成后发送通知。",
@@ -1205,7 +1267,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSelect, {
                                       modelValue: form.market_update_notify_type,
-                                      "onUpdate:modelValue": _cache[47] || (_cache[47] = $event => ((form.market_update_notify_type) = $event)),
+                                      "onUpdate:modelValue": _cache[50] || (_cache[50] = $event => ((form.market_update_notify_type) = $event)),
                                       items: marketNotifyItems,
                                       label: "通知类型",
                                       variant: "outlined",
@@ -1223,7 +1285,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.market_update_write_settings,
-                                      "onUpdate:modelValue": _cache[48] || (_cache[48] = $event => ((form.market_update_write_settings) = $event)),
+                                      "onUpdate:modelValue": _cache[51] || (_cache[51] = $event => ((form.market_update_write_settings) = $event)),
                                       label: "允许写入当前配置",
                                       color: "error",
                                       hint: "开启后允许把检测到的插件库地址写入当前配置；不确定就关闭。",
@@ -1239,7 +1301,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.market_update_write_env,
-                                      "onUpdate:modelValue": _cache[49] || (_cache[49] = $event => ((form.market_update_write_env) = $event)),
+                                      "onUpdate:modelValue": _cache[52] || (_cache[52] = $event => ((form.market_update_write_env) = $event)),
                                       label: "允许写入 app.env",
                                       color: "error",
                                       hint: "开启后允许写入 app.env；通常保持关闭。",
@@ -1255,7 +1317,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.market_update_blacklist_enabled,
-                                      "onUpdate:modelValue": _cache[50] || (_cache[50] = $event => ((form.market_update_blacklist_enabled) = $event)),
+                                      "onUpdate:modelValue": _cache[53] || (_cache[53] = $event => ((form.market_update_blacklist_enabled) = $event)),
                                       label: "启用写入黑名单",
                                       color: "info",
                                       hint: "开启后，黑名单中的插件库地址不会被写入。",
@@ -1271,7 +1333,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.market_update_auto_get,
-                                      "onUpdate:modelValue": _cache[51] || (_cache[51] = $event => ((form.market_update_auto_get) = $event)),
+                                      "onUpdate:modelValue": _cache[54] || (_cache[54] = $event => ((form.market_update_auto_get) = $event)),
                                       label: "自动获取插件库地址",
                                       color: "info",
                                       hint: "从 Wiki 页面自动解析插件库地址。",
@@ -1287,7 +1349,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.market_update_proxy,
-                                      "onUpdate:modelValue": _cache[52] || (_cache[52] = $event => ((form.market_update_proxy) = $event)),
+                                      "onUpdate:modelValue": _cache[55] || (_cache[55] = $event => ((form.market_update_proxy) = $event)),
                                       label: "使用代理访问 Wiki",
                                       color: "info",
                                       hint: "访问 Wiki 慢或失败时开启。",
@@ -1303,7 +1365,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.market_update_timeout,
-                                      "onUpdate:modelValue": _cache[53] || (_cache[53] = $event => ((form.market_update_timeout) = $event)),
+                                      "onUpdate:modelValue": _cache[56] || (_cache[56] = $event => ((form.market_update_timeout) = $event)),
                                       type: "number",
                                       label: "请求超时（秒）",
                                       variant: "outlined",
@@ -1321,7 +1383,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.market_update_wiki_url,
-                                      "onUpdate:modelValue": _cache[54] || (_cache[54] = $event => ((form.market_update_wiki_url) = $event)),
+                                      "onUpdate:modelValue": _cache[57] || (_cache[57] = $event => ((form.market_update_wiki_url) = $event)),
                                       label: "插件库 Wiki 地址",
                                       variant: "outlined",
                                       density: "comfortable",
@@ -1338,7 +1400,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.market_update_wiki_xpath,
-                                      "onUpdate:modelValue": _cache[55] || (_cache[55] = $event => ((form.market_update_wiki_xpath) = $event)),
+                                      "onUpdate:modelValue": _cache[58] || (_cache[58] = $event => ((form.market_update_wiki_xpath) = $event)),
                                       label: "Wiki XPath",
                                       variant: "outlined",
                                       density: "comfortable",
@@ -1352,7 +1414,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.market_update_blacklist,
-                                      "onUpdate:modelValue": _cache[56] || (_cache[56] = $event => ((form.market_update_blacklist) = $event)),
+                                      "onUpdate:modelValue": _cache[59] || (_cache[59] = $event => ((form.market_update_blacklist) = $event)),
                                       label: "插件库黑名单",
                                       variant: "outlined",
                                       density: "comfortable",
@@ -1386,7 +1448,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VTextField, {
                                       modelValue: form.plugin_uninstall_id,
-                                      "onUpdate:modelValue": _cache[57] || (_cache[57] = $event => ((form.plugin_uninstall_id) = $event)),
+                                      "onUpdate:modelValue": _cache[60] || (_cache[60] = $event => ((form.plugin_uninstall_id) = $event)),
                                       label: "目标插件 ID",
                                       variant: "outlined",
                                       density: "comfortable",
@@ -1403,7 +1465,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VCombobox, {
                                       modelValue: form.plugin_uninstall_ids,
-                                      "onUpdate:modelValue": _cache[58] || (_cache[58] = $event => ((form.plugin_uninstall_ids) = $event)),
+                                      "onUpdate:modelValue": _cache[61] || (_cache[61] = $event => ((form.plugin_uninstall_ids) = $event)),
                                       label: "批量目标插件 ID",
                                       variant: "outlined",
                                       density: "comfortable",
@@ -1436,7 +1498,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.plugin_uninstall_clear_config,
-                                      "onUpdate:modelValue": _cache[59] || (_cache[59] = $event => ((form.plugin_uninstall_clear_config) = $event)),
+                                      "onUpdate:modelValue": _cache[62] || (_cache[62] = $event => ((form.plugin_uninstall_clear_config) = $event)),
                                       label: "清理插件配置",
                                       color: "deep-orange",
                                       hint: "清理目标插件保存的配置项。",
@@ -1452,7 +1514,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.plugin_uninstall_clear_data,
-                                      "onUpdate:modelValue": _cache[60] || (_cache[60] = $event => ((form.plugin_uninstall_clear_data) = $event)),
+                                      "onUpdate:modelValue": _cache[63] || (_cache[63] = $event => ((form.plugin_uninstall_clear_data) = $event)),
                                       label: "清理插件数据",
                                       color: "deep-orange",
                                       hint: "删除目标插件保存的运行数据；不确定时先关闭。",
@@ -1468,7 +1530,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.plugin_uninstall_delete_source,
-                                      "onUpdate:modelValue": _cache[61] || (_cache[61] = $event => ((form.plugin_uninstall_delete_source) = $event)),
+                                      "onUpdate:modelValue": _cache[64] || (_cache[64] = $event => ((form.plugin_uninstall_delete_source) = $event)),
                                       label: "清理本地源码残留",
                                       color: "deep-orange",
                                       hint: "删除本地插件仓库中同名源码目录；只在确认源码不再需要时开启。",
@@ -1484,7 +1546,7 @@ return (_ctx, _cache) => {
                                   default: _withCtx(() => [
                                     _createVNode(_component_VSwitch, {
                                       modelValue: form.plugin_uninstall_notify,
-                                      "onUpdate:modelValue": _cache[62] || (_cache[62] = $event => ((form.plugin_uninstall_notify) = $event)),
+                                      "onUpdate:modelValue": _cache[65] || (_cache[65] = $event => ((form.plugin_uninstall_notify) = $event)),
                                       label: "清理后通知",
                                       color: "deep-orange",
                                       hint: "处理完成后发送结果通知。",
@@ -1516,6 +1578,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-1a94d540"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-7e6bb0f1"]]);
 
 export { Config as default };

@@ -1,4 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
+import Page from './__federation_expose_Page-Bar7JZFl.js';
 
 true&&(function polyfill() {
   const relList = document.createElement("link").relList;
@@ -38,24 +39,6 @@ true&&(function polyfill() {
   }
 }());
 
-const {openBlock:_openBlock,createElementBlock:_createElementBlock} = await importShared('vue');
-
-
-
-const _sfc_main = {
-  __name: 'Page',
-  emits: ['close'],
-  setup(__props) {
-
-
-
-return (_ctx, _cache) => {
-  return (_openBlock(), _createElementBlock("div"))
-}
-}
-
-};
-
 const {createApp} = await importShared('vue');
 
-createApp(_sfc_main).mount('#app');
+createApp(Page).mount('#app');
