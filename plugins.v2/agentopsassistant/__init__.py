@@ -18,16 +18,21 @@ from app.schemas import NotificationType
 from app.utils.http import RequestUtils
 from app.schemas.types import EventType
 
+# 本地插件源码仓库默认路径。留空表示未配置：
+# 「插件残留治理」的本地源码清理功能仅在用户显式配置后才会生效，
+# 避免对未知系统使用写死的开发期路径执行删除。
+DEFAULT_LOCAL_PLUGIN_REPO = ""
+
 
 class AgentOpsAssistant(_PluginBase):
     """MP 运维助手：每日汇报、日志清理、备份、更新检查和插件残留治理。"""
 
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
-    plugin_icon = "Moviepilot_A.png"
-    plugin_version = "1.6.3"
-    plugin_author = "local"
-    author_url = ""
+    plugin_icon = "agentopsassistant.png"
+    plugin_version = "0.0.1"
+    plugin_author = "wenking"
+    author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
     plugin_order = 50
     auth_level = 1
@@ -69,7 +74,7 @@ class AgentOpsAssistant(_PluginBase):
     ]
 
     _enabled = False
-    _local_plugin_repo = "/config/FFplugin"
+    _local_plugin_repo = DEFAULT_LOCAL_PLUGIN_REPO
     _daily_report_enabled = True
     _daily_report_cron = "0 22 * * *"
     _health_in_report = True
@@ -106,7 +111,7 @@ class AgentOpsAssistant(_PluginBase):
     def init_plugin(self, config: dict = None):
         config = config or {}
         self._enabled = bool(config.get("enabled"))
-        self._local_plugin_repo = config.get("local_plugin_repo") or "/config/FFplugin"
+        self._local_plugin_repo = config.get("local_plugin_repo") or DEFAULT_LOCAL_PLUGIN_REPO
         self._daily_report_enabled = bool(config.get("daily_report_enabled", True))
         self._daily_report_cron = config.get("daily_report_cron") or "0 22 * * *"
         self._health_in_report = bool(config.get("health_in_report", True))
@@ -236,9 +241,9 @@ class AgentOpsAssistant(_PluginBase):
         """Vue 模式下配置页由 Config 组件渲染，这里只返回安全配置模型。"""
         return [], self._default_config()
 
-    def get_page(self) -> List[dict]:
-        """Vue 模式下详情页由 Page 组件渲染。"""
-        return []
+    def get_page(self) -> None:
+        """无独立详情页：点击插件直接进入设置页，不再显示查看数据入口。"""
+        return None
 
     def stop_service(self):
         pass
@@ -1228,8 +1233,8 @@ class AgentOpsAssistant(_PluginBase):
             ("backup", Path("/config/plugins_backup") / plugin_id),
             ("backup", Path("/config/plugins_backup") / lower),
         ]
-        if self._plugin_uninstall_delete_source:
-            roots.append(("local_source", Path(self._local_plugin_repo or "/config/FFplugin") / "plugins.v2" / lower))
+        if self._plugin_uninstall_delete_source and self._local_plugin_repo:
+            roots.append(("local_source", Path(self._local_plugin_repo) / "plugins.v2" / lower))
         for kind, path in roots:
             if path.exists():
                 candidates.append(self._path_candidate(kind, path))

@@ -8,7 +8,6 @@ const form = reactive({})
 const activeMain = reactive({ value: 'report' })
 const activeSub = reactive({
   report: 'basic',
-  notices: 'subscribe',
   backup: 'local',
   cleanup: 'logs',
   updates: 'mp',
@@ -80,8 +79,7 @@ const defaults = {
 }
 
 const mainTabs = [
-  { key: 'report', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', color: 'primary', desc: '设置每日汇报是否发送、发送时间和栏目内容。' },
-  { key: 'notices', title: '订阅与站点', icon: 'mdi-bell-cog-outline', color: 'cyan', desc: '设置订阅提醒和站点统计是否写入汇报或单独通知。' },
+  { key: 'report', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', color: 'primary', desc: '设置每日汇报是否发送、发送时间、汇报栏目，以及订阅提醒和站点统计。' },
   { key: 'backup', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', color: 'success', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
   { key: 'cleanup', title: '日志清理', icon: 'mdi-file-document-remove-outline', color: 'warning', desc: '设置插件日志保留行数、清理时间和结果通知。' },
   { key: 'updates', title: '更新检查', icon: 'mdi-update', color: 'info', desc: '设置 MoviePilot 和插件库更新检查，不在这里直接升级。' },
@@ -92,24 +90,22 @@ const subTabs = {
   report: [
     { key: 'basic', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'columns', title: '汇报栏目', icon: 'mdi-view-list-outline' },
-  ],
-  notices: [
     { key: 'subscribe', title: '订阅提醒', icon: 'mdi-bell-ring-outline' },
     { key: 'sites', title: '站点统计', icon: 'mdi-chart-line' },
   ],
   backup: [
-    { key: 'local', title: '本地备份', icon: 'mdi-folder-arrow-up-outline' },
+    { key: 'local', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'webdav', title: 'WebDAV', icon: 'mdi-cloud-upload-outline' },
   ],
   cleanup: [
-    { key: 'logs', title: '插件日志', icon: 'mdi-file-document-remove-outline' },
+    { key: 'logs', title: '基础设置', icon: 'mdi-tune-variant' },
   ],
   updates: [
-    { key: 'mp', title: '主程序', icon: 'mdi-movie-open-cog-outline' },
+    { key: 'mp', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'market', title: '插件库', icon: 'mdi-puzzle-plus-outline' },
   ],
   plugin: [
-    { key: 'target', title: '目标插件', icon: 'mdi-crosshairs-gps' },
+    { key: 'target', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'scope', title: '清理范围', icon: 'mdi-folder-remove-outline' },
   ],
 }
@@ -146,7 +142,7 @@ function saveConfig() {
 
 function selectMain(key) {
   activeMain.value = key
-  if (!activeSub[key]) activeSub[key] = subTabs[key]?.[0]?.key || 'basic'
+  activeSub[key] = subTabs[key]?.[0]?.key || 'basic'
 }
 </script>
 
@@ -197,9 +193,6 @@ function selectMain(key) {
                   <VCol cols="12" md="6"><VSwitch v-model="form.site_stat_in_report" label="显示站点统计" color="primary" hint="开启后每日汇报会包含站点状态和增量数据。" persistent-hint /></VCol>
                 </VRow>
               </VWindowItem>
-            </template>
-
-            <template v-if="activeMain.value === 'notices'">
               <VWindowItem value="subscribe" class="pa-3">
                 <VRow>
                   <VCol cols="12" md="4"><VSwitch v-model="form.subscribe_reminder_enabled" label="启用订阅提醒" color="cyan" hint="开启后订阅追新数据会参与提醒和汇报。" persistent-hint /></VCol>

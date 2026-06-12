@@ -32,7 +32,6 @@ const form = reactive({});
 const activeMain = reactive({ value: 'report' });
 const activeSub = reactive({
   report: 'basic',
-  notices: 'subscribe',
   backup: 'local',
   cleanup: 'logs',
   updates: 'mp',
@@ -104,8 +103,7 @@ const defaults = {
 };
 
 const mainTabs = [
-  { key: 'report', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', color: 'primary', desc: '设置每日汇报是否发送、发送时间和栏目内容。' },
-  { key: 'notices', title: '订阅与站点', icon: 'mdi-bell-cog-outline', color: 'cyan', desc: '设置订阅提醒和站点统计是否写入汇报或单独通知。' },
+  { key: 'report', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', color: 'primary', desc: '设置每日汇报是否发送、发送时间、汇报栏目，以及订阅提醒和站点统计。' },
   { key: 'backup', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', color: 'success', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
   { key: 'cleanup', title: '日志清理', icon: 'mdi-file-document-remove-outline', color: 'warning', desc: '设置插件日志保留行数、清理时间和结果通知。' },
   { key: 'updates', title: '更新检查', icon: 'mdi-update', color: 'info', desc: '设置 MoviePilot 和插件库更新检查，不在这里直接升级。' },
@@ -116,24 +114,22 @@ const subTabs = {
   report: [
     { key: 'basic', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'columns', title: '汇报栏目', icon: 'mdi-view-list-outline' },
-  ],
-  notices: [
     { key: 'subscribe', title: '订阅提醒', icon: 'mdi-bell-ring-outline' },
     { key: 'sites', title: '站点统计', icon: 'mdi-chart-line' },
   ],
   backup: [
-    { key: 'local', title: '本地备份', icon: 'mdi-folder-arrow-up-outline' },
+    { key: 'local', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'webdav', title: 'WebDAV', icon: 'mdi-cloud-upload-outline' },
   ],
   cleanup: [
-    { key: 'logs', title: '插件日志', icon: 'mdi-file-document-remove-outline' },
+    { key: 'logs', title: '基础设置', icon: 'mdi-tune-variant' },
   ],
   updates: [
-    { key: 'mp', title: '主程序', icon: 'mdi-movie-open-cog-outline' },
+    { key: 'mp', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'market', title: '插件库', icon: 'mdi-puzzle-plus-outline' },
   ],
   plugin: [
-    { key: 'target', title: '目标插件', icon: 'mdi-crosshairs-gps' },
+    { key: 'target', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'scope', title: '清理范围', icon: 'mdi-folder-remove-outline' },
   ],
 };
@@ -170,7 +166,7 @@ function saveConfig() {
 
 function selectMain(key) {
   activeMain.value = key;
-  if (!activeSub[key]) activeSub[key] = subTabs[key]?.[0]?.key || 'basic';
+  activeSub[key] = subTabs[key]?.[0]?.key || 'basic';
 }
 
 return (_ctx, _cache) => {
@@ -448,11 +444,7 @@ return (_ctx, _cache) => {
                             })
                           ]),
                           _: 1
-                        })
-                      ], 64))
-                    : _createCommentVNode("", true),
-                  (activeMain.value === 'notices')
-                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 1 }, [
+                        }),
                         _createVNode(_component_VWindowItem, {
                           value: "subscribe",
                           class: "pa-3"
@@ -638,7 +630,7 @@ return (_ctx, _cache) => {
                       ], 64))
                     : _createCommentVNode("", true),
                   (activeMain.value === 'backup')
-                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 2 }, [
+                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 1 }, [
                         _createVNode(_component_VWindowItem, {
                           value: "local",
                           class: "pa-3"
@@ -900,7 +892,7 @@ return (_ctx, _cache) => {
                     : _createCommentVNode("", true),
                   (activeMain.value === 'cleanup')
                     ? (_openBlock(), _createBlock(_component_VWindowItem, {
-                        key: 3,
+                        key: 2,
                         value: "logs",
                         class: "pa-3"
                       }, {
@@ -1016,7 +1008,7 @@ return (_ctx, _cache) => {
                       }))
                     : _createCommentVNode("", true),
                   (activeMain.value === 'updates')
-                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 4 }, [
+                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 3 }, [
                         _createVNode(_component_VWindowItem, {
                           value: "mp",
                           class: "pa-3"
@@ -1379,7 +1371,7 @@ return (_ctx, _cache) => {
                       ], 64))
                     : _createCommentVNode("", true),
                   (activeMain.value === 'plugin')
-                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 5 }, [
+                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 4 }, [
                         _createVNode(_component_VWindowItem, {
                           value: "target",
                           class: "pa-3"
@@ -1524,6 +1516,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-723e4952"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-1a94d540"]]);
 
 export { Config as default };

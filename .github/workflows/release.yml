@@ -1,0 +1,80 @@
+name: Plugin Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.v2.json'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build and publish plugin releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # 选择优先级最高的清单：V2 优先
+          if [ -f package.v2.json ]; then
+            MANIFEST=package.v2.json
+          else
+            MANIFEST=package.json
+          fi
+          echo "使用清单：$MANIFEST"
+
+          # 遍历清单中声明 release=true 的插件
+          plugin_ids=$(python3 - "$MANIFEST" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as f:
+              data = json.load(f)
+          for pid, meta in data.items():
+              if isinstance(meta, dict) and meta.get("release") is True:
+                  print(f"{pid}\t{meta.get('version','')}")
+          PY
+          )
+
+          if [ -z "$plugin_ids" ]; then
+            echo "没有声明 release=true 的插件，跳过。"
+            exit 0
+          fi
+
+          while IFS=$'\t' read -r pid version; do
+            [ -z "$pid" ] && continue
+            dir_lower=$(echo "$pid" | tr '[:upper:]' '[:lower:]')
+            src="plugins.v2/$dir_lower"
+            if [ ! -d "$src" ]; then
+              echo "::warning::插件目录不存在，跳过：$src"
+              continue
+            fi
+
+            tag="${pid}_v${version}"
+            zip_name="${dir_lower}_v${version}.zip"
+
+            # 已存在同名 tag 则先删后建，保证可重发
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "已存在 Release $tag，先删除旧的。"
+              gh release delete "$tag" --cleanup-tag --yes
+            fi
+
+            echo "打包 $src -> $zip_name"
+            (cd plugins.v2 && zip -r "../$zip_name" "$dir_lower" -x '*/node_modules/*' '*/__pycache__/*' '*/.git/*')
+
+            gh release create "$tag" "$zip_name" \
+              --title "$tag" \
+              --notes "自动发布：$pid v$version" \
+              --target main
+            echo "已发布 $tag"
+          done <<< "$plugin_ids"
