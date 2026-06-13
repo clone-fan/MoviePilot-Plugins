@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.5"
+    plugin_version = "0.0.6"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -206,6 +206,7 @@ class AgentOpsAssistant(_PluginBase):
         return [
             {"path": "/dashboard", "endpoint": self.api_dashboard, "auth": "bear", "methods": ["GET"], "summary": "仪表盘数据：模块状态、最近执行、健康概览"},
             {"path": "/installed_plugins", "endpoint": self.api_installed_plugins, "auth": "bear", "methods": ["GET"], "summary": "已安装插件列表，供残留清理下拉选择"},
+            {"path": "/plugin_markets", "endpoint": self.api_plugin_markets, "auth": "bear", "methods": ["GET"], "summary": "已配置插件库仓库列表，供更新黑名单下拉选择"},
             {"path": "/run_daily_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "立即发送每日汇报"},
             {"path": "/preview_daily_report", "endpoint": self.api_preview_daily_report, "auth": "bear", "methods": ["POST"], "summary": "预览每日汇报（不发送）"},
             {"path": "/run_health_check", "endpoint": self.api_run_health_check, "auth": "bear", "methods": ["POST"], "summary": "立即执行健康巡查"},
@@ -328,7 +329,7 @@ class AgentOpsAssistant(_PluginBase):
     def api_preview_daily_report(self) -> Dict[str, Any]:
         success = bool(self.run_daily_report_preview())
         data = self.get_data("last_daily_report_preview") or self.get_data("last_daily_report") or {}
-        return {"code": 0 if success else 1, "msg": "每日汇报预览已生成" if success else "每日汇报预览失败", "data": data}
+        return {"code": 0 if success else 1, "msg": "每日汇报预览已生成" if success else "每日汇报预览失败", "data": data, "text": (data or {}).get("text", "")}
 
     def api_run_daily_report(self) -> Dict[str, Any]:
         return self._api_run_task("每日汇报", self.run_daily_report)
@@ -405,9 +406,24 @@ class AgentOpsAssistant(_PluginBase):
             logger.error(f"已安装插件列表获取失败：{err}")
             return {"code": 1, "msg": f"已安装插件列表获取失败：{err}", "data": []}
 
+    def api_plugin_markets(self) -> Dict[str, Any]:
+        """已配置的插件库仓库地址列表，供更新黑名单下拉多选。"""
+        try:
+            markets = self._valid_markets_list(settings.PLUGIN_MARKET)
+            items = []
+            for url in markets:
+                short = url.rstrip("/").split("/")
+                label = "/".join(short[-2:]) if len(short) >= 2 else url
+                items.append({"value": url, "title": label})
+            items.sort(key=lambda x: x["title"].lower())
+            return {"code": 0, "data": items}
+        except Exception as err:
+            logger.error(f"插件库仓库列表获取失败：{err}")
+            return {"code": 1, "msg": f"插件库仓库列表获取失败：{err}", "data": []}
+
     def api_preview_log_clean(self) -> Dict[str, Any]:
         data = self._build_log_preview()
-        return {"code": 0, "msg": "日志清理预览完成，未删除任何文件。", "data": data}
+        return {"code": 0, "msg": "日志清理预览完成，未删除任何文件。", "data": data, "text": self._format_log_preview_text(data)}
 
     def api_run_log_clean(self) -> Dict[str, Any]:
         ok = self.run_log_clean()
@@ -440,11 +456,11 @@ class AgentOpsAssistant(_PluginBase):
 
     def api_preview_updates(self) -> Dict[str, Any]:
         data = self._build_update_status()
-        return {"code": 0, "msg": "更新状态预览完成，未执行更新或重启。", "data": data}
+        return {"code": 0, "msg": "更新状态预览完成，未执行更新或重启。", "data": data, "text": self._format_update_status_text(data)}
 
     def api_preview_market_update(self) -> Dict[str, Any]:
         data = self._build_market_update_status(apply=False)
-        return {"code": 0, "msg": "插件库更新预览完成，未写入配置。", "data": data}
+        return {"code": 0, "msg": "插件库更新预览完成，未写入配置。", "data": data, "text": self._format_market_update_text(data)}
 
     def api_run_market_update(self) -> Dict[str, Any]:
         ok = self.run_market_update()
@@ -453,7 +469,7 @@ class AgentOpsAssistant(_PluginBase):
 
     def api_preview_plugin_uninstall(self) -> Dict[str, Any]:
         data = self._build_plugin_uninstall_status(clean=False)
-        return {"code": 0 if data.get("success", True) else 1, "msg": "插件残留治理预览完成，未删除任何文件。", "data": data}
+        return {"code": 0 if data.get("success", True) else 1, "msg": "插件残留治理预览完成，未删除任何文件。", "data": data, "text": self._format_plugin_uninstall_text(data)}
 
     def api_run_plugin_uninstall(self) -> Dict[str, Any]:
         ok = self.run_plugin_uninstall_clean()

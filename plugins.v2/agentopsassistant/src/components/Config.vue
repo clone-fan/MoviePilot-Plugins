@@ -1,6 +1,6 @@
 <script setup>
 import { reactive, ref, computed, watch, onMounted } from 'vue'
-import { postPluginApi, getPluginApi } from './api'
+import { postPluginApi, postPluginApiRaw, getPluginApi } from './api'
 
 const props = defineProps({
   api: { type: [Object, Function], default: null },
@@ -31,6 +31,26 @@ async function runAction(path, label) {
   }
 }
 
+// 预览弹窗：展示后端返回的 text 正文
+const preview = reactive({ open: false, title: '', text: '', loading: '' })
+async function runPreview(path, title) {
+  if (preview.loading) return
+  preview.loading = path
+  try {
+    const res = await postPluginApiRaw(props.api, path)
+    const ok = !res || res.code === 0 || res.code === undefined
+    preview.title = title
+    preview.text = (res && res.text) || (res && res.msg) || (ok ? '（无预览内容）' : '预览失败')
+    preview.open = true
+  } catch (err) {
+    preview.title = title
+    preview.text = err?.message || `${title}失败`
+    preview.open = true
+  } finally {
+    preview.loading = ''
+  }
+}
+
 // 已安装插件（残留清理 / 日志限定 共用）
 const installedPlugins = ref([])
 const installedLoading = ref(false)
@@ -43,6 +63,21 @@ async function loadInstalledPlugins() {
     installedPlugins.value = []
   } finally {
     installedLoading.value = false
+  }
+}
+
+// 插件库仓库（更新黑名单用）
+const pluginMarkets = ref([])
+const marketsLoading = ref(false)
+async function loadPluginMarkets() {
+  marketsLoading.value = true
+  try {
+    const res = await getPluginApi(props.api, 'plugin_markets')
+    pluginMarkets.value = Array.isArray(res) ? res : (res?.data || [])
+  } catch {
+    pluginMarkets.value = []
+  } finally {
+    marketsLoading.value = false
   }
 }
 
@@ -97,7 +132,7 @@ const defaults = {
   market_update_write_settings: false,
   market_update_write_env: false,
   market_update_blacklist_enabled: false,
-  market_update_blacklist: '',
+  market_update_blacklist: [],
   market_update_auto_get: false,
   market_update_proxy: true,
   market_update_timeout: 5,
@@ -163,6 +198,7 @@ watch(() => props.initialConfig, value => {
   form.mp_update_types = toArr(form.mp_update_types)
   form.plugin_uninstall_ids = toArr(form.plugin_uninstall_ids)
   form.log_clean_selected_ids = toArr(form.log_clean_selected_ids)
+  form.market_update_blacklist = toArr(form.market_update_blacklist)
 }, { immediate: true, deep: true })
 
 function saveConfig() {
@@ -175,7 +211,10 @@ function selectMain(key) {
   activeSub.value = subTabs[key]?.[0]?.key || ''
 }
 
-onMounted(loadInstalledPlugins)
+onMounted(() => {
+  loadInstalledPlugins()
+  loadPluginMarkets()
+})
 </script>
 <template>
   <div class="aoa-config">
@@ -221,11 +260,18 @@ onMounted(loadInstalledPlugins)
           </VList>
         </nav>
         <section class="aoa-content">
-          <VTabs v-model="activeSub" color="primary" density="comfortable" show-arrows class="aoa-subtabs">
-            <VTab v-for="sub in currentSubs" :key="sub.key" :value="sub.key">
+          <div class="aoa-subtabs">
+            <button
+              v-for="sub in currentSubs"
+              :key="sub.key"
+              type="button"
+              class="aoa-subtab"
+              :class="{ 'aoa-subtab--active': activeSub === sub.key }"
+              @click="activeSub = sub.key"
+            >
               <VIcon :icon="sub.icon" size="18" class="mr-1" />{{ sub.title }}
-            </VTab>
-          </VTabs>
+            </button>
+          </div>
           <VDivider />
           <div class="aoa-window">
             <!-- 每日汇报 · 基础设置 -->
@@ -258,7 +304,7 @@ onMounted(loadInstalledPlugins)
                     立即发送
                   </VBtn>
                   <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
-                    :loading="action.running === 'preview_daily_report'" @click="runAction('preview_daily_report', '预览每日汇报')">
+                    :loading="preview.loading === 'preview_daily_report'" @click="runPreview('preview_daily_report', '每日汇报预览')">
                     预览（不发送）
                   </VBtn>
                 </div>
@@ -496,7 +542,7 @@ onMounted(loadInstalledPlugins)
                 <div class="aoa-section-title">手动触发</div>
                 <div class="aoa-btn-row">
                   <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
-                    :loading="action.running === 'preview_log_clean'" @click="runAction('preview_log_clean', '日志清理预览')">
+                    :loading="preview.loading === 'preview_log_clean'" @click="runPreview('preview_log_clean', '日志清理预览')">
                     预览清理范围
                   </VBtn>
                   <VBtn color="primary" variant="tonal" prepend-icon="mdi-broom"
@@ -542,7 +588,7 @@ onMounted(loadInstalledPlugins)
                 <VDivider class="my-4" />
                 <div class="aoa-btn-row">
                   <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
-                    :loading="action.running === 'preview_updates'" @click="runAction('preview_updates', '更新状态预览')">
+                    :loading="preview.loading === 'preview_updates'" @click="runPreview('preview_updates', '更新状态预览')">
                     检查更新
                   </VBtn>
                 </div>
@@ -609,8 +655,11 @@ onMounted(loadInstalledPlugins)
                       </VRow>
                       <VRow>
                         <VCol cols="12">
-                          <VTextarea v-model="form.market_update_blacklist" label="黑名单插件 ID（逗号分隔）"
-                            rows="2" auto-grow
+                          <VSelect v-model="form.market_update_blacklist" :items="pluginMarkets"
+                            :loading="marketsLoading" label="黑名单插件库（不参与更新检查）"
+                            multiple chips closable-chips clearable
+                            prepend-inner-icon="mdi-block-helper"
+                            no-data-text="未配置任何插件库"
                             :disabled="!form.market_update_enabled || !form.market_update_blacklist_enabled" />
                         </VCol>
                       </VRow>
@@ -626,7 +675,7 @@ onMounted(loadInstalledPlugins)
                 <VDivider class="my-4" />
                 <div class="aoa-btn-row">
                   <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
-                    :loading="action.running === 'preview_market_update'" @click="runAction('preview_market_update', '插件库更新')">
+                    :loading="preview.loading === 'preview_market_update'" @click="runPreview('preview_market_update', '插件库更新预览')">
                     预览更新
                   </VBtn>
                   <VBtn color="primary" variant="tonal" prepend-icon="mdi-cloud-sync-outline"
@@ -678,7 +727,7 @@ onMounted(loadInstalledPlugins)
                 <div class="aoa-btn-row">
                   <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
                     :disabled="!form.plugin_uninstall_ids || !form.plugin_uninstall_ids.length"
-                    :loading="action.running === 'preview_plugin_uninstall'" @click="runAction('preview_plugin_uninstall', '插件治理预览')">
+                    :loading="preview.loading === 'preview_plugin_uninstall'" @click="runPreview('preview_plugin_uninstall', '插件残留治理预览')">
                     预览清理范围
                   </VBtn>
                   <VBtn color="error" variant="tonal" prepend-icon="mdi-broom"
@@ -705,6 +754,26 @@ onMounted(loadInstalledPlugins)
         <VBtn color="primary" variant="flat" prepend-icon="mdi-content-save-outline" @click="saveConfig">保存配置</VBtn>
       </VCardActions>
     </VCard>
+
+    <VDialog v-model="preview.open" max-width="640" scrollable>
+      <VCard class="aoa-preview-card">
+        <VCardItem>
+          <template #prepend>
+            <VIcon icon="mdi-eye-outline" color="primary" />
+          </template>
+          <VCardTitle class="text-subtitle-1">{{ preview.title }}</VCardTitle>
+        </VCardItem>
+        <VDivider />
+        <VCardText class="aoa-preview-body">
+          <pre class="aoa-preview-text">{{ preview.text }}</pre>
+        </VCardText>
+        <VDivider />
+        <VCardActions>
+          <VSpacer />
+          <VBtn variant="text" @click="preview.open = false">关闭</VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
   </div>
 </template>
 <style scoped>
@@ -740,6 +809,33 @@ onMounted(loadInstalledPlugins)
 }
 .aoa-subtabs {
   flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+}
+.aoa-subtab {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.aoa-subtab:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+  color: rgb(var(--v-theme-primary));
+}
+.aoa-subtab--active {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
 }
 .aoa-window {
   flex: 1 1 auto;
@@ -766,6 +862,19 @@ onMounted(loadInstalledPlugins)
 }
 .aoa-actions {
   padding: 10px 18px;
+}
+.aoa-preview-body {
+  max-height: 60vh;
+  padding: 16px 20px;
+}
+.aoa-preview-text {
+  margin: 0;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgba(var(--v-theme-on-surface), 0.85);
 }
 @media (max-width: 760px) {
   .aoa-body {

@@ -1,0 +1,111 @@
+
+.aoa-config[data-v-342c2c47] {
+  padding: 8px;
+}
+.aoa-card[data-v-342c2c47] {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+.aoa-header[data-v-342c2c47] {
+  padding: 14px 18px;
+}
+.aoa-body[data-v-342c2c47] {
+  display: flex;
+  min-height: 460px;
+}
+.aoa-nav[data-v-342c2c47] {
+  width: 188px;
+  flex: 0 0 188px;
+  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgba(var(--v-theme-on-surface), 0.02);
+}
+.aoa-nav-item[data-v-342c2c47] {
+  margin: 2px 8px;
+}
+.aoa-content[data-v-342c2c47] {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.aoa-subtabs[data-v-342c2c47] {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+}
+.aoa-subtab[data-v-342c2c47] {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.aoa-subtab[data-v-342c2c47]:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+  color: rgb(var(--v-theme-primary));
+}
+.aoa-subtab--active[data-v-342c2c47] {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+}
+.aoa-window[data-v-342c2c47] {
+  flex: 1 1 auto;
+}
+.aoa-pane[data-v-342c2c47] {
+  padding: 18px 20px;
+}
+.aoa-section-title[data-v-342c2c47] {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: rgb(var(--v-theme-primary));
+}
+.aoa-hint[data-v-342c2c47] {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-top: 2px;
+}
+.aoa-btn-row[data-v-342c2c47] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.aoa-actions[data-v-342c2c47] {
+  padding: 10px 18px;
+}
+.aoa-preview-body[data-v-342c2c47] {
+  max-height: 60vh;
+  padding: 16px 20px;
+}
+.aoa-preview-text[data-v-342c2c47] {
+  margin: 0;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgba(var(--v-theme-on-surface), 0.85);
+}
+@media (max-width: 760px) {
+.aoa-body[data-v-342c2c47] {
+    flex-direction: column;
+}
+.aoa-nav[data-v-342c2c47] {
+    width: 100%;
+    flex: 0 0 auto;
+    border-right: none;
+    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+}
