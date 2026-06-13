@@ -1,6 +1,6 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
-import { postPluginApi } from './api'
+import { computed, reactive, ref, watch, onMounted } from 'vue'
+import { postPluginApi, getPluginApi } from './api'
 
 const props = defineProps({
   api: { type: [Object, Function], default: null },
@@ -9,32 +9,43 @@ const props = defineProps({
 const emit = defineEmits(['save', 'close', 'switch'])
 
 const form = reactive({})
-const action = reactive({ running: '', message: '', color: 'success', show: false })
+const activeMain = ref('report')
+const activeSub = ref('basic')
+
+// 手动触发动作状态
+const action = reactive({ running: '', message: '', ok: true })
 
 async function runAction(path, label) {
   if (action.running) return
   action.running = path
+  action.message = ''
   try {
     const res = await postPluginApi(props.api, path)
     const ok = !res || res.code === 0 || res.code === undefined
-    action.message = (res && res.msg) || `${label}已${ok ? '触发' : '失败'}`
-    action.color = ok ? 'success' : 'error'
+    action.ok = ok
+    action.message = (res && res.msg) || `${label}已${ok ? '完成' : '失败'}`
   } catch (err) {
+    action.ok = false
     action.message = err?.message || `${label}失败`
-    action.color = 'error'
   } finally {
     action.running = ''
-    action.show = true
   }
 }
-const activeMain = reactive({ value: 'report' })
-const activeSub = reactive({
-  report: 'basic',
-  backup: 'local',
-  cleanup: 'logs',
-  updates: 'mp',
-  plugin: 'target',
-})
+
+// 已安装插件（残留清理下拉）
+const installedPlugins = ref([])
+const installedLoading = ref(false)
+async function loadInstalledPlugins() {
+  installedLoading.value = true
+  try {
+    const res = await getPluginApi(props.api, 'installed_plugins')
+    installedPlugins.value = Array.isArray(res) ? res : (res?.data || [])
+  } catch {
+    installedPlugins.value = []
+  } finally {
+    installedLoading.value = false
+  }
+}
 
 const defaults = {
   enabled: false,
@@ -101,11 +112,11 @@ const defaults = {
 }
 
 const mainTabs = [
-  { key: 'report', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', color: 'primary', desc: '设置每日汇报是否发送、发送时间、汇报栏目，以及订阅提醒和站点统计。' },
-  { key: 'backup', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', color: 'success', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
-  { key: 'cleanup', title: '日志清理', icon: 'mdi-file-document-remove-outline', color: 'warning', desc: '设置插件日志保留行数、清理时间和结果通知。' },
-  { key: 'updates', title: '更新检查', icon: 'mdi-update', color: 'info', desc: '设置 MoviePilot 和插件库更新检查，不在这里直接升级。' },
-  { key: 'plugin', title: '插件残留清理', icon: 'mdi-puzzle-remove-outline', color: 'deep-orange', desc: '检查并清理已卸载插件留下的配置、数据、日志或本地源码残留。' },
+  { key: 'report', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '设置每日汇报、订阅提醒、站点统计与健康巡查。' },
+  { key: 'backup', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
+  { key: 'cleanup', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知。' },
+  { key: 'updates', title: '更新检查', icon: 'mdi-update', desc: '设置 MoviePilot 和插件库更新检查，不在这里直接升级。' },
+  { key: 'plugin', title: '插件残留清理', icon: 'mdi-puzzle-remove-outline', desc: '清理已卸载插件留下的配置、数据、日志或本地源码残留。' },
 ]
 
 const subTabs = {
@@ -116,18 +127,18 @@ const subTabs = {
     { key: 'health', title: '健康巡查', icon: 'mdi-heart-pulse' },
   ],
   backup: [
-    { key: 'local', title: '基础设置', icon: 'mdi-tune-variant' },
+    { key: 'local', title: '本地备份', icon: 'mdi-folder-arrow-up-outline' },
     { key: 'webdav', title: 'WebDAV', icon: 'mdi-cloud-upload-outline' },
   ],
   cleanup: [
-    { key: 'logs', title: '基础设置', icon: 'mdi-tune-variant' },
+    { key: 'logs', title: '插件日志', icon: 'mdi-file-document-remove-outline' },
   ],
   updates: [
-    { key: 'mp', title: '基础设置', icon: 'mdi-tune-variant' },
+    { key: 'mp', title: '主程序', icon: 'mdi-movie-open-cog-outline' },
     { key: 'market', title: '插件库', icon: 'mdi-puzzle-plus-outline' },
   ],
   plugin: [
-    { key: 'target', title: '基础设置', icon: 'mdi-tune-variant' },
+    { key: 'target', title: '目标插件', icon: 'mdi-crosshairs-gps' },
     { key: 'scope', title: '清理范围', icon: 'mdi-folder-remove-outline' },
   ],
 }
@@ -149,6 +160,7 @@ const logRowsPresets = [100, 300, 500, 1000, 2000].map(v => ({ title: `保留 ${
 const intervalPresets = [3600, 21600, 43200, 86400, 604800].map(v => ({ title: v < 86400 ? `${v / 3600} 小时` : `${v / 86400} 天`, value: v }))
 
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
+const currentSubs = computed(() => subTabs[activeMain.value] || [])
 
 watch(() => props.initialConfig, value => {
   Object.keys(form).forEach(key => delete form[key])
@@ -163,9 +175,12 @@ function saveConfig() {
 }
 
 function selectMain(key) {
+  if (activeMain.value === key) return
   activeMain.value = key
-  activeSub[key] = subTabs[key]?.[0]?.key || 'basic'
+  activeSub.value = subTabs[key]?.[0]?.key || ''
 }
+
+onMounted(loadInstalledPlugins)
 </script>
 
 <template>
@@ -174,33 +189,34 @@ function selectMain(key) {
       <div class="text-h6 ms-3">MP 运维助手配置</div>
       <VSpacer />
       <VBtn color="primary" variant="tonal" prepend-icon="mdi-content-save" class="text-none" @click="saveConfig">保存配置</VBtn>
+      <VBtn variant="text" prepend-icon="mdi-view-dashboard-outline" class="text-none" @click="emit('switch')">仪表盘</VBtn>
       <VBtn icon="mdi-close" variant="text" @click="emit('close')" />
     </VToolbar>
     <VDivider />
 
     <div class="pa-3">
-      <VCard flat class="rounded border mpops-shell">
+      <VCard flat class="rounded-lg border mpops-shell">
         <VCardText class="pb-0">
           <div class="d-flex flex-wrap ga-2">
-            <VBtn v-for="tab in mainTabs" :key="tab.key" :color="activeMain.value === tab.key ? tab.color : undefined" :variant="activeMain.value === tab.key ? 'tonal' : 'text'" class="text-none" :prepend-icon="tab.icon" @click="selectMain(tab.key)">{{ tab.title }}</VBtn>
+            <VBtn v-for="tab in mainTabs" :key="tab.key" :color="activeMain === tab.key ? 'primary' : undefined" :variant="activeMain === tab.key ? 'tonal' : 'text'" class="text-none" :prepend-icon="tab.icon" @click="selectMain(tab.key)">{{ tab.title }}</VBtn>
           </div>
         </VCardText>
         <VDivider class="mt-3" />
 
         <VCardItem>
-          <template #prepend><VAvatar :color="currentMain.color" variant="tonal" size="40"><VIcon :icon="currentMain.icon" /></VAvatar></template>
+          <template #prepend><VAvatar color="primary" variant="tonal" size="40"><VIcon :icon="currentMain.icon" /></VAvatar></template>
           <VCardTitle>{{ currentMain.title }}</VCardTitle>
           <VCardSubtitle>{{ currentMain.desc }}</VCardSubtitle>
         </VCardItem>
 
         <VCardText>
-          <VTabs v-model="activeSub[activeMain.value]" :color="currentMain.color" density="comfortable" show-arrows class="mpops-subtabs">
-            <VTab v-for="tab in subTabs[activeMain.value]" :key="tab.key" :value="tab.key" class="text-none"><VIcon :icon="tab.icon" size="small" start />{{ tab.title }}</VTab>
+          <VTabs v-model="activeSub" color="primary" density="comfortable" show-arrows class="mpops-subtabs">
+            <VTab v-for="tab in currentSubs" :key="tab.key" :value="tab.key" class="text-none"><VIcon :icon="tab.icon" size="small" start />{{ tab.title }}</VTab>
           </VTabs>
           <VDivider />
 
-          <VWindow v-model="activeSub[activeMain.value]" :touch="false">
-            <template v-if="activeMain.value === 'report'">
+          <VWindow v-model="activeSub" :touch="false">
+            <template v-if="activeMain === 'report'">
               <VWindowItem value="basic" class="pa-3">
                 <VRow>
                   <VCol cols="12" md="6"><VSwitch v-model="form.enabled" label="启用 MP 运维助手" color="primary" hint="关闭后不注册本插件的定时任务，也不会自动发送汇报。" persistent-hint /></VCol>
@@ -216,17 +232,17 @@ function selectMain(key) {
                 </VRow>
                 <VDivider class="my-3" />
                 <div class="text-caption text-medium-emphasis mb-2">手动触发</div>
-                <VAlert v-if="actionMsg" :type="actionOk ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="actionMsg" />
+                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
                 <div class="d-flex flex-wrap ga-2">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-send" class="text-none" :loading="actionLoading === 'run_daily_report'" @click="runAction('run_daily_report', '发送每日汇报')">发送日报</VBtn>
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline" class="text-none" :loading="actionLoading === 'preview_daily_report'" @click="runAction('preview_daily_report', '预览每日汇报')">预览日报</VBtn>
-                  <VBtn color="cyan" variant="outlined" prepend-icon="mdi-heart-pulse" class="text-none" :loading="actionLoading === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">立即巡查</VBtn>
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-send" class="text-none" :loading="action.running === 'run_daily_report'" @click="runAction('run_daily_report', '发送每日汇报')">发送日报</VBtn>
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline" class="text-none" :loading="action.running === 'preview_daily_report'" @click="runAction('preview_daily_report', '预览每日汇报')">预览日报</VBtn>
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-heart-pulse" class="text-none" :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">立即巡查</VBtn>
                 </div>
               </VWindowItem>
               <VWindowItem value="subscribe" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.subscribe_reminder_enabled" label="启用订阅提醒" color="cyan" hint="开启后订阅追新数据会参与提醒和汇报。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.subscribe_reminder_onlyonce" label="保存后立即运行一次" color="cyan" hint="只适合手动测试；运行后建议关闭。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.subscribe_reminder_enabled" label="启用订阅提醒" color="primary" hint="开启后订阅追新数据会参与提醒和汇报。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.subscribe_reminder_onlyonce" label="保存后立即运行一次" color="primary" hint="只适合手动测试；运行后建议关闭。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VTextField v-model="form.subscribe_reminder_time" label="提醒小时" variant="outlined" density="comfortable" hint="填写 0-23 的小时，例如 9 表示上午 9 点提醒。" persistent-hint /></VCol>
                   <VCol cols="12" md="6"><VSelect v-model="form.subscribe_reminder_subtype" :items="subscribeSubtypeItems" label="提醒媒体类型" variant="outlined" density="comfortable" multiple chips closable-chips hint="选择需要统计和提醒的订阅类型。" persistent-hint /></VCol>
                   <VCol cols="12" md="6"><VSelect v-model="form.subscribe_reminder_msgtype" :items="messageTypeItems" label="通知类型" variant="outlined" density="comfortable" hint="不确定时保持“订阅”。" persistent-hint /></VCol>
@@ -234,30 +250,44 @@ function selectMain(key) {
               </VWindowItem>
               <VWindowItem value="sites" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.site_stat_enabled" label="启用站点统计" color="cyan" hint="开启后采集站点状态，用于汇报和通知。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.site_stat_onlyonce" label="保存后立即刷新一次" color="cyan" hint="用于手动更新站点数据；运行后建议关闭。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.site_stat_enabled" label="启用站点统计" color="primary" hint="开启后采集站点状态，用于汇报和通知。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.site_stat_onlyonce" label="保存后立即刷新一次" color="primary" hint="用于手动更新站点数据；运行后建议关闭。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSelect v-model="form.site_stat_dashboard_type" :items="siteStatRangeItems" label="统计范围" variant="outlined" density="comfortable" hint="今日数据适合日报；汇总/所有数据适合排查趋势。" persistent-hint /></VCol>
                   <VCol cols="12" md="6"><VSelect v-model="form.site_stat_notify_type" :items="siteNotifyItems" label="通知内容" variant="outlined" density="comfortable" hint="选择站点数据变化时发送哪类通知。" persistent-hint /></VCol>
                 </VRow>
               </VWindowItem>
+              <VWindowItem value="health" class="pa-3">
+                <VRow>
+                  <VCol cols="12" md="6"><VSwitch v-model="form.health_in_report" label="汇报中加入健康巡查" color="primary" hint="开启后每日汇报包含下载器、站点、入库、存储状态摘要。" persistent-hint /></VCol>
+                </VRow>
+                <VDivider class="my-3" />
+                <div class="text-caption text-medium-emphasis mb-2">手动巡查</div>
+                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-heart-pulse" class="text-none" :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">立即执行健康巡查</VBtn>
+                <div class="text-caption text-medium-emphasis mt-3">健康巡查检查订阅、站点、下载器和插件服务状态，结果可在仪表盘和每日汇报中查看。</div>
+              </VWindowItem>
             </template>
 
-            <template v-if="activeMain.value === 'backup'">
+            <template v-if="activeMain === 'backup'">
               <VWindowItem value="local" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_enabled" label="启用自动备份" color="success" hint="开启后按备份时间自动打包配置和关键数据。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_onlyonce" label="保存后立即备份一次" color="success" hint="用于手动生成一次备份；运行后建议关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_notify" label="备份后通知" color="success" hint="备份成功或失败后发送通知。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_enabled" label="启用自动备份" color="primary" hint="开启后按备份时间自动打包配置和关键数据。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_onlyonce" label="保存后立即备份一次" color="primary" hint="用于手动生成一次备份；运行后建议关闭。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_notify" label="备份后通知" color="primary" hint="备份成功或失败后发送通知。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSelect v-model="form.backup_cron" :items="cronPresets" label="备份时间" variant="outlined" density="comfortable" hint="推荐每周低峰期执行。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSelect v-model="form.backup_keep_count" :items="keepCountPresets" label="本地保留数量" variant="outlined" density="comfortable" hint="超过数量后会清理最旧备份。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VTextField v-model="form.backup_path" label="备份保存路径" variant="outlined" density="comfortable" hint="默认路径即可；如修改，请填写容器内可写目录。" persistent-hint /></VCol>
                 </VRow>
+                <VDivider class="my-3" />
+                <div class="text-caption text-medium-emphasis mb-2">手动触发</div>
+                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-database-arrow-up" class="text-none" :loading="action.running === 'run_backup'" @click="runAction('run_backup', '自动备份')">立即备份一次</VBtn>
               </VWindowItem>
               <VWindowItem value="webdav" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_enabled" label="启用 WebDAV 备份" color="success" hint="开启后会把备份同步到 WebDAV。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_notify" label="WebDAV 结果通知" color="success" hint="上传成功或失败后发送通知。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_digest_auth" label="使用 Digest 认证" color="success" hint="服务端要求 Digest 时开启；普通账号密码认证保持关闭。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_enabled" label="启用 WebDAV 备份" color="primary" hint="开启后会把备份同步到 WebDAV。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_notify" label="WebDAV 结果通知" color="primary" hint="上传成功或失败后发送通知。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_digest_auth" label="使用 Digest 认证" color="primary" hint="服务端要求 Digest 时开启；普通账号密码认证保持关闭。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_disable_check" label="跳过连通检查" color="warning" hint="只有服务端检查异常但实际可上传时才开启。" persistent-hint /></VCol>
                   <VCol cols="12" md="8"><VTextField v-model="form.backup_webdav_hostname" label="WebDAV 地址" variant="outlined" density="comfortable" hint="填写完整地址，例如 https://example.com/dav。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VTextField v-model="form.backup_webdav_login" label="WebDAV 用户名" variant="outlined" density="comfortable" /></VCol>
@@ -267,42 +297,53 @@ function selectMain(key) {
               </VWindowItem>
             </template>
 
-            <template v-if="activeMain.value === 'cleanup'">
+            <template v-if="activeMain === 'cleanup'">
               <VWindowItem value="logs" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.log_clean_enabled" label="启用插件日志定时清理" color="warning" hint="开启后按设定时间截断插件日志。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.log_clean_onlyonce" label="保存后立即清理一次" color="warning" hint="用于手动清理；运行后建议关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.log_clean_notify" label="清理后通知" color="warning" hint="清理完成后发送处理结果。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.log_clean_enabled" label="启用插件日志定时清理" color="primary" hint="开启后按设定时间截断插件日志。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.log_clean_onlyonce" label="保存后立即清理一次" color="primary" hint="用于手动清理；运行后建议关闭。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.log_clean_notify" label="清理后通知" color="primary" hint="清理完成后发送处理结果。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSelect v-model="form.log_clean_cron" :items="cronPresets" label="日志清理时间" variant="outlined" density="comfortable" hint="推荐每周低峰期执行。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSelect v-model="form.log_clean_rows" :items="logRowsPresets" label="每个日志保留行数" variant="outlined" density="comfortable" hint="保留越少占用越低；排障频繁时可保留 1000 行。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VTextField v-model="form.log_clean_selected_ids" label="限定插件 ID" variant="outlined" density="comfortable" hint="留空表示全部插件；多个 ID 用英文逗号分隔。" persistent-hint /></VCol>
                 </VRow>
+                <VDivider class="my-3" />
+                <div class="text-caption text-medium-emphasis mb-2">手动触发</div>
+                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
+                <div class="d-flex flex-wrap ga-2">
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline" class="text-none" :loading="action.running === 'preview_log_clean'" @click="runAction('preview_log_clean', '日志清理预览')">预览范围</VBtn>
+                  <VBtn color="warning" variant="tonal" prepend-icon="mdi-broom" class="text-none" :loading="action.running === 'run_log_clean'" @click="runAction('run_log_clean', '日志清理')">立即清理</VBtn>
+                </div>
               </VWindowItem>
             </template>
 
-            <template v-if="activeMain.value === 'updates'">
+            <template v-if="activeMain === 'updates'">
               <VWindowItem value="mp" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.mp_update_enabled" label="启用主程序更新检查" color="info" hint="只检查并通知，不会自动升级。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.mp_update_enabled" label="启用主程序更新检查" color="primary" hint="只检查并通知，不会自动升级。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSelect v-model="form.mp_update_cron" :items="cronPresets" label="检查时间" variant="outlined" density="comfortable" hint="推荐每天 09:00。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.mp_update_notify" label="检查后通知" color="info" hint="有无更新都会按插件逻辑发送结果。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.mp_update_notify" label="检查后通知" color="primary" hint="有无更新都会按插件逻辑发送结果。" persistent-hint /></VCol>
                   <VCol cols="12" md="6"><VSelect v-model="form.mp_update_types" :items="mpUpdateTypes" label="检查对象" variant="outlined" density="comfortable" multiple chips closable-chips hint="一般同时选择后端和前端。" persistent-hint /></VCol>
                   <VCol cols="12" md="6"><VSwitch v-model="form.mp_update_restart_confirm" label="允许更新后重启" color="error" hint="开启后更新流程可在需要时重启 MoviePilot；不想自动重启就关闭。" persistent-hint /></VCol>
                 </VRow>
+                <VDivider class="my-3" />
+                <div class="text-caption text-medium-emphasis mb-2">手动触发</div>
+                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
+                <VBtn color="primary" variant="outlined" prepend-icon="mdi-update" class="text-none" :loading="action.running === 'preview_updates'" @click="runAction('preview_updates', '更新检查')">立即检查更新</VBtn>
               </VWindowItem>
               <VWindowItem value="market" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_enabled" label="启用插件库更新检查" color="info" hint="定期检查插件库地址是否变化。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_onlyonce" label="保存后立即检查一次" color="info" hint="用于手动测试；运行后建议关闭。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_enabled" label="启用插件库更新检查" color="primary" hint="定期检查插件库地址是否变化。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_onlyonce" label="保存后立即检查一次" color="primary" hint="用于手动测试；运行后建议关闭。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSelect v-model="form.market_update_interval" :items="intervalPresets" label="检查间隔" variant="outlined" density="comfortable" hint="推荐 1 天。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_notify" label="变化时通知" color="info" hint="发现插件库地址变化时发送通知。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_write_notify" label="写入后通知" color="info" hint="启用写入时，写入完成后发送通知。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_notify" label="变化时通知" color="primary" hint="发现插件库地址变化时发送通知。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_write_notify" label="写入后通知" color="primary" hint="启用写入时，写入完成后发送通知。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSelect v-model="form.market_update_notify_type" :items="marketNotifyItems" label="通知类型" variant="outlined" density="comfortable" hint="不确定时保持插件通知。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSwitch v-model="form.market_update_write_settings" label="允许写入当前配置" color="error" hint="开启后允许把检测到的插件库地址写入当前配置；不确定就关闭。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VSwitch v-model="form.market_update_write_env" label="允许写入 app.env" color="error" hint="开启后允许写入 app.env；通常保持关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_blacklist_enabled" label="启用写入黑名单" color="info" hint="开启后，黑名单中的插件库地址不会被写入。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_auto_get" label="自动获取插件库地址" color="info" hint="从 Wiki 页面自动解析插件库地址。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_proxy" label="使用代理访问 Wiki" color="info" hint="访问 Wiki 慢或失败时开启。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_blacklist_enabled" label="启用写入黑名单" color="primary" hint="开启后，黑名单中的插件库地址不会被写入。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_auto_get" label="自动获取插件库地址" color="primary" hint="从 Wiki 页面自动解析插件库地址。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_proxy" label="使用代理访问 Wiki" color="primary" hint="访问 Wiki 慢或失败时开启。" persistent-hint /></VCol>
                   <VCol cols="12" md="4"><VTextField v-model="form.market_update_timeout" type="number" label="请求超时（秒）" variant="outlined" density="comfortable" hint="网络慢时可调大，例如 10。" persistent-hint /></VCol>
                   <VCol cols="12" md="6"><VTextField v-model="form.market_update_wiki_url" label="插件库 Wiki 地址" variant="outlined" density="comfortable" hint="用于自动获取插件库地址，通常保持默认。" persistent-hint /></VCol>
                   <VCol cols="12" md="6"><VTextField v-model="form.market_update_wiki_xpath" label="Wiki XPath" variant="outlined" density="comfortable" hint="用于定位页面中的插件库地址，不懂 XPath 就保持默认。" persistent-hint /></VCol>
@@ -311,20 +352,34 @@ function selectMain(key) {
               </VWindowItem>
             </template>
 
-            <template v-if="activeMain.value === 'plugin'">
+            <template v-if="activeMain === 'plugin'">
               <VWindowItem value="target" class="pa-3">
+                <VAlert type="info" variant="tonal" density="compact" class="mb-3" text="选择要清理残留的已卸载插件。本插件不会出现在列表中。" />
                 <VRow>
-                  <VCol cols="12" md="6"><VTextField v-model="form.plugin_uninstall_id" label="目标插件 ID" variant="outlined" density="comfortable" hint="填写要检查残留的插件 ID；不要填写 AgentOpsAssistant。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VCombobox v-model="form.plugin_uninstall_ids" label="批量目标插件 ID" variant="outlined" density="comfortable" multiple chips closable-chips hint="多个插件一起检查时填写；为空时使用左侧单个 ID。" persistent-hint /></VCol>
+                  <VCol cols="12">
+                    <VSelect v-model="form.plugin_uninstall_ids" :items="installedPlugins" :loading="installedLoading" label="目标插件" variant="outlined" density="comfortable" multiple chips closable-chips clearable hint="从已安装插件中选择；可多选。留空时使用下方手填 ID。" persistent-hint>
+                      <template #append-inner>
+                        <VBtn icon="mdi-refresh" size="x-small" variant="text" :loading="installedLoading" @click.stop="loadInstalledPlugins" />
+                      </template>
+                    </VSelect>
+                  </VCol>
+                  <VCol cols="12" md="6"><VTextField v-model="form.plugin_uninstall_id" label="手填插件 ID（可选）" variant="outlined" density="comfortable" hint="下拉里没有的插件可手填 ID；不要填写 AgentOpsAssistant。" persistent-hint /></VCol>
                 </VRow>
               </VWindowItem>
               <VWindowItem value="scope" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_clear_config" label="清理插件配置" color="deep-orange" hint="清理目标插件保存的配置项。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_clear_data" label="清理插件数据" color="deep-orange" hint="删除目标插件保存的运行数据；不确定时先关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_delete_source" label="清理本地源码残留" color="deep-orange" hint="删除本地插件仓库中同名源码目录；只在确认源码不再需要时开启。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_notify" label="清理后通知" color="deep-orange" hint="处理完成后发送结果通知。" persistent-hint /></VCol>
+                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_clear_config" label="清除配置（配置信息）" color="primary" hint="清理目标插件保存的配置项。" persistent-hint /></VCol>
+                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_clear_data" label="清除数据（运行数据）" color="primary" hint="删除目标插件保存的运行数据；不确定时先关闭。" persistent-hint /></VCol>
+                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_delete_source" label="清除本地源码残留" color="error" hint="删除本地插件仓库中同名源码目录；只在确认源码不再需要时开启。" persistent-hint /></VCol>
+                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_notify" label="清理后通知" color="primary" hint="处理完成后发送结果通知。" persistent-hint /></VCol>
                 </VRow>
+                <VDivider class="my-3" />
+                <div class="text-caption text-medium-emphasis mb-2">手动触发（清理不可逆，执行前请先预览）</div>
+                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
+                <div class="d-flex flex-wrap ga-2">
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline" class="text-none" :loading="action.running === 'preview_plugin_uninstall'" @click="runAction('preview_plugin_uninstall', '残留清理预览')">预览残留</VBtn>
+                  <VBtn color="error" variant="tonal" prepend-icon="mdi-delete-sweep-outline" class="text-none" :loading="action.running === 'run_plugin_uninstall'" @click="runAction('run_plugin_uninstall', '残留清理')">执行清理</VBtn>
+                </div>
               </VWindowItem>
             </template>
 

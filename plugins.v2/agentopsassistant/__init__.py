@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "agentopsassistant.png"
-    plugin_version = "0.0.2"
+    plugin_version = "0.0.3"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -203,6 +203,7 @@ class AgentOpsAssistant(_PluginBase):
     def get_api(self) -> List[Dict[str, Any]]:
         return [
             {"path": "/dashboard", "endpoint": self.api_dashboard, "auth": "bear", "methods": ["GET"], "summary": "仪表盘数据：模块状态、最近执行、健康概览"},
+            {"path": "/installed_plugins", "endpoint": self.api_installed_plugins, "auth": "bear", "methods": ["GET"], "summary": "已安装插件列表，供残留清理下拉选择"},
             {"path": "/run_daily_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "立即发送每日汇报"},
             {"path": "/preview_daily_report", "endpoint": self.api_preview_daily_report, "auth": "bear", "methods": ["POST"], "summary": "预览每日汇报（不发送）"},
             {"path": "/run_health_check", "endpoint": self.api_run_health_check, "auth": "bear", "methods": ["POST"], "summary": "立即执行健康巡查"},
@@ -378,6 +379,29 @@ class AgentOpsAssistant(_PluginBase):
             logger.error(f"仪表盘数据获取失败：{err}")
             return {"code": 1, "msg": f"仪表盘数据获取失败：{err}", "data": {}}
 
+    def api_installed_plugins(self) -> Dict[str, Any]:
+        """已安装插件列表，供残留清理下拉选择（排除本插件自身）。"""
+        try:
+            from app.core.plugin import PluginManager
+            plugins = PluginManager().get_local_plugins() or []
+            items = []
+            for p in plugins:
+                pid = getattr(p, "id", None)
+                if not pid or not getattr(p, "installed", False):
+                    continue
+                if str(pid).lower() == "agentopsassistant":
+                    continue
+                name = getattr(p, "plugin_name", None) or pid
+                version = getattr(p, "plugin_version", "") or ""
+                items.append({
+                    "value": pid,
+                    "title": f"{name} v{version}" if version else str(name),
+                })
+            items.sort(key=lambda x: x["title"])
+            return {"code": 0, "data": items}
+        except Exception as err:
+            logger.error(f"已安装插件列表获取失败：{err}")
+            return {"code": 1, "msg": f"已安装插件列表获取失败：{err}", "data": []}
 
     def api_preview_log_clean(self) -> Dict[str, Any]:
         data = self._build_log_preview()
