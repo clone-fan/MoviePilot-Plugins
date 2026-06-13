@@ -227,9 +227,9 @@ onMounted(loadInstalledPlugins)
             </VTab>
           </VTabs>
           <VDivider />
-          <VWindow v-model="activeSub" class="aoa-window" :touch="false">
+          <div class="aoa-window">
             <!-- 每日汇报 · 基础设置 -->
-            <VWindowItem value="basic" class="aoa-pane">
+            <div v-show="activeSub === 'basic'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">汇报开关</div>
                 <VRow>
@@ -263,10 +263,10 @@ onMounted(loadInstalledPlugins)
                   </VBtn>
                 </div>
               </VForm>
-            </VWindowItem>
+            </div>
 
             <!-- 每日汇报 · 订阅提醒 -->
-            <VWindowItem value="subscribe" class="aoa-pane">
+            <div v-show="activeSub === 'subscribe'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">订阅提醒</div>
                 <VRow>
@@ -302,10 +302,10 @@ onMounted(loadInstalledPlugins)
                   </VCol>
                 </VRow>
               </VForm>
-            </VWindowItem>
+            </div>
 
             <!-- 每日汇报 · 站点数据统计 -->
-            <VWindowItem value="sites" class="aoa-pane">
+            <div v-show="activeSub === 'sites'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">站点数据统计</div>
                 <VRow>
@@ -337,10 +337,10 @@ onMounted(loadInstalledPlugins)
                   </VCol>
                 </VRow>
               </VForm>
-            </VWindowItem>
+            </div>
 
             <!-- 每日汇报 · 健康巡查 -->
-            <VWindowItem value="health" class="aoa-pane">
+            <div v-show="activeSub === 'health'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">健康巡查</div>
                 <VRow>
@@ -359,9 +359,9 @@ onMounted(loadInstalledPlugins)
                   </VBtn>
                 </div>
               </VForm>
-            </VWindowItem>
+            </div>
             <!-- 自动备份 · 本地备份 -->
-            <VWindowItem value="local" class="aoa-pane">
+            <div v-show="activeSub === 'local'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">本地备份</div>
                 <VRow>
@@ -403,10 +403,10 @@ onMounted(loadInstalledPlugins)
                   </VBtn>
                 </div>
               </VForm>
-            </VWindowItem>
+            </div>
 
             <!-- 自动备份 · WebDAV -->
-            <VWindowItem value="webdav" class="aoa-pane">
+            <div v-show="activeSub === 'webdav'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">WebDAV 远端备份</div>
                 <VRow>
@@ -452,9 +452,9 @@ onMounted(loadInstalledPlugins)
                   </VCol>
                 </VRow>
               </VForm>
-            </VWindowItem>
+            </div>
             <!-- 日志清理 · 插件日志 -->
-            <VWindowItem value="logs" class="aoa-pane">
+            <div v-show="activeSub === 'logs'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">插件日志清理</div>
                 <VRow>
@@ -505,10 +505,10 @@ onMounted(loadInstalledPlugins)
                   </VBtn>
                 </div>
               </VForm>
-            </VWindowItem>
+            </div>
 
             <!-- 更新检查 · 主程序 -->
-            <VWindowItem value="mp" class="aoa-pane">
+            <div v-show="activeSub === 'mp'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">MoviePilot 更新检查</div>
                 <div class="aoa-hint mb-2">仅检查并通知是否有新版本，不会在这里直接升级。</div>
@@ -547,10 +547,10 @@ onMounted(loadInstalledPlugins)
                   </VBtn>
                 </div>
               </VForm>
-            </VWindowItem>
+            </div>
 
             <!-- 更新检查 · 插件库 -->
-            <VWindowItem value="market" class="aoa-pane">
+            <div v-show="activeSub === 'market'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">插件库更新检查</div>
                 <VRow>
@@ -635,10 +635,10 @@ onMounted(loadInstalledPlugins)
                   </VBtn>
                 </div>
               </VForm>
-            </VWindowItem>
+            </div>
 
             <!-- 插件残留清理 · 残留清理（合并单页） -->
-            <VWindowItem value="clean" class="aoa-pane">
+            <div v-show="activeSub === 'clean'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">目标插件</div>
                 <VRow>
@@ -689,8 +689,8 @@ onMounted(loadInstalledPlugins)
                 </div>
                 <div class="aoa-hint mt-2">残留清理为不可逆操作，执行前请务必先预览确认。</div>
               </VForm>
-            </VWindowItem>
-          </VWindow>
+            </div>
+          </div>
         </section>
       </div>
       <VDivider />

@@ -29,8 +29,8 @@ class AgentOpsAssistant(_PluginBase):
 
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
-    plugin_icon = "agentopsassistant.png"
-    plugin_version = "0.0.4"
+    plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
+    plugin_version = "0.0.5"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -885,7 +885,7 @@ class AgentOpsAssistant(_PluginBase):
                             if episode_number:
                                 episodes.append(int(episode_number))
                     if episodes:
-                        items.append(f"{name} ({year}) S{season_num:02d}{self._episode_ranges(sorted(set(episodes)))}（回退）")
+                        items.append(f"{name} ({year}) S{season_num:02d}{self._episode_ranges(sorted(set(episodes)))}")
                     continue
                 if sub_type in {"电影", "movie"}:
                     tmdbid = getattr(subscribe, "tmdbid", None)
@@ -893,7 +893,7 @@ class AgentOpsAssistant(_PluginBase):
                         continue
                     mediainfo = media.recognize_media(tmdbid=tmdbid, mtype=MediaType.MOVIE)
                     if mediainfo and str(getattr(mediainfo, "release_date", None) or "") == current_date:
-                        items.append(f"{name} ({year})（回退）")
+                        items.append(f"{name} ({year})")
             return self._unique_keep_order(items)
         except Exception:
             return []
