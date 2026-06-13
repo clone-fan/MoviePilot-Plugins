@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "agentopsassistant.png"
-    plugin_version = "0.0.3"
+    plugin_version = "0.0.4"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -77,6 +77,7 @@ class AgentOpsAssistant(_PluginBase):
     _local_plugin_repo = DEFAULT_LOCAL_PLUGIN_REPO
     _daily_report_enabled = True
     _daily_report_cron = "0 22 * * *"
+    _daily_report_greeting = "少爷"
     _health_in_report = True
     _subscribe_in_report = True
     _site_stat_in_report = True
@@ -114,6 +115,7 @@ class AgentOpsAssistant(_PluginBase):
         self._local_plugin_repo = config.get("local_plugin_repo") or DEFAULT_LOCAL_PLUGIN_REPO
         self._daily_report_enabled = bool(config.get("daily_report_enabled", True))
         self._daily_report_cron = config.get("daily_report_cron") or "0 22 * * *"
+        self._daily_report_greeting = str(config.get("daily_report_greeting") or "少爷").strip() or "少爷"
         self._health_in_report = bool(config.get("health_in_report", True))
         self._subscribe_reminder_enabled = bool(config.get("subscribe_reminder_enabled", config.get("subscribe_in_report", True)))
         self._site_stat_enabled = bool(config.get("site_stat_enabled", config.get("site_stat_in_report", True)))
@@ -549,7 +551,7 @@ class AgentOpsAssistant(_PluginBase):
             version_line,
         ]
         if latest != "未取到" and self._normalize_version(latest) != self._normalize_version(app_version):
-            lines.append(f"⦁ 最新版本：{latest} / {latest}，少爷记得抽空更新一下")
+            lines.append(f"⦁ 最新版本：{latest} / {latest}，{self._daily_report_greeting}记得抽空更新一下")
 
         lines.extend(["", "📡 站点状态："])
         lines.extend(site_health)
@@ -596,8 +598,7 @@ class AgentOpsAssistant(_PluginBase):
         version = self._backend_version_value()
         return version if version.startswith("v") else f"v{version}"
 
-    @staticmethod
-    def _daily_greeting_locked() -> str:
+    def _daily_greeting_locked(self) -> str:
         hour = datetime.now().hour
         if 0 <= hour <= 5:
             part = "凌晨"
@@ -607,7 +608,8 @@ class AgentOpsAssistant(_PluginBase):
             part = "下午"
         else:
             part = "晚上"
-        return f"少爷，{part}好。给你送上今天的心跳播报。"
+        who = (self._daily_report_greeting or "少爷").strip() or "少爷"
+        return f"{who}，{part}好。给你送上今天的心跳播报。"
 
     @staticmethod
     def _today_prefix() -> str:
@@ -1656,4 +1658,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True}

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch, onMounted } from 'vue'
+import { reactive, ref, computed, watch, onMounted } from 'vue'
 import { postPluginApi, getPluginApi } from './api'
 
 const props = defineProps({
@@ -14,7 +14,6 @@ const activeSub = ref('basic')
 
 // 手动触发动作状态
 const action = reactive({ running: '', message: '', ok: true })
-
 async function runAction(path, label) {
   if (action.running) return
   action.running = path
@@ -32,7 +31,7 @@ async function runAction(path, label) {
   }
 }
 
-// 已安装插件（残留清理下拉）
+// 已安装插件（残留清理 / 日志限定 共用）
 const installedPlugins = ref([])
 const installedLoading = ref(false)
 async function loadInstalledPlugins() {
@@ -51,6 +50,7 @@ const defaults = {
   enabled: false,
   daily_report_enabled: true,
   daily_report_cron: '0 22 * * *',
+  daily_report_greeting: '少爷',
   health_in_report: true,
   subscribe_in_report: true,
   site_stat_in_report: true,
@@ -66,7 +66,7 @@ const defaults = {
   log_clean_enabled: false,
   log_clean_cron: '0 3 * * 1',
   log_clean_rows: 300,
-  log_clean_selected_ids: '',
+  log_clean_selected_ids: [],
   log_clean_notify: true,
   log_clean_onlyonce: false,
   backup_enabled: false,
@@ -138,17 +138,10 @@ const subTabs = {
     { key: 'market', title: '插件库', icon: 'mdi-puzzle-plus-outline' },
   ],
   plugin: [
-    { key: 'target', title: '目标插件', icon: 'mdi-crosshairs-gps' },
-    { key: 'scope', title: '清理范围', icon: 'mdi-folder-remove-outline' },
+    { key: 'clean', title: '残留清理', icon: 'mdi-broom' },
   ],
 }
 
-const cronPresets = [
-  { title: '每天 22:00', value: '0 22 * * *' },
-  { title: '每天 09:00', value: '0 9 * * *' },
-  { title: '每周一 03:00', value: '0 3 * * 1' },
-  { title: '每周一 04:00', value: '0 4 * * 1' },
-]
 const subscribeSubtypeItems = [{ title: '电影', value: 'movie' }, { title: '电视剧', value: 'tv' }]
 const messageTypeItems = [{ title: '订阅', value: 'Subscribe' }, { title: '插件', value: 'Plugin' }, { title: '手动处理', value: 'Manual' }]
 const siteStatRangeItems = [{ title: '今日数据', value: 'today' }, { title: '汇总数据', value: 'total' }, { title: '所有数据', value: 'all' }]
@@ -165,9 +158,11 @@ const currentSubs = computed(() => subTabs[activeMain.value] || [])
 watch(() => props.initialConfig, value => {
   Object.keys(form).forEach(key => delete form[key])
   Object.assign(form, defaults, value || {})
-  if (typeof form.subscribe_reminder_subtype === 'string') form.subscribe_reminder_subtype = form.subscribe_reminder_subtype.split(',').map(v => v.trim()).filter(Boolean)
-  if (typeof form.mp_update_types === 'string') form.mp_update_types = form.mp_update_types.split(',').map(v => v.trim()).filter(Boolean)
-  if (typeof form.plugin_uninstall_ids === 'string') form.plugin_uninstall_ids = form.plugin_uninstall_ids.split(',').map(v => v.trim()).filter(Boolean)
+  const toArr = v => typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : (Array.isArray(v) ? v : [])
+  form.subscribe_reminder_subtype = toArr(form.subscribe_reminder_subtype)
+  form.mp_update_types = toArr(form.mp_update_types)
+  form.plugin_uninstall_ids = toArr(form.plugin_uninstall_ids)
+  form.log_clean_selected_ids = toArr(form.log_clean_selected_ids)
 }, { immediate: true, deep: true })
 
 function saveConfig() {
@@ -182,218 +177,605 @@ function selectMain(key) {
 
 onMounted(loadInstalledPlugins)
 </script>
-
 <template>
-  <div class="agentops-config">
-    <VToolbar density="comfortable" class="agentops-toolbar">
-      <div class="text-h6 ms-3">MP 运维助手配置</div>
-      <VSpacer />
-      <VBtn color="primary" variant="tonal" prepend-icon="mdi-content-save" class="text-none" @click="saveConfig">保存配置</VBtn>
-      <VBtn variant="text" prepend-icon="mdi-view-dashboard-outline" class="text-none" @click="emit('switch')">仪表盘</VBtn>
-      <VBtn icon="mdi-close" variant="text" @click="emit('close')" />
-    </VToolbar>
-    <VDivider />
-
-    <div class="pa-3">
-      <VCard flat class="rounded-lg border mpops-shell">
-        <VCardText class="pb-0">
-          <div class="d-flex flex-wrap ga-2">
-            <VBtn v-for="tab in mainTabs" :key="tab.key" :color="activeMain === tab.key ? 'primary' : undefined" :variant="activeMain === tab.key ? 'tonal' : 'text'" class="text-none" :prepend-icon="tab.icon" @click="selectMain(tab.key)">{{ tab.title }}</VBtn>
+  <div class="aoa-config">
+    <VCard flat class="aoa-card">
+      <VCardItem class="aoa-header">
+        <template #prepend>
+          <VAvatar color="primary" variant="tonal" size="44" rounded="lg">
+            <VIcon icon="mdi-shield-sync-outline" size="24" />
+          </VAvatar>
+        </template>
+        <VCardTitle class="text-h6">MP 运维助手</VCardTitle>
+        <VCardSubtitle class="text-caption">{{ currentMain.desc }}</VCardSubtitle>
+        <template #append>
+          <div class="d-flex align-center">
+            <VSwitch
+              v-model="form.enabled"
+              color="primary"
+              hide-details
+              inset
+              :label="form.enabled ? '已启用' : '已停用'"
+            />
           </div>
-        </VCardText>
-        <VDivider class="mt-3" />
-
-        <VCardItem>
-          <template #prepend><VAvatar color="primary" variant="tonal" size="40"><VIcon :icon="currentMain.icon" /></VAvatar></template>
-          <VCardTitle>{{ currentMain.title }}</VCardTitle>
-          <VCardSubtitle>{{ currentMain.desc }}</VCardSubtitle>
-        </VCardItem>
-
-        <VCardText>
-          <VTabs v-model="activeSub" color="primary" density="comfortable" show-arrows class="mpops-subtabs">
-            <VTab v-for="tab in currentSubs" :key="tab.key" :value="tab.key" class="text-none"><VIcon :icon="tab.icon" size="small" start />{{ tab.title }}</VTab>
+        </template>
+      </VCardItem>
+      <VDivider />
+      <div class="aoa-body">
+        <nav class="aoa-nav">
+          <VList density="comfortable" nav class="py-2">
+            <VListItem
+              v-for="item in mainTabs"
+              :key="item.key"
+              :active="activeMain === item.key"
+              color="primary"
+              rounded="lg"
+              class="aoa-nav-item"
+              @click="selectMain(item.key)"
+            >
+              <template #prepend>
+                <VIcon :icon="item.icon" />
+              </template>
+              <VListItemTitle>{{ item.title }}</VListItemTitle>
+            </VListItem>
+          </VList>
+        </nav>
+        <section class="aoa-content">
+          <VTabs v-model="activeSub" color="primary" density="comfortable" show-arrows class="aoa-subtabs">
+            <VTab v-for="sub in currentSubs" :key="sub.key" :value="sub.key">
+              <VIcon :icon="sub.icon" size="18" class="mr-1" />{{ sub.title }}
+            </VTab>
           </VTabs>
           <VDivider />
-
-          <VWindow v-model="activeSub" :touch="false">
-            <template v-if="activeMain === 'report'">
-              <VWindowItem value="basic" class="pa-3">
+          <VWindow v-model="activeSub" class="aoa-window" :touch="false">
+            <!-- 每日汇报 · 基础设置 -->
+            <VWindowItem value="basic" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">汇报开关</div>
                 <VRow>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.enabled" label="启用 MP 运维助手" color="primary" hint="关闭后不注册本插件的定时任务，也不会自动发送汇报。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.daily_report_enabled" label="启用定时日报" color="primary" hint="开启后按下方时间自动发送 MP 运维汇报。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSelect v-model="form.daily_report_cron" :items="cronPresets" label="每日汇报时间" variant="outlined" density="comfortable" hint="推荐选择每天 22:00；也可以手动输入 Cron。" persistent-hint /></VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.daily_report_enabled" color="primary" inset hide-details
+                      label="启用定时每日汇报" />
+                    <div class="aoa-hint">关闭后将不再按计划自动发送汇报，仍可在下方手动触发。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VCronField v-model="form.daily_report_cron" label="汇报时间 (Cron)"
+                      :disabled="!form.daily_report_enabled" />
+                  </VCol>
                 </VRow>
-                <VDivider class="my-3" />
-                <div class="text-caption text-medium-emphasis mb-2">汇报栏目</div>
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.health_in_report" label="健康巡查摘要" color="primary" hint="汇报中显示下载器、站点、入库、存储状态。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.subscribe_in_report" label="订阅追新" color="primary" hint="汇报中包含今日订阅更新。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.site_stat_in_report" label="站点统计" color="primary" hint="汇报中包含站点状态和增量数据。" persistent-hint /></VCol>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.daily_report_greeting" label="汇报称呼"
+                      placeholder="少爷" prepend-inner-icon="mdi-account-heart-outline"
+                      persistent-hint hint="汇报开头与提醒中对你的称呼，留空默认“少爷”。" clearable />
+                  </VCol>
                 </VRow>
-                <VDivider class="my-3" />
-                <div class="text-caption text-medium-emphasis mb-2">手动触发</div>
-                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
-                <div class="d-flex flex-wrap ga-2">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-send" class="text-none" :loading="action.running === 'run_daily_report'" @click="runAction('run_daily_report', '发送每日汇报')">发送日报</VBtn>
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline" class="text-none" :loading="action.running === 'preview_daily_report'" @click="runAction('preview_daily_report', '预览每日汇报')">预览日报</VBtn>
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-heart-pulse" class="text-none" :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">立即巡查</VBtn>
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">手动触发</div>
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-send-outline"
+                    :loading="action.running === 'run_daily_report'" @click="runAction('run_daily_report', '发送每日汇报')">
+                    立即发送
+                  </VBtn>
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
+                    :loading="action.running === 'preview_daily_report'" @click="runAction('preview_daily_report', '预览每日汇报')">
+                    预览（不发送）
+                  </VBtn>
                 </div>
-              </VWindowItem>
-              <VWindowItem value="subscribe" class="pa-3">
-                <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.subscribe_reminder_enabled" label="启用订阅提醒" color="primary" hint="开启后订阅追新数据会参与提醒和汇报。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.subscribe_reminder_onlyonce" label="保存后立即运行一次" color="primary" hint="只适合手动测试；运行后建议关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VTextField v-model="form.subscribe_reminder_time" label="提醒小时" variant="outlined" density="comfortable" hint="填写 0-23 的小时，例如 9 表示上午 9 点提醒。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSelect v-model="form.subscribe_reminder_subtype" :items="subscribeSubtypeItems" label="提醒媒体类型" variant="outlined" density="comfortable" multiple chips closable-chips hint="选择需要统计和提醒的订阅类型。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSelect v-model="form.subscribe_reminder_msgtype" :items="messageTypeItems" label="通知类型" variant="outlined" density="comfortable" hint="不确定时保持“订阅”。" persistent-hint /></VCol>
-                </VRow>
-              </VWindowItem>
-              <VWindowItem value="sites" class="pa-3">
-                <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.site_stat_enabled" label="启用站点统计" color="primary" hint="开启后采集站点状态，用于汇报和通知。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.site_stat_onlyonce" label="保存后立即刷新一次" color="primary" hint="用于手动更新站点数据；运行后建议关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSelect v-model="form.site_stat_dashboard_type" :items="siteStatRangeItems" label="统计范围" variant="outlined" density="comfortable" hint="今日数据适合日报；汇总/所有数据适合排查趋势。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSelect v-model="form.site_stat_notify_type" :items="siteNotifyItems" label="通知内容" variant="outlined" density="comfortable" hint="选择站点数据变化时发送哪类通知。" persistent-hint /></VCol>
-                </VRow>
-              </VWindowItem>
-              <VWindowItem value="health" class="pa-3">
-                <VRow>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.health_in_report" label="汇报中加入健康巡查" color="primary" hint="开启后每日汇报包含下载器、站点、入库、存储状态摘要。" persistent-hint /></VCol>
-                </VRow>
-                <VDivider class="my-3" />
-                <div class="text-caption text-medium-emphasis mb-2">手动巡查</div>
-                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-heart-pulse" class="text-none" :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">立即执行健康巡查</VBtn>
-                <div class="text-caption text-medium-emphasis mt-3">健康巡查检查订阅、站点、下载器和插件服务状态，结果可在仪表盘和每日汇报中查看。</div>
-              </VWindowItem>
-            </template>
+              </VForm>
+            </VWindowItem>
 
-            <template v-if="activeMain === 'backup'">
-              <VWindowItem value="local" class="pa-3">
+            <!-- 每日汇报 · 订阅提醒 -->
+            <VWindowItem value="subscribe" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">订阅提醒</div>
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_enabled" label="启用自动备份" color="primary" hint="开启后按备份时间自动打包配置和关键数据。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_onlyonce" label="保存后立即备份一次" color="primary" hint="用于手动生成一次备份；运行后建议关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_notify" label="备份后通知" color="primary" hint="备份成功或失败后发送通知。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSelect v-model="form.backup_cron" :items="cronPresets" label="备份时间" variant="outlined" density="comfortable" hint="推荐每周低峰期执行。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSelect v-model="form.backup_keep_count" :items="keepCountPresets" label="本地保留数量" variant="outlined" density="comfortable" hint="超过数量后会清理最旧备份。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VTextField v-model="form.backup_path" label="备份保存路径" variant="outlined" density="comfortable" hint="默认路径即可；如修改，请填写容器内可写目录。" persistent-hint /></VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.subscribe_in_report" color="primary" inset hide-details
+                      label="在每日汇报中包含订阅追新" />
+                    <div class="aoa-hint">汇报正文加入今日订阅追新清单。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.subscribe_reminder_enabled" color="primary" inset hide-details
+                      label="启用独立订阅提醒推送" />
+                    <div class="aoa-hint">在指定时间单独推送订阅追新提醒。</div>
+                  </VCol>
                 </VRow>
-                <VDivider class="my-3" />
-                <div class="text-caption text-medium-emphasis mb-2">手动触发</div>
-                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-database-arrow-up" class="text-none" :loading="action.running === 'run_backup'" @click="runAction('run_backup', '自动备份')">立即备份一次</VBtn>
-              </VWindowItem>
-              <VWindowItem value="webdav" class="pa-3">
                 <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_enabled" label="启用 WebDAV 备份" color="primary" hint="开启后会把备份同步到 WebDAV。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_notify" label="WebDAV 结果通知" color="primary" hint="上传成功或失败后发送通知。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_digest_auth" label="使用 Digest 认证" color="primary" hint="服务端要求 Digest 时开启；普通账号密码认证保持关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.backup_webdav_disable_check" label="跳过连通检查" color="warning" hint="只有服务端检查异常但实际可上传时才开启。" persistent-hint /></VCol>
-                  <VCol cols="12" md="8"><VTextField v-model="form.backup_webdav_hostname" label="WebDAV 地址" variant="outlined" density="comfortable" hint="填写完整地址，例如 https://example.com/dav。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VTextField v-model="form.backup_webdav_login" label="WebDAV 用户名" variant="outlined" density="comfortable" /></VCol>
-                  <VCol cols="12" md="4"><VTextField v-model="form.backup_webdav_password" label="WebDAV 密码" type="password" variant="outlined" density="comfortable" /></VCol>
-                  <VCol cols="12" md="4"><VSelect v-model="form.backup_webdav_max_count" :items="keepCountPresets" label="远端保留数量" variant="outlined" density="comfortable" hint="超过数量后会清理远端旧备份。" persistent-hint /></VCol>
+                  <VCol cols="12" md="4">
+                    <VTextField v-model="form.subscribe_reminder_time" label="提醒时间（小时 0-23）"
+                      type="number" min="0" max="23" :disabled="!form.subscribe_reminder_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="4">
+                    <VSelect v-model="form.subscribe_reminder_subtype" :items="subscribeSubtypeItems"
+                      label="提醒类型" multiple chips closable-chips :disabled="!form.subscribe_reminder_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="4">
+                    <VSelect v-model="form.subscribe_reminder_msgtype" :items="messageTypeItems"
+                      label="消息类型" :disabled="!form.subscribe_reminder_enabled" />
+                  </VCol>
                 </VRow>
-              </VWindowItem>
-            </template>
-
-            <template v-if="activeMain === 'cleanup'">
-              <VWindowItem value="logs" class="pa-3">
-                <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.log_clean_enabled" label="启用插件日志定时清理" color="primary" hint="开启后按设定时间截断插件日志。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.log_clean_onlyonce" label="保存后立即清理一次" color="primary" hint="用于手动清理；运行后建议关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.log_clean_notify" label="清理后通知" color="primary" hint="清理完成后发送处理结果。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSelect v-model="form.log_clean_cron" :items="cronPresets" label="日志清理时间" variant="outlined" density="comfortable" hint="推荐每周低峰期执行。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSelect v-model="form.log_clean_rows" :items="logRowsPresets" label="每个日志保留行数" variant="outlined" density="comfortable" hint="保留越少占用越低；排障频繁时可保留 1000 行。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VTextField v-model="form.log_clean_selected_ids" label="限定插件 ID" variant="outlined" density="comfortable" hint="留空表示全部插件；多个 ID 用英文逗号分隔。" persistent-hint /></VCol>
-                </VRow>
-                <VDivider class="my-3" />
-                <div class="text-caption text-medium-emphasis mb-2">手动触发</div>
-                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
-                <div class="d-flex flex-wrap ga-2">
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline" class="text-none" :loading="action.running === 'preview_log_clean'" @click="runAction('preview_log_clean', '日志清理预览')">预览范围</VBtn>
-                  <VBtn color="warning" variant="tonal" prepend-icon="mdi-broom" class="text-none" :loading="action.running === 'run_log_clean'" @click="runAction('run_log_clean', '日志清理')">立即清理</VBtn>
-                </div>
-              </VWindowItem>
-            </template>
-
-            <template v-if="activeMain === 'updates'">
-              <VWindowItem value="mp" class="pa-3">
-                <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.mp_update_enabled" label="启用主程序更新检查" color="primary" hint="只检查并通知，不会自动升级。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSelect v-model="form.mp_update_cron" :items="cronPresets" label="检查时间" variant="outlined" density="comfortable" hint="推荐每天 09:00。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.mp_update_notify" label="检查后通知" color="primary" hint="有无更新都会按插件逻辑发送结果。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSelect v-model="form.mp_update_types" :items="mpUpdateTypes" label="检查对象" variant="outlined" density="comfortable" multiple chips closable-chips hint="一般同时选择后端和前端。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.mp_update_restart_confirm" label="允许更新后重启" color="error" hint="开启后更新流程可在需要时重启 MoviePilot；不想自动重启就关闭。" persistent-hint /></VCol>
-                </VRow>
-                <VDivider class="my-3" />
-                <div class="text-caption text-medium-emphasis mb-2">手动触发</div>
-                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
-                <VBtn color="primary" variant="outlined" prepend-icon="mdi-update" class="text-none" :loading="action.running === 'preview_updates'" @click="runAction('preview_updates', '更新检查')">立即检查更新</VBtn>
-              </VWindowItem>
-              <VWindowItem value="market" class="pa-3">
-                <VRow>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_enabled" label="启用插件库更新检查" color="primary" hint="定期检查插件库地址是否变化。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_onlyonce" label="保存后立即检查一次" color="primary" hint="用于手动测试；运行后建议关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSelect v-model="form.market_update_interval" :items="intervalPresets" label="检查间隔" variant="outlined" density="comfortable" hint="推荐 1 天。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_notify" label="变化时通知" color="primary" hint="发现插件库地址变化时发送通知。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_write_notify" label="写入后通知" color="primary" hint="启用写入时，写入完成后发送通知。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSelect v-model="form.market_update_notify_type" :items="marketNotifyItems" label="通知类型" variant="outlined" density="comfortable" hint="不确定时保持插件通知。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_write_settings" label="允许写入当前配置" color="error" hint="开启后允许把检测到的插件库地址写入当前配置；不确定就关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_write_env" label="允许写入 app.env" color="error" hint="开启后允许写入 app.env；通常保持关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_blacklist_enabled" label="启用写入黑名单" color="primary" hint="开启后，黑名单中的插件库地址不会被写入。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_auto_get" label="自动获取插件库地址" color="primary" hint="从 Wiki 页面自动解析插件库地址。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VSwitch v-model="form.market_update_proxy" label="使用代理访问 Wiki" color="primary" hint="访问 Wiki 慢或失败时开启。" persistent-hint /></VCol>
-                  <VCol cols="12" md="4"><VTextField v-model="form.market_update_timeout" type="number" label="请求超时（秒）" variant="outlined" density="comfortable" hint="网络慢时可调大，例如 10。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VTextField v-model="form.market_update_wiki_url" label="插件库 Wiki 地址" variant="outlined" density="comfortable" hint="用于自动获取插件库地址，通常保持默认。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VTextField v-model="form.market_update_wiki_xpath" label="Wiki XPath" variant="outlined" density="comfortable" hint="用于定位页面中的插件库地址，不懂 XPath 就保持默认。" persistent-hint /></VCol>
-                  <VCol cols="12"><VTextField v-model="form.market_update_blacklist" label="插件库黑名单" variant="outlined" density="comfortable" hint="多个插件 ID 用英文逗号分隔。" persistent-hint /></VCol>
-                </VRow>
-              </VWindowItem>
-            </template>
-
-            <template v-if="activeMain === 'plugin'">
-              <VWindowItem value="target" class="pa-3">
-                <VAlert type="info" variant="tonal" density="compact" class="mb-3" text="选择要清理残留的已卸载插件。本插件不会出现在列表中。" />
                 <VRow>
                   <VCol cols="12">
-                    <VSelect v-model="form.plugin_uninstall_ids" :items="installedPlugins" :loading="installedLoading" label="目标插件" variant="outlined" density="comfortable" multiple chips closable-chips clearable hint="从已安装插件中选择；可多选。留空时使用下方手填 ID。" persistent-hint>
-                      <template #append-inner>
-                        <VBtn icon="mdi-refresh" size="x-small" variant="text" :loading="installedLoading" @click.stop="loadInstalledPlugins" />
-                      </template>
-                    </VSelect>
+                    <VSwitch v-model="form.subscribe_reminder_onlyonce" color="warning" inset hide-details
+                      label="保存后立即运行一次订阅提醒" :disabled="!form.subscribe_reminder_enabled" />
                   </VCol>
-                  <VCol cols="12" md="6"><VTextField v-model="form.plugin_uninstall_id" label="手填插件 ID（可选）" variant="outlined" density="comfortable" hint="下拉里没有的插件可手填 ID；不要填写 AgentOpsAssistant。" persistent-hint /></VCol>
                 </VRow>
-              </VWindowItem>
-              <VWindowItem value="scope" class="pa-3">
-                <VRow>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_clear_config" label="清除配置（配置信息）" color="primary" hint="清理目标插件保存的配置项。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_clear_data" label="清除数据（运行数据）" color="primary" hint="删除目标插件保存的运行数据；不确定时先关闭。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_delete_source" label="清除本地源码残留" color="error" hint="删除本地插件仓库中同名源码目录；只在确认源码不再需要时开启。" persistent-hint /></VCol>
-                  <VCol cols="12" md="6"><VSwitch v-model="form.plugin_uninstall_notify" label="清理后通知" color="primary" hint="处理完成后发送结果通知。" persistent-hint /></VCol>
-                </VRow>
-                <VDivider class="my-3" />
-                <div class="text-caption text-medium-emphasis mb-2">手动触发（清理不可逆，执行前请先预览）</div>
-                <VAlert v-if="action.message" :type="action.ok ? 'success' : 'error'" variant="tonal" density="compact" class="mb-3" :text="action.message" />
-                <div class="d-flex flex-wrap ga-2">
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline" class="text-none" :loading="action.running === 'preview_plugin_uninstall'" @click="runAction('preview_plugin_uninstall', '残留清理预览')">预览残留</VBtn>
-                  <VBtn color="error" variant="tonal" prepend-icon="mdi-delete-sweep-outline" class="text-none" :loading="action.running === 'run_plugin_uninstall'" @click="runAction('run_plugin_uninstall', '残留清理')">执行清理</VBtn>
-                </div>
-              </VWindowItem>
-            </template>
+              </VForm>
+            </VWindowItem>
 
+            <!-- 每日汇报 · 站点数据统计 -->
+            <VWindowItem value="sites" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">站点数据统计</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.site_stat_in_report" color="primary" inset hide-details
+                      label="在每日汇报中包含站点增量" />
+                    <div class="aoa-hint">汇报正文加入站点上传/做种等增量数据。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.site_stat_enabled" color="primary" inset hide-details
+                      label="启用站点数据统计采集" />
+                    <div class="aoa-hint">关闭后不再统计站点数据。</div>
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.site_stat_dashboard_type" :items="siteStatRangeItems"
+                      label="统计数据范围" :disabled="!form.site_stat_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.site_stat_notify_type" :items="siteNotifyItems"
+                      label="通知方式" :disabled="!form.site_stat_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12">
+                    <VSwitch v-model="form.site_stat_onlyonce" color="warning" inset hide-details
+                      label="保存后立即运行一次站点统计" :disabled="!form.site_stat_enabled" />
+                  </VCol>
+                </VRow>
+              </VForm>
+            </VWindowItem>
+
+            <!-- 每日汇报 · 健康巡查 -->
+            <VWindowItem value="health" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">健康巡查</div>
+                <VRow>
+                  <VCol cols="12">
+                    <VSwitch v-model="form.health_in_report" color="primary" inset hide-details
+                      label="在每日汇报中包含健康巡查摘要" />
+                    <div class="aoa-hint">汇报正文加入站点 / 下载器 / 存储 / 入库的健康检查结论。</div>
+                  </VCol>
+                </VRow>
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">手动触发</div>
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-heart-pulse"
+                    :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">
+                    立即巡查
+                  </VBtn>
+                </div>
+              </VForm>
+            </VWindowItem>
+            <!-- 自动备份 · 本地备份 -->
+            <VWindowItem value="local" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">本地备份</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.backup_enabled" color="primary" inset hide-details
+                      label="启用定时本地备份" />
+                    <div class="aoa-hint">按计划打包配置目录到本地备份路径。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VCronField v-model="form.backup_cron" label="备份时间 (Cron)"
+                      :disabled="!form.backup_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.backup_path" label="本地备份路径"
+                      prepend-inner-icon="mdi-folder-outline" :disabled="!form.backup_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.backup_keep_count" :items="keepCountPresets"
+                      label="本地保留份数" :disabled="!form.backup_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.backup_notify" color="primary" inset hide-details
+                      label="备份结果通知" :disabled="!form.backup_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.backup_onlyonce" color="warning" inset hide-details
+                      label="保存后立即备份一次" :disabled="!form.backup_enabled" />
+                  </VCol>
+                </VRow>
+                <VDivider class="my-4" />
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-archive-arrow-up-outline"
+                    :loading="action.running === 'run_backup'" @click="runAction('run_backup', '立即备份')">
+                    立即备份
+                  </VBtn>
+                </div>
+              </VForm>
+            </VWindowItem>
+
+            <!-- 自动备份 · WebDAV -->
+            <VWindowItem value="webdav" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">WebDAV 远端备份</div>
+                <VRow>
+                  <VCol cols="12">
+                    <VSwitch v-model="form.backup_webdav_enabled" color="primary" inset hide-details
+                      label="启用 WebDAV 远端备份" />
+                    <div class="aoa-hint">本地备份完成后同步上传到 WebDAV。</div>
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.backup_webdav_hostname" label="WebDAV 地址"
+                      placeholder="https://dav.example.com/backup" prepend-inner-icon="mdi-web"
+                      :disabled="!form.backup_webdav_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="3">
+                    <VTextField v-model="form.backup_webdav_login" label="账号"
+                      :disabled="!form.backup_webdav_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="3">
+                    <VTextField v-model="form.backup_webdav_password" label="密码"
+                      type="password" :disabled="!form.backup_webdav_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.backup_webdav_max_count" :items="keepCountPresets"
+                      label="远端保留份数" :disabled="!form.backup_webdav_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.backup_webdav_notify" color="primary" inset hide-details
+                      label="远端备份结果通知" :disabled="!form.backup_webdav_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="4">
+                    <VSwitch v-model="form.backup_webdav_digest_auth" color="primary" inset hide-details
+                      label="使用 Digest 认证" :disabled="!form.backup_webdav_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="8">
+                    <VSwitch v-model="form.backup_webdav_disable_check" color="warning" inset hide-details
+                      label="跳过证书校验（自签名时启用）" :disabled="!form.backup_webdav_enabled" />
+                  </VCol>
+                </VRow>
+              </VForm>
+            </VWindowItem>
+            <!-- 日志清理 · 插件日志 -->
+            <VWindowItem value="logs" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">插件日志清理</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.log_clean_enabled" color="primary" inset hide-details
+                      label="启用定时日志清理" />
+                    <div class="aoa-hint">按计划裁剪插件日志文件，仅保留指定行数。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VCronField v-model="form.log_clean_cron" label="清理时间 (Cron)"
+                      :disabled="!form.log_clean_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.log_clean_rows" :items="logRowsPresets"
+                      label="保留行数" :disabled="!form.log_clean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.log_clean_selected_ids" :items="installedPlugins"
+                      :loading="installedLoading" label="限定插件（留空＝全部插件）"
+                      multiple chips closable-chips clearable
+                      prepend-inner-icon="mdi-puzzle-outline"
+                      :disabled="!form.log_clean_enabled" />
+                    <div class="aoa-hint">从已安装插件中选择；不选则清理全部插件日志。</div>
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.log_clean_notify" color="primary" inset hide-details
+                      label="清理结果通知" :disabled="!form.log_clean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.log_clean_onlyonce" color="warning" inset hide-details
+                      label="保存后立即清理一次" :disabled="!form.log_clean_enabled" />
+                  </VCol>
+                </VRow>
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">手动触发</div>
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
+                    :loading="action.running === 'preview_log_clean'" @click="runAction('preview_log_clean', '日志清理预览')">
+                    预览清理范围
+                  </VBtn>
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-broom"
+                    :loading="action.running === 'run_log_clean'" @click="runAction('run_log_clean', '日志清理')">
+                    立即清理
+                  </VBtn>
+                </div>
+              </VForm>
+            </VWindowItem>
+
+            <!-- 更新检查 · 主程序 -->
+            <VWindowItem value="mp" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">MoviePilot 更新检查</div>
+                <div class="aoa-hint mb-2">仅检查并通知是否有新版本，不会在这里直接升级。</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.mp_update_enabled" color="primary" inset hide-details
+                      label="启用定时更新检查" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VCronField v-model="form.mp_update_cron" label="检查时间 (Cron)"
+                      :disabled="!form.mp_update_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.mp_update_types" :items="mpUpdateTypes"
+                      label="检查范围" multiple chips closable-chips :disabled="!form.mp_update_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.mp_update_notify" color="primary" inset hide-details
+                      label="发现新版本时通知" :disabled="!form.mp_update_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12">
+                    <VSwitch v-model="form.mp_update_restart_confirm" color="warning" inset hide-details
+                      label="允许自动重启以应用更新（高风险，谨慎开启）" :disabled="!form.mp_update_enabled" />
+                    <div class="aoa-hint">默认仅提醒；开启后将在更新后尝试重启 MoviePilot。</div>
+                  </VCol>
+                </VRow>
+                <VDivider class="my-4" />
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
+                    :loading="action.running === 'preview_updates'" @click="runAction('preview_updates', '更新状态预览')">
+                    检查更新
+                  </VBtn>
+                </div>
+              </VForm>
+            </VWindowItem>
+
+            <!-- 更新检查 · 插件库 -->
+            <VWindowItem value="market" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">插件库更新检查</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.market_update_enabled" color="primary" inset hide-details
+                      label="启用插件库更新检查" />
+                    <div class="aoa-hint">按间隔检查已安装插件是否有新版本。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.market_update_interval" :items="intervalPresets"
+                      label="检查间隔" :disabled="!form.market_update_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.market_update_notify" color="primary" inset hide-details
+                      label="发现更新时通知" :disabled="!form.market_update_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.market_update_notify_type" :items="marketNotifyItems"
+                      label="通知消息类型" :disabled="!form.market_update_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.market_update_proxy" color="primary" inset hide-details
+                      label="使用代理访问插件库" :disabled="!form.market_update_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.market_update_auto_get" color="primary" inset hide-details
+                      label="自动抓取 Wiki 更新说明" :disabled="!form.market_update_enabled" />
+                  </VCol>
+                </VRow>
+                <VExpansionPanels class="mt-2" variant="accordion">
+                  <VExpansionPanel title="高级选项（写回设置 / 黑名单 / Wiki 源）">
+                    <VExpansionPanelText>
+                      <VRow>
+                        <VCol cols="12" md="6">
+                          <VSwitch v-model="form.market_update_write_settings" color="warning" inset hide-details
+                            label="写回插件设置" :disabled="!form.market_update_enabled" />
+                        </VCol>
+                        <VCol cols="12" md="6">
+                          <VSwitch v-model="form.market_update_write_env" color="warning" inset hide-details
+                            label="写回环境变量" :disabled="!form.market_update_enabled" />
+                        </VCol>
+                      </VRow>
+                      <VRow>
+                        <VCol cols="12" md="6">
+                          <VSwitch v-model="form.market_update_blacklist_enabled" color="primary" inset hide-details
+                            label="启用更新黑名单" :disabled="!form.market_update_enabled" />
+                        </VCol>
+                        <VCol cols="12" md="6">
+                          <VTextField v-model="form.market_update_timeout" label="请求超时（秒）"
+                            type="number" min="1" :disabled="!form.market_update_enabled" />
+                        </VCol>
+                      </VRow>
+                      <VRow>
+                        <VCol cols="12">
+                          <VTextarea v-model="form.market_update_blacklist" label="黑名单插件 ID（逗号分隔）"
+                            rows="2" auto-grow
+                            :disabled="!form.market_update_enabled || !form.market_update_blacklist_enabled" />
+                        </VCol>
+                      </VRow>
+                      <VRow>
+                        <VCol cols="12">
+                          <VTextField v-model="form.market_update_wiki_url" label="Wiki 地址"
+                            :disabled="!form.market_update_enabled" />
+                        </VCol>
+                      </VRow>
+                    </VExpansionPanelText>
+                  </VExpansionPanel>
+                </VExpansionPanels>
+                <VDivider class="my-4" />
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
+                    :loading="action.running === 'preview_market_update'" @click="runAction('preview_market_update', '插件库更新')">
+                    预览更新
+                  </VBtn>
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-cloud-sync-outline"
+                    :loading="action.running === 'run_market_update'" @click="runAction('run_market_update', '插件库更新')">
+                    立即检查
+                  </VBtn>
+                </div>
+              </VForm>
+            </VWindowItem>
+
+            <!-- 插件残留清理 · 残留清理（合并单页） -->
+            <VWindowItem value="clean" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">目标插件</div>
+                <VRow>
+                  <VCol cols="12">
+                    <VSelect v-model="form.plugin_uninstall_ids" :items="installedPlugins"
+                      :loading="installedLoading" label="选择要清理残留的已安装插件"
+                      multiple chips closable-chips clearable
+                      prepend-inner-icon="mdi-puzzle-remove-outline" />
+                    <div class="aoa-hint">从已安装插件中多选。先“预览”确认范围，再“执行”清理。</div>
+                  </VCol>
+                </VRow>
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">清理范围</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.plugin_uninstall_clear_config" color="primary" inset hide-details
+                      label="清除插件配置" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.plugin_uninstall_clear_data" color="primary" inset hide-details
+                      label="清除插件数据" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.plugin_uninstall_notify" color="primary" inset hide-details
+                      label="清理结果通知" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.plugin_uninstall_delete_source" color="error" inset hide-details
+                      label="删除本地源码（高风险，不可恢复）" />
+                    <div class="aoa-hint">仅对本地源码插件生效，删除后需重新安装。</div>
+                  </VCol>
+                </VRow>
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">执行</div>
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
+                    :disabled="!form.plugin_uninstall_ids || !form.plugin_uninstall_ids.length"
+                    :loading="action.running === 'preview_plugin_uninstall'" @click="runAction('preview_plugin_uninstall', '插件治理预览')">
+                    预览清理范围
+                  </VBtn>
+                  <VBtn color="error" variant="tonal" prepend-icon="mdi-broom"
+                    :disabled="!form.plugin_uninstall_ids || !form.plugin_uninstall_ids.length"
+                    :loading="action.running === 'run_plugin_uninstall'" @click="runAction('run_plugin_uninstall', '插件残留治理')">
+                    执行清理
+                  </VBtn>
+                </div>
+                <div class="aoa-hint mt-2">残留清理为不可逆操作，执行前请务必先预览确认。</div>
+              </VForm>
+            </VWindowItem>
           </VWindow>
-        </VCardText>
-      </VCard>
-    </div>
+        </section>
+      </div>
+      <VDivider />
+      <VCardActions class="aoa-actions">
+        <VFadeTransition>
+          <span v-if="action.message" :class="action.ok ? 'text-success' : 'text-error'" class="text-caption">
+            <VIcon :icon="action.ok ? 'mdi-check-circle-outline' : 'mdi-alert-circle-outline'" size="16" class="mr-1" />{{ action.message }}
+          </span>
+        </VFadeTransition>
+        <VSpacer />
+        <VBtn variant="text" @click="emit('close')">取消</VBtn>
+        <VBtn color="primary" variant="flat" prepend-icon="mdi-content-save-outline" @click="saveConfig">保存配置</VBtn>
+      </VCardActions>
+    </VCard>
   </div>
 </template>
-
 <style scoped>
-.agentops-toolbar { position: sticky; top: 0; z-index: 10; background: rgb(var(--v-theme-surface)); }
-.mpops-shell { background: rgba(var(--v-theme-surface), .92); }
-.mpops-subtabs { border-radius: 12px 12px 0 0; }
-.agentops-config :deep(.v-field) { border-radius: 12px; }
-.agentops-config :deep(.v-alert) { border-radius: 12px; }
+.aoa-config {
+  padding: 8px;
+}
+.aoa-card {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+.aoa-header {
+  padding: 14px 18px;
+}
+.aoa-body {
+  display: flex;
+  min-height: 460px;
+}
+.aoa-nav {
+  width: 188px;
+  flex: 0 0 188px;
+  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgba(var(--v-theme-on-surface), 0.02);
+}
+.aoa-nav-item {
+  margin: 2px 8px;
+}
+.aoa-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.aoa-subtabs {
+  flex: 0 0 auto;
+}
+.aoa-window {
+  flex: 1 1 auto;
+}
+.aoa-pane {
+  padding: 18px 20px;
+}
+.aoa-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: rgb(var(--v-theme-primary));
+}
+.aoa-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-top: 2px;
+}
+.aoa-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.aoa-actions {
+  padding: 10px 18px;
+}
+@media (max-width: 760px) {
+  .aoa-body {
+    flex-direction: column;
+  }
+  .aoa-nav {
+    width: 100%;
+    flex: 0 0 auto;
+    border-right: none;
+    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  }
+}
 </style>
