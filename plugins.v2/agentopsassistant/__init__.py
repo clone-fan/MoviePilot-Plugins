@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.6"
+    plugin_version = "0.0.7"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -213,7 +213,7 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/preview_log_clean", "endpoint": self.api_preview_log_clean, "auth": "bear", "methods": ["POST"], "summary": "预览日志清理范围"},
             {"path": "/run_log_clean", "endpoint": self.api_run_log_clean, "auth": "bear", "methods": ["POST"], "summary": "执行插件日志清理"},
             {"path": "/run_backup", "endpoint": self.api_run_backup, "auth": "bear", "methods": ["POST"], "summary": "执行MP运维助手自动备份"},
-            {"path": "/preview_updates", "endpoint": self.api_preview_updates, "auth": "bear", "methods": ["POST"], "summary": "检查MoviePilot后端/前端更新"},
+            {"path": "/run_mp_update", "endpoint": self.api_run_mp_update, "auth": "bear", "methods": ["POST"], "summary": "立即检查MoviePilot后端/前端更新并通知"},
             {"path": "/preview_market_update", "endpoint": self.api_preview_market_update, "auth": "bear", "methods": ["POST"], "summary": "预览插件库更新"},
             {"path": "/run_market_update", "endpoint": self.api_run_market_update, "auth": "bear", "methods": ["POST"], "summary": "执行插件库更新检查并按确认写入"},
             {"path": "/preview_plugin_uninstall", "endpoint": self.api_preview_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "预览插件残留治理范围"},
@@ -342,6 +342,9 @@ class AgentOpsAssistant(_PluginBase):
 
     def api_run_health_check(self) -> Dict[str, Any]:
         return self._api_run_task("健康巡查", self.run_health_check)
+
+    def api_run_mp_update(self) -> Dict[str, Any]:
+        return self._api_run_task("主程序更新检查", self.run_update_preview)
 
     def api_dashboard(self) -> Dict[str, Any]:
         """仪表盘数据：插件总状态、各模块快照、最近健康巡查概览。"""
@@ -1434,25 +1437,25 @@ class AgentOpsAssistant(_PluginBase):
         try:
             from app.db.subscribe_oper import SubscribeOper
             count = len(SubscribeOper().list() or [])
-            checks.append({"name": "subscribe", "ok": True, "detail": f"count={count}"})
+            checks.append({"name": "subscribe", "ok": True, "detail": f"订阅 {count} 个"})
         except Exception as err:
             checks.append({"name": "subscribe", "ok": False, "detail": str(err)[:120]})
         try:
             from app.db.site_oper import SiteOper
             sites = SiteOper().list() or []
             active = SiteOper().list_active() or []
-            checks.append({"name": "sites", "ok": True, "detail": f"count={len(sites)} active={len(active)}"})
+            checks.append({"name": "sites", "ok": True, "detail": f"共 {len(sites)} 个，启用 {len(active)} 个"})
         except Exception as err:
             checks.append({"name": "sites", "ok": False, "detail": str(err)[:120]})
         try:
             from app.core.downloader import Downloader
             downloaders = Downloader().get_services() or []
-            checks.append({"name": "downloaders", "ok": True, "detail": f"count={len(downloaders)}"})
+            checks.append({"name": "downloaders", "ok": True, "detail": f"在线 {len(downloaders)} 个"})
         except Exception as err:
             checks.append({"name": "downloaders", "ok": False, "detail": str(err)[:120]})
         try:
             services = self.get_service() or []
-            checks.append({"name": "agentops_services", "ok": True, "detail": f"count={len(services)}"})
+            checks.append({"name": "agentops_services", "ok": True, "detail": f"已调度 {len(services)} 个"})
         except Exception as err:
             checks.append({"name": "agentops_services", "ok": False, "detail": str(err)[:120]})
         success = all(x["ok"] for x in checks)
@@ -1460,9 +1463,16 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _format_health_summary(data: Dict[str, Any]) -> str:
-        lines = [f"⦁ SUMMARY total={data.get('total', 0)} pass={data.get('pass', 0)} fail={data.get('fail', 0)}"]
+        name_map = {"subscribe": "订阅", "sites": "站点", "downloaders": "下载器", "agentops_services": "本插件任务"}
+        total = data.get("total", 0)
+        passed = data.get("pass", 0)
+        failed = data.get("fail", 0)
+        head = "⦁ 状态：全部正常" if not failed else f"⦁ 状态：发现 {failed} 项异常"
+        lines = [head, f"⦁ 巡查项：共 {total} 项，通过 {passed} 项，异常 {failed} 项"]
         for item in data.get("checks") or []:
-            lines.append(f"⦁ {'PASS' if item.get('ok') else 'FAIL'} | {item.get('name')} | {item.get('detail')}")
+            label = name_map.get(item.get("name"), item.get("name"))
+            mark = "✅" if item.get("ok") else "⚠️"
+            lines.append(f"⦁ {mark} {label}：{item.get('detail')}")
         return "\n".join(lines)
 
     def _run_named_task(self, name: str, cmd: List[str], expect: str = "") -> bool:
@@ -1485,16 +1495,6 @@ class AgentOpsAssistant(_PluginBase):
 
     def _save_task_result(self, name: str, success: bool, returncode: int, output: str):
         self.save_data(f"last_{self._slug(name)}", {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "returncode": returncode, "success": bool(success), "output": (output or "")[-2000:]})
-
-    @staticmethod
-    def _format_health_summary(result: Dict[str, Any]) -> str:
-        output = result.get("output") or ""
-        if result.get("returncode") != 0:
-            return f"⦁ 状态：异常\n⦁ 详情：{output[-500:] or '无输出'}"
-        lines = [x.strip() for x in output.splitlines() if x.strip()]
-        summary = next((x for x in lines if x.startswith("SUMMARY ")), "SUMMARY 未找到")
-        checks = [x.replace("PASS | ", "⦁ ") for x in lines if x.startswith("PASS |")][:5]
-        return "\n".join(["⦁ 状态：通过", f"⦁ {summary.replace('SUMMARY ', '')}"] + checks)
 
     @staticmethod
     def _episode_ranges(eps: List[int]) -> str:

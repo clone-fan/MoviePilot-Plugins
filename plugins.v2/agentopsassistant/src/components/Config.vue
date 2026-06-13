@@ -1,6 +1,6 @@
 <script setup>
 import { reactive, ref, computed, watch, onMounted } from 'vue'
-import { postPluginApi, postPluginApiRaw, getPluginApi } from './api'
+import { postPluginApi, getPluginApi } from './api'
 
 const props = defineProps({
   api: { type: [Object, Function], default: null },
@@ -28,26 +28,6 @@ async function runAction(path, label) {
     action.message = err?.message || `${label}失败`
   } finally {
     action.running = ''
-  }
-}
-
-// 预览弹窗：展示后端返回的 text 正文
-const preview = reactive({ open: false, title: '', text: '', loading: '' })
-async function runPreview(path, title) {
-  if (preview.loading) return
-  preview.loading = path
-  try {
-    const res = await postPluginApiRaw(props.api, path)
-    const ok = !res || res.code === 0 || res.code === undefined
-    preview.title = title
-    preview.text = (res && res.text) || (res && res.msg) || (ok ? '（无预览内容）' : '预览失败')
-    preview.open = true
-  } catch (err) {
-    preview.title = title
-    preview.text = err?.message || `${title}失败`
-    preview.open = true
-  } finally {
-    preview.loading = ''
   }
 }
 
@@ -159,7 +139,6 @@ const subTabs = {
     { key: 'basic', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'subscribe', title: '订阅提醒', icon: 'mdi-bell-ring-outline' },
     { key: 'sites', title: '站点数据统计', icon: 'mdi-chart-line' },
-    { key: 'health', title: '健康巡查', icon: 'mdi-heart-pulse' },
   ],
   backup: [
     { key: 'local', title: '本地备份', icon: 'mdi-folder-arrow-up-outline' },
@@ -296,16 +275,38 @@ onMounted(() => {
                       persistent-hint hint="汇报开头与提醒中对你的称呼，留空默认“少爷”。" clearable />
                   </VCol>
                 </VRow>
+
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">汇报栏目</div>
+                <div class="aoa-hint mb-2">选择每日汇报正文包含哪些内容。</div>
+                <VRow>
+                  <VCol cols="12" md="4">
+                    <VSwitch v-model="form.subscribe_in_report" color="primary" inset hide-details
+                      label="包含订阅追新" />
+                    <div class="aoa-hint">加入今日订阅追新清单。</div>
+                  </VCol>
+                  <VCol cols="12" md="4">
+                    <VSwitch v-model="form.site_stat_in_report" color="primary" inset hide-details
+                      label="包含站点增量" />
+                    <div class="aoa-hint">加入站点上传/做种等增量数据。</div>
+                  </VCol>
+                  <VCol cols="12" md="4">
+                    <VSwitch v-model="form.health_in_report" color="primary" inset hide-details
+                      label="包含健康巡查摘要" />
+                    <div class="aoa-hint">加入站点/下载器/存储/入库健康结论。</div>
+                  </VCol>
+                </VRow>
+
                 <VDivider class="my-4" />
                 <div class="aoa-section-title">手动触发</div>
                 <div class="aoa-btn-row">
                   <VBtn color="primary" variant="tonal" prepend-icon="mdi-send-outline"
                     :loading="action.running === 'run_daily_report'" @click="runAction('run_daily_report', '发送每日汇报')">
-                    立即发送
+                    立即发送汇报
                   </VBtn>
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
-                    :loading="preview.loading === 'preview_daily_report'" @click="runPreview('preview_daily_report', '每日汇报预览')">
-                    预览（不发送）
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-heart-pulse"
+                    :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">
+                    立即健康巡查
                   </VBtn>
                 </div>
               </VForm>
@@ -316,15 +317,10 @@ onMounted(() => {
               <VForm>
                 <div class="aoa-section-title">订阅提醒</div>
                 <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.subscribe_in_report" color="primary" inset hide-details
-                      label="在每日汇报中包含订阅追新" />
-                    <div class="aoa-hint">汇报正文加入今日订阅追新清单。</div>
-                  </VCol>
-                  <VCol cols="12" md="6">
+                  <VCol cols="12">
                     <VSwitch v-model="form.subscribe_reminder_enabled" color="primary" inset hide-details
                       label="启用独立订阅提醒推送" />
-                    <div class="aoa-hint">在指定时间单独推送订阅追新提醒。</div>
+                    <div class="aoa-hint">在指定时间单独推送订阅追新提醒（是否并入每日汇报见基础设置）。</div>
                   </VCol>
                 </VRow>
                 <VRow>
@@ -355,15 +351,10 @@ onMounted(() => {
               <VForm>
                 <div class="aoa-section-title">站点数据统计</div>
                 <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.site_stat_in_report" color="primary" inset hide-details
-                      label="在每日汇报中包含站点增量" />
-                    <div class="aoa-hint">汇报正文加入站点上传/做种等增量数据。</div>
-                  </VCol>
-                  <VCol cols="12" md="6">
+                  <VCol cols="12">
                     <VSwitch v-model="form.site_stat_enabled" color="primary" inset hide-details
                       label="启用站点数据统计采集" />
-                    <div class="aoa-hint">关闭后不再统计站点数据。</div>
+                    <div class="aoa-hint">关闭后不再统计站点数据（是否并入每日汇报见基础设置）。</div>
                   </VCol>
                 </VRow>
                 <VRow>
@@ -382,28 +373,6 @@ onMounted(() => {
                       label="保存后立即运行一次站点统计" :disabled="!form.site_stat_enabled" />
                   </VCol>
                 </VRow>
-              </VForm>
-            </div>
-
-            <!-- 每日汇报 · 健康巡查 -->
-            <div v-show="activeSub === 'health'" class="aoa-pane">
-              <VForm>
-                <div class="aoa-section-title">健康巡查</div>
-                <VRow>
-                  <VCol cols="12">
-                    <VSwitch v-model="form.health_in_report" color="primary" inset hide-details
-                      label="在每日汇报中包含健康巡查摘要" />
-                    <div class="aoa-hint">汇报正文加入站点 / 下载器 / 存储 / 入库的健康检查结论。</div>
-                  </VCol>
-                </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-section-title">手动触发</div>
-                <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-heart-pulse"
-                    :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">
-                    立即巡查
-                  </VBtn>
-                </div>
               </VForm>
             </div>
             <!-- 自动备份 · 本地备份 -->
@@ -427,8 +396,13 @@ onMounted(() => {
                       prepend-inner-icon="mdi-folder-outline" :disabled="!form.backup_enabled" />
                   </VCol>
                   <VCol cols="12" md="6">
-                    <VSelect v-model="form.backup_keep_count" :items="keepCountPresets"
-                      label="本地保留份数" :disabled="!form.backup_enabled" />
+                    <div class="d-flex align-center justify-space-between mb-1">
+                      <span class="text-body-2">本地保留份数</span>
+                      <VChip size="small" color="primary" variant="tonal">{{ form.backup_keep_count }} 份</VChip>
+                    </div>
+                    <VSlider v-model="form.backup_keep_count" :min="1" :max="30" :step="1"
+                      color="primary" thumb-label hide-details :disabled="!form.backup_enabled" />
+                    <div class="aoa-hint">超出份数时自动删除最旧的备份，范围 1-30 份。</div>
                   </VCol>
                 </VRow>
                 <VRow>
@@ -541,10 +515,6 @@ onMounted(() => {
                 <VDivider class="my-4" />
                 <div class="aoa-section-title">手动触发</div>
                 <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
-                    :loading="preview.loading === 'preview_log_clean'" @click="runPreview('preview_log_clean', '日志清理预览')">
-                    预览清理范围
-                  </VBtn>
                   <VBtn color="primary" variant="tonal" prepend-icon="mdi-broom"
                     :loading="action.running === 'run_log_clean'" @click="runAction('run_log_clean', '日志清理')">
                     立即清理
@@ -587,8 +557,8 @@ onMounted(() => {
                 </VRow>
                 <VDivider class="my-4" />
                 <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
-                    :loading="preview.loading === 'preview_updates'" @click="runPreview('preview_updates', '更新状态预览')">
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-update"
+                    :loading="action.running === 'run_mp_update'" @click="runAction('run_mp_update', '检查主程序更新')">
                     检查更新
                   </VBtn>
                 </div>
@@ -674,10 +644,6 @@ onMounted(() => {
                 </VExpansionPanels>
                 <VDivider class="my-4" />
                 <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
-                    :loading="preview.loading === 'preview_market_update'" @click="runPreview('preview_market_update', '插件库更新预览')">
-                    预览更新
-                  </VBtn>
                   <VBtn color="primary" variant="tonal" prepend-icon="mdi-cloud-sync-outline"
                     :loading="action.running === 'run_market_update'" @click="runAction('run_market_update', '插件库更新')">
                     立即检查
@@ -725,11 +691,6 @@ onMounted(() => {
                 <VDivider class="my-4" />
                 <div class="aoa-section-title">执行</div>
                 <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="outlined" prepend-icon="mdi-eye-outline"
-                    :disabled="!form.plugin_uninstall_ids || !form.plugin_uninstall_ids.length"
-                    :loading="preview.loading === 'preview_plugin_uninstall'" @click="runPreview('preview_plugin_uninstall', '插件残留治理预览')">
-                    预览清理范围
-                  </VBtn>
                   <VBtn color="error" variant="tonal" prepend-icon="mdi-broom"
                     :disabled="!form.plugin_uninstall_ids || !form.plugin_uninstall_ids.length"
                     :loading="action.running === 'run_plugin_uninstall'" @click="runAction('run_plugin_uninstall', '插件残留治理')">
@@ -754,26 +715,6 @@ onMounted(() => {
         <VBtn color="primary" variant="flat" prepend-icon="mdi-content-save-outline" @click="saveConfig">保存配置</VBtn>
       </VCardActions>
     </VCard>
-
-    <VDialog v-model="preview.open" max-width="640" scrollable>
-      <VCard class="aoa-preview-card">
-        <VCardItem>
-          <template #prepend>
-            <VIcon icon="mdi-eye-outline" color="primary" />
-          </template>
-          <VCardTitle class="text-subtitle-1">{{ preview.title }}</VCardTitle>
-        </VCardItem>
-        <VDivider />
-        <VCardText class="aoa-preview-body">
-          <pre class="aoa-preview-text">{{ preview.text }}</pre>
-        </VCardText>
-        <VDivider />
-        <VCardActions>
-          <VSpacer />
-          <VBtn variant="text" @click="preview.open = false">关闭</VBtn>
-        </VCardActions>
-      </VCard>
-    </VDialog>
   </div>
 </template>
 <style scoped>
@@ -862,19 +803,6 @@ onMounted(() => {
 }
 .aoa-actions {
   padding: 10px 18px;
-}
-.aoa-preview-body {
-  max-height: 60vh;
-  padding: 16px 20px;
-}
-.aoa-preview-text {
-  margin: 0;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: rgba(var(--v-theme-on-surface), 0.85);
 }
 @media (max-width: 760px) {
   .aoa-body {
