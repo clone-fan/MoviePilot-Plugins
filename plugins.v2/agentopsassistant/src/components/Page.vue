@@ -1,12 +1,14 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { getPluginApi } from './api'
+import { getPluginApi, postPluginApi } from './api'
 
 const props = defineProps({ api: { type: [Object, Function], default: null } })
 const emit = defineEmits(['close', 'switch'])
 
 const loading = ref(true)
 const error = ref('')
+const actionRunning = ref('')
+const actionMessage = ref('')
 const data = reactive({
   enabled: false,
   summary: '',
@@ -48,6 +50,24 @@ async function loadDashboard() {
     error.value = err?.message || '仪表盘数据加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function runAction(path, label) {
+  if (actionRunning.value) return
+  actionRunning.value = path
+  actionMessage.value = ''
+  try {
+    const res = await postPluginApi(props.api, path)
+    const ok = !res || res.code === 0 || res.code === undefined
+    actionMessage.value = (res && res.msg) || `${label}已${ok ? '完成' : '失败'}`
+    setTimeout(() => { actionMessage.value = '' }, 5000)
+    if (ok) loadDashboard()
+  } catch (err) {
+    actionMessage.value = err?.message || `${label}失败`
+    setTimeout(() => { actionMessage.value = '' }, 5000)
+  } finally {
+    actionRunning.value = ''
   }
 }
 
@@ -144,7 +164,7 @@ onMounted(loadDashboard)
       </VCard>
 
       <!-- 健康巡查 -->
-      <VCard variant="outlined" class="rounded-lg">
+      <VCard variant="outlined" class="rounded-lg mb-3">
         <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
           <VIcon icon="mdi-heart-pulse" color="primary" class="me-2" />最近健康巡查
           <VSpacer />
@@ -155,6 +175,59 @@ onMounted(loadDashboard)
           <div v-if="data.health.time" class="text-caption text-medium-emphasis mb-2">巡查时间：{{ data.health.time }}</div>
           <pre v-if="data.health.output" class="health-output">{{ data.health.output }}</pre>
           <div v-else class="text-medium-emphasis text-body-2">尚无健康巡查记录，可在设置页手动触发或等待每日汇报自动执行。</div>
+        </VCardText>
+      </VCard>
+
+      <!-- 手动触发操作 -->
+      <VCard variant="outlined" class="rounded-lg">
+        <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+          <VIcon icon="mdi-play-circle-outline" color="primary" class="me-2" />手动触发
+        </VCardTitle>
+        <VDivider />
+        <VCardText>
+          <div class="d-flex flex-wrap ga-2">
+            <VBtn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-send-outline"
+              size="small"
+              :loading="actionRunning === 'run_daily_report'"
+              @click="runAction('run_daily_report', '每日汇报')"
+            >
+              发送每日汇报
+            </VBtn>
+            <VBtn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-heart-pulse"
+              size="small"
+              :loading="actionRunning === 'run_health_check'"
+              @click="runAction('run_health_check', '健康巡查')"
+            >
+              健康巡查
+            </VBtn>
+            <VBtn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-archive-arrow-up-outline"
+              size="small"
+              :loading="actionRunning === 'run_backup'"
+              @click="runAction('run_backup', '立即备份')"
+            >
+              立即备份
+            </VBtn>
+            <VBtn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-broom"
+              size="small"
+              :loading="actionRunning === 'run_log_clean'"
+              @click="runAction('run_log_clean', '日志清理')"
+            >
+              清理日志
+            </VBtn>
+          </div>
+          <VAlert v-if="actionMessage" type="info" variant="tonal" density="compact" class="mt-3" :text="actionMessage" />
         </VCardText>
       </VCard>
     </div>

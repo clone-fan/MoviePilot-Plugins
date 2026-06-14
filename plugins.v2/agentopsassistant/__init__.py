@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.7"
+    plugin_version = "0.0.8"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -609,6 +609,7 @@ class AgentOpsAssistant(_PluginBase):
     def _frontend_backend_version_line() -> str:
         try:
             from version import APP_VERSION, FRONTEND_VERSION
+            # 显示格式：前端版本 / 后端版本（后端版本可能有 -1 等构建号后缀）
             return f"{FRONTEND_VERSION} / {APP_VERSION}"
         except Exception as err:
             return f"版本读取失败：{err}"
@@ -761,27 +762,51 @@ class AgentOpsAssistant(_PluginBase):
                     normal += 1
                 else:
                     stale += 1
-            items = [f"⦁ 今日快照：正常 {normal}｜过期 {stale}｜异常 {len(errors)}"]
+            items = [f"⦁ 今日快照：正常 {normal}｜数据过期 {stale}｜异常 {len(errors)}"]
             items.extend([f"⦁ {err}" for err in errors[:3]])
             return items
         except Exception as e:
             return [f"⦁ 未取到 - {e}"]
 
     def _get_downloader_health_locked(self) -> List[str]:
+        """获取下载器状态，支持多下载器显示"""
         try:
+            from app.helper.downloader import DownloaderHelper
             from app.chain.download import DownloadChain
+
+            downloader_helper = DownloaderHelper()
+            services = downloader_helper.get_services()
+
+            if not services:
+                return ["⦁ 未配置下载器"]
+
+            # 获取所有正在下载的任务
             downloading = DownloadChain().downloading() or []
+
             if not downloading:
                 return ["⦁ 正在下载：无"]
-            down_speed = up_speed = 0
+
+            # 按下载器分组统计
+            downloader_stats = {}
             for torrent in downloading:
-                down_speed += int(getattr(torrent, "download_speed", 0) or getattr(torrent, "dlspeed", 0) or 0)
-                up_speed += int(getattr(torrent, "upload_speed", 0) or getattr(torrent, "upspeed", 0) or 0)
-            items = [f"⦁ 正在下载：{len(downloading)}"]
-            if down_speed or up_speed:
-                items.append(f"⦁ 速度：↓ {self._format_bytes(down_speed)}/s ｜ ↑ {self._format_bytes(up_speed)}/s")
+                dl_name = getattr(torrent, "downloader", None) or "未知"
+                if dl_name not in downloader_stats:
+                    downloader_stats[dl_name] = {"count": 0, "down_speed": 0, "up_speed": 0}
+                downloader_stats[dl_name]["count"] += 1
+                downloader_stats[dl_name]["down_speed"] += int(getattr(torrent, "dlspeed", 0) or 0)
+                downloader_stats[dl_name]["up_speed"] += int(getattr(torrent, "upspeed", 0) or 0)
+
+            items = []
+            for dl_name, stats in downloader_stats.items():
+                speed_info = f"↓ {self._format_bytes(stats['down_speed'])}/s ↑ {self._format_bytes(stats['up_speed'])}/s" if (stats['down_speed'] or stats['up_speed']) else ""
+                if speed_info:
+                    items.append(f"⦁ {dl_name}：{stats['count']} 个任务｜{speed_info}")
+                else:
+                    items.append(f"⦁ {dl_name}：{stats['count']} 个任务")
+
             return items or ["⦁ 正在下载：无"]
-        except Exception:
+        except Exception as e:
+            logger.warning(f"获取下载器状态失败：{e}")
             return ["⦁ 正在下载：无"]
 
     def _get_downloading_locked(self, limit: int = 10) -> List[str]:
@@ -804,26 +829,76 @@ class AgentOpsAssistant(_PluginBase):
             return ["⦁ 未查询"]
 
     def _get_storage_health_locked(self) -> List[str]:
-        paths = []
-        for candidate in ["/downloads", "/download", "/media", "/config"]:
-            if os.path.exists(candidate):
-                paths.append(candidate)
-        seen = set()
-        items = []
-        for path in paths:
+        """获取存储空间状态，优先使用MP配置的目录和存储类型"""
+        try:
+            from app.helper.directory import DirectoryHelper
+            from app.db.systemconfig_oper import SystemConfigOper
+            from app.schemas.types import SystemConfigKey
+
+            items = []
+            seen_paths = set()
+
+            # 优先读取 MP 配置的下载目录和媒体库目录
+            dir_helper = DirectoryHelper()
+            download_dirs = dir_helper.get_download_dirs() or []
+            library_dirs = dir_helper.get_library_dirs() or []
+
+            # 获取存储配置
+            storage_configs = {}
             try:
-                total, used, free = shutil.disk_usage(path)
-                key = (total, os.path.realpath(path))
-                if key in seen:
+                storage_conf_list = SystemConfigOper().get(SystemConfigKey.Storages) or []
+                for sc in storage_conf_list:
+                    storage_configs[sc.get("name")] = sc.get("type", "local")
+            except Exception:
+                pass
+
+            # 处理下载目录
+            for d in download_dirs:
+                path = getattr(d, "download_path", None) or getattr(d, "path", None)
+                storage_name = getattr(d, "storage", None)
+                if not path or path in seen_paths:
                     continue
-                seen.add(key)
+                seen_paths.add(path)
+                storage_type = storage_configs.get(storage_name, "local") if storage_name else "local"
+                label = f"下载目录（{storage_type}）"
+                self._add_storage_item(items, path, label, storage_type)
+
+            # 处理媒体库目录
+            for d in library_dirs:
+                path = getattr(d, "library_path", None) or getattr(d, "path", None)
+                storage_name = getattr(d, "library_storage", None) or getattr(d, "storage", None)
+                if not path or path in seen_paths:
+                    continue
+                seen_paths.add(path)
+                storage_type = storage_configs.get(storage_name, "local") if storage_name else "local"
+                label = f"媒体库（{storage_type}）"
+                self._add_storage_item(items, path, label, storage_type)
+
+            # 如果没有配置目录，回退到硬编码路径
+            if not items:
+                for candidate, label in [("/downloads", "下载目录"), ("/media", "媒体库"), ("/config", "配置目录")]:
+                    if os.path.exists(candidate) and candidate not in seen_paths:
+                        seen_paths.add(candidate)
+                        self._add_storage_item(items, candidate, f"{label}（本地）", "local")
+
+            return items or ["⦁ 未检测到存储"]
+        except Exception as e:
+            logger.warning(f"获取存储空间失败：{e}")
+            return [f"⦁ 存储检查异常：{e}"]
+
+    def _add_storage_item(self, items: List[str], path: str, label: str, storage_type: str):
+        """添加存储项到列表"""
+        try:
+            if storage_type == "local":
+                total, used, free = shutil.disk_usage(path)
                 pct = used / total * 100 if total else 0
-                label = {"/downloads": "下载目录", "/download": "下载目录", "/media": "媒体库", "/config": "配置目录"}.get(path, path)
                 risk = "，空间偏紧" if pct >= 85 else ""
                 items.append(f"⦁ {label}：剩余 {self._format_bytes(free)}｜已用 {pct:.0f}%{risk}")
-            except Exception:
-                continue
-        return items or ["⦁ 未取到"]
+            else:
+                # 网络存储类型（115/alipan/rclone等）暂时标记为已配置
+                items.append(f"⦁ {label}：已配置")
+        except Exception as e:
+            items.append(f"⦁ {label}：检查失败 - {str(e)[:30]}")
 
     def _get_summary_locked(self, site_health: List[str], transfer_health: List[str], downloads: List[str], storage_health: List[str]) -> List[str]:
         warnings = []
@@ -1115,6 +1190,7 @@ class AgentOpsAssistant(_PluginBase):
         work_dir.mkdir(parents=True, exist_ok=True)
         copied = []
         errors = []
+        zip_path = ""
         try:
             for name in ["category.yaml", "app.env"]:
                 src = config_path / name
@@ -1144,11 +1220,90 @@ class AgentOpsAssistant(_PluginBase):
         finally:
             if work_dir.exists():
                 shutil.rmtree(work_dir, ignore_errors=True)
+
         removed = self._cleanup_old_backups(backup_path)
+
+        # WebDAV 远端备份
+        webdav_success = False
+        webdav_error = ""
+        if self._backup_webdav_enabled and zip_path and Path(zip_path).exists():
+            webdav_success, webdav_error = self._upload_to_webdav(zip_path)
+
         success = Path(zip_path).exists() and not errors
         status = self._build_backup_status()
-        status.update({"success": success, "zip_file": zip_path, "copied": copied, "errors": errors, "removed": removed})
+        status.update({
+            "success": success,
+            "zip_file": zip_path,
+            "copied": copied,
+            "errors": errors,
+            "removed": removed,
+            "webdav_enabled": self._backup_webdav_enabled,
+            "webdav_success": webdav_success,
+            "webdav_error": webdav_error,
+        })
         return status
+
+    def _upload_to_webdav(self, local_zip_path: str) -> Tuple[bool, str]:
+        """上传备份到 WebDAV"""
+        try:
+            from webdav3.client import Client
+            from webdav3.exceptions import WebDavException
+        except ImportError:
+            return False, "webdav3-client 未安装，请运行: pip install webdav3-client"
+
+        if not self._backup_webdav_hostname:
+            return False, "WebDAV 地址未配置"
+
+        try:
+            options = {
+                "webdav_hostname": self._backup_webdav_hostname.rstrip("/"),
+                "webdav_login": self._backup_webdav_login,
+                "webdav_password": self._backup_webdav_password,
+                "disable_check": self._backup_webdav_disable_check,
+            }
+            if self._backup_webdav_digest_auth:
+                options["webdav_auth_type"] = "digest"
+
+            client = Client(options)
+
+            # 检查连接
+            if not self._backup_webdav_disable_check:
+                if not client.check():
+                    return False, "WebDAV 连接测试失败"
+
+            # 上传文件
+            remote_path = Path(local_zip_path).name
+            client.upload_sync(remote_path=remote_path, local_path=local_zip_path)
+
+            # 清理远端旧备份
+            try:
+                remote_files = client.list()
+                backup_files = [f for f in remote_files if f.startswith("bk_") and f.endswith(".zip")]
+                backup_files.sort(reverse=True)
+                for old_file in backup_files[self._backup_webdav_max_count:]:
+                    try:
+                        client.clean(old_file)
+                    except Exception as e:
+                        logger.warning(f"清理远端旧备份 {old_file} 失败：{e}")
+            except Exception as e:
+                logger.warning(f"清理远端旧备份失败：{e}")
+
+            if self._backup_webdav_notify:
+                self.post_message(
+                    mtype=NotificationType.Plugin,
+                    title="MP 运维助手 - WebDAV 备份成功",
+                    text=f"⦁ 已上传：{remote_path}\n⦁ 目标：{self._backup_webdav_hostname}"
+                )
+
+            return True, "上传成功"
+        except WebDavException as e:
+            error_msg = f"WebDAV 错误：{str(e)[:200]}"
+            logger.error(f"WebDAV 备份失败：{e}")
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"上传失败：{str(e)[:200]}"
+            logger.error(f"WebDAV 备份异常：{e}")
+            return False, error_msg
 
     @staticmethod
     def _dump_postgresql(target: Path) -> Tuple[bool, str]:
@@ -1187,6 +1342,13 @@ class AgentOpsAssistant(_PluginBase):
             lines.append(f"⦁ 本次备份：{Path(data['zip_file']).name}")
         if data.get("removed"):
             lines.append(f"⦁ 清理旧备份：{len(data.get('removed') or [])} 个")
+        if data.get("webdav_enabled"):
+            if data.get("webdav_success"):
+                lines.append("⦁ WebDAV 备份：成功")
+            elif data.get("webdav_error"):
+                lines.append(f"⦁ WebDAV 备份：失败 - {data.get('webdav_error')[:60]}")
+            else:
+                lines.append("⦁ WebDAV 备份：未执行")
         if data.get("latest"):
             lines.append("最近备份：")
             for item in data["latest"][:3]:
@@ -1448,9 +1610,10 @@ class AgentOpsAssistant(_PluginBase):
         except Exception as err:
             checks.append({"name": "sites", "ok": False, "detail": str(err)[:120]})
         try:
-            from app.core.downloader import Downloader
-            downloaders = Downloader().get_services() or []
-            checks.append({"name": "downloaders", "ok": True, "detail": f"在线 {len(downloaders)} 个"})
+            from app.helper.downloader import DownloaderHelper
+            downloader_helper = DownloaderHelper()
+            services = downloader_helper.get_services()
+            checks.append({"name": "downloaders", "ok": True, "detail": f"在线 {len(services)} 个"})
         except Exception as err:
             checks.append({"name": "downloaders", "ok": False, "detail": str(err)[:120]})
         try:
@@ -1459,7 +1622,14 @@ class AgentOpsAssistant(_PluginBase):
         except Exception as err:
             checks.append({"name": "agentops_services", "ok": False, "detail": str(err)[:120]})
         success = all(x["ok"] for x in checks)
-        return {"success": success, "checks": checks, "total": len(checks), "pass": len([x for x in checks if x["ok"]]), "fail": len([x for x in checks if not x["ok"]])}
+        result = {"success": success, "checks": checks, "total": len(checks), "pass": len([x for x in checks if x["ok"]]), "fail": len([x for x in checks if not x["ok"]])}
+        # 保存健康巡查结果
+        self.save_data("last_health_check", {
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "success": success,
+            "output": self._format_health_summary(result),
+        })
+        return result
 
     @staticmethod
     def _format_health_summary(data: Dict[str, Any]) -> str:
