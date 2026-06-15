@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.9"
+    plugin_version = "0.0.10"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -867,32 +867,17 @@ class AgentOpsAssistant(_PluginBase):
     def _get_media_stats_locked(self) -> List[str]:
         """媒体统计（电影/电视剧/剧集/用户）——尝试媒体服务器统计接口，取不到则提示。"""
         try:
-            stat = None
-            try:
-                from app.db.mediaserver_oper import MediaServerOper
-                oper = MediaServerOper()
-                for m in ("statistic", "get_statistics", "statistics"):
-                    fn = getattr(oper, m, None)
-                    if callable(fn):
-                        stat = fn()
-                        break
-            except Exception:
-                stat = None
-            if not stat:
-                try:
-                    from app.chain.mediaserver import MediaServerChain
-                    chain = MediaServerChain()
-                    for m in ("media_statistic", "statistic", "get_statistics"):
-                        fn = getattr(chain, m, None)
-                        if callable(fn):
-                            stat = fn()
-                            break
-                except Exception:
-                    stat = None
-            if not stat:
-                return ["⦁ 未取到（媒体服务器未配置或接口不匹配）"]
-            if isinstance(stat, list):
-                stat = stat[0] if stat else {}
+            # MoviePilot 官方仪表盘同款：app.chain.dashboard.DashboardChain.media_statistic()
+            from app.chain.dashboard import DashboardChain
+            stats = DashboardChain().media_statistic() or []
+            if not stats:
+                return ["⦁ 未取到（媒体服务器未配置）"]
+            stat = {
+                "movie_count": sum(int(getattr(s, "movie_count", 0) or 0) for s in stats),
+                "tv_count": sum(int(getattr(s, "tv_count", 0) or 0) for s in stats),
+                "episode_count": sum(int(getattr(s, "episode_count", 0) or 0) for s in stats),
+                "user_count": sum(int(getattr(s, "user_count", 0) or 0) for s in stats),
+            }
 
             def _g(obj, *keys):
                 for k in keys:

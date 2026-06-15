@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅提醒、站点统计、插件日志清理、自动备份、更新检查与插件残留清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅提醒,站点统计,日志清理,自动备份,更新检查,插件残留清理,本地插件",
-    "version": "0.0.9",
+    "version": "0.0.10",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v0.0.10": "修复媒体统计无数据——改用 MoviePilot 官方仪表盘同款 app.chain.dashboard.DashboardChain.media_statistic() 统计电影/电视剧/剧集/用户数（此前误用 MediaServerOper/MediaServerChain 中并不存在的统计方法，导致媒体统计恒显“未取到”）；据 MP v2 源码核实 StorageChain.storage_usage 读取 total/available 用量逻辑无误。",
       "v0.0.9": "每日汇报全面优化：站点状态改为仅报异常站点（含名称与原因），正常不再逐条罗列；版本检查改为真实比对 GitHub 最新 release，区分“已是最新 / 有新版可更新 / 检查失败”三态，不再恒显已是最新；存储空间按实际存储名称展示，本地给出 已用/总量｜剩余｜已用百分比，网络存储尽力获取用量；新增媒体统计（电影/电视剧/剧集/用户数）；新增今日下载汇总与做种概况；README 增加对所参考插件作者（thsrite、InfinityPacer、Aqr-K、madrays、jxxghp）的致谢。",
       "v0.0.8": "存储空间显示重构——读取 MoviePilot 实际配置的下载/媒体目录并区分 local/115/alipan/rclone 存储类型，本地存储显示剩余空间与使用率，无配置时回退硬编码路径；下载器多实例分别显示各自任务数与上下行速度；新增 WebDAV 远端备份（支持 Basic/Digest 认证、可跳过证书校验、自动清理远端旧备份、可选上传通知，依赖 webdav3-client）；仪表盘新增手动触发卡片（发送每日汇报/健康巡查/立即备份/清理日志）；修复健康巡查下载器导入（改用 app.helper.downloader.DownloaderHelper）并将巡查结果保存到 last_health_check 供仪表盘读取；站点快照“过期”文案改为“数据过期”以明确是快照数据而非站点本身；每日汇报版本行补充前后端构建号差异说明。",
       "v0.0.7": "修复健康巡查执行无输出——删除重复定义、与结构化数据不匹配的 _format_health_summary 影子方法，巡查结果改为可读中文摘要（订阅/站点/下载器/调度任务）；每日汇报“包含订阅追新/站点增量/健康巡查摘要”三个开关统一并入基础设置·汇报栏目，删除独立的健康巡查二级页；本地保留份数由下拉改为 1-30 滑块更直观；统一移除全部预览功能（日报/日志/更新/插件库/残留治理预览按钮与弹窗）；主程序更新页“检查更新”按钮接入新增 /run_mp_update 接口，直接执行检查并通知。",
