@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅提醒、站点统计、插件日志清理、自动备份、更新检查与插件残留清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅提醒,站点统计,日志清理,自动备份,更新检查,插件残留清理,本地插件",
-    "version": "0.0.10",
+    "version": "0.0.11",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v0.0.11": "每日汇报修复与优化：① 存储空间不再罗列未真正配置/取不到用量的存储（此前会出现一行“xxx：已配置”噪声），改为与官方仪表盘 _build_storage 同口径——仅展示能取到真实用量的存储；② 重做“今日下载”——改以今日入库(转移历史)的成功记录为准，按“剧名·季集”展示当天下载入库内容，并用 download_hash 命中下载器种子、按完成时间(对齐官方“自动删种”口径 now−completion_on/date_done)算做种时长互相印证显示“（做种：Xh）”，删除原先与今日无关、易误解的“做种中：N 个”计数；③ “入库整理”段不再重复罗列标题，仅保留今日成功/失败概览。",
       "v0.0.10": "修复媒体统计无数据——改用 MoviePilot 官方仪表盘同款 app.chain.dashboard.DashboardChain.media_statistic() 统计电影/电视剧/剧集/用户数（此前误用 MediaServerOper/MediaServerChain 中并不存在的统计方法，导致媒体统计恒显“未取到”）；据 MP v2 源码核实 StorageChain.storage_usage 读取 total/available 用量逻辑无误。",
       "v0.0.9": "每日汇报全面优化：站点状态改为仅报异常站点（含名称与原因），正常不再逐条罗列；版本检查改为真实比对 GitHub 最新 release，区分“已是最新 / 有新版可更新 / 检查失败”三态，不再恒显已是最新；存储空间按实际存储名称展示，本地给出 已用/总量｜剩余｜已用百分比，网络存储尽力获取用量；新增媒体统计（电影/电视剧/剧集/用户数）；新增今日下载汇总与做种概况；README 增加对所参考插件作者（thsrite、InfinityPacer、Aqr-K、madrays、jxxghp）的致谢。",
       "v0.0.8": "存储空间显示重构——读取 MoviePilot 实际配置的下载/媒体目录并区分 local/115/alipan/rclone 存储类型，本地存储显示剩余空间与使用率，无配置时回退硬编码路径；下载器多实例分别显示各自任务数与上下行速度；新增 WebDAV 远端备份（支持 Basic/Digest 认证、可跳过证书校验、自动清理远端旧备份、可选上传通知，依赖 webdav3-client）；仪表盘新增手动触发卡片（发送每日汇报/健康巡查/立即备份/清理日志）；修复健康巡查下载器导入（改用 app.helper.downloader.DownloaderHelper）并将巡查结果保存到 last_health_check 供仪表盘读取；站点快照“过期”文案改为“数据过期”以明确是快照数据而非站点本身；每日汇报版本行补充前后端构建号差异说明。",

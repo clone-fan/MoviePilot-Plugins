@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.10"
+    plugin_version = "0.0.11"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -323,7 +323,7 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _count_report_sections(text: str) -> int:
-        icons = ["🕒", "🤖", "📡", "📈", "⬇️", "📦", "📺", "💾", "✅", "⚠️"]
+        icons = ["🕒", "🤖", "📡", "📈", "⬇️", "📥", "📦", "📺", "💾", "🎬", "✅", "⚠️"]
         return sum(1 for icon in icons if icon in (text or ""))
 
     def api_preview_daily_report(self) -> Dict[str, Any]:
@@ -549,7 +549,6 @@ class AgentOpsAssistant(_PluginBase):
     def _build_heartbeat_message(self) -> str:
         site_increment = self._get_site_increment_locked()
         site_health = self._get_site_health_locked()
-        transfers = self._get_today_transfers_locked()
         transfer_health = self._get_transfer_health_locked()
         subs = self._get_today_subscribe_updates_locked()
         downloads = self._get_downloading_locked()
@@ -576,10 +575,10 @@ class AgentOpsAssistant(_PluginBase):
         if not (downloader_health == ["⦁ 正在下载：无"] or downloader_health == ["⦁ 无"]) and downloads != ["⦁ 无"]:
             lines.append("⦁ 当前任务：")
             lines.extend(downloads[:5])
+        lines.extend(["", "📥 今日下载："])
         lines.extend(today_downloads)
         lines.extend(["", "📦 入库整理："])
         lines.extend(transfer_health)
-        lines.extend(transfers if transfers != ["⦁ 无"] else ["⦁ 今日入库：无"])
         lines.extend(["", "📺 订阅追新："])
         lines.extend([f"⦁ {x}" for x in subs] if subs else ["⦁ 今日追新：无"])
         lines.extend(["", "💾 存储空间："])
@@ -904,65 +903,131 @@ class AgentOpsAssistant(_PluginBase):
             return [f"⦁ 媒体统计异常：{e}"]
 
     def _get_today_downloads_locked(self) -> List[str]:
-        """今日下载汇总 + 做种概况——尽力从下载历史/下载器获取，取不到则不展示。"""
-        lines = []
+        """今日下载明细：以今日入库(转移历史)成功记录为准，展示“哪部剧·哪些集数”，
+        并用下载器种子的做种时长(按 download_hash 命中)互相印证，得到“（做种：Xh）”。
+        采用用户建议的口径：今日成功入库即今日已下载入库，比单纯数下载器做种数更准确。"""
         try:
-            from app.db.downloadhistory_oper import DownloadHistoryOper
-            oper = DownloadHistoryOper()
-            rows = None
-            for m in ("list_by_date", "get_by_date", "list_by_day"):
-                fn = getattr(oper, m, None)
-                if not callable(fn):
-                    continue
-                try:
-                    rows = fn(f"{self._today_prefix()} 00:00:00")
-                except TypeError:
-                    try:
-                        rows = fn(self._today_prefix())
-                    except Exception:
-                        rows = None
-                if rows is not None:
-                    break
-            if rows:
-                lines.append(f"⦁ 今日下载：{len(rows)} 个")
-                for r in rows[:8]:
-                    t = getattr(r, "title", None) or getattr(r, "torrent_name", None) or getattr(r, "name", None)
-                    if t:
-                        lines.append(f"  - {t}")
+            rows = self._today_transfer_rows_locked()
         except Exception:
-            pass
+            rows = []
+        success_rows = [r for r in rows if getattr(r, "status", False)]
+        if not success_rows:
+            return ["⦁ 今日下载：无"]
+        # download_hash -> 做种秒数（尽力获取，用于互相印证；取不到则不展示做种时长）
+        seed_map = self._downloader_seed_map()
+        grouped: Dict[Any, Dict[str, Any]] = {}
+        order: List[Any] = []
+        for r in success_rows:
+            title = getattr(r, "title", None) or "未命名"
+            year = getattr(r, "year", None) or ""
+            media_type = str(getattr(r, "type", None) or "").strip().lower()
+            season = getattr(r, "seasons", None) or ""
+            episode = getattr(r, "episodes", None) or ""
+            dl_hash = str(getattr(r, "download_hash", None) or "").strip().lower()
+            key = (title, year)
+            if key not in grouped:
+                grouped[key] = {"is_tv": media_type in {"电视剧", "tv"}, "seasons": {}, "seed": 0}
+                order.append(key)
+            if grouped[key]["is_tv"] and season and episode:
+                try:
+                    s_num = int(str(season).replace("S", ""))
+                    e_num = int(str(episode).replace("E", ""))
+                    grouped[key]["seasons"].setdefault(s_num, []).append(e_num)
+                except Exception:
+                    pass
+            if dl_hash and dl_hash in seed_map:
+                grouped[key]["seed"] = max(grouped[key]["seed"], seed_map[dl_hash])
+        items = [f"⦁ 今日下载：{len(order)} 部"]
+        for key in order[:12]:
+            title, year = key
+            info = grouped[key]
+            label = f"{title} ({year})" if year else f"{title}"
+            seasons_dict = info.get("seasons") or {}
+            if info.get("is_tv") and seasons_dict:
+                season_strs = []
+                for s_num in sorted(seasons_dict.keys()):
+                    season_strs.append(f"S{s_num:02d}" + self._episode_ranges(sorted(set(seasons_dict[s_num]))))
+                label = f"{label} {', '.join(season_strs)}"
+            seed = info.get("seed") or 0
+            tail = f"（做种：{self._format_duration(seed)}）" if seed else ""
+            items.append(f"  - {label}{tail}")
+        if len(order) > 12:
+            items.append(f"  …… 等共 {len(order)} 部")
+        return items
+
+    def _downloader_seed_map(self) -> Dict[str, int]:
+        """汇总所有下载器的 {种子hash: 做种秒数}，供入库记录的 download_hash 互相印证做种时长。
+        做种时长口径对齐官方“自动删种(TorrentRemover)”插件：优先用完成时间算 now−完成
+        （qb completion_on / tr date_done，未完成回退 added_on/date_added），取不到再退化到
+        seeding_time 字段。兼容 qbittorrent 与 transmission 的字段命名。"""
+        seed_map: Dict[str, int] = {}
         try:
             from app.helper.downloader import DownloaderHelper
-            seeding = 0
-            seed_seconds = 0
-            for _name, service in (DownloaderHelper().get_services() or {}).items():
-                inst = getattr(service, "instance", None)
-                getter = getattr(inst, "get_torrents", None) if inst else None
-                if not callable(getter):
-                    continue
+            services = DownloaderHelper().get_services() or {}
+        except Exception:
+            return seed_map
+
+        def _f(obj, *names):
+            for n in names:
+                v = obj.get(n) if isinstance(obj, dict) else getattr(obj, n, None)
+                if v not in (None, ""):
+                    return v
+            return None
+
+        now_ts = datetime.now().timestamp()
+
+        def _since(ts_val) -> int:
+            """把“完成/添加时间”换算成距今秒数；兼容 unix 秒(int) 与 datetime。"""
+            try:
+                ts = ts_val.timestamp() if hasattr(ts_val, "timetuple") else float(ts_val)
+                if ts <= 0:
+                    return 0
+                return max(0, int(now_ts - ts))
+            except Exception:
+                return 0
+
+        def _seed_seconds(t) -> int:
+            comp = _f(t, "completion_on", "completionOn")          # qb 完成时间(秒)
+            if comp is not None and _since(comp):
+                return _since(comp)
+            dd = _f(t, "date_done", "done_date", "date_added", "added_date")  # tr 完成/添加(datetime)
+            if dd is not None and _since(dd):
+                return _since(dd)
+            add = _f(t, "added_on", "addedDate")                   # qb 添加时间(秒)回退
+            if add is not None and _since(add):
+                return _since(add)
+            st = _f(t, "seeding_time", "seedingTime", "seconds_seeding", "secondsSeeding")  # 兜底
+            try:
+                return int(st or 0)
+            except Exception:
+                return 0
+
+        services_items = services.items() if isinstance(services, dict) else []
+        for _name, service in services_items:
+            inst = getattr(service, "instance", None)
+            getter = getattr(inst, "get_torrents", None) if inst else None
+            if not callable(getter):
+                continue
+            try:
+                res = getter()
+            except Exception:
+                continue
+            torrents = res[0] if isinstance(res, tuple) else res
+            for t in (torrents or []):
                 try:
-                    res = getter()
+                    h = _f(t, "hash", "hashString", "infohash_v1", "infohash")
+                    if h is None:
+                        continue
+                    key = str(h).strip().lower()
+                    seed_map[key] = max(seed_map.get(key, 0), _seed_seconds(t))
                 except Exception:
                     continue
-                torrents = res[0] if isinstance(res, tuple) else res
-                for t in (torrents or []):
-                    state = str((t.get("state") if isinstance(t, dict) else getattr(t, "state", "")) or "").lower()
-                    st = (t.get("seeding_time") if isinstance(t, dict) else getattr(t, "seeding_time", None))
-                    if "seed" in state or "上传" in state or (st and int(st) > 0):
-                        seeding += 1
-                        try:
-                            seed_seconds = max(seed_seconds, int(st or 0))
-                        except Exception:
-                            pass
-            if seeding:
-                tail = f"（做种：{self._format_duration(seed_seconds)}）" if seed_seconds else ""
-                lines.append(f"⦁ 做种中：{seeding} 个{tail}")
-        except Exception:
-            pass
-        return lines
+        return seed_map
 
     def _get_storage_health_locked(self) -> List[str]:
-        """按 MP 配置的存储分别显示：本地显示实际用量，网络存储尽力获取（失败则标记已配置）。"""
+        """按 MP 配置的存储分别显示真实用量。
+        与 MoviePilot 官方仪表盘 _build_storage 口径一致：只展示能取到真实用量的存储；
+        取不到用量的（未真正配置/不支持用量查询）一律不展示，避免“已配置”噪声行。"""
         try:
             from app.db.systemconfig_oper import SystemConfigOper
             from app.schemas.types import SystemConfigKey
@@ -1016,9 +1081,8 @@ class AgentOpsAssistant(_PluginBase):
                         total, used, free = shutil.disk_usage(local_path)
                         self._append_usage_line(items, name, total, used, free)
                     except Exception:
-                        items.append(f"⦁ {name}：已配置")
-                else:
-                    items.append(f"⦁ {name}：已配置")
+                        pass
+                # 取不到真实用量的存储（未配置/不支持用量查询）不展示，避免“已配置”噪声行
 
             # 无任何存储配置时回退本地常见路径
             if not items:
@@ -1034,9 +1098,11 @@ class AgentOpsAssistant(_PluginBase):
             logger.warning(f"获取存储空间失败：{e}")
             return [f"⦁ 存储检查异常：{e}"]
 
-    def _append_usage_line(self, items: List[str], name: str, total: Any, used: Any, free: Any):
+    def _append_usage_line(self, items: List[str], name: str, total: Any, used: Any, free: Any) -> bool:
         try:
             total = int(total or 0)
+            if total <= 0:
+                return False  # 无有效容量：视为未真正配置/不支持用量查询，不展示
             if used is None and free is not None:
                 used = total - int(free)
             used = int(used or 0)
@@ -1046,8 +1112,9 @@ class AgentOpsAssistant(_PluginBase):
             pct = used / total * 100 if total else 0
             risk = "，空间偏紧" if pct >= 85 else ""
             items.append(f"⦁ {name}：{self._format_bytes(used)}/{self._format_bytes(total)}｜剩余 {self._format_bytes(free)}｜已用 {pct:.0f}%{risk}")
+            return True
         except Exception:
-            items.append(f"⦁ {name}：已配置")
+            return False
 
     def _add_storage_item(self, items: List[str], path: str, label: str, storage_type: str):
         """添加存储项到列表"""
