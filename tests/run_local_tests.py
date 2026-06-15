@@ -107,7 +107,7 @@ class _StubSystemConfigOper:
 
 
 # 订阅规则填充桩：_SUB 配置下载历史/订阅列表，并记录 update 调用
-_SUB = {"history": None, "subs": [], "updates": [], "sub_get": None, "sites": []}
+_SUB = {"history": None, "subs": [], "updates": [], "sub_get": None, "sites": [], "site_latest": []}
 
 
 class _StubDownloadHistoryOper:
@@ -122,6 +122,7 @@ class _StubSubscribeOper:
 
 class _StubSiteOper:
     def list_active(self): return list(_SUB.get("sites", []))
+    def get_userdata_latest(self): return list(_SUB.get("site_latest", []))
 
 
 def install_stubs():
@@ -478,6 +479,24 @@ def main():
     ph.save_data("subfill_handled", ["电视剧:1"])
     ph.run_subfill_clear_handled()
     check(ph.get_data("subfill_handled") == [], "清理已处理记录 -> 置空")
+
+    print("== 每日汇报聚合中心：逐栏目门控 + 站点状态逐站 ==")
+    pr = make_plugin(mod, report_storage=False, report_media_stat=False)
+    for name, val in [("_get_site_increment_locked", ["⦁ inc"]), ("_get_site_health_locked", ["⦁ 馒头 | 正常"]),
+                      ("_get_transfer_health_locked", ["⦁ t"]), ("_get_today_subscribe_updates_locked", []),
+                      ("_get_downloader_health_locked", ["⦁ d"]), ("_get_storage_health_locked", ["⦁ s"]),
+                      ("_get_today_downloads_locked", ["⦁ dl"]), ("_get_media_stats_locked", ["⦁ m"]),
+                      ("_version_report_lines", ["⦁ v"])]:
+        setattr(pr, name, (lambda v=val: v))
+    msg = pr._build_heartbeat_message()
+    check("💾 存储空间" not in msg, "report_storage=False -> 日报不含存储空间")
+    check("🎬 媒体统计" not in msg, "report_media_stat=False -> 日报不含媒体统计")
+    check("📥 今日下载" in msg and "📡 站点状态" in msg, "默认栏目仍在")
+    check("⬇️ 下载器" not in msg and "正在下载" not in msg, "下载器段已与今日下载去重移除")
+    _SUB.update({"site_latest": [types.SimpleNamespace(name="馒头", domain="m.x", err_msg="超时", updated_day="")],
+                 "sites": [types.SimpleNamespace(domain="m.x")]})
+    sh = make_plugin(mod)._get_site_health_locked()
+    check(any("馒头 | 异常" in x for x in sh), "站点状态逐站：异常格式 “馒头 | 异常（…）”")
 
     print()
     if _FAILS:

@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅提醒、站点统计、插件日志清理、自动备份、更新检查与插件残留清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅提醒,站点统计,日志清理,自动备份,更新检查,插件残留清理,本地插件",
-    "version": "0.0.19",
+    "version": "0.0.20",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v0.0.20": "每日汇报升级为「聚合汇报中心」：汇报栏目改为按实际栏目逐项开关——MoviePilot版本 / 站点状态 / 站点增量 / 今日下载 / 入库整理 / 订阅追新 / 存储空间 / 媒体统计 / 今日摘要，逐栏目控制是否并入日报，关掉即不出现在汇报里；「下载器」段与「今日下载」重复，去重只保留今日下载；站点状态改为逐站列出“站点名 | 状态”（如 馒头 | 正常、馒头 | 异常（原因）/ 数据过期）。新增约 6 项单元测试。",
       "v0.0.19": "订阅规则自动填充补强（对齐 thsrite SubscribeGroup 全功能）：新增「二级分类自定义填充」——新增订阅时按媒体二级分类套用 分辨率/资源质量/特效/包含/排除/站点/保存路径({name}变量)/过滤规则组（监听 SubscribeAdded）；新增「清理历史记录」「清理已处理记录」与填充历史留存。新增 subfill_category_enabled/subfill_category_confs 配置、/subfill_clear_history、/subfill_clear_handled 接口。新增约 10 项单元测试（解析/命中分类填充/savepath 变量/未配置跳过/清理）。",
       "v0.0.18": "结构整顿（迈向 1.0.0 第一步）：配置页一级分类扁平化+分组——把「订阅提醒」「站点数据统计」「订阅规则自动填充」从“每日汇报”下移出来，各自独立成顶层一级分类（“规则填充”并改名“订阅规则自动填充”）；左侧导航按 汇报中心 / 订阅与站点 / 下载与媒体 / 系统维护 分组；每日汇报回归“聚合汇报中心”定位。纯前端结构调整，后端逻辑与配置项不变（67 项单测仍全过）。",
       "v0.0.17": "新增「媒体通知」一级分类——移植 jxxghp MediaServerMsg 核心：监听 Emby/Jellyfin/Plex 的 WebhookMessage 事件（新入库/开始播放/停止播放/登录成功/登录失败/标记），按所选事件类型与媒体服务器推送通知，含 30 秒去重；UI 用本插件自有配置页，暂不含原插件的剧集聚合/IP 定位/海报抓取。新增 msgnotify_enabled/types/servers 配置与 /mediaservers 接口。新增 11 项单元测试。",

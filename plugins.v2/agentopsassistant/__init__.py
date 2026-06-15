@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.19"
+    plugin_version = "0.0.20"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -81,6 +81,15 @@ class AgentOpsAssistant(_PluginBase):
     _health_in_report = True
     _subscribe_in_report = True
     _site_stat_in_report = True
+    _report_version = True
+    _report_site_status = True
+    _report_site_increment = True
+    _report_today_download = True
+    _report_transfer = True
+    _report_subscribe = True
+    _report_storage = True
+    _report_media_stat = True
+    _report_summary = True
     _log_clean_enabled = False
     _log_clean_cron = "0 3 * * 1"
     _log_clean_rows = 300
@@ -167,6 +176,15 @@ class AgentOpsAssistant(_PluginBase):
         self._site_stat_enabled = bool(config.get("site_stat_enabled", config.get("site_stat_in_report", True)))
         self._subscribe_in_report = bool(config.get("subscribe_in_report", self._subscribe_reminder_enabled)) and self._subscribe_reminder_enabled
         self._site_stat_in_report = bool(config.get("site_stat_in_report", self._site_stat_enabled)) and self._site_stat_enabled
+        self._report_version = bool(config.get("report_version", True))
+        self._report_site_status = bool(config.get("report_site_status", True))
+        self._report_site_increment = bool(config.get("report_site_increment", self._site_stat_in_report))
+        self._report_today_download = bool(config.get("report_today_download", True))
+        self._report_transfer = bool(config.get("report_transfer", True))
+        self._report_subscribe = bool(config.get("report_subscribe", self._subscribe_in_report))
+        self._report_storage = bool(config.get("report_storage", True))
+        self._report_media_stat = bool(config.get("report_media_stat", True))
+        self._report_summary = bool(config.get("report_summary", self._health_in_report))
         self._subscribe_reminder_onlyonce = bool(config.get("subscribe_reminder_onlyonce", False))
         self._subscribe_reminder_time = str(config.get("subscribe_reminder_time") or "9")
         self._subscribe_reminder_subtype = config.get("subscribe_reminder_subtype") or ["movie", "tv"]
@@ -994,7 +1012,6 @@ class AgentOpsAssistant(_PluginBase):
         site_health = self._get_site_health_locked()
         transfer_health = self._get_transfer_health_locked()
         subs = self._get_today_subscribe_updates_locked()
-        downloads = self._get_downloading_locked()
         downloader_health = self._get_downloader_health_locked()
         storage_health = self._get_storage_health_locked()
         today_downloads = self._get_today_downloads_locked()
@@ -1004,32 +1021,28 @@ class AgentOpsAssistant(_PluginBase):
             self._daily_greeting_locked(),
             "",
             f"🕒 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "",
-            "🤖 MoviePilot：",
         ]
-        lines.extend(self._version_report_lines())
 
-        lines.extend(["", "📡 站点状态："])
-        lines.extend(site_health)
-        lines.extend(["", "📈 站点增量："])
-        lines.extend(site_increment)
-        lines.extend(["", "⬇️ 下载器："])
-        lines.extend(downloader_health)
-        if not (downloader_health == ["⦁ 正在下载：无"] or downloader_health == ["⦁ 无"]) and downloads != ["⦁ 无"]:
-            lines.append("⦁ 当前任务：")
-            lines.extend(downloads[:5])
-        lines.extend(["", "📥 今日下载："])
-        lines.extend(today_downloads)
-        lines.extend(["", "📦 入库整理："])
-        lines.extend(transfer_health)
-        lines.extend(["", "📺 订阅追新："])
-        lines.extend([f"⦁ {x}" for x in subs] if subs else ["⦁ 今日追新：无"])
-        lines.extend(["", "💾 存储空间："])
-        lines.extend(storage_health)
-        lines.extend(["", "🎬 媒体统计："])
-        lines.extend(media_stats)
-        lines.extend([""])
-        lines.extend(self._get_summary_locked(site_health, transfer_health, downloader_health, storage_health))
+        def section(enabled: bool, header: str, body: List[str]):
+            if enabled and body:
+                lines.extend(["", header])
+                lines.extend(body)
+
+        if self._report_version:
+            lines.extend(["", "🤖 MoviePilot："])
+            lines.extend(self._version_report_lines())
+        section(self._report_site_status, "📡 站点状态：", site_health)
+        section(self._report_site_increment, "📈 站点增量：", site_increment)
+        # 「下载器/正在下载」与「今日下载」重复，统一只保留今日下载
+        section(self._report_today_download, "📥 今日下载：", today_downloads)
+        section(self._report_transfer, "📦 入库整理：", transfer_health)
+        section(self._report_subscribe, "📺 订阅追新：",
+                ([f"⦁ {x}" for x in subs] if subs else ["⦁ 今日追新：无"]))
+        section(self._report_storage, "💾 存储空间：", storage_health)
+        section(self._report_media_stat, "🎬 媒体统计：", media_stats)
+        if self._report_summary:
+            lines.append("")
+            lines.extend(self._get_summary_locked(site_health, transfer_health, downloader_health, storage_health))
         return "\n".join(lines)
 
     def _version_report_lines(self) -> List[str]:
@@ -1210,30 +1223,18 @@ class AgentOpsAssistant(_PluginBase):
             if not latest:
                 return ["⦁ 未取到站点快照"]
             today = self._today_prefix()
-            normal = 0
-            stale = []
-            errors = []
+            items = []
             for row in latest:
                 name = getattr(row, "name", None) or getattr(row, "domain", None) or "未知站点"
                 err = str(getattr(row, "err_msg", None) or "").strip()
                 day = getattr(row, "updated_day", None) or ""
                 if err:
-                    errors.append((name, err))
+                    status = f"异常（{err[:30]}）"
                 elif day == today:
-                    normal += 1
+                    status = "正常"
                 else:
-                    stale.append(name)
-            # 正常的不逐条罗列；仅在有异常/过期时报出具体站点，便于针对性处理
-            if not errors and not stale:
-                return [f"⦁ 全部正常（{normal} 个站点）"]
-            items = [f"⦁ 正常 {normal}｜数据过期 {len(stale)}｜异常 {len(errors)}"]
-            if errors:
-                items.append(f"⦁ ⚠️ 异常站点（{len(errors)} 个）：")
-                for name, err in errors[:8]:
-                    items.append(f"  - {name}：{err[:40]}")
-            if stale:
-                shown = "、".join(stale[:8])
-                items.append(f"⦁ 数据过期：{shown}{' 等' if len(stale) > 8 else ''}")
+                    status = "数据过期"
+                items.append(f"⦁ {name} | {status}")
             return items
         except Exception as e:
             return [f"⦁ 未取到 - {e}"]
@@ -2945,4 +2946,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": []}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": []}

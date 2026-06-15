@@ -99,6 +99,15 @@ const defaults = {
   health_in_report: true,
   subscribe_in_report: true,
   site_stat_in_report: true,
+  report_version: true,
+  report_site_status: true,
+  report_site_increment: true,
+  report_today_download: true,
+  report_transfer: true,
+  report_subscribe: true,
+  report_storage: true,
+  report_media_stat: true,
+  report_summary: true,
   subscribe_reminder_enabled: true,
   subscribe_reminder_onlyonce: false,
   subscribe_reminder_time: '9',
@@ -256,6 +265,17 @@ const intervalPresets = [3600, 21600, 43200, 86400, 604800].map(v => ({ title: v
 const seedActionItems = [{ title: '暂停', value: 'pause' }, { title: '删除种子', value: 'delete' }, { title: '删除种子和文件', value: 'deletefile' }]
 const subfillDetailItems = ['分辨率', '资源质量', '特效', '制作组', '站点'].map(v => ({ title: v, value: v }))
 const msgGroupItems = ['新入库', '开始播放', '停止播放', '登录成功', '登录失败', '标记'].map(v => ({ title: v, value: v }))
+const reportSections = [
+  { key: 'report_version', label: 'MoviePilot 版本' },
+  { key: 'report_site_status', label: '站点状态' },
+  { key: 'report_site_increment', label: '站点增量' },
+  { key: 'report_today_download', label: '今日下载' },
+  { key: 'report_transfer', label: '入库整理' },
+  { key: 'report_subscribe', label: '订阅追新' },
+  { key: 'report_storage', label: '存储空间' },
+  { key: 'report_media_stat', label: '媒体统计' },
+  { key: 'report_summary', label: '今日摘要' },
+]
 
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
 const currentSubs = computed(() => subTabs[activeMain.value] || [])
@@ -380,22 +400,10 @@ onMounted(() => {
 
                 <VDivider class="my-4" />
                 <div class="aoa-section-title">汇报栏目</div>
-                <div class="aoa-hint mb-2">选择每日汇报正文包含哪些内容。</div>
+                <div class="aoa-hint mb-2">每日汇报是聚合中心：逐栏目勾选要并入日报的内容（关掉则该栏目不出现在汇报里）。</div>
                 <VRow>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.subscribe_in_report" color="primary" inset hide-details
-                      label="包含订阅追新" />
-                    <div class="aoa-hint">加入今日订阅追新清单。</div>
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.site_stat_in_report" color="primary" inset hide-details
-                      label="包含站点增量" />
-                    <div class="aoa-hint">加入站点上传/做种等增量数据。</div>
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.health_in_report" color="primary" inset hide-details
-                      label="包含健康巡查摘要" />
-                    <div class="aoa-hint">加入站点/下载器/存储/入库健康结论。</div>
+                  <VCol v-for="s in reportSections" :key="s.key" cols="6" md="4">
+                    <VSwitch v-model="form[s.key]" color="primary" inset hide-details density="compact" :label="s.label" />
                   </VCol>
                 </VRow>
 
