@@ -76,6 +76,21 @@ async function loadDownloaders() {
   }
 }
 
+// 媒体服务器列表（媒体库通知按服务器过滤用）
+const mediaserverOptions = ref([])
+const mediaserversLoading = ref(false)
+async function loadMediaservers() {
+  mediaserversLoading.value = true
+  try {
+    const res = await getPluginApi(props.api, 'mediaservers')
+    mediaserverOptions.value = Array.isArray(res) ? res : (res?.data || [])
+  } catch {
+    mediaserverOptions.value = []
+  } finally {
+    mediaserversLoading.value = false
+  }
+}
+
 const defaults = {
   enabled: false,
   daily_report_enabled: true,
@@ -163,6 +178,9 @@ const defaults = {
   subfill_enabled: false,
   subfill_details: [],
   subfill_notify: false,
+  msgnotify_enabled: false,
+  msgnotify_types: [],
+  msgnotify_servers: [],
 }
 
 const mainTabs = [
@@ -172,6 +190,7 @@ const mainTabs = [
   { key: 'updates', title: '更新检查', icon: 'mdi-update', desc: '设置 MoviePilot 和插件库更新检查，不在这里直接升级。' },
   { key: 'plugin', title: '插件残留清理', icon: 'mdi-puzzle-remove-outline', desc: '清理已卸载插件留下的配置、数据、日志或本地源码残留。' },
   { key: 'seedclean', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自“自动删种”）。' },
+  { key: 'msgnotify', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知。' },
 ]
 
 const subTabs = {
@@ -198,6 +217,9 @@ const subTabs = {
   seedclean: [
     { key: 'seedremove', title: '自动删种', icon: 'mdi-delete-sweep-outline' },
   ],
+  msgnotify: [
+    { key: 'server', title: '服务器通知', icon: 'mdi-television-play' },
+  ],
 }
 
 const subscribeSubtypeItems = [{ title: '电影', value: 'movie' }, { title: '电视剧', value: 'tv' }]
@@ -211,6 +233,7 @@ const logRowsPresets = [100, 300, 500, 1000, 2000].map(v => ({ title: `保留 ${
 const intervalPresets = [3600, 21600, 43200, 86400, 604800].map(v => ({ title: v < 86400 ? `${v / 3600} 小时` : `${v / 86400} 天`, value: v }))
 const seedActionItems = [{ title: '暂停', value: 'pause' }, { title: '删除种子', value: 'delete' }, { title: '删除种子和文件', value: 'deletefile' }]
 const subfillDetailItems = ['分辨率', '资源质量', '特效', '制作组', '站点'].map(v => ({ title: v, value: v }))
+const msgGroupItems = ['新入库', '开始播放', '停止播放', '登录成功', '登录失败', '标记'].map(v => ({ title: v, value: v }))
 
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
 const currentSubs = computed(() => subTabs[activeMain.value] || [])
@@ -228,6 +251,8 @@ watch(() => props.initialConfig, value => {
   form.market_update_exclude_ids = toArr(form.market_update_exclude_ids)
   form.seedclean_downloaders = toArr(form.seedclean_downloaders)
   form.subfill_details = toArr(form.subfill_details)
+  form.msgnotify_types = toArr(form.msgnotify_types)
+  form.msgnotify_servers = toArr(form.msgnotify_servers)
 }, { immediate: true, deep: true })
 
 function saveConfig() {
@@ -244,6 +269,7 @@ onMounted(() => {
   loadInstalledPlugins()
   loadPluginMarkets()
   loadDownloaders()
+  loadMediaservers()
 })
 </script>
 <template>
@@ -917,6 +943,36 @@ onMounted(() => {
                   </VBtn>
                 </div>
                 <div class="aoa-hint mt-2">立即执行将按上面已填条件处理；建议先把动作设为“暂停”确认无误。</div>
+              </VForm>
+            </div>
+            <!-- 媒体通知 · 服务器通知 -->
+            <div v-show="activeSub === 'server'" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">媒体库服务器通知</div>
+                <div class="aoa-hint mb-2">监听 Emby/Jellyfin/Plex 的 webhook 事件并推送通知（需先在 MoviePilot 把媒体服务器 webhook 指向 MP）。不含原插件的剧集聚合/IP定位/海报抓取。</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.msgnotify_enabled" color="primary" inset hide-details
+                      label="启用媒体库服务器通知" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.msgnotify_types" :items="msgGroupItems"
+                      label="通知哪些事件" multiple chips closable-chips clearable
+                      prepend-inner-icon="mdi-bell-cog-outline"
+                      :disabled="!form.msgnotify_enabled" />
+                    <div class="aoa-hint">新入库 / 开始播放 / 停止播放 / 登录成功 / 登录失败 / 标记。留空则不通知。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.msgnotify_servers" :items="mediaserverOptions"
+                      :loading="mediaserversLoading" label="仅这些媒体服务器（留空＝全部）"
+                      multiple chips closable-chips clearable
+                      prepend-inner-icon="mdi-server-network"
+                      no-data-text="未获取到媒体服务器"
+                      :disabled="!form.msgnotify_enabled" />
+                  </VCol>
+                </VRow>
               </VForm>
             </div>
           </div>

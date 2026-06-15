@@ -61,5 +61,6 @@ npm run build
 | 自动删种 | https://github.com/jxxghp/MoviePilot-Plugins | jxxghp |
 | 插件自动更新 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
 | 订阅规则自动填充 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
+| 媒体库服务器通知 | https://github.com/jxxghp/MoviePilot-Plugins | jxxghp |
 
 同时特别感谢 [MoviePilot](https://github.com/jxxghp/MoviePilot)（作者 jxxghp）提供的插件框架与 API。

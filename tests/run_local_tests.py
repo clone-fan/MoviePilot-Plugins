@@ -138,7 +138,7 @@ def install_stubs():
     plugins = _mod("app.plugins")
     plugins._PluginBase = _StubPluginBase
     sch = _mod("app.schemas")
-    sch.NotificationType = types.SimpleNamespace(Plugin="Plugin", SiteMessage="SiteMessage")
+    sch.NotificationType = types.SimpleNamespace(Plugin="Plugin", SiteMessage="SiteMessage", MediaServer="MediaServer")
     sch.ServiceInfo = object
     scht = _mod("app.schemas.types")
     scht.EventType = types.SimpleNamespace(
@@ -427,6 +427,29 @@ def main():
     _SUB.update({"history": types.SimpleNamespace(type="电影", tmdbid=5, seasons=""), "subs": [], "updates": []})
     make_plugin(mod, subfill_enabled=True, subfill_details="分辨率").on_download_fill_subscribe(ev)
     check(not _SUB["updates"], "非电视剧下载 -> 不填充")
+
+    print("== 媒体库服务器通知 ==")
+    check(AOA._msg_group_of("playback.start") == "开始播放", "事件归类 playback.start->开始播放")
+    check(AOA._msg_group_of("ItemAdded") == "新入库", "ItemAdded->新入库")
+    check(AOA._msg_group_of("unknown.x") is None, "未知事件 -> None")
+    info = types.SimpleNamespace(event="playback.start", item_type="TV", item_name="剧A", user_name="张三",
+                                 device_name="客厅", client="Emby", ip=None, percentage=None, overview=None,
+                                 item_id="i1", server_name="Emby1", channel="emby", image_url=None)
+    pm = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="开始播放,新入库")
+    pm.on_webhook_message(types.SimpleNamespace(event_data=info))
+    check(len(pm._stub_messages) == 1 and "开始播放剧集 剧A" in pm._stub_messages[0]["title"], "开始播放 -> 发通知，标题正确")
+    check("用户：张三" in pm._stub_messages[0]["text"], "正文含用户")
+    pm.on_webhook_message(types.SimpleNamespace(event_data=info))
+    check(len(pm._stub_messages) == 1, "同 item 重复事件 30s 内去重")
+    pm2 = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="新入库")
+    pm2.on_webhook_message(types.SimpleNamespace(event_data=info))
+    check(len(pm2._stub_messages) == 0, "未勾选事件类型 -> 不通知")
+    pm3 = make_plugin(mod, msgnotify_enabled=False, msgnotify_types="开始播放")
+    pm3.on_webhook_message(types.SimpleNamespace(event_data=info))
+    check(len(pm3._stub_messages) == 0, "未启用 -> 不通知")
+    pm4 = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="开始播放", msgnotify_servers="OtherServer")
+    pm4.on_webhook_message(types.SimpleNamespace(event_data=info))
+    check(len(pm4._stub_messages) == 0, "服务器不在白名单 -> 不通知")
 
     print()
     if _FAILS:

@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.16"
+    plugin_version = "0.0.17"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -130,6 +130,25 @@ class AgentOpsAssistant(_PluginBase):
     _subfill_enabled = False
     _subfill_details: List[str] = []
     _subfill_notify = False
+    _msgnotify_enabled = False
+    _msgnotify_types: List[str] = []
+    _msgnotify_servers: List[str] = []
+    _msg_seen: Dict[str, float] = {}
+    _MSG_GROUPS = {
+        "新入库": {"library.new", "ItemAdded"},
+        "开始播放": {"playback.start", "media.play", "PlaybackStart"},
+        "停止播放": {"playback.stop", "media.stop", "PlaybackStop"},
+        "登录成功": {"user.authenticated"},
+        "登录失败": {"user.authenticationfailed"},
+        "标记": {"item.rate"},
+    }
+    _MSG_LABEL = {"新入库": "新入库", "开始播放": "开始播放", "停止播放": "停止播放",
+                  "登录成功": "登录成功", "登录失败": "登录失败", "标记": "标记了"}
+    _webhook_images = {
+        "emby": "https://emby.media/notificationicon.png",
+        "plex": "https://www.plex.tv/wp-content/uploads/2022/04/new-logo-process-lines-gray.png",
+        "jellyfin": "https://play-lh.googleusercontent.com/SCsUK3hCCRqkJbmLDctNYCfehLxsS4ggD1ZPHIFrrAN1Tn9yhjmGMPep2D9lMaaa9eQi",
+    }
     _last_summary = "尚未执行"
 
 
@@ -227,6 +246,10 @@ class AgentOpsAssistant(_PluginBase):
         self._subfill_enabled = bool(config.get("subfill_enabled", False))
         self._subfill_details = self._parse_csv(config.get("subfill_details"))
         self._subfill_notify = bool(config.get("subfill_notify", False))
+        self._msgnotify_enabled = bool(config.get("msgnotify_enabled", False))
+        self._msgnotify_types = self._parse_csv(config.get("msgnotify_types"))
+        self._msgnotify_servers = self._parse_csv(config.get("msgnotify_servers"))
+        self._msg_seen = {}
         self._last_summary = self._build_summary()
 
     def get_state(self) -> bool:
@@ -269,6 +292,7 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/run_plugin_uninstall", "endpoint": self.api_run_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "执行插件残留治理"},
             {"path": "/run_seed_clean", "endpoint": self.api_run_seed_clean, "auth": "bear", "methods": ["POST"], "summary": "立即执行自动删种"},
             {"path": "/downloaders", "endpoint": self.api_downloaders, "auth": "bear", "methods": ["GET"], "summary": "已配置下载器列表，供自动删种下拉选择"},
+            {"path": "/mediaservers", "endpoint": self.api_mediaservers, "auth": "bear", "methods": ["GET"], "summary": "已配置媒体服务器列表，供媒体库通知过滤"},
             {"path": "/run_heartbeat_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "兼容旧接口：立即发送每日汇报"},
         ]
 
@@ -475,6 +499,92 @@ class AgentOpsAssistant(_PluginBase):
         if re.match(r"[\\s.]+SDR[\\s.]+", resource_effect, re.IGNORECASE):
             resource_effect = "[\\s.]+SDR[\\s.]+"
         return resource_effect
+
+    @eventmanager.register(EventType.WebhookMessage)
+    def on_webhook_message(self, event: Event = None):
+        """媒体库服务器通知（移植自 jxxghp MediaServerMsg 核心）：把 Emby/Jellyfin/Plex 的
+        播放/入库/登录等 webhook 事件按配置推送通知。不含原插件的剧集聚合/IP定位/海报抓取。"""
+        if not self._msgnotify_enabled or not self._msgnotify_types:
+            return
+        info = getattr(event, "event_data", None) if event else None
+        if not info:
+            return
+        try:
+            group = self._msg_group_of(getattr(info, "event", None))
+            if not group or group not in self._msgnotify_types:
+                return
+            server_name = getattr(info, "server_name", None)
+            if self._msgnotify_servers and server_name and server_name not in self._msgnotify_servers:
+                return
+            item_id = getattr(info, "item_id", "") or ""
+            if item_id and not self._msg_dedupe(f"{server_name}-{group}-{item_id}"):
+                return
+            title = self._msg_title(group, info)
+            text = self._msg_text(info)
+            image = getattr(info, "image_url", None) or self._webhook_images.get(getattr(info, "channel", "") or "")
+            self.post_message(mtype=NotificationType.MediaServer, title=title, text=text, image=image)
+        except Exception as err:
+            logger.error(f"AgentOpsAssistant 媒体库通知处理失败：{err}")
+
+    @classmethod
+    def _msg_group_of(cls, etype):
+        if not etype:
+            return None
+        for group, members in cls._MSG_GROUPS.items():
+            if etype in members:
+                return group
+        return None
+
+    def _msg_dedupe(self, key: str) -> bool:
+        """30 秒内重复事件返回 False（不再通知）；新事件返回 True 并记录。"""
+        now = datetime.now().timestamp()
+        seen = self._msg_seen if isinstance(self._msg_seen, dict) else {}
+        for k in [k for k, ts in seen.items() if now - ts > 30]:
+            seen.pop(k, None)
+        if key in seen:
+            return False
+        seen[key] = now
+        self._msg_seen = seen
+        return True
+
+    def _msg_title(self, group: str, info: Any) -> str:
+        action = self._MSG_LABEL.get(group, group)
+        item_type = getattr(info, "item_type", "") or ""
+        name = getattr(info, "item_name", "") or ""
+        if item_type in ("TV", "SHOW"):
+            return f"{action}剧集 {name}".strip()
+        if item_type == "MOV":
+            return f"{action}电影 {name}".strip()
+        if item_type == "AUD":
+            return f"{action}有声书 {name}".strip()
+        return action
+
+    @staticmethod
+    def _msg_text(info: Any) -> str:
+        parts = []
+        user = getattr(info, "user_name", None)
+        if user:
+            parts.append(f"用户：{user}")
+        device = getattr(info, "device_name", None)
+        client = getattr(info, "client", None)
+        if device:
+            parts.append(f"设备：{(client or '')} {device}".strip())
+        elif client:
+            parts.append(f"设备：{client}")
+        ip = getattr(info, "ip", None)
+        if ip:
+            parts.append(f"IP地址：{ip}")
+        pct = getattr(info, "percentage", None)
+        if pct:
+            try:
+                parts.append(f"进度：{round(float(pct), 2)}%")
+            except (ValueError, TypeError):
+                pass
+        overview = getattr(info, "overview", None)
+        if overview:
+            parts.append(f"剧情：{overview}")
+        parts.append("时间：" + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        return "\n".join(parts)
 
     def run_daily_report(self) -> bool:
         name = "MP运维每日汇报"
@@ -1241,6 +1351,21 @@ class AgentOpsAssistant(_PluginBase):
         except Exception as err:
             logger.error(f"下载器列表获取失败：{err}")
             return {"code": 1, "msg": f"下载器列表获取失败：{err}", "data": []}
+
+    def api_mediaservers(self) -> Dict[str, Any]:
+        """已配置媒体服务器列表，供媒体库通知按服务器过滤。"""
+        try:
+            from app.helper.mediaserver import MediaServerHelper
+            items = []
+            for conf in (MediaServerHelper().get_configs() or {}).values():
+                nm = getattr(conf, "name", None)
+                if nm:
+                    items.append({"value": nm, "title": nm})
+            items.sort(key=lambda x: x["title"])
+            return {"code": 0, "data": items}
+        except Exception as err:
+            logger.error(f"媒体服务器列表获取失败：{err}")
+            return {"code": 1, "msg": f"媒体服务器列表获取失败：{err}", "data": []}
 
     def run_seed_clean(self) -> bool:
         """按规则在所选下载器中暂停/删除种子。默认动作为暂停，安全优先。"""
@@ -2680,4 +2805,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": []}
