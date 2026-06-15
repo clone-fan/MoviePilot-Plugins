@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-DGWTz_NE.js';
 
-const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,createTextVNode:_createTextVNode,withCtx:_withCtx,openBlock:_openBlock,createBlock:_createBlock,createCommentVNode:_createCommentVNode,toDisplayString:_toDisplayString,renderList:_renderList,Fragment:_Fragment,createElementBlock:_createElementBlock} = await importShared('vue');
+const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,createTextVNode:_createTextVNode,withCtx:_withCtx,openBlock:_openBlock,createBlock:_createBlock,createCommentVNode:_createCommentVNode,toDisplayString:_toDisplayString,renderList:_renderList,Fragment:_Fragment,createElementBlock:_createElementBlock,normalizeStyle:_normalizeStyle} = await importShared('vue');
 
 
 const _hoisted_1 = { class: "agentops-dashboard" };
@@ -9,20 +9,44 @@ const _hoisted_2 = { class: "pa-3" };
 const _hoisted_3 = { class: "text-h6 font-weight-bold" };
 const _hoisted_4 = { class: "text-h6 font-weight-bold" };
 const _hoisted_5 = { class: "text-h6 font-weight-bold" };
-const _hoisted_6 = { class: "d-flex align-center ga-2" };
-const _hoisted_7 = {
+const _hoisted_6 = { class: "text-body-2 text-medium-emphasis mb-2" };
+const _hoisted_7 = { class: "d-flex align-center" };
+const _hoisted_8 = {
+  viewBox: "0 0 180 180",
+  width: "150",
+  height: "150",
+  class: "flex-shrink-0"
+};
+const _hoisted_9 = ["d", "fill"];
+const _hoisted_10 = { class: "ms-3 flex-grow-1" };
+const _hoisted_11 = { class: "me-2" };
+const _hoisted_12 = { class: "text-medium-emphasis" };
+const _hoisted_13 = { class: "text-body-2 text-medium-emphasis mb-2" };
+const _hoisted_14 = { class: "d-flex align-center" };
+const _hoisted_15 = {
+  viewBox: "0 0 180 180",
+  width: "150",
+  height: "150",
+  class: "flex-shrink-0"
+};
+const _hoisted_16 = ["d", "fill"];
+const _hoisted_17 = { class: "ms-3 flex-grow-1" };
+const _hoisted_18 = { class: "me-2" };
+const _hoisted_19 = { class: "text-medium-emphasis" };
+const _hoisted_20 = { class: "d-flex align-center ga-2" };
+const _hoisted_21 = {
   key: 0,
   class: "text-caption text-medium-emphasis mb-2"
 };
-const _hoisted_8 = {
+const _hoisted_22 = {
   key: 1,
   class: "health-output"
 };
-const _hoisted_9 = {
+const _hoisted_23 = {
   key: 2,
   class: "text-medium-emphasis text-body-2"
 };
-const _hoisted_10 = { class: "d-flex flex-wrap ga-2" };
+const _hoisted_24 = { class: "d-flex flex-wrap ga-2" };
 
 const {ref,reactive,computed,onMounted} = await importShared('vue');
 
@@ -102,7 +126,47 @@ async function runAction(path, label) {
   }
 }
 
-onMounted(loadDashboard);
+const siteChart = reactive({ date: '', sites: [], upload_total: 0, download_total: 0 });
+const PIE_COLORS = ['#2196F3', '#26C6DA', '#66BB6A', '#FFCA28', '#FF7043', '#AB47BC', '#EC407A', '#8D6E63', '#5C6BC0', '#9CCC65'];
+function formatGB(bytes) {
+  const n = Number(bytes) || 0;
+  const gb = n / (1024 ** 3);
+  if (gb >= 1) return gb.toFixed(2) + ' GB'
+  return (n / (1024 ** 2)).toFixed(1) + ' MB'
+}
+function buildPie(key) {
+  const items = (siteChart.sites || []).filter(s => (s[key] || 0) > 0);
+  const total = items.reduce((sum, x) => sum + (x[key] || 0), 0);
+  if (total <= 0) return []
+  let ang = -Math.PI / 2;
+  const cx = 90, cy = 90, r = 80;
+  return items.map((it, i) => {
+    const frac = (it[key] || 0) / total;
+    const a0 = ang;
+    const a1 = ang + frac * 2 * Math.PI;
+    ang = a1;
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    const large = (a1 - a0) > Math.PI ? 1 : 0;
+    const path = frac >= 0.999
+      ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${(cx - 0.01).toFixed(3)} ${cy - r} Z`
+      : `M ${cx} ${cy} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
+    return { path, color: PIE_COLORS[i % PIE_COLORS.length], name: it.name, value: it[key], frac }
+  })
+}
+const uploadPie = computed(() => buildPie('upload'));
+const downloadPie = computed(() => buildPie('download'));
+
+async function loadSiteChart() {
+  try {
+    const res = await getPluginApi(props.api, 'site_stat_chart');
+    Object.assign(siteChart, res || {});
+  } catch {
+    /* 无站点数据时静默不显示 */
+  }
+}
+
+onMounted(() => { loadDashboard(); loadSiteChart(); });
 
 return (_ctx, _cache) => {
   const _component_VIcon = _resolveComponent("VIcon");
@@ -305,6 +369,113 @@ return (_ctx, _cache) => {
         ]),
         _: 1
       }),
+      (siteChart.sites && siteChart.sites.length)
+        ? (_openBlock(), _createBlock(_component_VCard, {
+            key: 1,
+            variant: "outlined",
+            class: "rounded-lg mb-3"
+          }, {
+            default: _withCtx(() => [
+              _createVNode(_component_VCardTitle, { class: "text-subtitle-1 d-flex align-center py-3" }, {
+                default: _withCtx(() => [
+                  _createVNode(_component_VIcon, {
+                    icon: "mdi-chart-pie",
+                    color: "primary",
+                    class: "me-2"
+                  }),
+                  _cache[15] || (_cache[15] = _createTextVNode("站点数据统计 ", -1))
+                ]),
+                _: 1
+              }),
+              _createVNode(_component_VDivider),
+              _createVNode(_component_VCardText, null, {
+                default: _withCtx(() => [
+                  _createVNode(_component_VRow, null, {
+                    default: _withCtx(() => [
+                      _createVNode(_component_VCol, {
+                        cols: "12",
+                        md: "6"
+                      }, {
+                        default: _withCtx(() => [
+                          _createElementVNode("div", _hoisted_6, "今日上传（" + _toDisplayString(siteChart.date) + "）共 " + _toDisplayString(formatGB(siteChart.upload_total)), 1),
+                          _createElementVNode("div", _hoisted_7, [
+                            (_openBlock(), _createElementBlock("svg", _hoisted_8, [
+                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(uploadPie.value, (s, i) => {
+                                return (_openBlock(), _createElementBlock("path", {
+                                  key: i,
+                                  d: s.path,
+                                  fill: s.color,
+                                  stroke: "rgba(255,255,255,0.25)",
+                                  "stroke-width": "0.6"
+                                }, null, 8, _hoisted_9))
+                              }), 128))
+                            ])),
+                            _createElementVNode("div", _hoisted_10, [
+                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(uploadPie.value, (s, i) => {
+                                return (_openBlock(), _createElementBlock("div", {
+                                  key: i,
+                                  class: "d-flex align-center text-caption mb-1"
+                                }, [
+                                  _createElementVNode("span", {
+                                    class: "aoa-legend-dot",
+                                    style: _normalizeStyle({ background: s.color })
+                                  }, null, 4),
+                                  _createElementVNode("span", _hoisted_11, _toDisplayString(s.name), 1),
+                                  _createElementVNode("span", _hoisted_12, _toDisplayString(formatGB(s.value)) + "（" + _toDisplayString((s.frac * 100).toFixed(0)) + "%）", 1)
+                                ]))
+                              }), 128))
+                            ])
+                          ])
+                        ]),
+                        _: 1
+                      }),
+                      _createVNode(_component_VCol, {
+                        cols: "12",
+                        md: "6"
+                      }, {
+                        default: _withCtx(() => [
+                          _createElementVNode("div", _hoisted_13, "今日下载（" + _toDisplayString(siteChart.date) + "）共 " + _toDisplayString(formatGB(siteChart.download_total)), 1),
+                          _createElementVNode("div", _hoisted_14, [
+                            (_openBlock(), _createElementBlock("svg", _hoisted_15, [
+                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(downloadPie.value, (s, i) => {
+                                return (_openBlock(), _createElementBlock("path", {
+                                  key: i,
+                                  d: s.path,
+                                  fill: s.color,
+                                  stroke: "rgba(255,255,255,0.25)",
+                                  "stroke-width": "0.6"
+                                }, null, 8, _hoisted_16))
+                              }), 128))
+                            ])),
+                            _createElementVNode("div", _hoisted_17, [
+                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(downloadPie.value, (s, i) => {
+                                return (_openBlock(), _createElementBlock("div", {
+                                  key: i,
+                                  class: "d-flex align-center text-caption mb-1"
+                                }, [
+                                  _createElementVNode("span", {
+                                    class: "aoa-legend-dot",
+                                    style: _normalizeStyle({ background: s.color })
+                                  }, null, 4),
+                                  _createElementVNode("span", _hoisted_18, _toDisplayString(s.name), 1),
+                                  _createElementVNode("span", _hoisted_19, _toDisplayString(formatGB(s.value)) + "（" + _toDisplayString((s.frac * 100).toFixed(0)) + "%）", 1)
+                                ]))
+                              }), 128))
+                            ])
+                          ])
+                        ]),
+                        _: 1
+                      })
+                    ]),
+                    _: 1
+                  })
+                ]),
+                _: 1
+              })
+            ]),
+            _: 1
+          }))
+        : _createCommentVNode("", true),
       _createVNode(_component_VCard, {
         variant: "outlined",
         class: "rounded-lg mb-3"
@@ -317,7 +488,7 @@ return (_ctx, _cache) => {
                 color: "primary",
                 class: "me-2"
               }),
-              _cache[15] || (_cache[15] = _createTextVNode("模块运行概览 ", -1))
+              _cache[16] || (_cache[16] = _createTextVNode("模块运行概览 ", -1))
             ]),
             _: 1
           }),
@@ -352,7 +523,7 @@ return (_ctx, _cache) => {
                           }, 1032, ["color"])
                         ]),
                         append: _withCtx(() => [
-                          _createElementVNode("div", _hoisted_6, [
+                          _createElementVNode("div", _hoisted_20, [
                             _createVNode(_component_VChip, {
                               size: "x-small",
                               variant: "tonal",
@@ -414,7 +585,7 @@ return (_ctx, _cache) => {
                 color: "primary",
                 class: "me-2"
               }),
-              _cache[16] || (_cache[16] = _createTextVNode("最近健康巡查 ", -1)),
+              _cache[17] || (_cache[17] = _createTextVNode("最近健康巡查 ", -1)),
               _createVNode(_component_VSpacer),
               _createVNode(_component_VChip, {
                 size: "small",
@@ -433,11 +604,11 @@ return (_ctx, _cache) => {
           _createVNode(_component_VCardText, null, {
             default: _withCtx(() => [
               (data.health.time)
-                ? (_openBlock(), _createElementBlock("div", _hoisted_7, "巡查时间：" + _toDisplayString(data.health.time), 1))
+                ? (_openBlock(), _createElementBlock("div", _hoisted_21, "巡查时间：" + _toDisplayString(data.health.time), 1))
                 : _createCommentVNode("", true),
               (data.health.output)
-                ? (_openBlock(), _createElementBlock("pre", _hoisted_8, _toDisplayString(data.health.output), 1))
-                : (_openBlock(), _createElementBlock("div", _hoisted_9, "尚无健康巡查记录，可在设置页手动触发或等待每日汇报自动执行。"))
+                ? (_openBlock(), _createElementBlock("pre", _hoisted_22, _toDisplayString(data.health.output), 1))
+                : (_openBlock(), _createElementBlock("div", _hoisted_23, "尚无健康巡查记录，可在设置页手动触发或等待每日汇报自动执行。"))
             ]),
             _: 1
           })
@@ -456,14 +627,14 @@ return (_ctx, _cache) => {
                 color: "primary",
                 class: "me-2"
               }),
-              _cache[17] || (_cache[17] = _createTextVNode("手动触发 ", -1))
+              _cache[18] || (_cache[18] = _createTextVNode("手动触发 ", -1))
             ]),
             _: 1
           }),
           _createVNode(_component_VDivider),
           _createVNode(_component_VCardText, null, {
             default: _withCtx(() => [
-              _createElementVNode("div", _hoisted_10, [
+              _createElementVNode("div", _hoisted_24, [
                 _createVNode(_component_VBtn, {
                   color: "primary",
                   variant: "tonal",
@@ -472,7 +643,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_daily_report',
                   onClick: _cache[2] || (_cache[2] = $event => (runAction('run_daily_report', '每日汇报')))
                 }, {
-                  default: _withCtx(() => [...(_cache[18] || (_cache[18] = [
+                  default: _withCtx(() => [...(_cache[19] || (_cache[19] = [
                     _createTextVNode(" 发送每日汇报 ", -1)
                   ]))]),
                   _: 1
@@ -485,7 +656,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_health_check',
                   onClick: _cache[3] || (_cache[3] = $event => (runAction('run_health_check', '健康巡查')))
                 }, {
-                  default: _withCtx(() => [...(_cache[19] || (_cache[19] = [
+                  default: _withCtx(() => [...(_cache[20] || (_cache[20] = [
                     _createTextVNode(" 健康巡查 ", -1)
                   ]))]),
                   _: 1
@@ -498,7 +669,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_backup',
                   onClick: _cache[4] || (_cache[4] = $event => (runAction('run_backup', '立即备份')))
                 }, {
-                  default: _withCtx(() => [...(_cache[20] || (_cache[20] = [
+                  default: _withCtx(() => [...(_cache[21] || (_cache[21] = [
                     _createTextVNode(" 立即备份 ", -1)
                   ]))]),
                   _: 1
@@ -511,7 +682,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_log_clean',
                   onClick: _cache[5] || (_cache[5] = $event => (runAction('run_log_clean', '日志清理')))
                 }, {
-                  default: _withCtx(() => [...(_cache[21] || (_cache[21] = [
+                  default: _withCtx(() => [...(_cache[22] || (_cache[22] = [
                     _createTextVNode(" 清理日志 ", -1)
                   ]))]),
                   _: 1
@@ -524,7 +695,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_mp_update',
                   onClick: _cache[6] || (_cache[6] = $event => (runAction('run_mp_update', '检查更新')))
                 }, {
-                  default: _withCtx(() => [...(_cache[22] || (_cache[22] = [
+                  default: _withCtx(() => [...(_cache[23] || (_cache[23] = [
                     _createTextVNode(" 检查更新 ", -1)
                   ]))]),
                   _: 1
@@ -537,7 +708,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_market_update',
                   onClick: _cache[7] || (_cache[7] = $event => (runAction('run_market_update', '插件库更新')))
                 }, {
-                  default: _withCtx(() => [...(_cache[23] || (_cache[23] = [
+                  default: _withCtx(() => [...(_cache[24] || (_cache[24] = [
                     _createTextVNode(" 插件库更新 ", -1)
                   ]))]),
                   _: 1
@@ -550,7 +721,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_seed_clean',
                   onClick: _cache[8] || (_cache[8] = $event => (runAction('run_seed_clean', '自动删种')))
                 }, {
-                  default: _withCtx(() => [...(_cache[24] || (_cache[24] = [
+                  default: _withCtx(() => [...(_cache[25] || (_cache[25] = [
                     _createTextVNode(" 自动删种 ", -1)
                   ]))]),
                   _: 1
@@ -578,6 +749,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-84c5b841"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-1c3d4195"]]);
 
 export { Page as default };

@@ -123,6 +123,7 @@ class _StubSubscribeOper:
 class _StubSiteOper:
     def list_active(self): return list(_SUB.get("sites", []))
     def get_userdata_latest(self): return list(_SUB.get("site_latest", []))
+    def get_userdata_by_date(self, day): return list(_SUB.get("site_prev", []))
 
 
 def install_stubs():
@@ -497,6 +498,24 @@ def main():
                  "sites": [types.SimpleNamespace(domain="m.x")]})
     sh = make_plugin(mod)._get_site_health_locked()
     check(any("馒头 | 异常" in x for x in sh), "站点状态逐站：异常格式 “馒头 | 异常（…）”")
+
+    print("== 站点数据统计饼图数据 ==")
+    _today = datetime.now().strftime("%Y-%m-%d")
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain="m.x"), types.SimpleNamespace(domain="q.x")],
+        "site_latest": [
+            types.SimpleNamespace(name="馒头", domain="m.x", err_msg="", updated_day=_today, upload=100 * 1024 ** 3, download=10 * 1024 ** 3),
+            types.SimpleNamespace(name="青蛙", domain="q.x", err_msg="", updated_day=_today, upload=30 * 1024 ** 3, download=0),
+        ],
+        "site_prev": [
+            types.SimpleNamespace(name="馒头", err_msg="", upload=90 * 1024 ** 3, download=8 * 1024 ** 3),
+            types.SimpleNamespace(name="青蛙", err_msg="", upload=29 * 1024 ** 3, download=0),
+        ],
+    })
+    chart = make_plugin(mod).api_site_stat_chart()
+    cd = chart.get("data", {})
+    check(chart.get("code") == 0 and cd.get("upload_total") == 11 * 1024 ** 3, "饼图：今日上传合计=各站增量之和(10+1 GB)")
+    check(cd.get("download_total") == 2 * 1024 ** 3 and len(cd.get("sites", [])) == 2, "饼图：下载合计与站点数正确")
 
     print()
     if _FAILS:

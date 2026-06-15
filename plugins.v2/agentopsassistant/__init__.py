@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.20"
+    plugin_version = "0.0.21"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -319,6 +319,7 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/mediaservers", "endpoint": self.api_mediaservers, "auth": "bear", "methods": ["GET"], "summary": "已配置媒体服务器列表，供媒体库通知过滤"},
             {"path": "/subfill_clear_history", "endpoint": self.api_subfill_clear_history, "auth": "bear", "methods": ["POST"], "summary": "清理订阅规则填充历史记录"},
             {"path": "/subfill_clear_handled", "endpoint": self.api_subfill_clear_handled, "auth": "bear", "methods": ["POST"], "summary": "清理订阅规则填充已处理记录"},
+            {"path": "/site_stat_chart", "endpoint": self.api_site_stat_chart, "auth": "bear", "methods": ["GET"], "summary": "今日各站点上传/下载增量，供仪表盘饼图"},
             {"path": "/run_heartbeat_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "兼容旧接口：立即发送每日汇报"},
         ]
 
@@ -1213,6 +1214,41 @@ class AgentOpsAssistant(_PluginBase):
         except Exception as e:
             return [f"⦁ 异常 - {e}"]
 
+    def _site_increment_data(self) -> List[Dict[str, Any]]:
+        """今日各站点上传/下载增量（原始字节），供仪表盘饼图。"""
+        out: List[Dict[str, Any]] = []
+        try:
+            from app.db.site_oper import SiteOper
+            site_oper = SiteOper()
+            latest_data = site_oper.get_userdata_latest() or []
+            active_domains = {s.domain for s in (site_oper.list_active() or []) if getattr(s, "domain", None)}
+            latest_data = [d for d in latest_data if d and getattr(d, "domain", None) in active_domains]
+            today = self._today_prefix()
+            previous_cache: Dict[str, List[Any]] = {}
+            for current in latest_data:
+                name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
+                if (getattr(current, "updated_day", None) or "") != today or str(getattr(current, "err_msg", None) or "").strip():
+                    continue
+                previous = None
+                for i in range(1, 8):
+                    prev_day = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=i)).strftime("%Y-%m-%d")
+                    if prev_day not in previous_cache:
+                        previous_cache[prev_day] = site_oper.get_userdata_by_date(prev_day) or []
+                    prev_map = {getattr(r, "name", None): r for r in previous_cache[prev_day] if r and not getattr(r, "err_msg", None)}
+                    previous = prev_map.get(name)
+                    if previous:
+                        break
+                if not previous:
+                    continue
+                up = max(0, int(getattr(current, "upload", 0) or 0) - int(getattr(previous, "upload", 0) or 0))
+                dl = max(0, int(getattr(current, "download", 0) or 0) - int(getattr(previous, "download", 0) or 0))
+                if up == 0 and dl == 0:
+                    continue
+                out.append({"name": name, "upload": up, "download": dl})
+        except Exception as err:
+            logger.warning(f"AgentOpsAssistant 站点增量数据获取失败：{err}")
+        return out
+
     def _get_site_health_locked(self) -> List[str]:
         try:
             from app.db.site_oper import SiteOper
@@ -1507,6 +1543,20 @@ class AgentOpsAssistant(_PluginBase):
 
     def api_subfill_clear_handled(self) -> Dict[str, Any]:
         return self._api_run_task("清理已处理", self.run_subfill_clear_handled)
+
+    def api_site_stat_chart(self) -> Dict[str, Any]:
+        """今日各站点上传/下载增量，供仪表盘饼图。"""
+        try:
+            data = self._site_increment_data()
+            return {"code": 0, "data": {
+                "date": self._today_prefix(),
+                "sites": data,
+                "upload_total": sum(int(d.get("upload", 0)) for d in data),
+                "download_total": sum(int(d.get("download", 0)) for d in data),
+            }}
+        except Exception as err:
+            logger.error(f"站点统计图数据获取失败：{err}")
+            return {"code": 1, "msg": str(err), "data": {"date": "", "sites": [], "upload_total": 0, "download_total": 0}}
 
     def run_seed_clean(self) -> bool:
         """按规则在所选下载器中暂停/删除种子。默认动作为暂停，安全优先。"""

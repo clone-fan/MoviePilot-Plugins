@@ -71,7 +71,47 @@ async function runAction(path, label) {
   }
 }
 
-onMounted(loadDashboard)
+const siteChart = reactive({ date: '', sites: [], upload_total: 0, download_total: 0 })
+const PIE_COLORS = ['#2196F3', '#26C6DA', '#66BB6A', '#FFCA28', '#FF7043', '#AB47BC', '#EC407A', '#8D6E63', '#5C6BC0', '#9CCC65']
+function formatGB(bytes) {
+  const n = Number(bytes) || 0
+  const gb = n / (1024 ** 3)
+  if (gb >= 1) return gb.toFixed(2) + ' GB'
+  return (n / (1024 ** 2)).toFixed(1) + ' MB'
+}
+function buildPie(key) {
+  const items = (siteChart.sites || []).filter(s => (s[key] || 0) > 0)
+  const total = items.reduce((sum, x) => sum + (x[key] || 0), 0)
+  if (total <= 0) return []
+  let ang = -Math.PI / 2
+  const cx = 90, cy = 90, r = 80
+  return items.map((it, i) => {
+    const frac = (it[key] || 0) / total
+    const a0 = ang
+    const a1 = ang + frac * 2 * Math.PI
+    ang = a1
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0)
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1)
+    const large = (a1 - a0) > Math.PI ? 1 : 0
+    const path = frac >= 0.999
+      ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${(cx - 0.01).toFixed(3)} ${cy - r} Z`
+      : `M ${cx} ${cy} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`
+    return { path, color: PIE_COLORS[i % PIE_COLORS.length], name: it.name, value: it[key], frac }
+  })
+}
+const uploadPie = computed(() => buildPie('upload'))
+const downloadPie = computed(() => buildPie('download'))
+
+async function loadSiteChart() {
+  try {
+    const res = await getPluginApi(props.api, 'site_stat_chart')
+    Object.assign(siteChart, res || {})
+  } catch {
+    /* 无站点数据时静默不显示 */
+  }
+}
+
+onMounted(() => { loadDashboard(); loadSiteChart() })
 </script>
 
 <template>
@@ -131,6 +171,48 @@ onMounted(loadDashboard)
           </VCard>
         </VCol>
       </VRow>
+
+      <!-- 站点数据统计 -->
+      <VCard v-if="siteChart.sites && siteChart.sites.length" variant="outlined" class="rounded-lg mb-3">
+        <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+          <VIcon icon="mdi-chart-pie" color="primary" class="me-2" />站点数据统计
+        </VCardTitle>
+        <VDivider />
+        <VCardText>
+          <VRow>
+            <VCol cols="12" md="6">
+              <div class="text-body-2 text-medium-emphasis mb-2">今日上传（{{ siteChart.date }}）共 {{ formatGB(siteChart.upload_total) }}</div>
+              <div class="d-flex align-center">
+                <svg viewBox="0 0 180 180" width="150" height="150" class="flex-shrink-0">
+                  <path v-for="(s, i) in uploadPie" :key="i" :d="s.path" :fill="s.color" stroke="rgba(255,255,255,0.25)" stroke-width="0.6" />
+                </svg>
+                <div class="ms-3 flex-grow-1">
+                  <div v-for="(s, i) in uploadPie" :key="i" class="d-flex align-center text-caption mb-1">
+                    <span class="aoa-legend-dot" :style="{ background: s.color }"></span>
+                    <span class="me-2">{{ s.name }}</span>
+                    <span class="text-medium-emphasis">{{ formatGB(s.value) }}（{{ (s.frac * 100).toFixed(0) }}%）</span>
+                  </div>
+                </div>
+              </div>
+            </VCol>
+            <VCol cols="12" md="6">
+              <div class="text-body-2 text-medium-emphasis mb-2">今日下载（{{ siteChart.date }}）共 {{ formatGB(siteChart.download_total) }}</div>
+              <div class="d-flex align-center">
+                <svg viewBox="0 0 180 180" width="150" height="150" class="flex-shrink-0">
+                  <path v-for="(s, i) in downloadPie" :key="i" :d="s.path" :fill="s.color" stroke="rgba(255,255,255,0.25)" stroke-width="0.6" />
+                </svg>
+                <div class="ms-3 flex-grow-1">
+                  <div v-for="(s, i) in downloadPie" :key="i" class="d-flex align-center text-caption mb-1">
+                    <span class="aoa-legend-dot" :style="{ background: s.color }"></span>
+                    <span class="me-2">{{ s.name }}</span>
+                    <span class="text-medium-emphasis">{{ formatGB(s.value) }}（{{ (s.frac * 100).toFixed(0) }}%）</span>
+                  </div>
+                </div>
+              </div>
+            </VCol>
+          </VRow>
+        </VCardText>
+      </VCard>
 
       <!-- 模块任务列表 -->
       <VCard variant="outlined" class="rounded-lg mb-3">
@@ -267,6 +349,7 @@ onMounted(loadDashboard)
 <style scoped>
 .agentops-toolbar { position: sticky; top: 0; z-index: 10; background: rgb(var(--v-theme-surface)); }
 .agentops-dashboard :deep(.v-card) { border-radius: 12px; }
+.aoa-legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
 .health-output {
   white-space: pre-wrap;
   word-break: break-word;
