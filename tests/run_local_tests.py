@@ -529,6 +529,22 @@ def main():
     check(chart.get("code") == 0 and cd.get("upload_total") == 11 * 1024 ** 3, "饼图：今日上传合计=各站增量之和(10+1 GB)")
     check(cd.get("download_total") == 2 * 1024 ** 3 and len(cd.get("sites", [])) == 2, "饼图：下载合计与站点数正确")
 
+    print("== 发版自检：接口/服务/命令/生命周期完整性 ==")
+    pa = make_plugin(mod, enabled=True, seedclean_enabled=True, seedclean_downloaders=["qb1"], seedclean_cron="0 1 * * *",
+                     backup_enabled=True, daily_report_enabled=True, log_clean_enabled=True,
+                     mp_update_enabled=True, market_update_enabled=True)
+    apis = pa.get_api() or []
+    check(len(apis) > 0 and all(callable(a.get("endpoint")) for a in apis), f"get_api 全部 endpoint 可调用（{len(apis)} 个）")
+    check(len({a.get("path") for a in apis}) == len(apis), "get_api path 无重复")
+    svcs = pa.get_service() or []
+    check(all(callable(s.get("func")) for s in svcs), f"get_service 全部 func 可调用（{len(svcs)} 个）")
+    cmds = mod.AgentOpsAssistant.get_command() or []
+    check(isinstance(cmds, list) and all(c.get("data", {}).get("action") for c in cmds), "get_command 结构完整")
+    check(pa.get_render_mode()[0] == "vue", "渲染模式 = vue")
+    form_schema, form_default = pa.get_form()
+    check(form_schema == [] and isinstance(form_default, dict) and form_default, "get_form Vue 模式返回 ([], 默认配置dict)")
+    check(pa.get_page() == [], "get_page Vue 模式返回 []")
+
     print()
     if _FAILS:
         print(f"FAILED: {len(_FAILS)} 项")
