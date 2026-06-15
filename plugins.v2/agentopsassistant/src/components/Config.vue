@@ -61,6 +61,21 @@ async function loadPluginMarkets() {
   }
 }
 
+// 下载器列表（自动删种用）
+const downloaderOptions = ref([])
+const downloadersLoading = ref(false)
+async function loadDownloaders() {
+  downloadersLoading.value = true
+  try {
+    const res = await getPluginApi(props.api, 'downloaders')
+    downloaderOptions.value = Array.isArray(res) ? res : (res?.data || [])
+  } catch {
+    downloaderOptions.value = []
+  } finally {
+    downloadersLoading.value = false
+  }
+}
+
 const defaults = {
   enabled: false,
   daily_report_enabled: true,
@@ -124,6 +139,23 @@ const defaults = {
   plugin_uninstall_clear_data: true,
   plugin_uninstall_delete_source: false,
   plugin_uninstall_notify: true,
+  seedclean_enabled: false,
+  seedclean_cron: '0 */12 * * *',
+  seedclean_action: 'pause',
+  seedclean_downloaders: [],
+  seedclean_size: '',
+  seedclean_ratio: '',
+  seedclean_time: '',
+  seedclean_upspeed: '',
+  seedclean_labels: '',
+  seedclean_pathkeywords: '',
+  seedclean_trackerkeywords: '',
+  seedclean_errorkeywords: '',
+  seedclean_torrentstates: '',
+  seedclean_torrentcategorys: '',
+  seedclean_samedata: false,
+  seedclean_mponly: false,
+  seedclean_notify: true,
 }
 
 const mainTabs = [
@@ -132,6 +164,7 @@ const mainTabs = [
   { key: 'cleanup', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知。' },
   { key: 'updates', title: '更新检查', icon: 'mdi-update', desc: '设置 MoviePilot 和插件库更新检查，不在这里直接升级。' },
   { key: 'plugin', title: '插件残留清理', icon: 'mdi-puzzle-remove-outline', desc: '清理已卸载插件留下的配置、数据、日志或本地源码残留。' },
+  { key: 'seedclean', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自“自动删种”）。' },
 ]
 
 const subTabs = {
@@ -154,6 +187,9 @@ const subTabs = {
   plugin: [
     { key: 'clean', title: '残留清理', icon: 'mdi-broom' },
   ],
+  seedclean: [
+    { key: 'seedremove', title: '自动删种', icon: 'mdi-delete-sweep-outline' },
+  ],
 }
 
 const subscribeSubtypeItems = [{ title: '电影', value: 'movie' }, { title: '电视剧', value: 'tv' }]
@@ -165,6 +201,7 @@ const mpUpdateTypes = ['后端', '前端'].map(v => ({ title: v, value: v }))
 const keepCountPresets = [3, 5, 7, 10, 15].map(v => ({ title: `保留 ${v} 份`, value: v }))
 const logRowsPresets = [100, 300, 500, 1000, 2000].map(v => ({ title: `保留 ${v} 行`, value: v }))
 const intervalPresets = [3600, 21600, 43200, 86400, 604800].map(v => ({ title: v < 86400 ? `${v / 3600} 小时` : `${v / 86400} 天`, value: v }))
+const seedActionItems = [{ title: '暂停', value: 'pause' }, { title: '删除种子', value: 'delete' }, { title: '删除种子和文件', value: 'deletefile' }]
 
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
 const currentSubs = computed(() => subTabs[activeMain.value] || [])
@@ -178,6 +215,7 @@ watch(() => props.initialConfig, value => {
   form.plugin_uninstall_ids = toArr(form.plugin_uninstall_ids)
   form.log_clean_selected_ids = toArr(form.log_clean_selected_ids)
   form.market_update_blacklist = toArr(form.market_update_blacklist)
+  form.seedclean_downloaders = toArr(form.seedclean_downloaders)
 }, { immediate: true, deep: true })
 
 function saveConfig() {
@@ -193,6 +231,7 @@ function selectMain(key) {
 onMounted(() => {
   loadInstalledPlugins()
   loadPluginMarkets()
+  loadDownloaders()
 })
 </script>
 <template>
@@ -698,6 +737,118 @@ onMounted(() => {
                   </VBtn>
                 </div>
                 <div class="aoa-hint mt-2">残留清理为不可逆操作，执行前请务必先预览确认。</div>
+              </VForm>
+            </div>
+
+            <!-- 种子治理 · 自动删种 -->
+            <div v-show="activeSub === 'seedremove'" class="aoa-pane">
+              <VForm>
+                <VAlert type="warning" variant="tonal" class="mb-4"
+                  text="自动删种有风险，设置不当可能丢数据！建议先用“暂停”动作验证条件命中正确，再改“删除”。未填写任何筛选条件时不会执行。" />
+                <div class="aoa-section-title">自动删种</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.seedclean_enabled" color="primary" inset hide-details
+                      label="启用定时自动删种" />
+                    <div class="aoa-hint">按计划在所选下载器中处理符合条件的种子。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VCronField v-model="form.seedclean_cron" label="执行周期 (Cron)"
+                      :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.seedclean_action" :items="seedActionItems"
+                      label="动作" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.seedclean_downloaders" :items="downloaderOptions"
+                      :loading="downloadersLoading" label="下载器（必选）"
+                      multiple chips closable-chips clearable
+                      prepend-inner-icon="mdi-download-network-outline"
+                      no-data-text="未配置下载器" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                </VRow>
+
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">筛选条件</div>
+                <div class="aoa-hint mb-2">仅处理“同时满足所有已填条件”的种子；留空的条件不参与。全部留空则跳过不处理。</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_size" label="种子大小（GB）"
+                      placeholder="例如 1-10" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_ratio" label="分享率不小于"
+                      placeholder="例如 2" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_time" label="做种时间不少于（小时）"
+                      placeholder="例如 240" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_upspeed" label="平均上传速度上限（KB/s）"
+                      placeholder="低于此值才处理" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_labels" label="标签"
+                      placeholder="用,分隔多个标签" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_torrentcategorys" label="任务分类"
+                      placeholder="用,分隔多个分类" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_pathkeywords" label="保存路径关键词"
+                      placeholder="支持正则" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_trackerkeywords" label="Tracker 关键词"
+                      placeholder="支持正则" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_torrentstates" label="任务状态（仅 QB）"
+                      placeholder="用,分隔，如 pausedUP,stalledUP" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VTextField v-model="form.seedclean_errorkeywords" label="错误信息关键词（仅 TR）"
+                      placeholder="支持正则" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="4">
+                    <VSwitch v-model="form.seedclean_samedata" color="primary" inset hide-details
+                      label="处理辅种（同名同大小一并处理）" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="4">
+                    <VSwitch v-model="form.seedclean_mponly" color="primary" inset hide-details
+                      label="仅 MoviePilot 任务" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="4">
+                    <VSwitch v-model="form.seedclean_notify" color="primary" inset hide-details
+                      label="处理结果通知" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                </VRow>
+
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">手动触发</div>
+                <div class="aoa-btn-row">
+                  <VBtn color="error" variant="tonal" prepend-icon="mdi-delete-sweep-outline"
+                    :disabled="!form.seedclean_downloaders || !form.seedclean_downloaders.length"
+                    :loading="action.running === 'run_seed_clean'" @click="runAction('run_seed_clean', '自动删种')">
+                    立即执行
+                  </VBtn>
+                </div>
+                <div class="aoa-hint mt-2">立即执行将按上面已填条件处理；建议先把动作设为“暂停”确认无误。</div>
               </VForm>
             </div>
           </div>

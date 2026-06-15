@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.11"
+    plugin_version = "0.0.12"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -106,6 +106,23 @@ class AgentOpsAssistant(_PluginBase):
     _plugin_uninstall_id = ""
     _plugin_uninstall_delete_source = False
     _plugin_uninstall_notify = True
+    _seedclean_enabled = False
+    _seedclean_cron = "0 */12 * * *"
+    _seedclean_action = "pause"
+    _seedclean_downloaders: List[str] = []
+    _seedclean_size = ""
+    _seedclean_ratio = ""
+    _seedclean_time = ""
+    _seedclean_upspeed = ""
+    _seedclean_labels = ""
+    _seedclean_pathkeywords = ""
+    _seedclean_trackerkeywords = ""
+    _seedclean_errorkeywords = ""
+    _seedclean_torrentstates = ""
+    _seedclean_torrentcategorys = ""
+    _seedclean_samedata = False
+    _seedclean_mponly = False
+    _seedclean_notify = True
     _last_summary = "尚未执行"
 
 
@@ -179,6 +196,23 @@ class AgentOpsAssistant(_PluginBase):
         self._plugin_uninstall_clear_data = bool(config.get("plugin_uninstall_clear_data", True))
         self._plugin_uninstall_delete_source = bool(config.get("plugin_uninstall_delete_source", False))
         self._plugin_uninstall_notify = bool(config.get("plugin_uninstall_notify", True))
+        self._seedclean_enabled = bool(config.get("seedclean_enabled", False))
+        self._seedclean_cron = config.get("seedclean_cron") or "0 */12 * * *"
+        self._seedclean_action = config.get("seedclean_action") or "pause"
+        self._seedclean_downloaders = self._parse_csv(config.get("seedclean_downloaders"))
+        self._seedclean_size = str(config.get("seedclean_size") or "").strip()
+        self._seedclean_ratio = str(config.get("seedclean_ratio") or "").strip()
+        self._seedclean_time = str(config.get("seedclean_time") or "").strip()
+        self._seedclean_upspeed = str(config.get("seedclean_upspeed") or "").strip()
+        self._seedclean_labels = str(config.get("seedclean_labels") or "").strip()
+        self._seedclean_pathkeywords = str(config.get("seedclean_pathkeywords") or "").strip()
+        self._seedclean_trackerkeywords = str(config.get("seedclean_trackerkeywords") or "").strip()
+        self._seedclean_errorkeywords = str(config.get("seedclean_errorkeywords") or "").strip()
+        self._seedclean_torrentstates = str(config.get("seedclean_torrentstates") or "").strip()
+        self._seedclean_torrentcategorys = str(config.get("seedclean_torrentcategorys") or "").strip()
+        self._seedclean_samedata = bool(config.get("seedclean_samedata", False))
+        self._seedclean_mponly = bool(config.get("seedclean_mponly", False))
+        self._seedclean_notify = bool(config.get("seedclean_notify", True))
         self._last_summary = self._build_summary()
 
     def get_state(self) -> bool:
@@ -198,6 +232,7 @@ class AgentOpsAssistant(_PluginBase):
             {"cmd": "/mpops_run_all", "event": EventType.PluginAction, "desc": "依次执行每日汇报与健康巡查", "category": "MP运维", "data": {"action": "mpops_run_all"}},
             {"cmd": "/mpops_plugin_preview", "event": EventType.PluginAction, "desc": "预览插件残留治理范围", "category": "MP运维", "data": {"action": "mpops_plugin_preview"}},
             {"cmd": "/mpops_plugin_clean", "event": EventType.PluginAction, "desc": "执行插件残留治理（需配置页显式确认）", "category": "MP运维", "data": {"action": "mpops_plugin_clean"}},
+            {"cmd": "/mpops_seed_clean", "event": EventType.PluginAction, "desc": "执行自动删种（按规则暂停/删除种子）", "category": "MP运维", "data": {"action": "mpops_seed_clean"}},
             {"cmd": "/agentops_heartbeat", "event": EventType.PluginAction, "desc": "兼容旧命令：发送每日汇报", "category": "MP运维", "data": {"action": "mpops_report"}},
             {"cmd": "/agentops_run_all", "event": EventType.PluginAction, "desc": "兼容旧命令：执行全部低风险任务", "category": "MP运维", "data": {"action": "mpops_run_all"}},
         ]
@@ -218,6 +253,8 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/run_market_update", "endpoint": self.api_run_market_update, "auth": "bear", "methods": ["POST"], "summary": "执行插件库更新检查并按确认写入"},
             {"path": "/preview_plugin_uninstall", "endpoint": self.api_preview_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "预览插件残留治理范围"},
             {"path": "/run_plugin_uninstall", "endpoint": self.api_run_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "执行插件残留治理"},
+            {"path": "/run_seed_clean", "endpoint": self.api_run_seed_clean, "auth": "bear", "methods": ["POST"], "summary": "立即执行自动删种"},
+            {"path": "/downloaders", "endpoint": self.api_downloaders, "auth": "bear", "methods": ["GET"], "summary": "已配置下载器列表，供自动删种下拉选择"},
             {"path": "/run_heartbeat_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "兼容旧接口：立即发送每日汇报"},
         ]
 
@@ -240,6 +277,8 @@ class AgentOpsAssistant(_PluginBase):
             services.append({"id": "AgentOpsAssistant.MPUpdate", "name": "MP 运维助手 - MoviePilot更新检查", "trigger": CronTrigger.from_crontab(self._mp_update_cron), "func": self.run_update_preview, "kwargs": {}})
         if self._market_update_enabled:
             services.append({"id": "AgentOpsAssistant.MarketUpdate", "name": "MP 运维助手 - 插件库更新检查", "trigger": IntervalTrigger(seconds=self._market_update_interval), "func": self.run_market_update, "kwargs": {}})
+        if self._seedclean_enabled and self._seedclean_downloaders:
+            services.append({"id": "AgentOpsAssistant.SeedClean", "name": "MP 运维助手 - 自动删种", "trigger": CronTrigger.from_crontab(self._seedclean_cron), "func": self.run_seed_clean, "kwargs": {}})
         return services
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
@@ -270,6 +309,7 @@ class AgentOpsAssistant(_PluginBase):
             "mpops_run_all": [("每日汇报", self.run_daily_report), ("健康巡查", self.run_health_check)],
             "mpops_plugin_preview": [("插件治理预览", self.run_plugin_uninstall_preview)],
             "mpops_plugin_clean": [("插件残留治理", self.run_plugin_uninstall_clean)],
+            "mpops_seed_clean": [("自动删种", self.run_seed_clean)],
         }
         tasks = handlers.get(action)
         if not tasks:
@@ -1024,6 +1064,202 @@ class AgentOpsAssistant(_PluginBase):
                     continue
         return seed_map
 
+    # ===== 自动删种（功能移植自 jxxghp/MoviePilot-Plugins「自动删种」TorrentRemover，适配本插件）=====
+    def api_run_seed_clean(self) -> Dict[str, Any]:
+        return self._api_run_task("自动删种", self.run_seed_clean)
+
+    def api_downloaders(self) -> Dict[str, Any]:
+        """已配置下载器列表，供自动删种下拉选择。"""
+        try:
+            from app.helper.downloader import DownloaderHelper
+            items = []
+            for conf in (DownloaderHelper().get_configs() or {}).values():
+                nm = getattr(conf, "name", None)
+                if nm:
+                    items.append({"value": nm, "title": nm})
+            items.sort(key=lambda x: x["title"])
+            return {"code": 0, "data": items}
+        except Exception as err:
+            logger.error(f"下载器列表获取失败：{err}")
+            return {"code": 1, "msg": f"下载器列表获取失败：{err}", "data": []}
+
+    def run_seed_clean(self) -> bool:
+        """按规则在所选下载器中暂停/删除种子。默认动作为暂停，安全优先。"""
+        name = "自动删种"
+        if not self._seedclean_downloaders:
+            text = "未执行：请先在配置页选择下载器。"
+            self._save_task_result(name, False, 2, text)
+            return False
+        # 安全：未设置任何筛选条件时不处理，避免误伤全部种子
+        if not self._seedclean_has_any_condition():
+            text = "未执行：未设置任何筛选条件（大小/分享率/做种时间/上传速度/标签/路径/Tracker/状态/分类），为避免误删已跳过。"
+            self._save_task_result(name, False, 2, text)
+            if self._seedclean_notify:
+                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 自动删种未执行", text=text)
+            return False
+        try:
+            summary = self._seed_clean_run()
+            text = "\n".join(summary) if summary else "本次没有符合条件的种子。"
+            if self._seedclean_notify and summary:
+                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 自动删种", text=text)
+            self._save_task_result(name, True, 0, text)
+            return True
+        except Exception as err:
+            self._save_task_result(name, False, -1, str(err))
+            logger.error(f"AgentOpsAssistant 自动删种执行失败：{err}")
+            return False
+
+    def _seedclean_has_any_condition(self) -> bool:
+        return any([
+            self._seedclean_size, self._seedclean_ratio, self._seedclean_time, self._seedclean_upspeed,
+            self._seedclean_labels, self._seedclean_pathkeywords, self._seedclean_trackerkeywords,
+            self._seedclean_errorkeywords, self._seedclean_torrentstates, self._seedclean_torrentcategorys,
+        ])
+
+    def _seed_clean_run(self) -> List[str]:
+        from app.helper.downloader import DownloaderHelper
+        from app.utils.string import StringUtils
+        services = DownloaderHelper().get_services(name_filters=self._seedclean_downloaders) or {}
+        verb_map = {"pause": "暂停", "delete": "删除种子", "deletefile": "删除种子和文件"}
+        lines: List[str] = []
+        for dl_name in self._seedclean_downloaders:
+            service = services.get(dl_name)
+            inst = getattr(service, "instance", None) if service else None
+            if not inst:
+                lines.append(f"⦁ {dl_name}：未找到下载器实例，跳过")
+                continue
+            try:
+                if hasattr(inst, "is_inactive") and inst.is_inactive():
+                    lines.append(f"⦁ {dl_name}：下载器未连接，跳过")
+                    continue
+            except Exception:
+                pass
+            dtype = str(getattr(getattr(service, "config", None), "type", "") or "")
+            targets = self._seed_remove_targets(inst, dtype)
+            if not targets:
+                continue
+            act = self._seedclean_action
+            done = 0
+            for t in targets:
+                tid = t.get("id")
+                try:
+                    if act == "pause":
+                        inst.stop_torrents(ids=[tid])
+                    elif act == "delete":
+                        inst.delete_torrents(delete_file=False, ids=[tid])
+                    elif act == "deletefile":
+                        inst.delete_torrents(delete_file=True, ids=[tid])
+                    else:
+                        continue
+                    done += 1
+                    logger.info(f"自动删种 {verb_map.get(act, act)}：{t.get('name')}")
+                except Exception as e:
+                    logger.warning(f"自动删种处理失败 {t.get('name')}：{e}")
+            lines.append(f"⦁ {dl_name}：{verb_map.get(act, act)} {done} 个")
+            for t in targets[:8]:
+                lines.append(f"  - {t.get('name')}｜{StringUtils.str_filesize(t.get('size'))}｜{t.get('site') or ''}")
+        return lines
+
+    def _seed_remove_targets(self, inst, dtype: str) -> List[Dict[str, Any]]:
+        from app.utils.string import StringUtils
+        tags = self._parse_csv(self._seedclean_labels)
+        if self._seedclean_mponly:
+            try:
+                tags.append(settings.TORRENT_TAG)
+            except Exception:
+                pass
+        try:
+            torrents, error_flag = inst.get_torrents(tags=tags or None)
+        except Exception as e:
+            logger.warning(f"自动删种获取种子失败：{e}")
+            return []
+        if error_flag:
+            return []
+        is_qb = dtype.lower() == "qbittorrent"
+        result: List[Dict[str, Any]] = []
+        for torrent in (torrents or []):
+            item = self._seed_match_qb(torrent) if is_qb else self._seed_match_tr(torrent)
+            if item:
+                result.append(item)
+        # 辅种：同名同大小的其它种子一并处理
+        if self._seedclean_samedata and result:
+            remove_ids = {t.get("id") for t in result}
+            plus = []
+            for base in result:
+                for torrent in (torrents or []):
+                    if is_qb:
+                        pid, pname, psize = torrent.hash, torrent.name, torrent.size
+                        psite = StringUtils.get_url_sld(torrent.tracker)
+                    else:
+                        pid, pname, psize = torrent.hashString, torrent.name, torrent.total_size
+                        psite = torrent.trackers[0].get("sitename") if getattr(torrent, "trackers", None) else ""
+                    if pname == base.get("name") and psize == base.get("size") and pid not in remove_ids:
+                        remove_ids.add(pid)
+                        plus.append({"id": pid, "name": pname, "site": psite, "size": psize})
+            result.extend(plus)
+        return result
+
+    def _seed_match_qb(self, torrent) -> Any:
+        """qBittorrent 种子条件匹配，命中返回精简 dict，否则 None。任意异常按不匹配处理（安全方向）。"""
+        from app.utils.string import StringUtils
+        try:
+            date_done = torrent.completion_on if (torrent.completion_on and torrent.completion_on > 0) else torrent.added_on
+            seeding = (datetime.now().timestamp() - date_done) if date_done else 0
+            avg_up = (torrent.uploaded / seeding) if seeding else 0
+            sizes = self._seedclean_size.split('-') if self._seedclean_size else []
+            minsize = float(sizes[0]) * 1024 ** 3 if sizes else 0
+            maxsize = float(sizes[-1]) * 1024 ** 3 if sizes else 0
+            if self._seedclean_ratio and torrent.ratio <= float(self._seedclean_ratio):
+                return None
+            if self._seedclean_time and seeding <= float(self._seedclean_time) * 3600:
+                return None
+            if self._seedclean_size and (torrent.size >= int(maxsize) or torrent.size <= int(minsize)):
+                return None
+            if self._seedclean_upspeed and avg_up >= float(self._seedclean_upspeed) * 1024:
+                return None
+            if self._seedclean_pathkeywords and not re.findall(self._seedclean_pathkeywords, torrent.save_path or "", re.I):
+                return None
+            if self._seedclean_trackerkeywords and not re.findall(self._seedclean_trackerkeywords, torrent.tracker or "", re.I):
+                return None
+            if self._seedclean_torrentstates and torrent.state not in self._parse_csv(self._seedclean_torrentstates):
+                return None
+            if self._seedclean_torrentcategorys and (not torrent.category or torrent.category not in self._parse_csv(self._seedclean_torrentcategorys)):
+                return None
+            return {"id": torrent.hash, "name": torrent.name, "site": StringUtils.get_url_sld(torrent.tracker), "size": torrent.size}
+        except Exception:
+            return None
+
+    def _seed_match_tr(self, torrent) -> Any:
+        """Transmission 种子条件匹配，命中返回精简 dict，否则 None。任意异常按不匹配处理（安全方向）。"""
+        try:
+            date_done = torrent.date_done or torrent.date_added
+            seeding = (datetime.now().timestamp() - date_done.timestamp()) if date_done else 0
+            uploaded = torrent.ratio * torrent.total_size
+            avg_up = (uploaded / seeding) if seeding else 0
+            sizes = self._seedclean_size.split('-') if self._seedclean_size else []
+            minsize = float(sizes[0]) * 1024 ** 3 if sizes else 0
+            maxsize = float(sizes[-1]) * 1024 ** 3 if sizes else 0
+            if self._seedclean_ratio and torrent.ratio <= float(self._seedclean_ratio):
+                return None
+            if self._seedclean_time and seeding <= float(self._seedclean_time) * 3600:
+                return None
+            if self._seedclean_size and (torrent.total_size >= int(maxsize) or torrent.total_size <= int(minsize)):
+                return None
+            if self._seedclean_upspeed and avg_up >= float(self._seedclean_upspeed) * 1024:
+                return None
+            if self._seedclean_pathkeywords and not re.findall(self._seedclean_pathkeywords, torrent.download_dir or "", re.I):
+                return None
+            if self._seedclean_trackerkeywords:
+                trackers = getattr(torrent, "trackers", None)
+                if not trackers or not any(re.findall(self._seedclean_trackerkeywords, tr.get("announce", ""), re.I) for tr in trackers):
+                    return None
+            if self._seedclean_errorkeywords and not re.findall(self._seedclean_errorkeywords, torrent.error_string or "", re.I):
+                return None
+            site = torrent.trackers[0].get("sitename") if getattr(torrent, "trackers", None) else ""
+            return {"id": torrent.hashString, "name": torrent.name, "site": site, "size": torrent.total_size}
+        except Exception:
+            return None
+
     def _get_storage_health_locked(self) -> List[str]:
         """按 MP 配置的存储分别显示真实用量。
         与 MoviePilot 官方仪表盘 _build_storage 口径一致：只展示能取到真实用量的存储；
@@ -1562,7 +1798,7 @@ class AgentOpsAssistant(_PluginBase):
     def _format_backup_status_text(self, data: Dict[str, Any]) -> str:
         lines = [
             "🗄️ MP 运维助手自动备份",
-            f"⦁ 模式：直接接替 AutoBackup",
+            "⦁ 模式：直接接替 AutoBackup",
             f"⦁ 状态：{'成功' if data.get('success', True) else '异常'}",
             f"⦁ 路径：{data.get('back_path')}",
             f"⦁ 保留数量：{data.get('keep_count')}",
@@ -1928,6 +2164,7 @@ class AgentOpsAssistant(_PluginBase):
             {"key": "backup", "name": "自动备份", "enabled": self._backup_enabled, "last_keys": ["last_backup"], "next": self._backup_cron, "icon": "mdi-database-arrow-up"},
             {"key": "mp_update", "name": "MP 更新", "enabled": self._mp_update_enabled, "last_keys": ["last_update_preview"], "next": self._mp_update_cron, "icon": "mdi-update"},
             {"key": "market_update", "name": "插件库", "enabled": self._market_update_enabled, "last_keys": ["last_market_update"], "next": f"每 {self._market_update_interval // 3600 if self._market_update_interval else 0} 小时", "icon": "mdi-puzzle-check"},
+            {"key": "seed_clean", "name": "自动删种", "enabled": self._seedclean_enabled, "last_keys": ["last_seed_clean"], "next": self._seedclean_cron, "icon": "mdi-delete-sweep"},
         ]
 
     def _task_snapshot(self) -> List[Dict[str, Any]]:
@@ -2064,7 +2301,7 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _slug(name: str) -> str:
-        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall"}.get(name, "task")
+        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "自动删种": "seed_clean"}.get(name, "task")
 
     @staticmethod
     def _parse_csv(value: Any) -> List[str]:
@@ -2074,4 +2311,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True}
