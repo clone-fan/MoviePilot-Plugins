@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.15"
+    plugin_version = "0.0.16"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -127,6 +127,9 @@ class AgentOpsAssistant(_PluginBase):
     _seedclean_samedata = False
     _seedclean_mponly = False
     _seedclean_notify = True
+    _subfill_enabled = False
+    _subfill_details: List[str] = []
+    _subfill_notify = False
     _last_summary = "尚未执行"
 
 
@@ -221,6 +224,9 @@ class AgentOpsAssistant(_PluginBase):
         self._seedclean_samedata = bool(config.get("seedclean_samedata", False))
         self._seedclean_mponly = bool(config.get("seedclean_mponly", False))
         self._seedclean_notify = bool(config.get("seedclean_notify", True))
+        self._subfill_enabled = bool(config.get("subfill_enabled", False))
+        self._subfill_details = self._parse_csv(config.get("subfill_details"))
+        self._subfill_notify = bool(config.get("subfill_notify", False))
         self._last_summary = self._build_summary()
 
     def get_state(self) -> bool:
@@ -327,6 +333,148 @@ class AgentOpsAssistant(_PluginBase):
             ok = bool(runner())
             results.append(f"{name}：{'成功' if ok else '失败'}")
         self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手命令执行结果", text="\n".join(results))
+
+    @eventmanager.register(EventType.DownloadAdded)
+    def on_download_fill_subscribe(self, event: Event = None):
+        """下载添加后，用实际下载到的资源回填对应电视剧订阅的空规则（移植自 thsrite SubscribeGroup 下载填充）。
+        仅填充订阅中尚为空的字段，已设置的不覆盖；按 tmdbid 去重，仅处理一次。"""
+        if not self._subfill_enabled or not self._subfill_details:
+            return
+        if not event or not getattr(event, "event_data", None):
+            return
+        data = event.event_data or {}
+        dhash, context = data.get("hash"), data.get("context")
+        if not dhash or not context:
+            return
+        try:
+            from app.db.downloadhistory_oper import DownloadHistoryOper
+            from app.db.subscribe_oper import SubscribeOper
+        except Exception as err:
+            logger.warning(f"AgentOpsAssistant 订阅填充加载依赖失败：{err}")
+            return
+        try:
+            dh = DownloadHistoryOper().get_by_hash(dhash)
+            if not dh or str(getattr(dh, "type", "")) != "电视剧":
+                return
+            handled = self.get_data("subfill_handled") or []
+            key = f"{getattr(dh, 'type', '')}:{getattr(dh, 'tmdbid', '')}"
+            if key in handled:
+                return
+            seasons = getattr(dh, "seasons", "") or ""
+            season = int(seasons.replace("S", "")) if seasons and seasons.count("-") == 0 else None
+            subs = SubscribeOper().list_by_tmdbid(tmdbid=dh.tmdbid, season=season) or []
+            meta = getattr(context, "meta_info", None)
+            torrent = getattr(context, "torrent_info", None)
+            filled = []
+            for sub in subs:
+                if str(getattr(sub, "type", "")) != "电视剧":
+                    continue
+                upd = self._subfill_build_update(sub, meta, torrent)
+                if not upd:
+                    continue
+                SubscribeOper().update(sub.id, upd)
+                filled.append({"name": getattr(sub, "name", ""), "update": upd})
+            if filled:
+                handled.append(key)
+                self.save_data("subfill_handled", handled)
+                text = self._format_subfill(filled)
+                self._save_task_result("订阅规则填充", True, 0, text)
+                if self._subfill_notify:
+                    self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 订阅规则自动填充", text=text)
+        except Exception as err:
+            logger.error(f"AgentOpsAssistant 订阅规则填充失败：{err}")
+
+    def _subfill_build_update(self, sub: Any, meta: Any, torrent: Any) -> Dict[str, Any]:
+        """根据已下载资源的 meta/torrent，构造订阅“空字段”的回填字典（仅填空，不覆盖）。"""
+        details = self._subfill_details or []
+        upd: Dict[str, Any] = {}
+        if "分辨率" in details and not getattr(sub, "resolution", None):
+            pix = self._parse_pix(getattr(meta, "resource_pix", None) if meta else None)
+            if pix:
+                upd["resolution"] = pix
+        if "资源质量" in details and not getattr(sub, "quality", None):
+            rt = self._parse_type(getattr(meta, "resource_type", None) if meta else None)
+            if rt:
+                upd["quality"] = rt
+        if "特效" in details and not getattr(sub, "effect", None):
+            ef = self._parse_effect(getattr(meta, "resource_effect", None) if meta else None)
+            if ef:
+                upd["effect"] = ef
+        if "制作组" in details and not getattr(sub, "include", None):
+            team = getattr(meta, "resource_team", None) if meta else None
+            cust = getattr(meta, "customization", None) if meta else None
+            if team and cust:
+                team = f"{cust}.+{team}"
+            elif cust and not team:
+                team = cust
+            if team:
+                upd["include"] = team
+        if "站点" in details and not getattr(sub, "sites", None):
+            try:
+                from app.db.systemconfig_oper import SystemConfigOper
+                from app.schemas.types import SystemConfigKey
+                rss_sites = SystemConfigOper().get(SystemConfigKey.RssSites) or []
+                if torrent and getattr(torrent, "site", None) and int(torrent.site) in rss_sites:
+                    upd["sites"] = [torrent.site]
+            except Exception:
+                pass
+        return upd
+
+    @staticmethod
+    def _format_subfill(filled: List[Dict[str, Any]]) -> str:
+        lines = ["🧷 订阅规则自动填充"]
+        for it in filled[:8]:
+            pairs = "，".join(f"{k}={v}" for k, v in (it.get("update") or {}).items())
+            lines.append(f"⦁ {it.get('name')}：{pairs}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _parse_pix(resource_pix):
+        if not resource_pix:
+            return resource_pix
+        if re.match(r"1080[pi]|x1080", resource_pix, re.IGNORECASE):
+            return "1080[pi]|x1080"
+        if re.match(r"4K|2160p|x2160", resource_pix, re.IGNORECASE):
+            return "4K|2160p|x2160"
+        if re.match(r"720[pi]|x720", resource_pix, re.IGNORECASE):
+            return "720[pi]|x720"
+        return resource_pix
+
+    @staticmethod
+    def _parse_type(resource_type):
+        if not resource_type:
+            return resource_type
+        if re.match(r"Blu-?Ray.+VC-?1|Blu-?Ray.+AVC|UHD.+blu-?ray.+HEVC|MiniBD", resource_type, re.IGNORECASE):
+            resource_type = "Blu-?Ray.+VC-?1|Blu-?Ray.+AVC|UHD.+blu-?ray.+HEVC|MiniBD"
+        if re.match(r"Remux", resource_type, re.IGNORECASE):
+            resource_type = "Remux"
+        if re.match(r"Blu-?Ray", resource_type, re.IGNORECASE):
+            resource_type = "Blu-?Ray"
+        if re.match(r"UHD|UltraHD", resource_type, re.IGNORECASE):
+            resource_type = "UHD|UltraHD"
+        if re.match(r"WEB-?DL|WEB-?RIP", resource_type, re.IGNORECASE):
+            resource_type = "WEB-?DL|WEB-?RIP"
+        if re.match(r"HDTV", resource_type, re.IGNORECASE):
+            resource_type = "HDTV"
+        if re.match(r"[Hx].?265|HEVC", resource_type, re.IGNORECASE):
+            resource_type = "[Hx].?265|HEVC"
+        if re.match(r"[Hx].?264|AVC", resource_type, re.IGNORECASE):
+            resource_type = "[Hx].?264|AVC"
+        return resource_type
+
+    @staticmethod
+    def _parse_effect(resource_effect):
+        if not resource_effect:
+            return resource_effect
+        if re.match(r"Dolby[\\s.]+Vision|DOVI|[\\s.]+DV[\\s.]+", resource_effect, re.IGNORECASE):
+            resource_effect = "Dolby[\\s.]+Vision|DOVI|[\\s.]+DV[\\s.]+"
+        if re.match(r"Dolby[\\s.]*\\+?Atmos|Atmos", resource_effect, re.IGNORECASE):
+            resource_effect = "Dolby[\\s.]*\\+?Atmos|Atmos"
+        if re.match(r"[\\s.]+HDR[\\s.]+|HDR10|HDR10\\+", resource_effect, re.IGNORECASE):
+            resource_effect = "[\\s.]+HDR[\\s.]+|HDR10|HDR10\\+"
+        if re.match(r"[\\s.]+SDR[\\s.]+", resource_effect, re.IGNORECASE):
+            resource_effect = "[\\s.]+SDR[\\s.]+"
+        return resource_effect
 
     def run_daily_report(self) -> bool:
         name = "MP运维每日汇报"
@@ -2522,7 +2670,7 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _slug(name: str) -> str:
-        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "自动删种": "seed_clean"}.get(name, "task")
+        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "自动删种": "seed_clean", "订阅规则填充": "subfill"}.get(name, "task")
 
     @staticmethod
     def _parse_csv(value: Any) -> List[str]:
@@ -2532,4 +2680,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False}

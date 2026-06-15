@@ -160,6 +160,9 @@ const defaults = {
   seedclean_samedata: false,
   seedclean_mponly: false,
   seedclean_notify: true,
+  subfill_enabled: false,
+  subfill_details: [],
+  subfill_notify: false,
 }
 
 const mainTabs = [
@@ -176,6 +179,7 @@ const subTabs = {
     { key: 'basic', title: '基础设置', icon: 'mdi-tune-variant' },
     { key: 'subscribe', title: '订阅提醒', icon: 'mdi-bell-ring-outline' },
     { key: 'sites', title: '站点数据统计', icon: 'mdi-chart-line' },
+    { key: 'subfill', title: '规则填充', icon: 'mdi-auto-fix' },
   ],
   backup: [
     { key: 'local', title: '本地备份', icon: 'mdi-folder-arrow-up-outline' },
@@ -206,6 +210,7 @@ const keepCountPresets = [3, 5, 7, 10, 15].map(v => ({ title: `保留 ${v} 份`,
 const logRowsPresets = [100, 300, 500, 1000, 2000].map(v => ({ title: `保留 ${v} 行`, value: v }))
 const intervalPresets = [3600, 21600, 43200, 86400, 604800].map(v => ({ title: v < 86400 ? `${v / 3600} 小时` : `${v / 86400} 天`, value: v }))
 const seedActionItems = [{ title: '暂停', value: 'pause' }, { title: '删除种子', value: 'delete' }, { title: '删除种子和文件', value: 'deletefile' }]
+const subfillDetailItems = ['分辨率', '资源质量', '特效', '制作组', '站点'].map(v => ({ title: v, value: v }))
 
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
 const currentSubs = computed(() => subTabs[activeMain.value] || [])
@@ -222,6 +227,7 @@ watch(() => props.initialConfig, value => {
   form.market_update_install_ids = toArr(form.market_update_install_ids)
   form.market_update_exclude_ids = toArr(form.market_update_exclude_ids)
   form.seedclean_downloaders = toArr(form.seedclean_downloaders)
+  form.subfill_details = toArr(form.subfill_details)
 }, { immediate: true, deep: true })
 
 function saveConfig() {
@@ -416,6 +422,33 @@ onMounted(() => {
                   <VCol cols="12">
                     <VSwitch v-model="form.site_stat_onlyonce" color="warning" inset hide-details
                       label="保存后立即运行一次站点统计" :disabled="!form.site_stat_enabled" />
+                  </VCol>
+                </VRow>
+              </VForm>
+            </div>
+            <!-- 每日汇报 · 订阅规则填充 -->
+            <div v-show="activeSub === 'subfill'" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">订阅规则自动填充</div>
+                <div class="aoa-hint mb-2">电视剧订阅下载到资源后，用该资源的实际规格自动回填订阅中“尚为空”的规则，锁定后续剧集追同款版本（功能移植自“订阅规则自动填充”）。已设置的字段不会被覆盖。</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.subfill_enabled" color="primary" inset hide-details
+                      label="启用订阅规则自动填充" />
+                    <div class="aoa-hint">监听下载添加事件（仅电视剧），每个剧集 tmdbid 只填充一次。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.subfill_notify" color="primary" inset hide-details
+                      label="填充后发送通知" :disabled="!form.subfill_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12">
+                    <VSelect v-model="form.subfill_details" :items="subfillDetailItems"
+                      label="自动填充哪些规则" multiple chips closable-chips clearable
+                      prepend-inner-icon="mdi-auto-fix"
+                      :disabled="!form.subfill_enabled" />
+                    <div class="aoa-hint">从下载资源中提取并回填：分辨率 / 资源质量 / 特效 / 制作组 / 站点。留空则不填充。</div>
                   </VCol>
                 </VRow>
               </VForm>

@@ -106,6 +106,20 @@ class _StubSystemConfigOper:
         return list(_PU["installed"]) if key == "UserInstalledPlugins" else None
 
 
+# 订阅规则填充桩：_SUB 配置下载历史/订阅列表，并记录 update 调用
+_SUB = {"history": None, "subs": [], "updates": []}
+
+
+class _StubDownloadHistoryOper:
+    def get_by_hash(self, h): return _SUB["history"]
+
+
+class _StubSubscribeOper:
+    def list_by_tmdbid(self, tmdbid=None, season=None): return list(_SUB["subs"])
+    def update(self, sid, payload): _SUB["updates"].append((sid, payload))
+    def get(self, sid): return None
+
+
 def install_stubs():
     """注入插件 import 的全部外部模块桩。"""
     _mod("app")
@@ -131,7 +145,7 @@ def install_stubs():
         PluginAction="PluginAction", WebhookMessage="WebhookMessage",
         SubscribeAdded="SubscribeAdded", DownloadAdded="DownloadAdded",
     )
-    scht.SystemConfigKey = types.SimpleNamespace(Storages="Storages", UserInstalledPlugins="UserInstalledPlugins")
+    scht.SystemConfigKey = types.SimpleNamespace(Storages="Storages", UserInstalledPlugins="UserInstalledPlugins", RssSites="RssSites")
     http = _mod("app.utils.http")
     http.RequestUtils = _StubRequestUtils
     stru = _mod("app.utils.string")
@@ -145,6 +159,10 @@ def install_stubs():
     schd.Scheduler = _StubScheduler
     sysoper = _mod("app.db.systemconfig_oper")
     sysoper.SystemConfigOper = _StubSystemConfigOper
+    dho = _mod("app.db.downloadhistory_oper")
+    dho.DownloadHistoryOper = _StubDownloadHistoryOper
+    subo = _mod("app.db.subscribe_oper")
+    subo.SubscribeOper = _StubSubscribeOper
     # apscheduler
     _mod("apscheduler")
     _mod("apscheduler.triggers")
@@ -378,6 +396,37 @@ def main():
               installed=["AutoBackup"], running=["AutoBackup"])
     r = make_plugin(mod, market_update_auto_install=True, market_update_skip_running=True)._auto_update_installed_plugins(apply=True)
     check(not _PU["install_calls"] and any(x.get("reason") == "正在运行" for x in r["skipped"]), "正在运行的插件跳过升级")
+
+    print("== 订阅规则自动填充 ==")
+    AOA = mod.AgentOpsAssistant
+    check(AOA._parse_pix("2160p") == "4K|2160p|x2160", "_parse_pix 4K")
+    check(AOA._parse_pix("1080p") == "1080[pi]|x1080", "_parse_pix 1080")
+    check(AOA._parse_type("WEB-DL") == "WEB-?DL|WEB-?RIP", "_parse_type WEB-DL")
+    check(AOA._parse_type("Remux") == "Remux", "_parse_type Remux")
+    p = make_plugin(mod, subfill_enabled=True, subfill_details="分辨率,资源质量,制作组")
+    meta = types.SimpleNamespace(resource_pix="2160p", resource_type="WEB-DL", resource_effect=None, resource_team="FRDS", customization=None)
+    sub_empty = types.SimpleNamespace(type="电视剧", name="A", resolution=None, quality=None, effect=None, include=None, sites=None)
+    upd = p._subfill_build_update(sub_empty, meta, types.SimpleNamespace(site=None))
+    check(upd.get("resolution") == "4K|2160p|x2160" and upd.get("quality") == "WEB-?DL|WEB-?RIP" and upd.get("include") == "FRDS",
+          "回填 分辨率/资源质量/制作组")
+    sub_set = types.SimpleNamespace(type="电视剧", name="B", resolution="1080[pi]|x1080", quality=None, effect=None, include=None, sites=None)
+    check("resolution" not in p._subfill_build_update(sub_set, meta, None), "已设置的字段不被覆盖")
+    p0 = make_plugin(mod, subfill_enabled=True, subfill_details="")
+    check(p0._subfill_build_update(sub_empty, meta, None) == {}, "未选填充项 -> 空")
+    # 事件端到端
+    _SUB.update({"history": types.SimpleNamespace(type="电视剧", tmdbid=123, seasons="S01"),
+                 "subs": [types.SimpleNamespace(id=7, type="电视剧", name="剧X", resolution=None, quality=None, effect=None, include=None, sites=None)],
+                 "updates": []})
+    ev = types.SimpleNamespace(event_data={"hash": "h1", "context": types.SimpleNamespace(meta_info=meta, torrent_info=types.SimpleNamespace(site=None))})
+    pe = make_plugin(mod, subfill_enabled=True, subfill_details="分辨率,制作组")
+    pe.on_download_fill_subscribe(ev)
+    check(_SUB["updates"] and _SUB["updates"][0][0] == 7 and _SUB["updates"][0][1].get("resolution") == "4K|2160p|x2160",
+          "下载事件 -> 调 SubscribeOper.update 回填")
+    pe.on_download_fill_subscribe(ev)
+    check(len(_SUB["updates"]) == 1, "同一剧集只填充一次（去重）")
+    _SUB.update({"history": types.SimpleNamespace(type="电影", tmdbid=5, seasons=""), "subs": [], "updates": []})
+    make_plugin(mod, subfill_enabled=True, subfill_details="分辨率").on_download_fill_subscribe(ev)
+    check(not _SUB["updates"], "非电视剧下载 -> 不填充")
 
     print()
     if _FAILS:
