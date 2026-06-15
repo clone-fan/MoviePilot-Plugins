@@ -135,7 +135,7 @@ return (_ctx, _cache) => {
           class: "ms-3 me-2",
           color: "primary"
         }),
-        _cache[8] || (_cache[8] = _createElementVNode("div", { class: "text-h6" }, "MP 运维助手 · 仪表盘", -1)),
+        _cache[11] || (_cache[11] = _createElementVNode("div", { class: "text-h6" }, "MP 运维助手 · 仪表盘", -1)),
         _createVNode(_component_VSpacer),
         _createVNode(_component_VBtn, {
           color: "primary",
@@ -145,7 +145,7 @@ return (_ctx, _cache) => {
           loading: loading.value,
           onClick: loadDashboard
         }, {
-          default: _withCtx(() => [...(_cache[6] || (_cache[6] = [
+          default: _withCtx(() => [...(_cache[9] || (_cache[9] = [
             _createTextVNode("刷新", -1)
           ]))]),
           _: 1
@@ -156,7 +156,7 @@ return (_ctx, _cache) => {
           class: "text-none",
           onClick: _cache[0] || (_cache[0] = $event => (emit('switch')))
         }, {
-          default: _withCtx(() => [...(_cache[7] || (_cache[7] = [
+          default: _withCtx(() => [...(_cache[10] || (_cache[10] = [
             _createTextVNode("设置", -1)
           ]))]),
           _: 1
@@ -210,7 +210,7 @@ return (_ctx, _cache) => {
                         _: 1
                       }, 8, ["color"]),
                       _createElementVNode("div", null, [
-                        _cache[9] || (_cache[9] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "插件状态", -1)),
+                        _cache[12] || (_cache[12] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "插件状态", -1)),
                         _createElementVNode("div", _hoisted_3, _toDisplayString(overallText.value), 1)
                       ])
                     ]),
@@ -250,7 +250,7 @@ return (_ctx, _cache) => {
                         _: 1
                       }),
                       _createElementVNode("div", null, [
-                        _cache[10] || (_cache[10] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "已启用任务", -1)),
+                        _cache[13] || (_cache[13] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "已启用任务", -1)),
                         _createElementVNode("div", _hoisted_4, _toDisplayString(data.task_on) + " / " + _toDisplayString(data.task_total), 1)
                       ])
                     ]),
@@ -290,7 +290,7 @@ return (_ctx, _cache) => {
                         _: 1
                       }, 8, ["color"]),
                       _createElementVNode("div", null, [
-                        _cache[11] || (_cache[11] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "最近执行异常", -1)),
+                        _cache[14] || (_cache[14] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "最近执行异常", -1)),
                         _createElementVNode("div", _hoisted_5, _toDisplayString(data.task_failed), 1)
                       ])
                     ]),
@@ -317,7 +317,7 @@ return (_ctx, _cache) => {
                 color: "primary",
                 class: "me-2"
               }),
-              _cache[12] || (_cache[12] = _createTextVNode("模块运行概览 ", -1))
+              _cache[15] || (_cache[15] = _createTextVNode("模块运行概览 ", -1))
             ]),
             _: 1
           }),
@@ -414,7 +414,7 @@ return (_ctx, _cache) => {
                 color: "primary",
                 class: "me-2"
               }),
-              _cache[13] || (_cache[13] = _createTextVNode("最近健康巡查 ", -1)),
+              _cache[16] || (_cache[16] = _createTextVNode("最近健康巡查 ", -1)),
               _createVNode(_component_VSpacer),
               _createVNode(_component_VChip, {
                 size: "small",
@@ -456,7 +456,7 @@ return (_ctx, _cache) => {
                 color: "primary",
                 class: "me-2"
               }),
-              _cache[14] || (_cache[14] = _createTextVNode("手动触发 ", -1))
+              _cache[17] || (_cache[17] = _createTextVNode("手动触发 ", -1))
             ]),
             _: 1
           }),
@@ -472,7 +472,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_daily_report',
                   onClick: _cache[2] || (_cache[2] = $event => (runAction('run_daily_report', '每日汇报')))
                 }, {
-                  default: _withCtx(() => [...(_cache[15] || (_cache[15] = [
+                  default: _withCtx(() => [...(_cache[18] || (_cache[18] = [
                     _createTextVNode(" 发送每日汇报 ", -1)
                   ]))]),
                   _: 1
@@ -485,7 +485,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_health_check',
                   onClick: _cache[3] || (_cache[3] = $event => (runAction('run_health_check', '健康巡查')))
                 }, {
-                  default: _withCtx(() => [...(_cache[16] || (_cache[16] = [
+                  default: _withCtx(() => [...(_cache[19] || (_cache[19] = [
                     _createTextVNode(" 健康巡查 ", -1)
                   ]))]),
                   _: 1
@@ -498,7 +498,7 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_backup',
                   onClick: _cache[4] || (_cache[4] = $event => (runAction('run_backup', '立即备份')))
                 }, {
-                  default: _withCtx(() => [...(_cache[17] || (_cache[17] = [
+                  default: _withCtx(() => [...(_cache[20] || (_cache[20] = [
                     _createTextVNode(" 立即备份 ", -1)
                   ]))]),
                   _: 1
@@ -511,8 +511,47 @@ return (_ctx, _cache) => {
                   loading: actionRunning.value === 'run_log_clean',
                   onClick: _cache[5] || (_cache[5] = $event => (runAction('run_log_clean', '日志清理')))
                 }, {
-                  default: _withCtx(() => [...(_cache[18] || (_cache[18] = [
+                  default: _withCtx(() => [...(_cache[21] || (_cache[21] = [
                     _createTextVNode(" 清理日志 ", -1)
+                  ]))]),
+                  _: 1
+                }, 8, ["loading"]),
+                _createVNode(_component_VBtn, {
+                  color: "primary",
+                  variant: "tonal",
+                  "prepend-icon": "mdi-update",
+                  size: "small",
+                  loading: actionRunning.value === 'run_mp_update',
+                  onClick: _cache[6] || (_cache[6] = $event => (runAction('run_mp_update', '检查更新')))
+                }, {
+                  default: _withCtx(() => [...(_cache[22] || (_cache[22] = [
+                    _createTextVNode(" 检查更新 ", -1)
+                  ]))]),
+                  _: 1
+                }, 8, ["loading"]),
+                _createVNode(_component_VBtn, {
+                  color: "primary",
+                  variant: "tonal",
+                  "prepend-icon": "mdi-puzzle-check-outline",
+                  size: "small",
+                  loading: actionRunning.value === 'run_market_update',
+                  onClick: _cache[7] || (_cache[7] = $event => (runAction('run_market_update', '插件库更新')))
+                }, {
+                  default: _withCtx(() => [...(_cache[23] || (_cache[23] = [
+                    _createTextVNode(" 插件库更新 ", -1)
+                  ]))]),
+                  _: 1
+                }, 8, ["loading"]),
+                _createVNode(_component_VBtn, {
+                  color: "warning",
+                  variant: "tonal",
+                  "prepend-icon": "mdi-delete-sweep-outline",
+                  size: "small",
+                  loading: actionRunning.value === 'run_seed_clean',
+                  onClick: _cache[8] || (_cache[8] = $event => (runAction('run_seed_clean', '自动删种')))
+                }, {
+                  default: _withCtx(() => [...(_cache[24] || (_cache[24] = [
+                    _createTextVNode(" 自动删种 ", -1)
                   ]))]),
                   _: 1
                 }, 8, ["loading"])
@@ -539,6 +578,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-247e4ac9"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-84c5b841"]]);
 
 export { Page as default };

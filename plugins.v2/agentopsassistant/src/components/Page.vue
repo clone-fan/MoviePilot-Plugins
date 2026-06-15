@@ -226,6 +226,36 @@ onMounted(loadDashboard)
             >
               清理日志
             </VBtn>
+            <VBtn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-update"
+              size="small"
+              :loading="actionRunning === 'run_mp_update'"
+              @click="runAction('run_mp_update', '检查更新')"
+            >
+              检查更新
+            </VBtn>
+            <VBtn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-puzzle-check-outline"
+              size="small"
+              :loading="actionRunning === 'run_market_update'"
+              @click="runAction('run_market_update', '插件库更新')"
+            >
+              插件库更新
+            </VBtn>
+            <VBtn
+              color="warning"
+              variant="tonal"
+              prepend-icon="mdi-delete-sweep-outline"
+              size="small"
+              :loading="actionRunning === 'run_seed_clean'"
+              @click="runAction('run_seed_clean', '自动删种')"
+            >
+              自动删种
+            </VBtn>
           </div>
           <VAlert v-if="actionMessage" type="info" variant="tonal" density="compact" class="mt-3" :text="actionMessage" />
         </VCardText>

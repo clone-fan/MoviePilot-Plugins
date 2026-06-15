@@ -176,7 +176,6 @@ def check(cond, msg):
 def main():
     install_stubs()
     mod = load_plugin()
-    P = mod.AgentOpsAssistant
 
     print("== 纯函数 ==")
     p = make_plugin(mod)
@@ -267,6 +266,26 @@ def main():
     p3 = make_plugin(mod, seedclean_downloaders=["qb1"], seedclean_size="1-10", seedclean_action="delete")
     p3.run_seed_clean()
     check(inst3.deleted == [] and inst3.stopped == [], "不命中的种子不被处理（无误删）")
+
+    print("== 备份 PG 兜底 / 状态文案 ==")
+    p = make_plugin(mod)
+    check(p._sql_literal(None) == "NULL", "_sql_literal None->NULL")
+    check(p._sql_literal(True) == "TRUE" and p._sql_literal(False) == "FALSE", "_sql_literal bool")
+    check(p._sql_literal(12) == "12", "_sql_literal int")
+    check(p._sql_literal("o'brien") == "'o''brien'", "_sql_literal 单引号转义（防坏 SQL）")
+    check(p._sql_literal(b"\x00\x01") == "'\\x0001'", "_sql_literal bytes->hex")
+    # 无 pg_dump 且无 app.db 引擎 -> 优雅失败（不抛），返回 (False, 含“未导出”)
+    p._find_pg_dump = lambda: ""
+    ok_pg, msg_pg = p._dump_postgresql(Path("/tmp/aoa-nonexist-pg.sql"))
+    check(ok_pg is False and "未导出" in msg_pg, "无 pg_dump+无引擎 -> (False, 未导出)，不抛异常")
+    # 状态文案：只有 PG 提示时显示“成功”+“提示：”，不出现“异常：”
+    t_ok = p._format_backup_status_text({"success": True, "back_path": "/x", "keep_count": 3,
+                                         "backup_count": 1, "backup_size_text": "1 KB",
+                                         "warnings": ["PostgreSQL 未导出：容器内无 pg_dump"], "errors": []})
+    check("状态：成功" in t_ok and "提示：" in t_ok and "异常：" not in t_ok, "PG 缺失只提示不报异常")
+    t_err = p._format_backup_status_text({"success": False, "back_path": "/x", "keep_count": 3,
+                                          "backup_count": 0, "backup_size_text": "0 B", "errors": ["真失败"]})
+    check("状态：异常" in t_err and "异常：" in t_err, "真失败仍报异常")
 
     print()
     if _FAILS:

@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.12"
+    plugin_version = "0.0.13"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -1656,6 +1656,7 @@ class AgentOpsAssistant(_PluginBase):
         work_dir.mkdir(parents=True, exist_ok=True)
         copied = []
         errors = []
+        warnings = []
         zip_path = ""
         try:
             for name in ["category.yaml", "app.env"]:
@@ -1676,10 +1677,10 @@ class AgentOpsAssistant(_PluginBase):
                 dump_target = work_dir / "postgresql_backup.sql"
                 ok, msg = self._dump_postgresql(dump_target)
                 if ok:
-                    copied.append("postgresql_backup.sql")
+                    copied.append(f"postgresql_backup.sql（{msg}）")
                 else:
-                    errors.append(msg)
-            manifest = {"created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "db_type": str(settings.DB_TYPE), "copied": copied, "errors": errors}
+                    warnings.append(msg)
+            manifest = {"created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "db_type": str(settings.DB_TYPE), "copied": copied, "errors": errors, "warnings": warnings}
             (work_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
             zip_base = str(work_dir)
             zip_path = shutil.make_archive(zip_base, "zip", str(work_dir))
@@ -1702,6 +1703,7 @@ class AgentOpsAssistant(_PluginBase):
             "zip_file": zip_path,
             "copied": copied,
             "errors": errors,
+            "warnings": warnings,
             "removed": removed,
             "webdav_enabled": self._backup_webdav_enabled,
             "webdav_success": webdav_success,
@@ -1771,17 +1773,98 @@ class AgentOpsAssistant(_PluginBase):
             logger.error(f"WebDAV 备份异常：{e}")
             return False, error_msg
 
+    def _dump_postgresql(self, target: Path) -> Tuple[bool, str]:
+        """导出 PostgreSQL：优先 pg_dump（PATH 或常见安装目录），无则用 SQLAlchemy 兜底。
+        返回 (是否导出, 说明)。导不出时调用方按“提示/警告”处理，不算备份失败。"""
+        pg_dump = self._find_pg_dump()
+        if pg_dump:
+            err = ""
+            try:
+                env = os.environ.copy()
+                env["PGPASSWORD"] = str(settings.DB_POSTGRESQL_PASSWORD)
+                cmd = [pg_dump, "-h", str(settings.DB_POSTGRESQL_HOST), "-p", str(settings.DB_POSTGRESQL_PORT),
+                       "-U", str(settings.DB_POSTGRESQL_USERNAME), "-d", str(settings.DB_POSTGRESQL_DATABASE), "-f", str(target)]
+                result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600, check=False)
+                if result.returncode == 0 and target.exists():
+                    return True, "pg_dump"
+                err = (result.stderr or result.stdout or "pg_dump 执行失败")[-300:]
+            except Exception as e:
+                err = str(e)[:300]
+            ok2, msg2 = self._dump_postgresql_python(target)
+            if ok2:
+                return True, f"SQLAlchemy 兜底（pg_dump 失败：{err[:80]}）"
+            return False, f"PostgreSQL 未导出：pg_dump 失败（{err}）；SQLAlchemy 兜底也失败（{msg2}）。配置文件已正常备份。"
+        # 无 pg_dump：SQLAlchemy 兜底
+        ok2, msg2 = self._dump_postgresql_python(target)
+        if ok2:
+            return True, "SQLAlchemy 兜底（容器内无 pg_dump）"
+        return False, ("PostgreSQL 未导出：容器内无 pg_dump，SQLAlchemy 兜底失败（" + msg2 +
+                       "）。配置文件已正常备份；如需完整数据库备份请在容器内安装 postgresql-client（提供 pg_dump）。")
+
     @staticmethod
-    def _dump_postgresql(target: Path) -> Tuple[bool, str]:
-        if not shutil.which("pg_dump"):
-            return False, "pg_dump 不存在，无法导出 PostgreSQL 数据库；已保留配置文件备份。"
-        env = os.environ.copy()
-        env["PGPASSWORD"] = str(settings.DB_POSTGRESQL_PASSWORD)
-        cmd = ["pg_dump", "-h", str(settings.DB_POSTGRESQL_HOST), "-p", str(settings.DB_POSTGRESQL_PORT), "-U", str(settings.DB_POSTGRESQL_USERNAME), "-d", str(settings.DB_POSTGRESQL_DATABASE), "-f", str(target)]
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600, check=False)
-        if result.returncode != 0:
-            return False, (result.stderr or result.stdout or "pg_dump 执行失败")[-500:]
-        return True, "OK"
+    def _find_pg_dump() -> str:
+        """在 PATH 与常见安装目录中查找 pg_dump，找不到返回空串。"""
+        found = shutil.which("pg_dump")
+        if found:
+            return found
+        import glob as _glob
+        for pattern in ("/usr/bin/pg_dump", "/usr/local/bin/pg_dump",
+                        "/usr/lib/postgresql/*/bin/pg_dump", "/opt/homebrew/bin/pg_dump",
+                        "/opt/homebrew/opt/postgresql*/bin/pg_dump"):
+            for p in sorted(_glob.glob(pattern)):
+                if os.path.isfile(p) and os.access(p, os.X_OK):
+                    return p
+        return ""
+
+    @staticmethod
+    def _sql_literal(v: Any) -> str:
+        """把一个 Python 值转成 SQL 字面量（单引号转义防注入/坏 SQL）。"""
+        if v is None:
+            return "NULL"
+        if isinstance(v, bool):
+            return "TRUE" if v else "FALSE"
+        if isinstance(v, (int, float)):
+            return repr(v)
+        if isinstance(v, (bytes, bytearray)):
+            return "'\\x" + bytes(v).hex() + "'"
+        return "'" + str(v).replace("'", "''") + "'"
+
+    def _dump_postgresql_python(self, target: Path) -> Tuple[bool, str]:
+        """无 pg_dump 时，用 MoviePilot 已有的 SQLAlchemy 引擎导出（CREATE TABLE + INSERT）。
+        尽力而为：全程 try/except，失败只返回 (False, 原因)，绝不影响其它备份。
+        注：应急数据导出，可能缺少部分序列/约束，正式恢复仍建议 pg_dump。"""
+        try:
+            from app.db import Engine
+            from sqlalchemy import MetaData, select
+            from sqlalchemy.schema import CreateTable
+        except Exception as e:
+            return False, f"无法加载 SQLAlchemy 引擎：{str(e)[:120]}"
+        try:
+            meta = MetaData()
+            meta.reflect(bind=Engine)
+            if not meta.tables:
+                return False, "未反射到任何表"
+            out = ["-- MoviePilot PostgreSQL 应急备份（AgentOpsAssistant SQLAlchemy 导出，无 pg_dump）",
+                   "-- 含表结构与数据，可能缺少部分序列/约束；正式恢复建议用 pg_dump。", ""]
+            with Engine.connect() as conn:
+                for table in meta.sorted_tables:
+                    try:
+                        out.append(str(CreateTable(table).compile(Engine)).strip() + ";")
+                    except Exception:
+                        pass
+                    try:
+                        rows = conn.execute(select(table)).fetchall()
+                    except Exception:
+                        rows = []
+                    collist = ", ".join('"' + c.name + '"' for c in table.columns)
+                    for row in rows:
+                        vals = ", ".join(self._sql_literal(v) for v in row)
+                        out.append(f'INSERT INTO "{table.name}" ({collist}) VALUES ({vals});')
+                    out.append("")
+            target.write_text("\n".join(out), encoding="utf-8")
+            return (target.exists() and target.stat().st_size > 0), "已导出表结构+数据"
+        except Exception as e:
+            return False, f"SQLAlchemy 导出失败：{str(e)[:200]}"
 
     def _cleanup_old_backups(self, backup_path: Path) -> List[str]:
         keep = max(1, int(self._backup_keep_count or 5))
@@ -1819,6 +1902,9 @@ class AgentOpsAssistant(_PluginBase):
             lines.append("最近备份：")
             for item in data["latest"][:3]:
                 lines.append(f"⦁ {item['name']}｜{item['size_text']}｜{item['mtime']}")
+        if data.get("warnings"):
+            lines.append("提示：")
+            lines.extend([f"⦁ {str(w)[:160]}" for w in data.get("warnings", [])[:5]])
         if data.get("errors"):
             lines.append("异常：")
             lines.extend([f"⦁ {str(e)[:120]}" for e in data.get("errors", [])[:5]])
