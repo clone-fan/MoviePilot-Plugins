@@ -184,21 +184,41 @@ const defaults = {
 }
 
 const mainTabs = [
-  { key: 'report', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '设置每日汇报、订阅提醒、站点统计与健康巡查。' },
-  { key: 'backup', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
-  { key: 'cleanup', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知。' },
-  { key: 'updates', title: '更新检查', icon: 'mdi-update', desc: '设置 MoviePilot 和插件库更新检查，不在这里直接升级。' },
-  { key: 'plugin', title: '插件残留清理', icon: 'mdi-puzzle-remove-outline', desc: '清理已卸载插件留下的配置、数据、日志或本地源码残留。' },
-  { key: 'seedclean', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自“自动删种”）。' },
-  { key: 'msgnotify', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知。' },
+  { key: 'report', group: '汇报中心', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '聚合汇报中心：勾选要并入每日汇报的内容，按计划统一推送。' },
+  { key: 'subreminder', group: '订阅与站点', title: '订阅提醒', icon: 'mdi-bell-ring-outline', desc: '定时推送订阅追新提醒。' },
+  { key: 'subfill', group: '订阅与站点', title: '订阅规则自动填充', icon: 'mdi-auto-fix', desc: '下载到资源后自动回填订阅的空规则，锁定后续剧集追同款。' },
+  { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '采集站点上传/下载/做种等数据，可上仪表盘与日报。' },
+  { key: 'seedclean', group: '下载与媒体', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自“自动删种”）。' },
+  { key: 'msgnotify', group: '下载与媒体', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知。' },
+  { key: 'backup', group: '系统维护', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
+  { key: 'cleanup', group: '系统维护', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知。' },
+  { key: 'updates', group: '系统维护', title: '更新检查', icon: 'mdi-update', desc: '检查 MoviePilot 与插件库更新，可自动更新已安装插件。' },
+  { key: 'plugin', group: '系统维护', title: '插件残留清理', icon: 'mdi-puzzle-remove-outline', desc: '清理已卸载插件留下的配置、数据、日志或本地源码残留。' },
 ]
+
+const navGroups = computed(() => {
+  const order = []
+  const map = {}
+  for (const item of mainTabs) {
+    const g = item.group || '其他'
+    if (!map[g]) { map[g] = { name: g, items: [] }; order.push(map[g]) }
+    map[g].items.push(item)
+  }
+  return order
+})
 
 const subTabs = {
   report: [
-    { key: 'basic', title: '基础设置', icon: 'mdi-tune-variant' },
+    { key: 'basic', title: '汇报栏目', icon: 'mdi-tune-variant' },
+  ],
+  subreminder: [
     { key: 'subscribe', title: '订阅提醒', icon: 'mdi-bell-ring-outline' },
+  ],
+  subfill: [
+    { key: 'subfill', title: '订阅规则自动填充', icon: 'mdi-auto-fix' },
+  ],
+  sitestat: [
     { key: 'sites', title: '站点数据统计', icon: 'mdi-chart-line' },
-    { key: 'subfill', title: '规则填充', icon: 'mdi-auto-fix' },
   ],
   backup: [
     { key: 'local', title: '本地备份', icon: 'mdi-folder-arrow-up-outline' },
@@ -299,20 +319,23 @@ onMounted(() => {
       <div class="aoa-body">
         <nav class="aoa-nav">
           <VList density="comfortable" nav class="py-2">
-            <VListItem
-              v-for="item in mainTabs"
-              :key="item.key"
-              :active="activeMain === item.key"
-              color="primary"
-              rounded="lg"
-              class="aoa-nav-item"
-              @click="selectMain(item.key)"
-            >
-              <template #prepend>
-                <VIcon :icon="item.icon" />
-              </template>
-              <VListItemTitle>{{ item.title }}</VListItemTitle>
-            </VListItem>
+            <template v-for="grp in navGroups" :key="grp.name">
+              <VListSubheader class="aoa-nav-group">{{ grp.name }}</VListSubheader>
+              <VListItem
+                v-for="item in grp.items"
+                :key="item.key"
+                :active="activeMain === item.key"
+                color="primary"
+                rounded="lg"
+                class="aoa-nav-item"
+                @click="selectMain(item.key)"
+              >
+                <template #prepend>
+                  <VIcon :icon="item.icon" />
+                </template>
+                <VListItemTitle>{{ item.title }}</VListItemTitle>
+              </VListItem>
+            </template>
           </VList>
         </nav>
         <section class="aoa-content">

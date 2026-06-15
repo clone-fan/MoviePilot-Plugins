@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅提醒、站点统计、插件日志清理、自动备份、更新检查与插件残留清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅提醒,站点统计,日志清理,自动备份,更新检查,插件残留清理,本地插件",
-    "version": "0.0.17",
+    "version": "0.0.18",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v0.0.18": "结构整顿（迈向 1.0.0 第一步）：配置页一级分类扁平化+分组——把「订阅提醒」「站点数据统计」「订阅规则自动填充」从“每日汇报”下移出来，各自独立成顶层一级分类（“规则填充”并改名“订阅规则自动填充”）；左侧导航按 汇报中心 / 订阅与站点 / 下载与媒体 / 系统维护 分组；每日汇报回归“聚合汇报中心”定位。纯前端结构调整，后端逻辑与配置项不变（67 项单测仍全过）。",
       "v0.0.17": "新增「媒体通知」一级分类——移植 jxxghp MediaServerMsg 核心：监听 Emby/Jellyfin/Plex 的 WebhookMessage 事件（新入库/开始播放/停止播放/登录成功/登录失败/标记），按所选事件类型与媒体服务器推送通知，含 30 秒去重；UI 用本插件自有配置页，暂不含原插件的剧集聚合/IP 定位/海报抓取。新增 msgnotify_enabled/types/servers 配置与 /mediaservers 接口。新增 11 项单元测试。",
       "v0.0.16": "新增「订阅规则自动填充」（功能移植自 thsrite SubscribeGroup 下载填充，UI 用本插件自有「每日汇报·规则填充」页）：电视剧订阅下载到资源后，监听 DownloadAdded 事件，用该资源实际规格自动回填订阅中“尚为空”的 分辨率/资源质量/特效/制作组/站点 规则，锁定后续剧集追同款；只填空不覆盖，按剧集 tmdbid 去重只填一次。新增 subfill_enabled / subfill_details / subfill_notify 配置。新增 11 项单元测试。",
       "v0.0.15": "插件库更新增强——集成「插件自动更新」（功能移植自 thsrite PluginAutoUpdate，UI 用本插件自有配置页）：在“插件库更新”里增加检测已安装插件新版并可自动下载安装+重载（PluginHelper.install → reload_plugin → update_plugin_job），通知带 v旧→v新 与该版本更新记录；新增配置 自动安装开关 / 仅更新指定插件 / 排除名单 / 跳过正在运行。安全默认：自动安装默认关闭（仅提醒）、本插件自身与 MoviePilot 本体永不自动更新、正在运行的插件不升级。新增 7 项相关单元测试。",

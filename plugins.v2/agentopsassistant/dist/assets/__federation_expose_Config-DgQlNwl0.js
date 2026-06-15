@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-DGWTz_NE.js';
 
-const {resolveComponent:_resolveComponent,createVNode:_createVNode,withCtx:_withCtx,createTextVNode:_createTextVNode,toDisplayString:_toDisplayString,createElementVNode:_createElementVNode,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock,createElementBlock:_createElementBlock,normalizeClass:_normalizeClass,vShow:_vShow,withDirectives:_withDirectives,unref:_unref,createCommentVNode:_createCommentVNode} = await importShared('vue');
+const {resolveComponent:_resolveComponent,createVNode:_createVNode,withCtx:_withCtx,createTextVNode:_createTextVNode,toDisplayString:_toDisplayString,createElementVNode:_createElementVNode,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock,createElementBlock:_createElementBlock,createBlock:_createBlock,normalizeClass:_normalizeClass,vShow:_vShow,withDirectives:_withDirectives,unref:_unref,createCommentVNode:_createCommentVNode} = await importShared('vue');
 
 
 const _hoisted_1 = { class: "aoa-config" };
@@ -224,21 +224,41 @@ const defaults = {
 };
 
 const mainTabs = [
-  { key: 'report', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '设置每日汇报、订阅提醒、站点统计与健康巡查。' },
-  { key: 'backup', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
-  { key: 'cleanup', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知。' },
-  { key: 'updates', title: '更新检查', icon: 'mdi-update', desc: '设置 MoviePilot 和插件库更新检查，不在这里直接升级。' },
-  { key: 'plugin', title: '插件残留清理', icon: 'mdi-puzzle-remove-outline', desc: '清理已卸载插件留下的配置、数据、日志或本地源码残留。' },
-  { key: 'seedclean', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自“自动删种”）。' },
-  { key: 'msgnotify', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知。' },
+  { key: 'report', group: '汇报中心', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '聚合汇报中心：勾选要并入每日汇报的内容，按计划统一推送。' },
+  { key: 'subreminder', group: '订阅与站点', title: '订阅提醒', icon: 'mdi-bell-ring-outline', desc: '定时推送订阅追新提醒。' },
+  { key: 'subfill', group: '订阅与站点', title: '订阅规则自动填充', icon: 'mdi-auto-fix', desc: '下载到资源后自动回填订阅的空规则，锁定后续剧集追同款。' },
+  { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '采集站点上传/下载/做种等数据，可上仪表盘与日报。' },
+  { key: 'seedclean', group: '下载与媒体', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自“自动删种”）。' },
+  { key: 'msgnotify', group: '下载与媒体', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知。' },
+  { key: 'backup', group: '系统维护', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
+  { key: 'cleanup', group: '系统维护', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知。' },
+  { key: 'updates', group: '系统维护', title: '更新检查', icon: 'mdi-update', desc: '检查 MoviePilot 与插件库更新，可自动更新已安装插件。' },
+  { key: 'plugin', group: '系统维护', title: '插件残留清理', icon: 'mdi-puzzle-remove-outline', desc: '清理已卸载插件留下的配置、数据、日志或本地源码残留。' },
 ];
+
+const navGroups = computed(() => {
+  const order = [];
+  const map = {};
+  for (const item of mainTabs) {
+    const g = item.group || '其他';
+    if (!map[g]) { map[g] = { name: g, items: [] }; order.push(map[g]); }
+    map[g].items.push(item);
+  }
+  return order
+});
 
 const subTabs = {
   report: [
-    { key: 'basic', title: '基础设置', icon: 'mdi-tune-variant' },
+    { key: 'basic', title: '汇报栏目', icon: 'mdi-tune-variant' },
+  ],
+  subreminder: [
     { key: 'subscribe', title: '订阅提醒', icon: 'mdi-bell-ring-outline' },
+  ],
+  subfill: [
+    { key: 'subfill', title: '订阅规则自动填充', icon: 'mdi-auto-fix' },
+  ],
+  sitestat: [
     { key: 'sites', title: '站点数据统计', icon: 'mdi-chart-line' },
-    { key: 'subfill', title: '规则填充', icon: 'mdi-auto-fix' },
   ],
   backup: [
     { key: 'local', title: '本地备份', icon: 'mdi-folder-arrow-up-outline' },
@@ -320,6 +340,7 @@ return (_ctx, _cache) => {
   const _component_VSwitch = _resolveComponent("VSwitch");
   const _component_VCardItem = _resolveComponent("VCardItem");
   const _component_VDivider = _resolveComponent("VDivider");
+  const _component_VListSubheader = _resolveComponent("VListSubheader");
   const _component_VListItemTitle = _resolveComponent("VListItemTitle");
   const _component_VListItem = _resolveComponent("VListItem");
   const _component_VList = _resolveComponent("VList");
@@ -401,31 +422,43 @@ return (_ctx, _cache) => {
               class: "py-2"
             }, {
               default: _withCtx(() => [
-                (_openBlock(), _createElementBlock(_Fragment, null, _renderList(mainTabs, (item) => {
-                  return _createVNode(_component_VListItem, {
-                    key: item.key,
-                    active: activeMain.value === item.key,
-                    color: "primary",
-                    rounded: "lg",
-                    class: "aoa-nav-item",
-                    onClick: $event => (selectMain(item.key))
-                  }, {
-                    prepend: _withCtx(() => [
-                      _createVNode(_component_VIcon, {
-                        icon: item.icon
-                      }, null, 8, ["icon"])
-                    ]),
-                    default: _withCtx(() => [
-                      _createVNode(_component_VListItemTitle, null, {
+                (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(navGroups.value, (grp) => {
+                  return (_openBlock(), _createElementBlock(_Fragment, {
+                    key: grp.name
+                  }, [
+                    _createVNode(_component_VListSubheader, { class: "aoa-nav-group" }, {
+                      default: _withCtx(() => [
+                        _createTextVNode(_toDisplayString(grp.name), 1)
+                      ]),
+                      _: 2
+                    }, 1024),
+                    (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(grp.items, (item) => {
+                      return (_openBlock(), _createBlock(_component_VListItem, {
+                        key: item.key,
+                        active: activeMain.value === item.key,
+                        color: "primary",
+                        rounded: "lg",
+                        class: "aoa-nav-item",
+                        onClick: $event => (selectMain(item.key))
+                      }, {
+                        prepend: _withCtx(() => [
+                          _createVNode(_component_VIcon, {
+                            icon: item.icon
+                          }, null, 8, ["icon"])
+                        ]),
                         default: _withCtx(() => [
-                          _createTextVNode(_toDisplayString(item.title), 1)
+                          _createVNode(_component_VListItemTitle, null, {
+                            default: _withCtx(() => [
+                              _createTextVNode(_toDisplayString(item.title), 1)
+                            ]),
+                            _: 2
+                          }, 1024)
                         ]),
                         _: 2
-                      }, 1024)
-                    ]),
-                    _: 2
-                  }, 1032, ["active", "onClick"])
-                }), 64))
+                      }, 1032, ["active", "onClick"]))
+                    }), 128))
+                  ], 64))
+                }), 128))
               ]),
               _: 1
             })
@@ -2411,6 +2444,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-d6707387"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-0fc09c74"]]);
 
 export { Config as default };
