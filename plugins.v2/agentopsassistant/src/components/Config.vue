@@ -178,6 +178,8 @@ const defaults = {
   subfill_enabled: false,
   subfill_details: [],
   subfill_notify: false,
+  subfill_category_enabled: false,
+  subfill_category_confs: '',
   msgnotify_enabled: false,
   msgnotify_types: [],
   msgnotify_servers: [],
@@ -500,6 +502,38 @@ onMounted(() => {
                     <div class="aoa-hint">从下载资源中提取并回填：分辨率 / 资源质量 / 特效 / 制作组 / 站点。留空则不填充。</div>
                   </VCol>
                 </VRow>
+
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">二级分类自定义填充</div>
+                <div class="aoa-hint mb-2">新增订阅时，按媒体的二级分类自动套用预设规则。每行一个分类，用 # 分隔字段；可用键：category、resolution、quality、effect、include、exclude、sites（站点名,逗号分隔）、savepath（支持 {name}）、filter_groups。</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.subfill_category_enabled" color="primary" inset hide-details
+                      label="启用二级分类自定义填充" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12">
+                    <VTextarea v-model="form.subfill_category_confs"
+                      label="二级分类规则（每行一个分类）" auto-grow rows="3"
+                      placeholder="category:国漫,日番#resolution:1080p#quality:WEB-DL#include:简体#sites:馒头,青蛙#savepath:/media/动漫/{name}"
+                      :disabled="!form.subfill_category_enabled" />
+                  </VCol>
+                </VRow>
+
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">维护</div>
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-history"
+                    :loading="action.running === 'subfill_clear_history'" @click="runAction('subfill_clear_history', '清理填充历史')">
+                    清理历史记录
+                  </VBtn>
+                  <VBtn color="warning" variant="tonal" prepend-icon="mdi-backup-restore"
+                    :loading="action.running === 'subfill_clear_handled'" @click="runAction('subfill_clear_handled', '清理已处理记录')">
+                    清理已处理记录
+                  </VBtn>
+                </div>
+                <div class="aoa-hint mt-2">“清理已处理记录”后，已处理过的剧集下次下载会重新尝试填充。</div>
               </VForm>
             </div>
             <!-- 自动备份 · 本地备份 -->

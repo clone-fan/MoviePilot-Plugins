@@ -107,7 +107,7 @@ class _StubSystemConfigOper:
 
 
 # 订阅规则填充桩：_SUB 配置下载历史/订阅列表，并记录 update 调用
-_SUB = {"history": None, "subs": [], "updates": []}
+_SUB = {"history": None, "subs": [], "updates": [], "sub_get": None, "sites": []}
 
 
 class _StubDownloadHistoryOper:
@@ -117,7 +117,11 @@ class _StubDownloadHistoryOper:
 class _StubSubscribeOper:
     def list_by_tmdbid(self, tmdbid=None, season=None): return list(_SUB["subs"])
     def update(self, sid, payload): _SUB["updates"].append((sid, payload))
-    def get(self, sid): return None
+    def get(self, sid): return _SUB.get("sub_get")
+
+
+class _StubSiteOper:
+    def list_active(self): return list(_SUB.get("sites", []))
 
 
 def install_stubs():
@@ -163,6 +167,8 @@ def install_stubs():
     dho.DownloadHistoryOper = _StubDownloadHistoryOper
     subo = _mod("app.db.subscribe_oper")
     subo.SubscribeOper = _StubSubscribeOper
+    siteo = _mod("app.db.site_oper")
+    siteo.SiteOper = _StubSiteOper
     # apscheduler
     _mod("apscheduler")
     _mod("apscheduler.triggers")
@@ -450,6 +456,28 @@ def main():
     pm4 = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="开始播放", msgnotify_servers="OtherServer")
     pm4.on_webhook_message(types.SimpleNamespace(event_data=info))
     check(len(pm4._stub_messages) == 0, "服务器不在白名单 -> 不通知")
+
+    print("== 订阅二级分类自定义填充 + 维护 ==")
+    confs = "category:国漫,日番#resolution:1080p#quality:WEB-DL#include:简体#savepath:/media/动漫/{name}"
+    pc = make_plugin(mod, subfill_category_enabled=True, subfill_category_confs=confs)
+    parsed = pc._subfill_confs
+    check("国漫" in parsed and "日番" in parsed, "二级分类配置解析：多分类拆分")
+    check(parsed["国漫"]["include"] == "简体" and parsed["国漫"]["quality"] == "WEB-DL", "解析 include/quality 正确")
+    _SUB.update({"sub_get": types.SimpleNamespace(id=3, name="某番", year="2026", type="电视剧"), "updates": []})
+    ev_sub = types.SimpleNamespace(event_data={"subscribe_id": 3, "mediainfo": {"category": "国漫"}})
+    pc.on_subscribe_added_fill(ev_sub)
+    check(_SUB["updates"] and _SUB["updates"][0][0] == 3, "新增订阅命中分类 -> 调 update")
+    upd_c = _SUB["updates"][0][1]
+    check(upd_c.get("quality") == "WEB-?DL|WEB-?RIP" and upd_c.get("resolution") == "1080[pi]|x1080", "分类填充经规则正则解析")
+    check(upd_c.get("save_path") == "/media/动漫/某番 (2026)", "savepath {name} 变量替换")
+    _SUB.update({"sub_get": types.SimpleNamespace(id=4, name="X", year="", type="电视剧"), "updates": []})
+    make_plugin(mod, subfill_category_enabled=True, subfill_category_confs=confs).on_subscribe_added_fill(
+        types.SimpleNamespace(event_data={"subscribe_id": 4, "mediainfo": {"category": "未配置分类"}}))
+    check(not _SUB["updates"], "未配置的分类 -> 不填充")
+    ph = make_plugin(mod)
+    ph.save_data("subfill_handled", ["电视剧:1"])
+    ph.run_subfill_clear_handled()
+    check(ph.get_data("subfill_handled") == [], "清理已处理记录 -> 置空")
 
     print()
     if _FAILS:
