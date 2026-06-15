@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅提醒、站点统计、插件日志清理、自动备份、更新检查与插件残留清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅提醒,站点统计,日志清理,自动备份,更新检查,插件残留清理,本地插件",
-    "version": "0.0.21",
+    "version": "0.0.22",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v0.0.22": "下载器助手核心子集（功能移植自 hotlcc DownloaderHelper，UI 用本插件自有）：① 仪表盘新增「下载器活动种子」概览（各下载器下载中任务数与上下行速度）；② 新增「下载器助手」一级分类「批量打标签」——按种子 tracker 所属站点为种子补打标签（qb 用 set_torrents_tag 追加 / tr 用 set_torrent_tag 合并原标签，已打的跳过，幂等安全），支持下载器筛选 / 标签前缀 / 完成通知，配置页执行 + 仪表盘按钮 + 远程命令。下载器的删种/暂停由「自动删种」覆盖、不重复实现。新增 3 项单元测试；README 致谢补 hotlcc。",
       "v0.0.21": "站点数据统计上仪表盘：新增 /site_stat_chart 接口（今日各站点上传/下载增量）；Page.vue 新增「站点数据统计」卡片，用 SVG 饼图展示 今日上传 / 今日下载 按站点占比（含合计 GB、各站点名/数值/百分比图例），仿原插件样式；无数据时不显示。新增 2 项单元测试。",
       "v0.0.20": "每日汇报升级为「聚合汇报中心」：汇报栏目改为按实际栏目逐项开关——MoviePilot版本 / 站点状态 / 站点增量 / 今日下载 / 入库整理 / 订阅追新 / 存储空间 / 媒体统计 / 今日摘要，逐栏目控制是否并入日报，关掉即不出现在汇报里；「下载器」段与「今日下载」重复，去重只保留今日下载；站点状态改为逐站列出“站点名 | 状态”（如 馒头 | 正常、馒头 | 异常（原因）/ 数据过期）。新增约 6 项单元测试。",
       "v0.0.19": "订阅规则自动填充补强（对齐 thsrite SubscribeGroup 全功能）：新增「二级分类自定义填充」——新增订阅时按媒体二级分类套用 分辨率/资源质量/特效/包含/排除/站点/保存路径({name}变量)/过滤规则组（监听 SubscribeAdded）；新增「清理历史记录」「清理已处理记录」与填充历史留存。新增 subfill_category_enabled/subfill_category_confs 配置、/subfill_clear_history、/subfill_clear_handled 接口。新增约 10 项单元测试（解析/命中分类填充/savepath 变量/未配置跳过/清理）。",

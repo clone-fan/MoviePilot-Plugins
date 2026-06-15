@@ -111,7 +111,17 @@ async function loadSiteChart() {
   }
 }
 
-onMounted(() => { loadDashboard(); loadSiteChart() })
+const downloaders = ref([])
+async function loadDownloaderOverview() {
+  try {
+    const res = await getPluginApi(props.api, 'downloader_overview')
+    downloaders.value = (res && res.downloaders) || []
+  } catch {
+    downloaders.value = []
+  }
+}
+
+onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 </script>
 
 <template>
@@ -212,6 +222,23 @@ onMounted(() => { loadDashboard(); loadSiteChart() })
             </VCol>
           </VRow>
         </VCardText>
+      </VCard>
+
+      <!-- 下载器活动种子 -->
+      <VCard v-if="downloaders.length" variant="outlined" class="rounded-lg mb-3">
+        <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+          <VIcon icon="mdi-download-network-outline" color="primary" class="me-2" />下载器活动种子
+        </VCardTitle>
+        <VDivider />
+        <VList class="bg-transparent py-0">
+          <template v-for="(d, i) in downloaders" :key="d.name">
+            <VListItem class="py-2">
+              <VListItemTitle class="font-weight-medium">{{ d.name }}</VListItemTitle>
+              <VListItemSubtitle class="mt-1">下载中 {{ d.count }} 个｜↓ {{ formatGB(d.dl_speed) }}/s　↑ {{ formatGB(d.up_speed) }}/s</VListItemSubtitle>
+            </VListItem>
+            <VDivider v-if="i < downloaders.length - 1" />
+          </template>
+        </VList>
       </VCard>
 
       <!-- 模块任务列表 -->
@@ -337,6 +364,16 @@ onMounted(() => { loadDashboard(); loadSiteChart() })
               @click="runAction('run_seed_clean', '自动删种')"
             >
               自动删种
+            </VBtn>
+            <VBtn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-tag-multiple-outline"
+              size="small"
+              :loading="actionRunning === 'run_downloader_tag'"
+              @click="runAction('run_downloader_tag', '种子打标签')"
+            >
+              种子打标签
             </VBtn>
           </div>
           <VAlert v-if="actionMessage" type="info" variant="tonal" density="compact" class="mt-3" :text="actionMessage" />

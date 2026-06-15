@@ -192,6 +192,9 @@ const defaults = {
   msgnotify_enabled: false,
   msgnotify_types: [],
   msgnotify_servers: [],
+  dltag_downloaders: [],
+  dltag_prefix: '',
+  dltag_notify: true,
 }
 
 const mainTabs = [
@@ -200,6 +203,7 @@ const mainTabs = [
   { key: 'subfill', group: '订阅与站点', title: '订阅规则自动填充', icon: 'mdi-auto-fix', desc: '下载到资源后自动回填订阅的空规则，锁定后续剧集追同款。' },
   { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '采集站点上传/下载/做种等数据，可上仪表盘与日报。' },
   { key: 'seedclean', group: '下载与媒体', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自“自动删种”）。' },
+  { key: 'dltag', group: '下载与媒体', title: '下载器助手', icon: 'mdi-download-network-outline', desc: '下载器活动种子概览（见仪表盘）+ 按站点为种子批量补打标签。' },
   { key: 'msgnotify', group: '下载与媒体', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知。' },
   { key: 'backup', group: '系统维护', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
   { key: 'cleanup', group: '系统维护', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知。' },
@@ -248,6 +252,9 @@ const subTabs = {
   seedclean: [
     { key: 'seedremove', title: '自动删种', icon: 'mdi-delete-sweep-outline' },
   ],
+  dltag: [
+    { key: 'dltagmain', title: '批量打标签', icon: 'mdi-tag-multiple-outline' },
+  ],
   msgnotify: [
     { key: 'server', title: '服务器通知', icon: 'mdi-television-play' },
   ],
@@ -295,6 +302,7 @@ watch(() => props.initialConfig, value => {
   form.subfill_details = toArr(form.subfill_details)
   form.msgnotify_types = toArr(form.msgnotify_types)
   form.msgnotify_servers = toArr(form.msgnotify_servers)
+  form.dltag_downloaders = toArr(form.dltag_downloaders)
 }, { immediate: true, deep: true })
 
 function saveConfig() {
@@ -1038,6 +1046,33 @@ onMounted(() => {
                       :disabled="!form.msgnotify_enabled" />
                   </VCol>
                 </VRow>
+              </VForm>
+            </div>
+            <!-- 下载器助手 · 批量打标签 -->
+            <div v-show="activeSub === 'dltagmain'" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">按站点为种子批量补打标签</div>
+                <div class="aoa-hint mb-2">遍历下载器中的种子，按其 tracker 所属站点补打标签（已打的跳过，幂等安全）；活动种子概览见仪表盘。功能移植自“下载器助手”。</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.dltag_downloaders" :items="downloaderOptions"
+                      :loading="downloadersLoading" label="下载器（留空＝全部已配置）"
+                      multiple chips closable-chips clearable prepend-inner-icon="mdi-download-network-outline" />
+                  </VCol>
+                  <VCol cols="12" md="3">
+                    <VTextField v-model="form.dltag_prefix" label="标签前缀（可选）" placeholder="如 站点-" clearable />
+                  </VCol>
+                  <VCol cols="12" md="3">
+                    <VSwitch v-model="form.dltag_notify" color="primary" inset hide-details label="完成后通知" />
+                  </VCol>
+                </VRow>
+                <VDivider class="my-4" />
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-tag-multiple-outline"
+                    :loading="action.running === 'run_downloader_tag'" @click="runAction('run_downloader_tag', '种子打标签')">
+                    立即按站点打标签
+                  </VBtn>
+                </div>
               </VForm>
             </div>
           </div>

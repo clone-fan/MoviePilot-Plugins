@@ -193,7 +193,7 @@ def fake_qb_torrent(**over):
     d = dict(hash="abc123", name="Demo.S01E01", size=int(5 * 1024 ** 3),
              completion_on=int(now - 100000), added_on=int(now - 100000),
              uploaded=int(1 * 1024 ** 3), ratio=3.0, save_path="/downloads/demo",
-             tracker="https://tracker.example.com/announce", state="pausedUP", category="tv")
+             tracker="https://tracker.example.com/announce", state="pausedUP", category="tv", tags="")
     d.update(over)
     return types.SimpleNamespace(**d)
 
@@ -211,12 +211,14 @@ def fake_tr_torrent(**over):
 class FakeDownloaderInstance:
     def __init__(self, torrents):
         self._torrents = torrents
-        self.stopped, self.deleted, self.deleted_with_files = [], [], []
+        self.stopped, self.deleted, self.deleted_with_files, self.tagged = [], [], [], []
     def is_inactive(self): return False
     def get_torrents(self, tags=None): return (self._torrents, False)
     def stop_torrents(self, ids=None): self.stopped.extend(ids or [])
     def delete_torrents(self, delete_file=False, ids=None):
         (self.deleted_with_files if delete_file else self.deleted).extend(ids or [])
+    def set_torrents_tag(self, ids=None, tags=None): self.tagged.append(("qb", list(ids or []), list(tags or [])))
+    def set_torrent_tag(self, ids=None, tags=None, org_tags=None): self.tagged.append(("tr", ids, list(tags or []), list(org_tags or [])))
 
 
 def fake_online(pid, ver, has_update=True, repo="https://repo.example/", name=None, history=None):
@@ -340,6 +342,16 @@ def main():
     p3 = make_plugin(mod, seedclean_downloaders=["qb1"], seedclean_size="1-10", seedclean_action="delete")
     p3.run_seed_clean()
     check(inst3.deleted == [] and inst3.stopped == [], "不命中的种子不被处理（无误删）")
+
+    print("== 下载器助手：按站点批量打标签（幂等）==")
+    tinst = FakeDownloaderInstance([
+        fake_qb_torrent(hash="ta", tags=""),
+        fake_qb_torrent(hash="tb", tags="https://tracker.example.com/announce"),
+    ])
+    service.instance = tinst
+    make_plugin(mod, dltag_downloaders=["qb1"]).run_downloader_tag()
+    qb_tag_hashes = [h for c in tinst.tagged if c[0] == "qb" for h in c[1]]
+    check("ta" in qb_tag_hashes and "tb" not in qb_tag_hashes, "未打标签的补打、已打标签的跳过（幂等）")
 
     print("== 备份 PG 兜底 / 状态文案 ==")
     p = make_plugin(mod)

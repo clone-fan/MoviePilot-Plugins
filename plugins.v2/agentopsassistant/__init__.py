@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.21"
+    plugin_version = "0.0.22"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -145,6 +145,9 @@ class AgentOpsAssistant(_PluginBase):
     _msgnotify_enabled = False
     _msgnotify_types: List[str] = []
     _msgnotify_servers: List[str] = []
+    _dltag_downloaders: List[str] = []
+    _dltag_prefix = ""
+    _dltag_notify = True
     _msg_seen: Dict[str, float] = {}
     _MSG_GROUPS = {
         "新入库": {"library.new", "ItemAdded"},
@@ -273,6 +276,9 @@ class AgentOpsAssistant(_PluginBase):
         self._msgnotify_enabled = bool(config.get("msgnotify_enabled", False))
         self._msgnotify_types = self._parse_csv(config.get("msgnotify_types"))
         self._msgnotify_servers = self._parse_csv(config.get("msgnotify_servers"))
+        self._dltag_downloaders = self._parse_csv(config.get("dltag_downloaders"))
+        self._dltag_prefix = str(config.get("dltag_prefix") or "").strip()
+        self._dltag_notify = bool(config.get("dltag_notify", True))
         self._msg_seen = {}
         self._last_summary = self._build_summary()
 
@@ -294,6 +300,7 @@ class AgentOpsAssistant(_PluginBase):
             {"cmd": "/mpops_plugin_preview", "event": EventType.PluginAction, "desc": "预览插件残留治理范围", "category": "MP运维", "data": {"action": "mpops_plugin_preview"}},
             {"cmd": "/mpops_plugin_clean", "event": EventType.PluginAction, "desc": "执行插件残留治理（需配置页显式确认）", "category": "MP运维", "data": {"action": "mpops_plugin_clean"}},
             {"cmd": "/mpops_seed_clean", "event": EventType.PluginAction, "desc": "执行自动删种（按规则暂停/删除种子）", "category": "MP运维", "data": {"action": "mpops_seed_clean"}},
+            {"cmd": "/mpops_downloader_tag", "event": EventType.PluginAction, "desc": "按站点为种子批量补打标签", "category": "MP运维", "data": {"action": "mpops_downloader_tag"}},
             {"cmd": "/agentops_heartbeat", "event": EventType.PluginAction, "desc": "兼容旧命令：发送每日汇报", "category": "MP运维", "data": {"action": "mpops_report"}},
             {"cmd": "/agentops_run_all", "event": EventType.PluginAction, "desc": "兼容旧命令：执行全部低风险任务", "category": "MP运维", "data": {"action": "mpops_run_all"}},
         ]
@@ -320,6 +327,8 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/subfill_clear_history", "endpoint": self.api_subfill_clear_history, "auth": "bear", "methods": ["POST"], "summary": "清理订阅规则填充历史记录"},
             {"path": "/subfill_clear_handled", "endpoint": self.api_subfill_clear_handled, "auth": "bear", "methods": ["POST"], "summary": "清理订阅规则填充已处理记录"},
             {"path": "/site_stat_chart", "endpoint": self.api_site_stat_chart, "auth": "bear", "methods": ["GET"], "summary": "今日各站点上传/下载增量，供仪表盘饼图"},
+            {"path": "/run_downloader_tag", "endpoint": self.api_run_downloader_tag, "auth": "bear", "methods": ["POST"], "summary": "按站点为种子批量补打标签"},
+            {"path": "/downloader_overview", "endpoint": self.api_downloader_overview, "auth": "bear", "methods": ["GET"], "summary": "下载器活动种子概览"},
             {"path": "/run_heartbeat_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "兼容旧接口：立即发送每日汇报"},
         ]
 
@@ -375,6 +384,7 @@ class AgentOpsAssistant(_PluginBase):
             "mpops_plugin_preview": [("插件治理预览", self.run_plugin_uninstall_preview)],
             "mpops_plugin_clean": [("插件残留治理", self.run_plugin_uninstall_clean)],
             "mpops_seed_clean": [("自动删种", self.run_seed_clean)],
+            "mpops_downloader_tag": [("种子打标签", self.run_downloader_tag)],
         }
         tasks = handlers.get(action)
         if not tasks:
@@ -1335,6 +1345,85 @@ class AgentOpsAssistant(_PluginBase):
         except Exception:
             return ["⦁ 未查询"]
 
+    def _downloader_overview_data(self) -> List[Dict[str, Any]]:
+        """各下载器当前下载中任务数与上下行速度（结构化），供仪表盘活动种子概览。"""
+        out: List[Dict[str, Any]] = []
+        try:
+            from app.chain.download import DownloadChain
+            stats: Dict[str, Dict[str, Any]] = {}
+            for t in (DownloadChain().downloading() or []):
+                name = getattr(t, "downloader", None) or "未知"
+                s = stats.setdefault(name, {"name": name, "count": 0, "dl_speed": 0, "up_speed": 0})
+                s["count"] += 1
+                s["dl_speed"] += int(getattr(t, "dlspeed", 0) or 0)
+                s["up_speed"] += int(getattr(t, "upspeed", 0) or 0)
+            out = list(stats.values())
+        except Exception as err:
+            logger.warning(f"AgentOpsAssistant 下载器概览获取失败：{err}")
+        return out
+
+    def run_downloader_tag(self) -> bool:
+        """按种子 tracker 站点为种子补打标签（移植自 hotlcc 下载器助手；幂等，已打的跳过）。"""
+        name = "种子打标签"
+        try:
+            from app.helper.downloader import DownloaderHelper
+            from app.utils.string import StringUtils
+            helper = DownloaderHelper()
+            names = self._dltag_downloaders or [getattr(c, "name", None) for c in (helper.get_configs() or {}).values() if getattr(c, "name", None)]
+            services = helper.get_services(name_filters=names) or {}
+            tagged = 0
+            for _dn, svc in services.items():
+                inst = getattr(svc, "instance", None)
+                if not inst or (hasattr(inst, "is_inactive") and inst.is_inactive()):
+                    continue
+                is_qb = str(getattr(getattr(svc, "config", None), "type", "")).lower() == "qbittorrent"
+                try:
+                    torrents, error = inst.get_torrents()
+                except Exception:
+                    continue
+                if error:
+                    continue
+                qb_groups: Dict[str, List[str]] = {}
+                for tor in (torrents or []):
+                    if is_qb:
+                        site = StringUtils.get_url_sld(getattr(tor, "tracker", "") or "")
+                        if not site:
+                            continue
+                        tag = (self._dltag_prefix or "") + site
+                        existing = [x.strip() for x in str(getattr(tor, "tags", "") or "").split(",")]
+                        if tag in existing:
+                            continue
+                        qb_groups.setdefault(tag, []).append(tor.hash)
+                    else:
+                        trackers = getattr(tor, "trackers", None) or []
+                        site = trackers[0].get("sitename") if trackers else ""
+                        if not site:
+                            continue
+                        tag = (self._dltag_prefix or "") + site
+                        labels = list(getattr(tor, "labels", []) or [])
+                        if tag in labels:
+                            continue
+                        try:
+                            inst.set_torrent_tag(ids=tor.hashString, tags=[tag], org_tags=labels)
+                            tagged += 1
+                        except Exception:
+                            pass
+                for tag, hashes in qb_groups.items():
+                    try:
+                        inst.set_torrents_tag(ids=hashes, tags=[tag])
+                        tagged += len(hashes)
+                    except Exception:
+                        pass
+            text = f"已为 {tagged} 个种子按站点补打标签" if tagged else "没有需要补打标签的种子（均已打标签或无 tracker 站点信息）"
+            self._save_task_result(name, True, 0, text)
+            if self._dltag_notify and tagged:
+                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 种子打标签", text=text)
+            return True
+        except Exception as err:
+            self._save_task_result(name, False, -1, str(err))
+            logger.error(f"AgentOpsAssistant 种子打标签失败：{err}")
+            return False
+
     @staticmethod
     def _format_duration(seconds: Any) -> str:
         try:
@@ -1557,6 +1646,12 @@ class AgentOpsAssistant(_PluginBase):
         except Exception as err:
             logger.error(f"站点统计图数据获取失败：{err}")
             return {"code": 1, "msg": str(err), "data": {"date": "", "sites": [], "upload_total": 0, "download_total": 0}}
+
+    def api_run_downloader_tag(self) -> Dict[str, Any]:
+        return self._api_run_task("种子打标签", self.run_downloader_tag)
+
+    def api_downloader_overview(self) -> Dict[str, Any]:
+        return {"code": 0, "data": {"downloaders": self._downloader_overview_data()}}
 
     def run_seed_clean(self) -> bool:
         """按规则在所选下载器中暂停/删除种子。默认动作为暂停，安全优先。"""
@@ -2986,7 +3081,7 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _slug(name: str) -> str:
-        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "自动删种": "seed_clean", "订阅规则填充": "subfill", "清理填充历史": "subfill_clear_history", "清理已处理": "subfill_clear_handled"}.get(name, "task")
+        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "自动删种": "seed_clean", "订阅规则填充": "subfill", "清理填充历史": "subfill_clear_history", "清理已处理": "subfill_clear_handled", "种子打标签": "downloader_tag"}.get(name, "task")
 
     @staticmethod
     def _parse_csv(value: Any) -> List[str]:
@@ -2996,4 +3091,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": []}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True}
