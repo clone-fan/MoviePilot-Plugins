@@ -128,6 +128,10 @@ const defaults = {
   market_update_write_env: false,
   market_update_blacklist_enabled: false,
   market_update_blacklist: [],
+  market_update_auto_install: false,
+  market_update_install_ids: [],
+  market_update_exclude_ids: [],
+  market_update_skip_running: true,
   market_update_auto_get: false,
   market_update_proxy: true,
   market_update_timeout: 5,
@@ -215,6 +219,8 @@ watch(() => props.initialConfig, value => {
   form.plugin_uninstall_ids = toArr(form.plugin_uninstall_ids)
   form.log_clean_selected_ids = toArr(form.log_clean_selected_ids)
   form.market_update_blacklist = toArr(form.market_update_blacklist)
+  form.market_update_install_ids = toArr(form.market_update_install_ids)
+  form.market_update_exclude_ids = toArr(form.market_update_exclude_ids)
   form.seedclean_downloaders = toArr(form.seedclean_downloaders)
 }, { immediate: true, deep: true })
 
@@ -681,6 +687,35 @@ onMounted(() => {
                     </VExpansionPanelText>
                   </VExpansionPanel>
                 </VExpansionPanels>
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">自动更新已安装插件</div>
+                <div class="aoa-hint mb-2">检测到已安装插件有新版时自动下载安装并重载（功能移植自“插件自动更新”）。不开启则仅在检查时提醒有新版。</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.market_update_auto_install" color="warning" inset hide-details
+                      label="自动安装插件新版" :disabled="!form.market_update_enabled" />
+                    <div class="aoa-hint">高风险：会自动替换插件代码并重载。默认关闭，仅提醒；本插件自身永不自动更新。</div>
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.market_update_skip_running" color="primary" inset hide-details
+                      label="跳过正在运行的插件" :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
+                    <div class="aoa-hint">插件正在执行任务时不升级，避免中断。</div>
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.market_update_install_ids" :items="installedPlugins"
+                      :loading="installedLoading" label="仅自动更新这些插件（留空＝全部已安装）"
+                      multiple chips closable-chips clearable prepend-inner-icon="mdi-puzzle-check-outline"
+                      :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
+                  </VCol>
+                  <VCol cols="12" md="6">
+                    <VSelect v-model="form.market_update_exclude_ids" :items="installedPlugins"
+                      :loading="installedLoading" label="排除（这些插件不自动更新）"
+                      multiple chips closable-chips clearable prepend-inner-icon="mdi-block-helper"
+                      :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
+                  </VCol>
+                </VRow>
                 <VDivider class="my-4" />
                 <div class="aoa-btn-row">
                   <VBtn color="primary" variant="tonal" prepend-icon="mdi-cloud-sync-outline"

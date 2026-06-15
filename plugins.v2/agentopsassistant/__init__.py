@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.14"
+    plugin_version = "0.0.15"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -102,6 +102,10 @@ class AgentOpsAssistant(_PluginBase):
     _market_update_write_settings = False
     _market_update_write_env = False
     _market_update_blacklist: List[str] = []
+    _market_update_auto_install = False
+    _market_update_install_ids: List[str] = []
+    _market_update_exclude_ids: List[str] = []
+    _market_update_skip_running = True
     _market_update_wiki_url = "https://wiki.movie-pilot.org/zh/plugin"
     _plugin_uninstall_id = ""
     _plugin_uninstall_delete_source = False
@@ -183,6 +187,10 @@ class AgentOpsAssistant(_PluginBase):
         self._market_update_write_env = bool(config.get("market_update_write_env", False))
         self._market_update_blacklist_enabled = bool(config.get("market_update_blacklist_enabled", False))
         self._market_update_blacklist = self._parse_csv(config.get("market_update_blacklist"))
+        self._market_update_auto_install = bool(config.get("market_update_auto_install", False))
+        self._market_update_install_ids = self._parse_csv(config.get("market_update_install_ids"))
+        self._market_update_exclude_ids = self._parse_csv(config.get("market_update_exclude_ids"))
+        self._market_update_skip_running = bool(config.get("market_update_skip_running", True))
         self._market_update_auto_get = bool(config.get("market_update_auto_get", False))
         self._market_update_proxy = bool(config.get("market_update_proxy", True))
         self._market_update_timeout = self._safe_int(config.get("market_update_timeout"), 5, 1)
@@ -555,8 +563,11 @@ class AgentOpsAssistant(_PluginBase):
     def run_market_update(self) -> bool:
         try:
             data = self._build_market_update_status(apply=True)
+            data["plugin_update"] = self._auto_update_installed_plugins(apply=True)
             text = self._format_market_update_text(data)
-            if self._market_update_notify and data.get("has_update"):
+            pu = data.get("plugin_update") or {}
+            notify_needed = data.get("has_update") or pu.get("updated") or pu.get("updatable") or pu.get("failed")
+            if self._market_update_notify and notify_needed:
                 self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件库更新检查", text=text)
             self._save_task_result("插件库更新", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
@@ -1632,7 +1643,116 @@ class AgentOpsAssistant(_PluginBase):
         ]
         for url in (data.get('new_markets') or [])[:5]:
             lines.append(f"⦁ 新库：{url}")
+        pu = data.get("plugin_update") or {}
+        if pu:
+            if pu.get("error"):
+                lines.append(f"⦁ 插件自动更新：{pu['error']}")
+            elif pu.get("auto_install"):
+                lines.append(f"⦁ 插件自动更新：已更新 {len(pu.get('updated') or [])}｜失败 {len(pu.get('failed') or [])}｜跳过 {len(pu.get('skipped') or [])}")
+                for it in (pu.get("updated") or [])[:6]:
+                    extra = f"｜{it['history']}" if it.get("history") else ""
+                    lines.append(f"  ✓ {it['name']}：v{it['old']} → v{it['new']}{extra}")
+                for it in (pu.get("failed") or [])[:5]:
+                    lines.append(f"  ✗ {it['name']}：{it.get('msg')}")
+                for it in (pu.get("skipped") or [])[:5]:
+                    lines.append(f"  – {it['name']}：跳过（{it.get('reason')}）")
+            elif pu.get("updatable"):
+                lines.append(f"⦁ 发现可更新插件：{len(pu['updatable'])} 个（未开启自动安装，仅提醒）")
+                for it in pu["updatable"][:8]:
+                    lines.append(f"  - {it['name']}：v{it['old']} → v{it['new']}")
         return "\n".join(lines)
+
+    def _auto_update_installed_plugins(self, apply: bool = True) -> Dict[str, Any]:
+        """检查已安装插件是否有新版（移植自 thsrite/PluginAutoUpdate，适配本插件）。
+        开启“自动安装”且 apply 时下载安装新版并重载；否则仅汇总可更新清单供通知。
+        全程 try/except，任何失败只反映在结果里，不抛出。"""
+        out: Dict[str, Any] = {"auto_install": bool(self._market_update_auto_install),
+                               "updatable": [], "updated": [], "failed": [], "skipped": []}
+        try:
+            from app.core.plugin import PluginManager
+            from app.db.systemconfig_oper import SystemConfigOper
+            from app.schemas.types import SystemConfigKey
+        except Exception as err:
+            out["error"] = f"加载插件管理器失败：{str(err)[:120]}"
+            return out
+        try:
+            installed_ids = SystemConfigOper().get(SystemConfigKey.UserInstalledPlugins) or []
+            online = PluginManager().get_online_plugins() or []
+            if not online:
+                out["error"] = "未获取到在线插件列表"
+                return out
+            # 每个插件 id 取最大版本
+            maxver: Dict[str, Any] = {}
+            for p in online:
+                if p.id not in maxver or p.plugin_version > maxver[p.id]:
+                    maxver[p.id] = p.plugin_version
+            online = [p for p in online if p.plugin_version == maxver[p.id]]
+            # 已安装版本
+            local_ver: Dict[str, Any] = {}
+            for p in (PluginManager().get_local_plugins() or []):
+                local_ver[p.id] = p.plugin_version
+            # 正在运行的插件服务（可选跳过）
+            running = set()
+            if self._market_update_skip_running:
+                try:
+                    from app.scheduler import Scheduler
+                    for s in (Scheduler().list() or []):
+                        if getattr(s, "status", "") == "正在运行":
+                            running.add(s.id)
+                except Exception:
+                    pass
+            exclude = set(self._market_update_exclude_ids or [])
+            include = set(self._market_update_install_ids or [])
+            for p in online:
+                pid = str(p.id)
+                if pid not in installed_ids:
+                    continue
+                if not (getattr(p, "has_update", False) or not getattr(p, "installed", True)):
+                    continue
+                oldv = local_ver.get(p.id)
+                if not oldv or str(oldv) == "None":
+                    continue
+                info = {"id": pid, "name": getattr(p, "plugin_name", pid), "old": str(oldv), "new": str(p.plugin_version)}
+                out["updatable"].append(info)
+                if not (apply and self._market_update_auto_install):
+                    continue
+                # 安全：永不自动更新本插件自身；尊重排除/仅选名单；运行中不动
+                if pid.lower() in {"agentopsassistant", "mpops", "moviepilot"} or pid in exclude:
+                    out["skipped"].append({**info, "reason": "排除/本体"})
+                    continue
+                if include and pid not in include:
+                    out["skipped"].append({**info, "reason": "不在自动更新列表"})
+                    continue
+                if pid in running or p.id in running:
+                    out["skipped"].append({**info, "reason": "正在运行"})
+                    continue
+                try:
+                    from app.helper.plugin import PluginHelper
+                    state, msg = PluginHelper().install(pid=p.id, repo_url=getattr(p, "repo_url", ""))
+                except Exception as err:
+                    state, msg = False, str(err)
+                if not state:
+                    out["failed"].append({**info, "msg": str(msg)[:120]})
+                    continue
+                try:
+                    PluginManager().reload_plugin(p.id)
+                    from app.scheduler import Scheduler
+                    Scheduler().update_plugin_job(p.id)
+                except Exception as err:
+                    logger.warning(f"AgentOpsAssistant 重载插件 {pid} 失败：{err}")
+                hist = ""
+                try:
+                    for ver, note in (getattr(p, "history", None) or {}).items():
+                        if str(ver).replace("v", "") == str(p.plugin_version).replace("v", ""):
+                            hist = str(note)
+                            break
+                except Exception:
+                    pass
+                out["updated"].append({**info, "history": hist})
+            return out
+        except Exception as err:
+            out["error"] = f"插件自动更新异常：{str(err)[:160]}"
+            return out
 
     def _build_backup_status(self) -> Dict[str, Any]:
         backup_path = Path(self._backup_path or "/config/plugins/AgentOpsAssistant/Backup")
@@ -2412,4 +2532,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True}

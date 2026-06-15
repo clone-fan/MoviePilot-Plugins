@@ -77,6 +77,35 @@ class _StubEventManager:
         return deco
 
 
+# 插件自动更新桩：测试通过 _PU 配置 在线/本地/已装/运行中 列表，并记录 install/reload 调用
+_PU = {"online": [], "local": [], "installed": [], "running": [],
+       "install_result": (True, "ok"), "install_calls": [], "reloaded": []}
+
+
+class _StubPluginManager:
+    def get_online_plugins(self): return list(_PU["online"])
+    def get_local_plugins(self): return list(_PU["local"])
+    def reload_plugin(self, pid): _PU["reloaded"].append(pid)
+    def get_plugin_apis(self): return []
+
+
+class _StubPluginHelper:
+    def install(self, pid=None, repo_url=None):
+        _PU["install_calls"].append((pid, repo_url))
+        return _PU["install_result"]
+
+
+class _StubScheduler:
+    def list(self):
+        return [types.SimpleNamespace(id=i, status="正在运行") for i in _PU["running"]]
+    def update_plugin_job(self, pid): pass
+
+
+class _StubSystemConfigOper:
+    def get(self, key):
+        return list(_PU["installed"]) if key == "UserInstalledPlugins" else None
+
+
 def install_stubs():
     """注入插件 import 的全部外部模块桩。"""
     _mod("app")
@@ -102,11 +131,20 @@ def install_stubs():
         PluginAction="PluginAction", WebhookMessage="WebhookMessage",
         SubscribeAdded="SubscribeAdded", DownloadAdded="DownloadAdded",
     )
-    scht.SystemConfigKey = types.SimpleNamespace(Storages="Storages")
+    scht.SystemConfigKey = types.SimpleNamespace(Storages="Storages", UserInstalledPlugins="UserInstalledPlugins")
     http = _mod("app.utils.http")
     http.RequestUtils = _StubRequestUtils
     stru = _mod("app.utils.string")
     stru.StringUtils = _StubStringUtils
+    # 插件自动更新相关
+    corep = _mod("app.core.plugin")
+    corep.PluginManager = _StubPluginManager
+    helperp = _mod("app.helper.plugin")
+    helperp.PluginHelper = _StubPluginHelper
+    schd = _mod("app.scheduler")
+    schd.Scheduler = _StubScheduler
+    sysoper = _mod("app.db.systemconfig_oper")
+    sysoper.SystemConfigOper = _StubSystemConfigOper
     # apscheduler
     _mod("apscheduler")
     _mod("apscheduler.triggers")
@@ -153,6 +191,16 @@ class FakeDownloaderInstance:
     def stop_torrents(self, ids=None): self.stopped.extend(ids or [])
     def delete_torrents(self, delete_file=False, ids=None):
         (self.deleted_with_files if delete_file else self.deleted).extend(ids or [])
+
+
+def fake_online(pid, ver, has_update=True, repo="https://repo.example/", name=None, history=None):
+    return types.SimpleNamespace(id=pid, plugin_version=ver, plugin_name=name or pid,
+                                 repo_url=repo, has_update=has_update, installed=True,
+                                 history=history or {}, plugin_icon="x.png")
+
+
+def fake_local(pid, ver):
+    return types.SimpleNamespace(id=pid, plugin_version=ver)
 
 
 def make_plugin(module, **cfg):
@@ -298,6 +346,38 @@ def main():
           "禁止治理 MoviePilot/本体（保护）")
     r4 = make_plugin(mod, plugin_uninstall_ids=["A", "B"])._build_plugin_uninstall_status(clean=False)
     check(r4.get("plugin_id") == "A、B", "多个插件 ID 合并展示")
+
+    print("== 插件库更新增强：自动更新已安装插件 ==")
+    def _reset_pu(**kw):
+        _PU.update({"online": [], "local": [], "installed": [], "running": [],
+                    "install_result": (True, "ok"), "install_calls": [], "reloaded": []})
+        _PU.update(kw)
+    # 开启自动安装 + 有新版 -> 下载安装 + reload + 记入 updated（带更新记录）
+    _reset_pu(online=[fake_online("AutoBackup", "2.0", history={"v2.0": "修复X"})],
+              local=[fake_local("AutoBackup", "1.0")], installed=["AutoBackup"])
+    r = make_plugin(mod, market_update_auto_install=True)._auto_update_installed_plugins(apply=True)
+    check(("AutoBackup", "https://repo.example/") in _PU["install_calls"]
+          and any(x["id"] == "AutoBackup" for x in r["updated"]), "有新版+开启自动安装 -> 调 install 并记入 updated")
+    check("AutoBackup" in _PU["reloaded"], "安装后 reload_plugin")
+    check(r["updated"][0].get("history") == "修复X", "通知带该版本更新记录")
+    # 关闭自动安装 -> 仅提醒，不安装
+    _reset_pu(online=[fake_online("AutoBackup", "2.0")], local=[fake_local("AutoBackup", "1.0")], installed=["AutoBackup"])
+    r = make_plugin(mod, market_update_auto_install=False)._auto_update_installed_plugins(apply=True)
+    check(not _PU["install_calls"] and any(x["id"] == "AutoBackup" for x in r["updatable"]) and not r["updated"],
+          "关闭自动安装 -> 仅 updatable 提醒，不调 install")
+    # 排除名单 -> 跳过
+    _reset_pu(online=[fake_online("AutoBackup", "2.0")], local=[fake_local("AutoBackup", "1.0")], installed=["AutoBackup"])
+    r = make_plugin(mod, market_update_auto_install=True, market_update_exclude_ids="AutoBackup")._auto_update_installed_plugins(apply=True)
+    check(not _PU["install_calls"] and any(x["id"] == "AutoBackup" for x in r["skipped"]), "排除名单 -> 跳过不安装")
+    # 本插件自身 -> 永不自动更新
+    _reset_pu(online=[fake_online("AgentOpsAssistant", "9.9")], local=[fake_local("AgentOpsAssistant", "1.0")], installed=["AgentOpsAssistant"])
+    make_plugin(mod, market_update_auto_install=True)._auto_update_installed_plugins(apply=True)
+    check(not _PU["install_calls"], "本插件自身永不自动更新")
+    # 正在运行 + 跳过开启 -> 跳过
+    _reset_pu(online=[fake_online("AutoBackup", "2.0")], local=[fake_local("AutoBackup", "1.0")],
+              installed=["AutoBackup"], running=["AutoBackup"])
+    r = make_plugin(mod, market_update_auto_install=True, market_update_skip_running=True)._auto_update_installed_plugins(apply=True)
+    check(not _PU["install_calls"] and any(x.get("reason") == "正在运行" for x in r["skipped"]), "正在运行的插件跳过升级")
 
     print()
     if _FAILS:

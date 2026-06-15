@@ -59,5 +59,6 @@ npm run build
 | 插件库更新推送 | https://github.com/Aqr-K/MoviePilot-Plugins | Aqr-K |
 | 日志清理（Vue） | https://github.com/madrays/MoviePilot-Plugins | madrays |
 | 自动删种 | https://github.com/jxxghp/MoviePilot-Plugins | jxxghp |
+| 插件自动更新 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
 
 同时特别感谢 [MoviePilot](https://github.com/jxxghp/MoviePilot)（作者 jxxghp）提供的插件框架与 API。
