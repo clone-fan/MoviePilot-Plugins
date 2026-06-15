@@ -287,6 +287,18 @@ def main():
                                           "backup_count": 0, "backup_size_text": "0 B", "errors": ["真失败"]})
     check("状态：异常" in t_err and "异常：" in t_err, "真失败仍报异常")
 
+    print("== 插件残留治理（多选 ID 回归）==")
+    r1 = make_plugin(mod, plugin_uninstall_ids=["AutoBackup"])._build_plugin_uninstall_status(clean=False)
+    check(r1.get("plugin_id") == "AutoBackup" and not r1.get("blocked") and r1.get("success") is True,
+          "多选列表被识别（不再因单 ID 为空而 blocked）")
+    r2 = make_plugin(mod, plugin_uninstall_ids=[])._build_plugin_uninstall_status(clean=False)
+    check(bool(r2.get("blocked")) and r2.get("success") is False, "空目标 -> blocked，不误删")
+    r3 = make_plugin(mod, plugin_uninstall_ids=["moviepilot"])._build_plugin_uninstall_status(clean=True)
+    check(r3.get("success") is False and any("moviepilot" in e.lower() for e in r3.get("errors", [])),
+          "禁止治理 MoviePilot/本体（保护）")
+    r4 = make_plugin(mod, plugin_uninstall_ids=["A", "B"])._build_plugin_uninstall_status(clean=False)
+    check(r4.get("plugin_id") == "A、B", "多个插件 ID 合并展示")
+
     print()
     if _FAILS:
         print(f"FAILED: {len(_FAILS)} 项")

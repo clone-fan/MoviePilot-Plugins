@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.13"
+    plugin_version = "0.0.14"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -527,8 +527,8 @@ class AgentOpsAssistant(_PluginBase):
         return bool(data.get("success", True))
 
     def run_plugin_uninstall_clean(self) -> bool:
-        if not (self._plugin_uninstall_id or self._plugin_uninstall_ids):
-            text = "未执行：请先在配置页填写目标插件 ID。"
+        if not (self._plugin_uninstall_ids or self._plugin_uninstall_id):
+            text = "未执行：请先在配置页选择目标插件。"
             self._save_task_result("插件残留治理", False, 2, text)
             if self._plugin_uninstall_notify:
                 self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件残留清理未执行", text=text)
@@ -1995,32 +1995,48 @@ class AgentOpsAssistant(_PluginBase):
         return safe
 
     def _build_plugin_uninstall_status(self, clean: bool = False) -> Dict[str, Any]:
-        plugin_id = self._normalize_plugin_id(self._plugin_uninstall_id)
-        result = {"success": True, "dry_run": not clean, "plugin_id": plugin_id, "note": "只治理插件残留文件/日志/备份目录；不会删除媒体文件、下载任务或 MoviePilot 核心源码。", "candidates": [], "deleted": [], "errors": [], "backup_path": "", "blocked": ""}
-        if not plugin_id:
-            result.update({"success": False, "blocked": "请先填写插件ID。"})
+        # 目标插件：优先用配置页的多选列表 plugin_uninstall_ids，回退到旧的单个 plugin_uninstall_id
+        raw_ids = list(self._plugin_uninstall_ids or [])
+        if not raw_ids and self._plugin_uninstall_id:
+            raw_ids = [self._plugin_uninstall_id]
+        ids: List[str] = []
+        for rid in raw_ids:
+            pid = self._normalize_plugin_id(rid)
+            if pid and pid not in ids:
+                ids.append(pid)
+        result = {"success": True, "dry_run": not clean, "plugin_id": "、".join(ids),
+                  "note": "只治理插件残留文件/日志/备份目录；不会删除媒体文件、下载任务或 MoviePilot 核心源码。",
+                  "candidates": [], "deleted": [], "errors": [], "backup_path": "", "blocked": ""}
+        if not ids:
+            result.update({"success": False, "blocked": "请先在配置页选择目标插件。"})
             return result
-        if plugin_id.lower() in {"agentopsassistant", "mpops", "moviepilot"}:
-            result.update({"success": False, "blocked": "为避免自毁或误删核心组件，禁止治理 AgentOpsAssistant / MoviePilot 本体。"})
-            return result
-        candidates = self._plugin_uninstall_candidates(plugin_id)
-        result["candidates"] = candidates
-        if not clean:
-            return result
-        backup_path = self._backup_plugin_uninstall_candidates(plugin_id, candidates)
-        result["backup_path"] = backup_path
-        for item in candidates:
-            path = Path(item.get("path") or "")
-            if not path.exists():
+        forbidden = {"agentopsassistant", "mpops", "moviepilot"}
+        backups: List[str] = []
+        for pid in ids:
+            if pid.lower() in forbidden:
+                result["errors"].append(f"{pid}: 为避免自毁或误删核心组件，禁止治理 AgentOpsAssistant / MoviePilot 本体，已跳过。")
                 continue
-            try:
-                if path.is_dir():
-                    shutil.rmtree(path)
-                else:
-                    path.unlink()
-                result["deleted"].append(item)
-            except Exception as err:
-                result["errors"].append(f"{path}: {err}")
+            candidates = self._plugin_uninstall_candidates(pid)
+            for item in candidates:
+                item["plugin_id"] = pid
+            result["candidates"].extend(candidates)
+            if not clean:
+                continue
+            if candidates:
+                backups.append(self._backup_plugin_uninstall_candidates(pid, candidates))
+            for item in candidates:
+                path = Path(item.get("path") or "")
+                if not path.exists():
+                    continue
+                try:
+                    if path.is_dir():
+                        shutil.rmtree(path)
+                    else:
+                        path.unlink()
+                    result["deleted"].append(item)
+                except Exception as err:
+                    result["errors"].append(f"{path}: {err}")
+        result["backup_path"] = "；".join([b for b in backups if b])
         result["success"] = not result["errors"]
         return result
 
@@ -2115,7 +2131,6 @@ class AgentOpsAssistant(_PluginBase):
             lines.extend([f"⦁ {e}" for e in data.get("errors", [])[:5]])
         return "\n".join(lines)
 
-    @staticmethod
     @staticmethod
     def _count_file_lines(path: Path) -> int:
         with path.open('r', encoding='utf-8', errors='ignore') as fh:

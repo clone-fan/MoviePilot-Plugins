@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅提醒、站点统计、插件日志清理、自动备份、更新检查与插件残留清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅提醒,站点统计,日志清理,自动备份,更新检查,插件残留清理,本地插件",
-    "version": "0.0.13",
+    "version": "0.0.14",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v0.0.14": "修复「插件残留清理」选了插件却没效果：治理逻辑此前只读取旧的单个 plugin_uninstall_id，而配置页用的是多选 plugin_uninstall_ids，导致即便已选插件也被当作“未填写ID”阻止、什么都不删。改为遍历多选列表（兼容旧单 ID），逐个插件汇总候选/备份/删除，保留对 AgentOpsAssistant/MoviePilot 本体的保护；顺带移除一处重复的 @staticmethod。新增 4 项残留治理回归测试。",
       "v0.0.13": "修复自动备份在 PostgreSQL 下报“异常”：容器内缺少 pg_dump 时不再当作失败——先在 PATH 与常见目录查找 pg_dump，找不到则用 MoviePilot 自带 SQLAlchemy 引擎兜底导出（表结构+数据），仍不行则降级为“提示”而非“异常”（配置文件备份照常成功）；备份状态区分异常与提示。仪表盘「手动触发」补齐按钮：新增 检查更新 / 插件库更新 / 自动删种（落实“凡可手动触发的功能都在仪表盘放按钮”）。",
       "v0.0.12": "新增「种子治理·自动删种」（功能移植自 jxxghp「自动删种」TorrentRemover，界面沿用本插件自有配置页，未抄其 UI）：按 大小/分享率/做种时间/平均上传速度/标签/保存路径/Tracker关键词/任务状态(QB)/错误信息(TR)/分类 等条件，定时在所选下载器中执行 暂停/删除种子/删除种子和文件；支持处理辅种、仅 MoviePilot 任务、结果通知、仪表盘任务行与立即执行；做种时长按 now−completion_on(QB)/date_done(TR) 计算。安全默认：默认停用、动作默认“暂停”、未填写任何筛选条件则跳过不处理。",
       "v0.0.11": "每日汇报修复与优化：① 存储空间不再罗列未真正配置/取不到用量的存储（此前会出现一行“xxx：已配置”噪声），改为与官方仪表盘 _build_storage 同口径——仅展示能取到真实用量的存储；② 重做“今日下载”——改以今日入库(转移历史)的成功记录为准，按“剧名·季集”展示当天下载入库内容，并用 download_hash 命中下载器种子、按完成时间(对齐官方“自动删种”口径 now−completion_on/date_done)算做种时长互相印证显示“（做种：Xh）”，删除原先与今日无关、易误解的“做种中：N 个”计数；③ “入库整理”段不再重复罗列标题，仅保留今日成功/失败概览。",
