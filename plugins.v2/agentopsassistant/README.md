@@ -30,3 +30,20 @@
 - `/mpops_market`：检查插件库更新。
 - `/mpops_plugin_preview`：预览插件残留清理范围。
 - `/mpops_plugin_clean`：执行插件残留清理。
+
+## 致谢
+
+本插件整合了 MoviePilot 社区多位作者优秀插件的能力与思路，在此一并致谢：
+
+| 功能 | 参考来源 | 作者 |
+|------|----------|------|
+| 历史记录清理 | https://github.com/InfinityPacer/MoviePilot-Plugins | InfinityPacer |
+| 自动备份 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
+| 插件彻底卸载 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
+| 订阅提醒 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
+| MoviePilot 更新推送 | https://github.com/jxxghp/MoviePilot-Plugins | jxxghp |
+| 站点数据统计 | https://github.com/jxxghp/MoviePilot-Plugins | jxxghp |
+| 插件库更新推送 | https://github.com/Aqr-K/MoviePilot-Plugins | Aqr-K |
+| 日志清理（Vue） | https://github.com/madrays/MoviePilot-Plugins | madrays |
+
+同时特别感谢 [MoviePilot](https://github.com/jxxghp/MoviePilot)（作者 jxxghp）提供的插件框架与 API。

@@ -30,7 +30,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "0.0.8"
+    plugin_version = "0.0.9"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -547,7 +547,6 @@ class AgentOpsAssistant(_PluginBase):
         return self._build_heartbeat_message()
 
     def _build_heartbeat_message(self) -> str:
-        latest = self._github_latest_v2()
         site_increment = self._get_site_increment_locked()
         site_health = self._get_site_health_locked()
         transfers = self._get_today_transfers_locked()
@@ -556,10 +555,8 @@ class AgentOpsAssistant(_PluginBase):
         downloads = self._get_downloading_locked()
         downloader_health = self._get_downloader_health_locked()
         storage_health = self._get_storage_health_locked()
-        version_line = f"⦁ 版本：{self._frontend_backend_version_line()}"
-        app_version = self._backend_version_value()
-        if latest != "未取到" and self._normalize_version(latest) == self._normalize_version(app_version):
-            version_line += "，已是最新"
+        today_downloads = self._get_today_downloads_locked()
+        media_stats = self._get_media_stats_locked()
 
         lines = [
             self._daily_greeting_locked(),
@@ -567,10 +564,8 @@ class AgentOpsAssistant(_PluginBase):
             f"🕒 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             "🤖 MoviePilot：",
-            version_line,
         ]
-        if latest != "未取到" and self._normalize_version(latest) != self._normalize_version(app_version):
-            lines.append(f"⦁ 最新版本：{latest} / {latest}，{self._daily_report_greeting}记得抽空更新一下")
+        lines.extend(self._version_report_lines())
 
         lines.extend(["", "📡 站点状态："])
         lines.extend(site_health)
@@ -581,6 +576,7 @@ class AgentOpsAssistant(_PluginBase):
         if not (downloader_health == ["⦁ 正在下载：无"] or downloader_health == ["⦁ 无"]) and downloads != ["⦁ 无"]:
             lines.append("⦁ 当前任务：")
             lines.extend(downloads[:5])
+        lines.extend(today_downloads)
         lines.extend(["", "📦 入库整理："])
         lines.extend(transfer_health)
         lines.extend(transfers if transfers != ["⦁ 无"] else ["⦁ 今日入库：无"])
@@ -588,9 +584,31 @@ class AgentOpsAssistant(_PluginBase):
         lines.extend([f"⦁ {x}" for x in subs] if subs else ["⦁ 今日追新：无"])
         lines.extend(["", "💾 存储空间："])
         lines.extend(storage_health)
+        lines.extend(["", "🎬 媒体统计："])
+        lines.extend(media_stats)
         lines.extend([""])
         lines.extend(self._get_summary_locked(site_health, transfer_health, downloader_health, storage_health))
         return "\n".join(lines)
+
+    def _version_report_lines(self) -> List[str]:
+        """当前/最新版本 + 按检查结果区分话术（已是最新 / 有新版 / 检查失败）。"""
+        local = self._get_local_versions()
+        fe = local.get("frontend_version") or "未知"
+        be = local.get("backend_version") or "未知"
+        lines = [f"⦁ 当前版本：前端 {fe} / 后端 {be}"]
+        try:
+            check = self._check_one_release("后端", "https://api.github.com/repos/jxxghp/MoviePilot/releases", be)
+        except Exception as err:
+            check = {"error": str(err)}
+        latest = check.get("latest_version") or ""
+        err = check.get("error") or ""
+        if err or not latest:
+            lines.append(f"⦁ 最新版本：暂时查不到（{err or '无响应'}），稍后再看")
+        elif check.get("has_update"):
+            lines.append(f"⦁ 最新版本：后端 {latest} —— 有新版，{self._daily_report_greeting}记得抽空更新")
+        else:
+            lines.append(f"⦁ 最新版本：{latest}，已是最新 ✅")
+        return lines
 
     @staticmethod
     def _normalize_version(value: Any) -> str:
@@ -750,20 +768,30 @@ class AgentOpsAssistant(_PluginBase):
             if not latest:
                 return ["⦁ 未取到站点快照"]
             today = self._today_prefix()
-            normal = stale = 0
+            normal = 0
+            stale = []
             errors = []
             for row in latest:
                 name = getattr(row, "name", None) or getattr(row, "domain", None) or "未知站点"
                 err = str(getattr(row, "err_msg", None) or "").strip()
                 day = getattr(row, "updated_day", None) or ""
                 if err:
-                    errors.append(f"{name}：{err[:24]}")
+                    errors.append((name, err))
                 elif day == today:
                     normal += 1
                 else:
-                    stale += 1
-            items = [f"⦁ 今日快照：正常 {normal}｜数据过期 {stale}｜异常 {len(errors)}"]
-            items.extend([f"⦁ {err}" for err in errors[:3]])
+                    stale.append(name)
+            # 正常的不逐条罗列；仅在有异常/过期时报出具体站点，便于针对性处理
+            if not errors and not stale:
+                return [f"⦁ 全部正常（{normal} 个站点）"]
+            items = [f"⦁ 正常 {normal}｜数据过期 {len(stale)}｜异常 {len(errors)}"]
+            if errors:
+                items.append(f"⦁ ⚠️ 异常站点（{len(errors)} 个）：")
+                for name, err in errors[:8]:
+                    items.append(f"  - {name}：{err[:40]}")
+            if stale:
+                shown = "、".join(stale[:8])
+                items.append(f"⦁ 数据过期：{shown}{' 等' if len(stale) > 8 else ''}")
             return items
         except Exception as e:
             return [f"⦁ 未取到 - {e}"]
@@ -828,63 +856,213 @@ class AgentOpsAssistant(_PluginBase):
         except Exception:
             return ["⦁ 未查询"]
 
-    def _get_storage_health_locked(self) -> List[str]:
-        """获取存储空间状态，优先使用MP配置的目录和存储类型"""
+    @staticmethod
+    def _format_duration(seconds: Any) -> str:
         try:
-            from app.helper.directory import DirectoryHelper
+            seconds = int(seconds or 0)
+            return f"{seconds // 3600}时{(seconds % 3600) // 60:02d}分"
+        except Exception:
+            return "0时00分"
+
+    def _get_media_stats_locked(self) -> List[str]:
+        """媒体统计（电影/电视剧/剧集/用户）——尝试媒体服务器统计接口，取不到则提示。"""
+        try:
+            stat = None
+            try:
+                from app.db.mediaserver_oper import MediaServerOper
+                oper = MediaServerOper()
+                for m in ("statistic", "get_statistics", "statistics"):
+                    fn = getattr(oper, m, None)
+                    if callable(fn):
+                        stat = fn()
+                        break
+            except Exception:
+                stat = None
+            if not stat:
+                try:
+                    from app.chain.mediaserver import MediaServerChain
+                    chain = MediaServerChain()
+                    for m in ("media_statistic", "statistic", "get_statistics"):
+                        fn = getattr(chain, m, None)
+                        if callable(fn):
+                            stat = fn()
+                            break
+                except Exception:
+                    stat = None
+            if not stat:
+                return ["⦁ 未取到（媒体服务器未配置或接口不匹配）"]
+            if isinstance(stat, list):
+                stat = stat[0] if stat else {}
+
+            def _g(obj, *keys):
+                for k in keys:
+                    v = obj.get(k) if isinstance(obj, dict) else getattr(obj, k, None)
+                    if v is not None:
+                        return v
+                return None
+
+            movie = _g(stat, "movie_count", "MovieCount", "movies", "movie")
+            tv = _g(stat, "tv_count", "SeriesCount", "series", "tvs", "tv")
+            ep = _g(stat, "episode_count", "EpisodeCount", "episodes", "episode")
+            user = _g(stat, "user_count", "UserCount", "users", "user")
+            parts = []
+            if movie is not None:
+                parts.append(f"电影 {movie}")
+            if tv is not None:
+                parts.append(f"电视剧 {tv}")
+            if ep is not None:
+                parts.append(f"剧集 {ep}")
+            if user is not None:
+                parts.append(f"用户 {user}")
+            return [f"⦁ {' ｜ '.join(parts)}"] if parts else ["⦁ 未取到"]
+        except Exception as e:
+            return [f"⦁ 媒体统计异常：{e}"]
+
+    def _get_today_downloads_locked(self) -> List[str]:
+        """今日下载汇总 + 做种概况——尽力从下载历史/下载器获取，取不到则不展示。"""
+        lines = []
+        try:
+            from app.db.downloadhistory_oper import DownloadHistoryOper
+            oper = DownloadHistoryOper()
+            rows = None
+            for m in ("list_by_date", "get_by_date", "list_by_day"):
+                fn = getattr(oper, m, None)
+                if not callable(fn):
+                    continue
+                try:
+                    rows = fn(f"{self._today_prefix()} 00:00:00")
+                except TypeError:
+                    try:
+                        rows = fn(self._today_prefix())
+                    except Exception:
+                        rows = None
+                if rows is not None:
+                    break
+            if rows:
+                lines.append(f"⦁ 今日下载：{len(rows)} 个")
+                for r in rows[:8]:
+                    t = getattr(r, "title", None) or getattr(r, "torrent_name", None) or getattr(r, "name", None)
+                    if t:
+                        lines.append(f"  - {t}")
+        except Exception:
+            pass
+        try:
+            from app.helper.downloader import DownloaderHelper
+            seeding = 0
+            seed_seconds = 0
+            for _name, service in (DownloaderHelper().get_services() or {}).items():
+                inst = getattr(service, "instance", None)
+                getter = getattr(inst, "get_torrents", None) if inst else None
+                if not callable(getter):
+                    continue
+                try:
+                    res = getter()
+                except Exception:
+                    continue
+                torrents = res[0] if isinstance(res, tuple) else res
+                for t in (torrents or []):
+                    state = str((t.get("state") if isinstance(t, dict) else getattr(t, "state", "")) or "").lower()
+                    st = (t.get("seeding_time") if isinstance(t, dict) else getattr(t, "seeding_time", None))
+                    if "seed" in state or "上传" in state or (st and int(st) > 0):
+                        seeding += 1
+                        try:
+                            seed_seconds = max(seed_seconds, int(st or 0))
+                        except Exception:
+                            pass
+            if seeding:
+                tail = f"（做种：{self._format_duration(seed_seconds)}）" if seed_seconds else ""
+                lines.append(f"⦁ 做种中：{seeding} 个{tail}")
+        except Exception:
+            pass
+        return lines
+
+    def _get_storage_health_locked(self) -> List[str]:
+        """按 MP 配置的存储分别显示：本地显示实际用量，网络存储尽力获取（失败则标记已配置）。"""
+        try:
             from app.db.systemconfig_oper import SystemConfigOper
             from app.schemas.types import SystemConfigKey
+            from app.helper.directory import DirectoryHelper
 
-            items = []
-            seen_paths = set()
-
-            # 优先读取 MP 配置的下载目录和媒体库目录
-            dir_helper = DirectoryHelper()
-            download_dirs = dir_helper.get_download_dirs() or []
-            library_dirs = dir_helper.get_library_dirs() or []
-
-            # 获取存储配置
-            storage_configs = {}
             try:
-                storage_conf_list = SystemConfigOper().get(SystemConfigKey.Storages) or []
-                for sc in storage_conf_list:
-                    storage_configs[sc.get("name")] = sc.get("type", "local")
+                storages = SystemConfigOper().get(SystemConfigKey.Storages) or []
+            except Exception:
+                storages = []
+
+            # 各存储用量（网络盘）——不同版本 API 可能不同，取不到则回退
+            usage_map = {}
+            try:
+                from app.chain.storage import StorageChain
+                sc = StorageChain()
+                for s in storages:
+                    try:
+                        u = sc.storage_usage(s.get("type") or "local")
+                        if u:
+                            usage_map[s.get("name")] = u
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
-            # 处理下载目录
-            for d in download_dirs:
-                path = getattr(d, "download_path", None) or getattr(d, "path", None)
-                storage_name = getattr(d, "storage", None)
-                if not path or path in seen_paths:
-                    continue
-                seen_paths.add(path)
-                storage_type = storage_configs.get(storage_name, "local") if storage_name else "local"
-                label = f"下载目录（{storage_type}）"
-                self._add_storage_item(items, path, label, storage_type)
+            # 本地磁盘路径（供 local 存储 disk_usage）
+            local_path = None
+            try:
+                dirs = (DirectoryHelper().get_library_dirs() or []) + (DirectoryHelper().get_download_dirs() or [])
+                for d in dirs:
+                    p = getattr(d, "library_path", None) or getattr(d, "download_path", None) or getattr(d, "path", None)
+                    st = getattr(d, "library_storage", None) or getattr(d, "storage", None)
+                    if p and st in (None, "", "local"):
+                        local_path = p
+                        break
+            except Exception:
+                pass
 
-            # 处理媒体库目录
-            for d in library_dirs:
-                path = getattr(d, "library_path", None) or getattr(d, "path", None)
-                storage_name = getattr(d, "library_storage", None) or getattr(d, "storage", None)
-                if not path or path in seen_paths:
-                    continue
-                seen_paths.add(path)
-                storage_type = storage_configs.get(storage_name, "local") if storage_name else "local"
-                label = f"媒体库（{storage_type}）"
-                self._add_storage_item(items, path, label, storage_type)
+            items = []
+            for s in storages:
+                name = s.get("name") or s.get("type") or "存储"
+                stype = s.get("type") or "local"
+                u = usage_map.get(s.get("name"))
+                if u is not None:
+                    total = u.get("total") if isinstance(u, dict) else getattr(u, "total", None)
+                    used = u.get("used") if isinstance(u, dict) else getattr(u, "used", None)
+                    free = (u.get("available") or u.get("free")) if isinstance(u, dict) else (getattr(u, "available", None) or getattr(u, "free", None))
+                    self._append_usage_line(items, name, total, used, free)
+                elif stype == "local" and local_path:
+                    try:
+                        total, used, free = shutil.disk_usage(local_path)
+                        self._append_usage_line(items, name, total, used, free)
+                    except Exception:
+                        items.append(f"⦁ {name}：已配置")
+                else:
+                    items.append(f"⦁ {name}：已配置")
 
-            # 如果没有配置目录，回退到硬编码路径
+            # 无任何存储配置时回退本地常见路径
             if not items:
-                for candidate, label in [("/downloads", "下载目录"), ("/media", "媒体库"), ("/config", "配置目录")]:
-                    if os.path.exists(candidate) and candidate not in seen_paths:
-                        seen_paths.add(candidate)
-                        self._add_storage_item(items, candidate, f"{label}（本地）", "local")
-
+                for candidate, label in [("/media", "媒体库"), ("/downloads", "下载目录"), ("/config", "配置目录")]:
+                    if os.path.exists(candidate):
+                        try:
+                            total, used, free = shutil.disk_usage(candidate)
+                            self._append_usage_line(items, label, total, used, free)
+                        except Exception:
+                            pass
             return items or ["⦁ 未检测到存储"]
         except Exception as e:
             logger.warning(f"获取存储空间失败：{e}")
             return [f"⦁ 存储检查异常：{e}"]
+
+    def _append_usage_line(self, items: List[str], name: str, total: Any, used: Any, free: Any):
+        try:
+            total = int(total or 0)
+            if used is None and free is not None:
+                used = total - int(free)
+            used = int(used or 0)
+            if free is None:
+                free = total - used
+            free = int(free or 0)
+            pct = used / total * 100 if total else 0
+            risk = "，空间偏紧" if pct >= 85 else ""
+            items.append(f"⦁ {name}：{self._format_bytes(used)}/{self._format_bytes(total)}｜剩余 {self._format_bytes(free)}｜已用 {pct:.0f}%{risk}")
+        except Exception:
+            items.append(f"⦁ {name}：已配置")
 
     def _add_storage_item(self, items: List[str], path: str, label: str, storage_type: str):
         """添加存储项到列表"""
