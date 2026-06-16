@@ -121,6 +121,8 @@ async function loadDownloaderOverview() {
   }
 }
 
+const hasSiteChart = computed(() => !!(siteChart.sites && siteChart.sites.length))
+
 onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 </script>
 
@@ -182,47 +184,102 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
         </VCol>
       </VRow>
 
-      <!-- 站点数据统计 -->
-      <VCard v-if="siteChart.sites && siteChart.sites.length" variant="outlined" class="rounded-lg mb-3">
-        <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
-          <VIcon icon="mdi-chart-pie" color="primary" class="me-2" />站点数据统计
-        </VCardTitle>
-        <VDivider />
-        <VCardText>
-          <VRow>
-            <VCol cols="12" md="6">
-              <div class="text-body-2 text-medium-emphasis mb-2">今日上传（{{ siteChart.date }}）共 {{ formatGB(siteChart.upload_total) }}</div>
-              <div class="d-flex align-center">
-                <svg viewBox="0 0 180 180" width="150" height="150" class="flex-shrink-0">
-                  <path v-for="(s, i) in uploadPie" :key="i" :d="s.path" :fill="s.color" stroke="rgba(255,255,255,0.25)" stroke-width="0.6" />
-                </svg>
-                <div class="ms-3 flex-grow-1">
-                  <div v-for="(s, i) in uploadPie" :key="i" class="d-flex align-center text-caption mb-1">
-                    <span class="aoa-legend-dot" :style="{ background: s.color }"></span>
-                    <span class="me-2">{{ s.name }}</span>
-                    <span class="text-medium-emphasis">{{ formatGB(s.value) }}（{{ (s.frac * 100).toFixed(0) }}%）</span>
+      <!-- 站点数据统计 + 手动触发：左右各一个 -->
+      <VRow class="mb-1">
+        <VCol v-if="hasSiteChart" cols="12" lg="8">
+          <VCard variant="outlined" class="rounded-lg h-100">
+            <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+              <VIcon icon="mdi-chart-pie" color="primary" class="me-2" />站点数据统计
+            </VCardTitle>
+            <VDivider />
+            <VCardText>
+              <VRow>
+                <VCol cols="12" md="6">
+                  <div class="text-body-2 text-medium-emphasis mb-2">今日上传（{{ siteChart.date }}）共 {{ formatGB(siteChart.upload_total) }}</div>
+                  <div class="d-flex align-center">
+                    <svg viewBox="0 0 180 180" width="150" height="150" class="flex-shrink-0">
+                      <path v-for="(s, i) in uploadPie" :key="i" :d="s.path" :fill="s.color" stroke="rgba(255,255,255,0.25)" stroke-width="0.6" />
+                    </svg>
+                    <div class="ms-3 flex-grow-1">
+                      <div v-for="(s, i) in uploadPie" :key="i" class="d-flex align-center text-caption mb-1">
+                        <span class="aoa-legend-dot" :style="{ background: s.color }"></span>
+                        <span class="me-2">{{ s.name }}</span>
+                        <span class="text-medium-emphasis">{{ formatGB(s.value) }}（{{ (s.frac * 100).toFixed(0) }}%）</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </VCol>
-            <VCol cols="12" md="6">
-              <div class="text-body-2 text-medium-emphasis mb-2">今日下载（{{ siteChart.date }}）共 {{ formatGB(siteChart.download_total) }}</div>
-              <div class="d-flex align-center">
-                <svg viewBox="0 0 180 180" width="150" height="150" class="flex-shrink-0">
-                  <path v-for="(s, i) in downloadPie" :key="i" :d="s.path" :fill="s.color" stroke="rgba(255,255,255,0.25)" stroke-width="0.6" />
-                </svg>
-                <div class="ms-3 flex-grow-1">
-                  <div v-for="(s, i) in downloadPie" :key="i" class="d-flex align-center text-caption mb-1">
-                    <span class="aoa-legend-dot" :style="{ background: s.color }"></span>
-                    <span class="me-2">{{ s.name }}</span>
-                    <span class="text-medium-emphasis">{{ formatGB(s.value) }}（{{ (s.frac * 100).toFixed(0) }}%）</span>
+                </VCol>
+                <VCol cols="12" md="6">
+                  <div class="text-body-2 text-medium-emphasis mb-2">今日下载（{{ siteChart.date }}）共 {{ formatGB(siteChart.download_total) }}</div>
+                  <div class="d-flex align-center">
+                    <svg viewBox="0 0 180 180" width="150" height="150" class="flex-shrink-0">
+                      <path v-for="(s, i) in downloadPie" :key="i" :d="s.path" :fill="s.color" stroke="rgba(255,255,255,0.25)" stroke-width="0.6" />
+                    </svg>
+                    <div class="ms-3 flex-grow-1">
+                      <div v-for="(s, i) in downloadPie" :key="i" class="d-flex align-center text-caption mb-1">
+                        <span class="aoa-legend-dot" :style="{ background: s.color }"></span>
+                        <span class="me-2">{{ s.name }}</span>
+                        <span class="text-medium-emphasis">{{ formatGB(s.value) }}（{{ (s.frac * 100).toFixed(0) }}%）</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </VCol>
+              </VRow>
+            </VCardText>
+          </VCard>
+        </VCol>
+
+        <!-- 手动触发：模块化放在站点数据右边 -->
+        <VCol cols="12" :lg="hasSiteChart ? 4 : 12">
+          <VCard variant="outlined" class="rounded-lg h-100">
+            <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+              <VIcon icon="mdi-play-circle-outline" color="primary" class="me-2" />手动触发
+            </VCardTitle>
+            <VDivider />
+            <VCardText>
+              <div class="d-flex flex-wrap ga-2">
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-send-outline" size="small"
+                  :loading="actionRunning === 'run_daily_report'" @click="runAction('run_daily_report', '每日汇报')">
+                  发送每日汇报
+                </VBtn>
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-bell-ring-outline" size="small"
+                  :loading="actionRunning === 'run_subscribe_reminder'" @click="runAction('run_subscribe_reminder', '订阅提醒')">
+                  订阅提醒
+                </VBtn>
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-heart-pulse" size="small"
+                  :loading="actionRunning === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">
+                  健康巡查
+                </VBtn>
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-archive-arrow-up-outline" size="small"
+                  :loading="actionRunning === 'run_backup'" @click="runAction('run_backup', '立即备份')">
+                  立即备份
+                </VBtn>
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-broom" size="small"
+                  :loading="actionRunning === 'run_log_clean'" @click="runAction('run_log_clean', '日志清理')">
+                  清理日志
+                </VBtn>
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-update" size="small"
+                  :loading="actionRunning === 'run_mp_update'" @click="runAction('run_mp_update', '检查更新')">
+                  检查更新
+                </VBtn>
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-puzzle-check-outline" size="small"
+                  :loading="actionRunning === 'run_market_update'" @click="runAction('run_market_update', '插件库更新')">
+                  插件库更新
+                </VBtn>
+                <VBtn color="warning" variant="tonal" prepend-icon="mdi-delete-sweep-outline" size="small"
+                  :loading="actionRunning === 'run_seed_clean'" @click="runAction('run_seed_clean', '自动删种')">
+                  自动删种
+                </VBtn>
+                <VBtn color="primary" variant="tonal" prepend-icon="mdi-tag-multiple-outline" size="small"
+                  :loading="actionRunning === 'run_downloader_tag'" @click="runAction('run_downloader_tag', '种子打标签')">
+                  种子打标签
+                </VBtn>
               </div>
-            </VCol>
-          </VRow>
-        </VCardText>
-      </VCard>
+              <VAlert v-if="actionMessage" type="info" variant="tonal" density="compact" class="mt-3" :text="actionMessage" />
+            </VCardText>
+          </VCard>
+        </VCol>
+      </VRow>
 
       <!-- 下载器活动种子 -->
       <VCard v-if="downloaders.length" variant="outlined" class="rounded-lg mb-3">
@@ -241,144 +298,56 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
         </VList>
       </VCard>
 
-      <!-- 模块任务列表 -->
-      <VCard variant="outlined" class="rounded-lg mb-3">
-        <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
-          <VIcon icon="mdi-timeline-clock-outline" color="primary" class="me-2" />模块运行概览
-        </VCardTitle>
-        <VDivider />
-        <VSkeletonLoader v-if="loading" type="list-item-avatar-three-line@3" />
-        <VList v-else class="bg-transparent py-0">
-          <template v-for="(task, i) in data.tasks" :key="task.key">
-            <VListItem class="py-2">
-              <template #prepend>
-                <VAvatar size="40" variant="tonal" :color="task.enabled ? task.color : 'default'">
-                  <VIcon :icon="task.icon" />
-                </VAvatar>
+      <!-- 模块运行概览 + 最近健康巡查：横向并排 -->
+      <VRow>
+        <VCol cols="12" md="6">
+          <VCard variant="outlined" class="rounded-lg mb-3 h-100">
+            <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+              <VIcon icon="mdi-timeline-clock-outline" color="primary" class="me-2" />模块运行概览
+            </VCardTitle>
+            <VDivider />
+            <VSkeletonLoader v-if="loading" type="list-item-avatar-three-line@3" />
+            <VList v-else class="bg-transparent py-0">
+              <template v-for="(task, i) in data.tasks" :key="task.key">
+                <VListItem class="py-2">
+                  <template #prepend>
+                    <VAvatar size="40" variant="tonal" :color="task.enabled ? task.color : 'default'">
+                      <VIcon :icon="task.icon" />
+                    </VAvatar>
+                  </template>
+                  <VListItemTitle class="font-weight-medium">{{ task.name }}</VListItemTitle>
+                  <VListItemSubtitle class="mt-1">
+                    最近 {{ task.last_time || '—' }}｜下次 {{ task.next }}｜{{ task.last_summary }}
+                  </VListItemSubtitle>
+                  <template #append>
+                    <div class="d-flex align-center ga-2">
+                      <VChip size="x-small" variant="tonal" :color="task.enabled ? 'success' : 'default'">{{ task.enabled ? 'ON' : 'OFF' }}</VChip>
+                      <VChip size="x-small" variant="tonal" :color="task.color">{{ task.state }}</VChip>
+                    </div>
+                  </template>
+                </VListItem>
+                <VDivider v-if="i < data.tasks.length - 1" />
               </template>
-              <VListItemTitle class="font-weight-medium">{{ task.name }}</VListItemTitle>
-              <VListItemSubtitle class="mt-1">
-                最近 {{ task.last_time || '—' }}｜下次 {{ task.next }}｜{{ task.last_summary }}
-              </VListItemSubtitle>
-              <template #append>
-                <div class="d-flex align-center ga-2">
-                  <VChip size="x-small" variant="tonal" :color="task.enabled ? 'success' : 'default'">{{ task.enabled ? 'ON' : 'OFF' }}</VChip>
-                  <VChip size="x-small" variant="tonal" :color="task.color">{{ task.state }}</VChip>
-                </div>
-              </template>
-            </VListItem>
-            <VDivider v-if="i < data.tasks.length - 1" />
-          </template>
-        </VList>
-      </VCard>
+            </VList>
+          </VCard>
+        </VCol>
 
-      <!-- 健康巡查 -->
-      <VCard variant="outlined" class="rounded-lg mb-3">
-        <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
-          <VIcon icon="mdi-heart-pulse" color="primary" class="me-2" />最近健康巡查
-          <VSpacer />
-          <VChip size="small" variant="tonal" :color="healthColor">{{ healthText }}</VChip>
-        </VCardTitle>
-        <VDivider />
-        <VCardText>
-          <div v-if="data.health.time" class="text-caption text-medium-emphasis mb-2">巡查时间：{{ data.health.time }}</div>
-          <pre v-if="data.health.output" class="health-output">{{ data.health.output }}</pre>
-          <div v-else class="text-medium-emphasis text-body-2">尚无健康巡查记录，可在设置页手动触发或等待每日汇报自动执行。</div>
-        </VCardText>
-      </VCard>
-
-      <!-- 手动触发操作 -->
-      <VCard variant="outlined" class="rounded-lg">
-        <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
-          <VIcon icon="mdi-play-circle-outline" color="primary" class="me-2" />手动触发
-        </VCardTitle>
-        <VDivider />
-        <VCardText>
-          <div class="d-flex flex-wrap ga-2">
-            <VBtn
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-send-outline"
-              size="small"
-              :loading="actionRunning === 'run_daily_report'"
-              @click="runAction('run_daily_report', '每日汇报')"
-            >
-              发送每日汇报
-            </VBtn>
-            <VBtn
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-heart-pulse"
-              size="small"
-              :loading="actionRunning === 'run_health_check'"
-              @click="runAction('run_health_check', '健康巡查')"
-            >
-              健康巡查
-            </VBtn>
-            <VBtn
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-archive-arrow-up-outline"
-              size="small"
-              :loading="actionRunning === 'run_backup'"
-              @click="runAction('run_backup', '立即备份')"
-            >
-              立即备份
-            </VBtn>
-            <VBtn
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-broom"
-              size="small"
-              :loading="actionRunning === 'run_log_clean'"
-              @click="runAction('run_log_clean', '日志清理')"
-            >
-              清理日志
-            </VBtn>
-            <VBtn
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-update"
-              size="small"
-              :loading="actionRunning === 'run_mp_update'"
-              @click="runAction('run_mp_update', '检查更新')"
-            >
-              检查更新
-            </VBtn>
-            <VBtn
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-puzzle-check-outline"
-              size="small"
-              :loading="actionRunning === 'run_market_update'"
-              @click="runAction('run_market_update', '插件库更新')"
-            >
-              插件库更新
-            </VBtn>
-            <VBtn
-              color="warning"
-              variant="tonal"
-              prepend-icon="mdi-delete-sweep-outline"
-              size="small"
-              :loading="actionRunning === 'run_seed_clean'"
-              @click="runAction('run_seed_clean', '自动删种')"
-            >
-              自动删种
-            </VBtn>
-            <VBtn
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-tag-multiple-outline"
-              size="small"
-              :loading="actionRunning === 'run_downloader_tag'"
-              @click="runAction('run_downloader_tag', '种子打标签')"
-            >
-              种子打标签
-            </VBtn>
-          </div>
-          <VAlert v-if="actionMessage" type="info" variant="tonal" density="compact" class="mt-3" :text="actionMessage" />
-        </VCardText>
-      </VCard>
+        <VCol cols="12" md="6">
+          <VCard variant="outlined" class="rounded-lg mb-3 h-100">
+            <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+              <VIcon icon="mdi-heart-pulse" color="primary" class="me-2" />最近健康巡查
+              <VSpacer />
+              <VChip size="small" variant="tonal" :color="healthColor">{{ healthText }}</VChip>
+            </VCardTitle>
+            <VDivider />
+            <VCardText>
+              <div v-if="data.health.time" class="text-caption text-medium-emphasis mb-2">巡查时间：{{ data.health.time }}</div>
+              <pre v-if="data.health.output" class="health-output">{{ data.health.output }}</pre>
+              <div v-else class="text-medium-emphasis text-body-2">尚无健康巡查记录，可在设置页手动触发或等待每日汇报自动执行。</div>
+            </VCardText>
+          </VCard>
+        </VCol>
+      </VRow>
     </div>
   </div>
 </template>

@@ -111,6 +111,7 @@ const defaults = {
   subscribe_reminder_enabled: true,
   subscribe_reminder_onlyonce: false,
   subscribe_reminder_time: '9',
+  subscribe_reminder_cron: '0 9 * * *',
   subscribe_reminder_subtype: ['movie', 'tv'],
   subscribe_reminder_msgtype: 'Subscribe',
   site_stat_enabled: true,
@@ -443,8 +444,8 @@ onMounted(() => {
                 </VRow>
                 <VRow>
                   <VCol cols="12" md="4">
-                    <VTextField v-model="form.subscribe_reminder_time" label="提醒时间（小时 0-23）"
-                      type="number" min="0" max="23" :disabled="!form.subscribe_reminder_enabled" />
+                    <VCronField v-model="form.subscribe_reminder_cron" label="推送时间 (Cron)"
+                      :disabled="!form.subscribe_reminder_enabled" />
                   </VCol>
                   <VCol cols="12" md="4">
                     <VSelect v-model="form.subscribe_reminder_subtype" :items="subscribeSubtypeItems"
@@ -455,12 +456,15 @@ onMounted(() => {
                       label="消息类型" :disabled="!form.subscribe_reminder_enabled" />
                   </VCol>
                 </VRow>
-                <VRow>
-                  <VCol cols="12">
-                    <VSwitch v-model="form.subscribe_reminder_onlyonce" color="warning" inset hide-details
-                      label="保存后立即运行一次订阅提醒" :disabled="!form.subscribe_reminder_enabled" />
-                  </VCol>
-                </VRow>
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">手动触发</div>
+                <div class="aoa-hint mb-2">立即按当前设置推送一次今日订阅追新（独立于每日汇报）。</div>
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-bell-ring-outline"
+                    :loading="action.running === 'run_subscribe_reminder'" @click="runAction('run_subscribe_reminder', '订阅提醒')">
+                    立即推送订阅提醒
+                  </VBtn>
+                </div>
               </VForm>
             </div>
 

@@ -529,6 +529,22 @@ def main():
     check(chart.get("code") == 0 and cd.get("upload_total") == 11 * 1024 ** 3, "饼图：今日上传合计=各站增量之和(10+1 GB)")
     check(cd.get("download_total") == 2 * 1024 ** 3 and len(cd.get("sites", [])) == 2, "饼图：下载合计与站点数正确")
 
+    print("== 订阅提醒：cron 统一 + 独立推送服务 ==")
+    p_old = make_plugin(mod, subscribe_reminder_time="9")
+    check(p_old._subscribe_reminder_cron == "0 9 * * *", "无 cron 时由小时 9 迁移为 '0 9 * * *'")
+    p_cron = make_plugin(mod, subscribe_reminder_cron="30 8 * * *", subscribe_reminder_time="9")
+    check(p_cron._subscribe_reminder_cron == "30 8 * * *", "显式 cron 优先于小时")
+    p_sr = make_plugin(mod, enabled=True, subscribe_reminder_enabled=True, subscribe_reminder_cron="0 9 * * *")
+    sr_ids = [s.get("id") for s in (p_sr.get_service() or [])]
+    check("AgentOpsAssistant.SubscribeReminder" in sr_ids, "启用后注册独立订阅提醒定时服务")
+    p_sr._get_today_subscribe_updates_locked = lambda: ["凡人修仙传 S01E50"]
+    sr_sent = {}
+    p_sr.post_message = lambda **kw: sr_sent.update(kw)
+    ok_sr = p_sr.run_subscribe_reminder()
+    check(ok_sr is True and "凡人修仙传" in str(sr_sent.get("text", "")), "run_subscribe_reminder 推送今日追新并返回 True")
+    p_off = make_plugin(mod, enabled=True, subscribe_reminder_enabled=False)
+    check("AgentOpsAssistant.SubscribeReminder" not in [s.get("id") for s in (p_off.get_service() or [])], "关闭时不注册订阅提醒服务")
+
     print("== 发版自检：接口/服务/命令/生命周期完整性 ==")
     pa = make_plugin(mod, enabled=True, seedclean_enabled=True, seedclean_downloaders=["qb1"], seedclean_cron="0 1 * * *",
                      backup_enabled=True, daily_report_enabled=True, log_clean_enabled=True,
