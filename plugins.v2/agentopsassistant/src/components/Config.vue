@@ -489,12 +489,6 @@ onMounted(() => {
                       label="通知方式" :disabled="!form.site_stat_enabled" />
                   </VCol>
                 </VRow>
-                <VRow>
-                  <VCol cols="12">
-                    <VSwitch v-model="form.site_stat_onlyonce" color="warning" inset hide-details
-                      label="保存后立即运行一次站点统计" :disabled="!form.site_stat_enabled" />
-                  </VCol>
-                </VRow>
               </VForm>
             </div>
             <!-- 每日汇报 · 订阅规则填充 -->

@@ -545,6 +545,19 @@ def main():
     p_off = make_plugin(mod, enabled=True, subscribe_reminder_enabled=False)
     check("AgentOpsAssistant.SubscribeReminder" not in [s.get("id") for s in (p_off.get_service() or [])], "关闭时不注册订阅提醒服务")
 
+    print("== onlyonce 保存后立即运行一次（修复死开关）==")
+    p_once = make_plugin(mod, enabled=True)
+    once_calls = []
+    p_once.run_backup = lambda: once_calls.append("backup") or True
+    p_once.run_log_clean = lambda: once_calls.append("log") or True
+    p_once.run_market_update = lambda: once_calls.append("market") or True
+    p_once.run_subscribe_reminder = lambda: once_calls.append("sub") or True
+    cfg_once = {"backup_onlyonce": True, "log_clean_onlyonce": True}
+    fired = p_once._fire_onlyonce(cfg_once)
+    check(set(fired) == {"backup_onlyonce", "log_clean_onlyonce"}, "onlyonce 命中置位的两个开关")
+    check(cfg_once["backup_onlyonce"] is False and cfg_once["log_clean_onlyonce"] is False, "onlyonce 命中后清零（防重载重复触发）")
+    check(p_once._fire_onlyonce({}) == [], "无 onlyonce 置位 -> 不触发")
+
     print("== 发版自检：接口/服务/命令/生命周期完整性 ==")
     pa = make_plugin(mod, enabled=True, seedclean_enabled=True, seedclean_downloaders=["qb1"], seedclean_cron="0 1 * * *",
                      backup_enabled=True, daily_report_enabled=True, log_clean_enabled=True,

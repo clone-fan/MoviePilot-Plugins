@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import zipfile
 import re
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -30,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -284,6 +285,37 @@ class AgentOpsAssistant(_PluginBase):
         self._dltag_notify = bool(config.get("dltag_notify", True))
         self._msg_seen = {}
         self._last_summary = self._build_summary()
+        self._fire_onlyonce(config or {})
+
+    def _fire_onlyonce(self, config: Dict[str, Any]) -> List[str]:
+        """“保存后立即运行一次”：对置位的 onlyonce 开关各跑一次对应任务并清除该开关，
+        避免下次重载重复触发。任务异步执行，不阻塞插件初始化。"""
+        once = [
+            ("backup_onlyonce", self.run_backup),
+            ("log_clean_onlyonce", self.run_log_clean),
+            ("market_update_onlyonce", self.run_market_update),
+            ("subscribe_reminder_onlyonce", self.run_subscribe_reminder),
+        ]
+        pending = [(k, fn) for k, fn in once if config.get(k)]
+        if not pending:
+            return []
+        for k, _ in pending:
+            config[k] = False
+        try:
+            self.update_config(config)
+        except Exception as err:
+            logger.warning(f"AgentOpsAssistant 清除 onlyonce 开关失败：{err}")
+
+        def _runner():
+            for key, fn in pending:
+                try:
+                    fn()
+                except Exception as err:
+                    logger.error(f"AgentOpsAssistant onlyonce {key} 执行失败：{err}")
+        timer = threading.Timer(2.0, _runner)
+        timer.daemon = True
+        timer.start()
+        return [k for k, _ in pending]
 
     def get_state(self) -> bool:
         return self._enabled
