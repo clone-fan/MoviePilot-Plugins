@@ -551,8 +551,8 @@ onMounted(() => {
             </div>
 
             <!-- 每日汇报 · 汇报栏目 -->
-            <div v-show="activeSub === 'columns'" class="aoa-pane">
-              <VForm>
+            <div v-show="activeSub === 'columns'" class="aoa-pane aoa-columns-pane">
+              <VForm class="aoa-columns-form">
                 <div class="aoa-section-title">汇报栏目</div>
                 <div class="aoa-hint mb-3">所有并入日报的栏目都在这里统一勾选，组件负责能力，栏目负责出现在日报里的内容</div>
                 <div class="aoa-table-wrap">
@@ -1430,11 +1430,11 @@ onMounted(() => {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: 12px;
+  padding-bottom: 4px;
   scrollbar-width: thin;
 }
 .aoa-pane {
-  padding: 22px 24px;
+  padding: 22px 24px 14px;
 }
 .aoa-pane :deep(.v-form) {
   display: grid;
@@ -1715,10 +1715,29 @@ onMounted(() => {
   border-radius: 14px;
   background: rgba(var(--v-theme-on-surface), 0.018);
 }
+.aoa-columns-pane {
+  display: flex;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.aoa-columns-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.aoa-columns-pane .aoa-table-wrap {
+  display: flex;
+  min-height: 0;
+}
 .aoa-report-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: 430px;
   overflow: auto;
   scrollbar-width: thin;
+}
+.aoa-columns-pane .aoa-report-table-scroll {
+  max-height: none;
 }
 .aoa-report-table {
   min-width: 680px;

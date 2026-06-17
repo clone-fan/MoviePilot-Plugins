@@ -19,7 +19,7 @@ const _hoisted_10 = {
 };
 const _hoisted_11 = { class: "aoa-window" };
 const _hoisted_12 = { class: "aoa-pane" };
-const _hoisted_13 = { class: "aoa-pane" };
+const _hoisted_13 = { class: "aoa-pane aoa-columns-pane" };
 const _hoisted_14 = { class: "aoa-table-wrap" };
 const _hoisted_15 = { class: "aoa-report-table-scroll" };
 const _hoisted_16 = { class: "aoa-col-enable" };
@@ -778,7 +778,7 @@ return (_ctx, _cache) => {
                 [_vShow, activeSub.value === 'overview']
               ]),
               _withDirectives(_createElementVNode("div", _hoisted_13, [
-                _createVNode(_component_VForm, null, {
+                _createVNode(_component_VForm, { class: "aoa-columns-form" }, {
                   default: _withCtx(() => [
                     _cache[112] || (_cache[112] = _createElementVNode("div", { class: "aoa-section-title" }, "汇报栏目", -1)),
                     _cache[113] || (_cache[113] = _createElementVNode("div", { class: "aoa-hint mb-3" }, "所有并入日报的栏目都在这里统一勾选，组件负责能力，栏目负责出现在日报里的内容", -1)),
@@ -2917,6 +2917,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-826a59fb"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-204aad40"]]);
 
 export { Config as default };
