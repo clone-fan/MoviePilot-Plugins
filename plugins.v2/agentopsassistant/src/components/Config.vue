@@ -639,9 +639,6 @@ onMounted(() => {
                     立即巡查
                   </VBtn>
                 </div>
-                <div class="aoa-health-note">
-                  <span>未选择巡查项目时，会默认检查全部项目</span>
-                </div>
               </VForm>
             </div>
 
@@ -840,7 +837,6 @@ onMounted(() => {
                       multiple chips closable-chips clearable
                       prepend-inner-icon="mdi-puzzle-outline"
                       :disabled="!form.log_clean_enabled" />
-                    <div class="aoa-hint">从已安装插件中选择，不选则清理全部插件日志</div>
                   </VCol>
                 </VRow>
                 <VRow>
@@ -1040,7 +1036,6 @@ onMounted(() => {
                       :loading="installedLoading" label="选择要清理残留的已安装插件"
                       multiple chips closable-chips clearable
                       prepend-inner-icon="mdi-puzzle-remove-outline" />
-                    <div class="aoa-hint">从已安装插件中多选，先“预览”确认范围，再“执行”清理</div>
                   </VCol>
                 </VRow>
                 <VDivider class="my-4" />
@@ -1188,24 +1183,25 @@ onMounted(() => {
               </VForm>
             </div>
             <!-- 媒体通知 · 服务器通知 -->
-            <div v-show="activeSub === 'server'" class="aoa-pane">
-              <VForm>
+            <div v-show="activeSub === 'server'" class="aoa-pane aoa-media-pane">
+              <VForm class="aoa-media-form">
                 <div class="aoa-section-title">媒体库服务器通知</div>
-                <div class="aoa-hint mb-2">监听 Emby/Jellyfin/Plex 的 webhook 事件并推送通知，需先在 MoviePilot 把媒体服务器 webhook 指向 MP</div>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.msgnotify_enabled" color="primary" inset hide-details
-                      label="启用媒体库服务器通知" />
-                    <div class="aoa-hint">监听 Emby/Jellyfin/Plex 的 webhook 事件，按筛选规则推送通知</div>
+                <div class="aoa-hint aoa-line-hint mb-4">需先在 MoviePilot 把媒体服务器 webhook 指向 MP</div>
+                <VRow class="aoa-media-enable-row">
+                  <VCol cols="12">
+                    <div class="aoa-inline-switch">
+                      <VSwitch v-model="form.msgnotify_enabled" color="primary" inset hide-details
+                        label="启用媒体库服务器通知" />
+                      <span class="aoa-hint aoa-inline-hint">监听 Emby/Jellyfin/Plex 的 webhook 事件，按筛选规则推送通知</span>
+                    </div>
                   </VCol>
                 </VRow>
-                <VRow>
+                <VRow class="aoa-media-field-row">
                   <VCol cols="12" md="6">
                     <VSelect v-model="form.msgnotify_types" :items="msgGroupItems"
                       label="通知哪些事件" multiple chips closable-chips clearable
                       prepend-inner-icon="mdi-bell-cog-outline"
                       :disabled="!form.msgnotify_enabled" />
-                    <div class="aoa-hint">新入库 / 开始播放 / 停止播放 / 登录成功 / 登录失败 / 标记，留空则不通知</div>
                   </VCol>
                   <VCol cols="12" md="6">
                     <VSelect v-model="form.msgnotify_servers" :items="mediaserverOptions"
@@ -1216,10 +1212,6 @@ onMounted(() => {
                       :disabled="!form.msgnotify_enabled" />
                   </VCol>
                 </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-hint text-caption">
-                  <strong>说明：</strong> 需先在 MoviePilot 中配置媒体服务器 webhook，推送目标为各服务器的 webhook，不走 MP 通知渠道
-                </div>
               </VForm>
             </div>
             <!-- 下载器助手 · 批量打标签 -->
@@ -1449,6 +1441,36 @@ onMounted(() => {
   color: rgba(var(--v-theme-on-surface), 0.48);
   margin-top: 2px;
 }
+.aoa-line-hint,
+.aoa-inline-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aoa-media-form {
+  padding-top: 2px;
+}
+.aoa-media-enable-row {
+  margin-bottom: 12px;
+}
+.aoa-media-field-row :deep(.v-col) {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.aoa-inline-switch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 48px;
+  min-width: 0;
+}
+.aoa-inline-switch :deep(.v-selection-control) {
+  flex: 0 0 auto;
+}
+.aoa-inline-hint {
+  margin-top: 0;
+}
 .aoa-btn-row {
   display: flex;
   flex-wrap: wrap;
@@ -1603,14 +1625,6 @@ onMounted(() => {
 .aoa-health-run {
   min-height: 48px;
   align-self: start;
-}
-.aoa-health-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: rgba(var(--v-theme-on-surface), 0.58);
 }
 .aoa-table-wrap {
   position: relative;
