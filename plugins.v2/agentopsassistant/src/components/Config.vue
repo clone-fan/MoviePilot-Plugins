@@ -224,8 +224,7 @@ const defaults = {
 
 const mainTabs = [
   { key: 'report', group: '汇报中心', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '控制日报发送节奏、手动推送和所有并入日报的栏目' },
-  { key: 'subreminder', group: '订阅与站点', title: '订阅追新', icon: 'mdi-bell-ring-outline', desc: '独立推送今日订阅追新，是否写入日报由「汇报栏目」统一控制' },
-  { key: 'subfill', group: '订阅与站点', title: '订阅规则填充', icon: 'mdi-auto-fix', desc: '下载到资源后自动回填订阅的空规则，锁定后续剧集追同款' },
+  { key: 'subreminder', group: '订阅与站点', title: '订阅管理', icon: 'mdi-bell-cog-outline', desc: '订阅追新与订阅规则填充统一管理' },
   { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '提供仪表盘站点数据，以及日报里的站点状态、站点增量栏目' },
   { key: 'seedclean', group: '下载与媒体', title: '下载器管理', icon: 'mdi-download-network-outline', desc: '集中管理下载器相关能力：自动删种、种子批量打标签与下载器活动概览' },
   { key: 'msgnotify', group: '下载与媒体', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知' },
@@ -254,8 +253,6 @@ const subTabs = {
   ],
   subreminder: [
     { key: 'subscribe', title: '订阅追新', icon: 'mdi-bell-ring-outline' },
-  ],
-  subfill: [
     { key: 'subfill', title: '订阅规则填充', icon: 'mdi-auto-fix' },
   ],
   sitestat: [
