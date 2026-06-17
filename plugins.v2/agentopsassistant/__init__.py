@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.5"
+    plugin_version = "1.0.6"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -79,6 +79,7 @@ class AgentOpsAssistant(_PluginBase):
     _daily_report_enabled = True
     _daily_report_cron = "0 22 * * *"
     _daily_report_greeting = "少爷"
+    _daily_report_msgtype = "Plugin"
     _health_in_report = True
     _subscribe_in_report = True
     _site_stat_in_report = True
@@ -100,19 +101,24 @@ class AgentOpsAssistant(_PluginBase):
     _log_clean_rows = 300
     _log_clean_selected_ids: List[str] = []
     _log_clean_notify = True
+    _log_clean_notify_type = "Plugin"
     _backup_enabled = False
     _backup_cron = "0 4 * * 1"
     _backup_keep_count = 5
     _backup_path = "/config/plugins/AgentOpsAssistant/Backup"
     _backup_notify = True
+    _backup_notify_type = "Plugin"
+    _backup_webdav_notify_type = "Plugin"
     _mp_update_enabled = False
     _mp_update_cron = "0 9 * * *"
     _mp_update_notify = True
+    _mp_update_notify_type = "Plugin"
     _mp_update_restart_confirm = False
     _mp_update_types: List[str] = ["后端", "前端"]
     _market_update_enabled = False
     _market_update_interval = 86400
     _market_update_notify = True
+    _market_update_notify_type = "Plugin"
     _market_update_write_settings = False
     _market_update_write_env = False
     _market_update_blacklist: List[str] = []
@@ -124,6 +130,7 @@ class AgentOpsAssistant(_PluginBase):
     _plugin_uninstall_id = ""
     _plugin_uninstall_delete_source = False
     _plugin_uninstall_notify = True
+    _plugin_uninstall_notify_type = "Plugin"
     _seedclean_enabled = False
     _seedclean_cron = "0 */12 * * *"
     _seedclean_action = "pause"
@@ -141,9 +148,11 @@ class AgentOpsAssistant(_PluginBase):
     _seedclean_samedata = False
     _seedclean_mponly = False
     _seedclean_notify = True
+    _seedclean_notify_type = "Plugin"
     _subfill_enabled = False
     _subfill_details: List[str] = []
     _subfill_notify = False
+    _subfill_notify_type = "Plugin"
     _subfill_category_enabled = False
     _subfill_category_confs = ""
     _subfill_confs: Dict[str, Any] = {}
@@ -155,6 +164,7 @@ class AgentOpsAssistant(_PluginBase):
     _dltag_downloaders: List[str] = []
     _dltag_prefix = ""
     _dltag_notify = True
+    _dltag_notify_type = "Plugin"
     _msg_seen: Dict[str, float] = {}
     _MSG_GROUPS = {
         "新入库": {"library.new", "ItemAdded"},
@@ -181,6 +191,7 @@ class AgentOpsAssistant(_PluginBase):
         self._daily_report_enabled = bool(config.get("daily_report_enabled", True))
         self._daily_report_cron = config.get("daily_report_cron") or "0 22 * * *"
         self._daily_report_greeting = str(config.get("daily_report_greeting") or "少爷").strip() or "少爷"
+        self._daily_report_msgtype = config.get("daily_report_msgtype") or "Plugin"
         self._health_in_report = bool(config.get("health_in_report", True))
         self._subscribe_reminder_enabled = bool(config.get("subscribe_reminder_enabled", config.get("subscribe_in_report", True)))
         self._site_stat_enabled = bool(config.get("site_stat_enabled", config.get("site_stat_in_report", True)))
@@ -216,14 +227,17 @@ class AgentOpsAssistant(_PluginBase):
         self._log_clean_rows = self._safe_int(config.get("log_clean_rows"), 300, 0)
         self._log_clean_selected_ids = self._parse_csv(config.get("log_clean_selected_ids"))
         self._log_clean_notify = bool(config.get("log_clean_notify", True))
+        self._log_clean_notify_type = config.get("log_clean_notify_type") or "Plugin"
         self._backup_enabled = bool(config.get("backup_enabled", False))
         self._backup_onlyonce = bool(config.get("backup_onlyonce", False))
         self._backup_cron = config.get("backup_cron") or "0 4 * * 1"
         self._backup_keep_count = self._safe_int(config.get("backup_keep_count"), 5, 1)
         self._backup_path = config.get("backup_path") or "/config/plugins/AgentOpsAssistant/Backup"
         self._backup_notify = bool(config.get("backup_notify", True))
+        self._backup_notify_type = config.get("backup_notify_type") or "Plugin"
         self._backup_webdav_enabled = bool(config.get("backup_webdav_enabled", False))
         self._backup_webdav_notify = bool(config.get("backup_webdav_notify", False))
+        self._backup_webdav_notify_type = config.get("backup_webdav_notify_type") or "Plugin"
         self._backup_webdav_digest_auth = bool(config.get("backup_webdav_digest_auth", False))
         self._backup_webdav_disable_check = bool(config.get("backup_webdav_disable_check", False))
         self._backup_webdav_hostname = str(config.get("backup_webdav_hostname") or "").strip()
@@ -233,6 +247,7 @@ class AgentOpsAssistant(_PluginBase):
         self._mp_update_enabled = bool(config.get("mp_update_enabled", False))
         self._mp_update_cron = config.get("mp_update_cron") or "0 9 * * *"
         self._mp_update_notify = bool(config.get("mp_update_notify", True))
+        self._mp_update_notify_type = config.get("mp_update_notify_type") or "Plugin"
         self._mp_update_restart_confirm = bool(config.get("mp_update_restart_confirm", config.get("mp_update_restart", False)))
         self._mp_update_types = config.get("mp_update_types") or ["后端", "前端"]
         if isinstance(self._mp_update_types, str):
@@ -264,6 +279,7 @@ class AgentOpsAssistant(_PluginBase):
         self._plugin_uninstall_clear_data = bool(config.get("plugin_uninstall_clear_data", True))
         self._plugin_uninstall_delete_source = bool(config.get("plugin_uninstall_delete_source", False))
         self._plugin_uninstall_notify = bool(config.get("plugin_uninstall_notify", True))
+        self._plugin_uninstall_notify_type = config.get("plugin_uninstall_notify_type") or "Plugin"
         self._seedclean_enabled = bool(config.get("seedclean_enabled", False))
         self._seedclean_cron = config.get("seedclean_cron") or "0 */12 * * *"
         self._seedclean_action = config.get("seedclean_action") or "pause"
@@ -281,9 +297,11 @@ class AgentOpsAssistant(_PluginBase):
         self._seedclean_samedata = bool(config.get("seedclean_samedata", False))
         self._seedclean_mponly = bool(config.get("seedclean_mponly", False))
         self._seedclean_notify = bool(config.get("seedclean_notify", True))
+        self._seedclean_notify_type = config.get("seedclean_notify_type") or "Plugin"
         self._subfill_enabled = bool(config.get("subfill_enabled", False))
         self._subfill_details = self._parse_csv(config.get("subfill_details"))
         self._subfill_notify = bool(config.get("subfill_notify", False))
+        self._subfill_notify_type = config.get("subfill_notify_type") or "Plugin"
         self._subfill_category_enabled = bool(config.get("subfill_category_enabled", False))
         self._subfill_category_confs = config.get("subfill_category_confs") or ""
         self._subfill_confs = self._parse_subfill_confs(self._subfill_category_confs)
@@ -295,6 +313,7 @@ class AgentOpsAssistant(_PluginBase):
         self._dltag_downloaders = self._parse_csv(config.get("dltag_downloaders"))
         self._dltag_prefix = str(config.get("dltag_prefix") or "").strip()
         self._dltag_notify = bool(config.get("dltag_notify", True))
+        self._dltag_notify_type = config.get("dltag_notify_type") or "Plugin"
         self._msg_seen = {}
         self._last_summary = self._build_summary()
         self._fire_onlyonce(config or {})
@@ -495,7 +514,7 @@ class AgentOpsAssistant(_PluginBase):
                 text = self._format_subfill(filled)
                 self._save_task_result("订阅规则填充", True, 0, text)
                 if self._subfill_notify:
-                    self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 订阅规则自动填充", text=text)
+                    self.post_message(mtype=self._notification_type(self._subfill_notify_type), title="MP 运维助手 - 订阅规则自动填充", text=text)
         except Exception as err:
             logger.error(f"AgentOpsAssistant 订阅规则填充失败：{err}")
 
@@ -653,7 +672,7 @@ class AgentOpsAssistant(_PluginBase):
             SubscribeOper().update(sid, upd)
             self._subfill_log(getattr(sub, "name", str(sid)), f"二级分类[{category}]", upd)
             if self._subfill_notify:
-                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 订阅规则自动填充",
+                self.post_message(mtype=self._notification_type(self._subfill_notify_type), title="MP 运维助手 - 订阅规则自动填充",
                                   text=self._format_subfill([{"name": getattr(sub, "name", str(sid)), "update": upd}]))
         except Exception as err:
             logger.error(f"AgentOpsAssistant 订阅二级分类填充失败：{err}")
@@ -812,9 +831,9 @@ class AgentOpsAssistant(_PluginBase):
             else:
                 body = "📺 今日订阅追新：暂无更新"
             try:
-                mtype = NotificationType[self._subscribe_reminder_msgtype]
+                mtype = self._notification_type(self._subscribe_reminder_msgtype, "Subscribe")
             except Exception:
-                mtype = NotificationType.Plugin
+                mtype = self._notification_type("Plugin")
             self.post_message(mtype=mtype, title="MP 运维助手 - 订阅追新", text=body)
             self._save_task_result(name, True, 0, body)
             return True
@@ -827,7 +846,7 @@ class AgentOpsAssistant(_PluginBase):
         name = "MP运维每日汇报"
         try:
             text = self._build_daily_report_message()
-            self.post_message(mtype=NotificationType.Plugin, title="MP 运维每日汇报", text=text)
+            self.post_message(mtype=self._notification_type(self._daily_report_msgtype), title="MP 运维每日汇报", text=text)
             self._save_daily_report_result(sent=True, success=True, text=text, error="")
             self._save_task_result(name, True, 0, "OK plugin_notification_channel")
             return True
@@ -990,7 +1009,7 @@ class AgentOpsAssistant(_PluginBase):
             data = self._build_log_clean_stats(clean=True)
             text = self._format_log_clean_result_text(data)
             if self._log_clean_notify:
-                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 日志清理完成", text=text)
+                self.post_message(mtype=self._notification_type(self._log_clean_notify_type), title="MP 运维助手 - 日志清理完成", text=text)
             self._save_task_result("日志清理", True, 0, text)
             return True
         except Exception as err:
@@ -1037,13 +1056,13 @@ class AgentOpsAssistant(_PluginBase):
             text = "未执行：请先在配置页选择目标插件。"
             self._save_task_result("插件残留治理", False, 2, text)
             if self._plugin_uninstall_notify:
-                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件残留清理未执行", text=text)
+                self.post_message(mtype=self._notification_type(self._plugin_uninstall_notify_type), title="MP 运维助手 - 插件残留清理未执行", text=text)
             return False
         try:
             data = self._build_plugin_uninstall_status(clean=True)
             text = self._format_plugin_uninstall_text(data)
             if self._plugin_uninstall_notify:
-                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件残留治理结果", text=text)
+                self.post_message(mtype=self._notification_type(self._plugin_uninstall_notify_type), title="MP 运维助手 - 插件残留治理结果", text=text)
             self._save_task_result("插件残留治理", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
         except Exception as err:
@@ -1066,7 +1085,7 @@ class AgentOpsAssistant(_PluginBase):
             pu = data.get("plugin_update") or {}
             notify_needed = data.get("has_update") or pu.get("updated") or pu.get("updatable") or pu.get("failed")
             if self._market_update_notify and notify_needed:
-                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件库更新检查", text=text)
+                self.post_message(mtype=self._notification_type(self._market_update_notify_type), title="MP 运维助手 - 插件库更新检查", text=text)
             self._save_task_result("插件库更新", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
         except Exception as err:
@@ -1079,7 +1098,7 @@ class AgentOpsAssistant(_PluginBase):
             data = self._create_agentops_backup()
             text = self._format_backup_status_text(data)
             if self._backup_notify:
-                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 自动备份完成", text=text)
+                self.post_message(mtype=self._notification_type(self._backup_notify_type), title="MP 运维助手 - 自动备份完成", text=text)
             self._save_task_result("自动备份", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
         except Exception as err:
@@ -1114,23 +1133,23 @@ class AgentOpsAssistant(_PluginBase):
 
         def section(enabled: bool, header: str, body: List[str]):
             if enabled and body:
-                lines.extend(["", "━━━━━━━━━━━━━━━━━━━━", header])
+                lines.extend(["", header, ""])
                 lines.extend(self._report_body_lines(body))
 
         if self._report_version:
-            lines.extend(["", "━━━━━━━━━━━━━━━━━━━━", "🤖 MoviePilot"])
+            lines.extend(["", "🤖 MoviePilot", ""])
             lines.extend(self._report_body_lines(self._version_report_lines()))
         section(self._report_site_status, "📡 站点状态", site_health)
         section(self._report_site_increment, "📈 站点增量", site_increment)
         # 「下载器/正在下载」与「今日下载」重复，统一只保留今日下载
         section(self._report_today_download, "📥 今日下载", today_downloads)
         section(self._report_transfer, "📦 入库整理", transfer_health)
-        section(self._report_subscribe, "📺 订阅追新", ([f"⦁ {x}" for x in subs] if subs else ["⦁ 今日追新：无"]))
+        section(self._report_subscribe, "📺 订阅追新", ([f"⦁ {x}" for x in subs] if subs else ["⦁ 无"]))
         section(self._report_storage, "💾 存储空间", storage_health)
         section(self._report_media_stat, "🎬 媒体统计", media_stats)
         section(self._report_health and self._health_check_enabled, "🩺 健康巡查", self._get_health_report_locked())
         if self._report_summary:
-            lines.extend(["", "━━━━━━━━━━━━━━━━━━━━"])
+            lines.extend([""])
             lines.extend(self._report_body_lines(self._get_summary_locked(site_health, transfer_health, downloader_health, storage_health)))
         return "\n".join(lines)
 
@@ -1148,21 +1167,48 @@ class AgentOpsAssistant(_PluginBase):
         if not cleaned:
             return ["• 无"]
         compact: List[str] = []
-        buffer: List[str] = []
+        run: List[str] = []
+
+        def flush_run():
+            nonlocal run
+            if run:
+                compact.extend(cls._pack_report_pairs(run))
+                run = []
+
         for text in cleaned:
             if len(text) <= 22:
-                buffer.append(text)
-                if len(buffer) == 2:
-                    compact.append("　　".join(buffer))
-                    buffer = []
+                run.append(text)
             else:
-                if buffer:
-                    compact.append("　　".join(buffer))
-                    buffer = []
+                flush_run()
                 compact.append(text)
-        if buffer:
-            compact.append("　　".join(buffer))
+        flush_run()
         return compact
+
+    @classmethod
+    def _pack_report_pairs(cls, items: List[str]) -> List[str]:
+        pairs = [items[i:i + 2] for i in range(0, len(items), 2)]
+        left_width = max((cls._display_width(pair[0]) for pair in pairs if len(pair) == 2), default=0)
+        rows = []
+        for pair in pairs:
+            if len(pair) == 1:
+                rows.append(pair[0])
+            else:
+                rows.append(f"{cls._pad_display(pair[0], left_width)} ｜ {pair[1]}")
+        return rows
+
+    @staticmethod
+    def _display_width(text: str) -> int:
+        width = 0
+        for ch in str(text or ""):
+            width += 1 if ch == "\u00a0" else (2 if ord(ch) > 127 else 1)
+        return width
+
+    @classmethod
+    def _pad_display(cls, text: str, width: int) -> str:
+        pad = max(0, width - cls._display_width(text))
+        full, half = divmod(pad, 2)
+        tail = ("　" * full) + ("\u00a0" if half else "")
+        return f"{text}{tail}"
 
     @staticmethod
     def _report_visual_line(item: Any) -> str:
@@ -1202,13 +1248,19 @@ class AgentOpsAssistant(_PluginBase):
 
         if body.startswith("今日下载："):
             value = body.replace("今日下载：", "", 1).strip()
-            return f"• 📦 今日下载 {value}"
+            return "• 无" if value == "无" else f"• 📦 {value}"
 
         seed_match = re.match(r"(.+?)（做种：(.*?)）$", body)
         if seed_match:
             label, seed = seed_match.group(1).strip(), seed_match.group(2).strip()
             icon = "📺" if re.search(r"S\d{1,2}E", label, re.I) else "🎬"
             return f"• {icon} {label} ｜ 🌱 {seed}"
+
+        if re.search(r"S\d{1,2}(?:E\d{1,4}|E\d{1,4}-E\d{1,4}|$)", body, re.I):
+            return f"• 📺 {body}"
+
+        if re.search(r"\(\d{4}\)", body):
+            return f"• 🎬 {body}"
 
         if re.search(r"电影\s+\d+", body) and ("电视剧" in body or "剧集" in body or "用户" in body):
             parts = []
@@ -1234,13 +1286,16 @@ class AgentOpsAssistant(_PluginBase):
                 part = part.strip()
                 if not part:
                     continue
+                plain = re.sub(r"^[🔴🟠🟡🟢]\s*", "", part)
                 if part.startswith("剩余"):
-                    parts.append(f"🧺 {part}")
-                elif part.startswith("已用"):
+                    continue
+                if part.startswith("💽"):
+                    parts.append(part)
+                elif plain.startswith("已用"):
                     pct_match = re.search(r"(\d+)", part)
                     pct = int(pct_match.group(1)) if pct_match else 0
-                    icon = "🔴" if pct >= 85 else ("🟡" if pct >= 70 else "🟢")
-                    parts.append(f"{icon} {part}")
+                    icon = "🔴" if pct >= 85 else ("🟠" if pct >= 70 else "🟢")
+                    parts.append(f"{icon} {plain}")
                 else:
                     parts.append(f"💽 {part}")
             return f"• {name}：{' ｜ '.join(parts)}"
@@ -1310,6 +1365,22 @@ class AgentOpsAssistant(_PluginBase):
     def _today_prefix() -> str:
         return datetime.now().strftime("%Y-%m-%d")
 
+    @staticmethod
+    def _normalize_day(value: Any) -> str:
+        if value in (None, ""):
+            return ""
+        try:
+            if hasattr(value, "strftime"):
+                return value.strftime("%Y-%m-%d")
+            text = str(value).strip()
+            match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
+            if match:
+                year, month, day = match.groups()
+                return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
+            return text[:10]
+        except Exception:
+            return str(value or "").strip()[:10]
+
     def _today_transfer_rows_locked(self) -> List[Any]:
         try:
             from app.db.transferhistory_oper import TransferHistoryOper
@@ -1354,10 +1425,11 @@ class AgentOpsAssistant(_PluginBase):
 
     def _get_transfer_health_locked(self) -> List[str]:
         rows = self._today_transfer_rows_locked()
-        success = sum(1 for r in rows if getattr(r, "status", False))
         failed_rows = [r for r in rows if not getattr(r, "status", False)]
-        items = [f"⦁ 今日成功：{success}｜失败：{len(failed_rows)}"]
-        for r in failed_rows[:3]:
+        if not failed_rows:
+            return ["⦁ 无"]
+        items = []
+        for r in failed_rows:
             title = getattr(r, "title", None) or "未命名"
             errmsg = str(getattr(r, "errmsg", None) or getattr(r, "message", None) or "").strip()
             items.append(f"⦁ 失败：{title} - {errmsg[:36]}" if errmsg else f"⦁ 失败：{title}")
@@ -1377,7 +1449,7 @@ class AgentOpsAssistant(_PluginBase):
             previous_cache: Dict[str, List[Any]] = {}
             for current in sorted(latest_data, key=lambda row: (getattr(row, "name", None) or getattr(row, "domain", None) or "").lower()):
                 site_name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
-                current_day = getattr(current, "updated_day", None) or ""
+                current_day = self._normalize_day(getattr(current, "updated_day", None))
                 err_msg = str(getattr(current, "err_msg", None) or "").strip()
                 if current_day != today:
                     continue
@@ -1435,7 +1507,7 @@ class AgentOpsAssistant(_PluginBase):
             previous_cache: Dict[str, List[Any]] = {}
             for current in latest_data:
                 name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
-                if (getattr(current, "updated_day", None) or "") != today or str(getattr(current, "err_msg", None) or "").strip():
+                if self._normalize_day(getattr(current, "updated_day", None)) != today or str(getattr(current, "err_msg", None) or "").strip():
                     continue
                 previous = None
                 for i in range(1, 8):
@@ -1471,7 +1543,7 @@ class AgentOpsAssistant(_PluginBase):
             for row in latest:
                 name = getattr(row, "name", None) or getattr(row, "domain", None) or "未知站点"
                 err = str(getattr(row, "err_msg", None) or "").strip()
-                day = getattr(row, "updated_day", None) or ""
+                day = self._normalize_day(getattr(row, "updated_day", None))
                 if err:
                     status = f"异常（{err[:30]}）"
                 elif day == today:
@@ -1615,7 +1687,7 @@ class AgentOpsAssistant(_PluginBase):
             text = f"已为 {tagged} 个种子按站点补打标签" if tagged else "没有需要补打标签的种子（均已打标签或无 tracker 站点信息）"
             self._save_task_result(name, True, 0, text)
             if self._dltag_notify and tagged:
-                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 种子打标签", text=text)
+                self.post_message(mtype=self._notification_type(self._dltag_notify_type), title="MP 运维助手 - 种子打标签", text=text)
             return True
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
@@ -1679,7 +1751,7 @@ class AgentOpsAssistant(_PluginBase):
             rows = []
         success_rows = [r for r in rows if getattr(r, "status", False)]
         if not success_rows:
-            return ["⦁ 今日下载：无"]
+            return ["⦁ 无"]
         # download_hash -> 做种秒数（尽力获取，用于互相印证；取不到则不展示做种时长）
         seed_map = self._downloader_seed_map()
         grouped: Dict[Any, Dict[str, Any]] = {}
@@ -1704,8 +1776,8 @@ class AgentOpsAssistant(_PluginBase):
                     pass
             if dl_hash and dl_hash in seed_map:
                 grouped[key]["seed"] = max(grouped[key]["seed"], seed_map[dl_hash])
-        items = [f"⦁ 今日下载：{len(order)} 部"]
-        for key in order[:12]:
+        items = []
+        for key in order:
             title, year = key
             info = grouped[key]
             label = f"{title} ({year})" if year else f"{title}"
@@ -1718,8 +1790,6 @@ class AgentOpsAssistant(_PluginBase):
             seed = info.get("seed") or 0
             tail = f"（做种：{self._format_duration(seed)}）" if seed else ""
             items.append(f"  - {label}{tail}")
-        if len(order) > 12:
-            items.append(f"  …… 等共 {len(order)} 部")
         return items
 
     def _downloader_seed_map(self) -> Dict[str, int]:
@@ -1879,13 +1949,13 @@ class AgentOpsAssistant(_PluginBase):
             text = "未执行：未设置任何筛选条件（大小/分享率/做种时间/上传速度/标签/路径/Tracker/状态/分类），为避免误删已跳过。"
             self._save_task_result(name, False, 2, text)
             if self._seedclean_notify:
-                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 自动删种未执行", text=text)
+                self.post_message(mtype=self._notification_type(self._seedclean_notify_type), title="MP 运维助手 - 自动删种未执行", text=text)
             return False
         try:
             summary = self._seed_clean_run()
             text = "\n".join(summary) if summary else "本次没有符合条件的种子。"
             if self._seedclean_notify and summary:
-                self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 自动删种", text=text)
+                self.post_message(mtype=self._notification_type(self._seedclean_notify_type), title="MP 运维助手 - 自动删种", text=text)
             self._save_task_result(name, True, 0, text)
             return True
         except Exception as err:
@@ -2130,8 +2200,9 @@ class AgentOpsAssistant(_PluginBase):
                 free = total - used
             free = int(free or 0)
             pct = used / total * 100 if total else 0
-            risk = "，空间偏紧" if pct >= 85 else ""
-            items.append(f"⦁ {name}：{self._format_bytes(used)}/{self._format_bytes(total)}｜剩余 {self._format_bytes(free)}｜已用 {pct:.0f}%{risk}")
+            icon = "🔴" if pct >= 85 else ("🟠" if pct >= 70 else "🟢")
+            risk = " 空间偏紧" if pct >= 85 else ""
+            items.append(f"⦁ {name}：💽 {self._format_bytes(used)}/{self._format_bytes(total)} ｜ {icon} 已用 {pct:.0f}%{risk}")
             return True
         except Exception:
             return False
@@ -2141,9 +2212,7 @@ class AgentOpsAssistant(_PluginBase):
         try:
             if storage_type == "local":
                 total, used, free = shutil.disk_usage(path)
-                pct = used / total * 100 if total else 0
-                risk = "，空间偏紧" if pct >= 85 else ""
-                items.append(f"⦁ {label}：剩余 {self._format_bytes(free)}｜已用 {pct:.0f}%{risk}")
+                self._append_usage_line(items, label, total, used, free)
             else:
                 # 网络存储类型（115/alipan/rclone等）暂时标记为已配置
                 items.append(f"⦁ {label}：已配置")
@@ -2164,8 +2233,8 @@ class AgentOpsAssistant(_PluginBase):
             if risky:
                 warnings.append(clean.replace("⦁ ", "⦁ "))
         if warnings:
-            return ["⚠️ 今日提醒："] + warnings[:5]
-        return ["✅ 今日摘要：", "⦁ 系统正常", "⦁ 站点快照正常", "⦁ 无失败转移", "⦁ 下载器无异常"]
+            return ["⚠️ 今日提醒"] + warnings[:5]
+        return ["✅ 今日摘要", "⦁ 系统正常", "⦁ 站点快照正常", "⦁ 无失败转移", "⦁ 下载器无异常"]
 
     def _get_today_subscribe_updates_locked(self) -> List[str]:
         items = self._load_subscribereminder_today_locked()
@@ -2257,7 +2326,7 @@ class AgentOpsAssistant(_PluginBase):
         result["moviepilot"]["restart_confirm"] = self._mp_update_restart_confirm
         if result["moviepilot"]["has_update"] and self._mp_update_notify:
             text = self._format_update_status_text(result)
-            self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - MoviePilot更新检查", text=text)
+            self.post_message(mtype=self._notification_type(self._mp_update_notify_type), title="MP 运维助手 - MoviePilot更新检查", text=text)
         if result["moviepilot"]["has_update"] and self._mp_update_restart_confirm:
             try:
                 from app.helper.system import SystemHelper
@@ -2651,7 +2720,7 @@ class AgentOpsAssistant(_PluginBase):
 
             if self._backup_webdav_notify:
                 self.post_message(
-                    mtype=NotificationType.Plugin,
+                    mtype=self._notification_type(self._backup_webdav_notify_type),
                     title="MP 运维助手 - WebDAV 备份成功",
                     text=f"⦁ 已上传：{remote_path}\n⦁ 目标：{self._backup_webdav_hostname}"
                 )
@@ -3355,6 +3424,49 @@ class AgentOpsAssistant(_PluginBase):
             return default
 
     @staticmethod
+    def _notification_type(value: Any, default: str = "Plugin"):
+        aliases = {
+            "下载": "Download",
+            "资源下载": "Download",
+            "整理": "Organize",
+            "整理入库": "Organize",
+            "订阅": "Subscribe",
+            "站点": "SiteMessage",
+            "站点消息": "SiteMessage",
+            "媒体服务器": "MediaServer",
+            "手动": "Manual",
+            "手动处理": "Manual",
+            "插件": "Plugin",
+            "智能体": "Agent",
+            "其他": "Other",
+            "其它": "Other",
+        }
+        key = aliases.get(str(value or default or "Plugin").strip(), str(value or default or "Plugin").strip())
+        fallback_key = aliases.get(str(default or "Plugin").strip(), str(default or "Plugin").strip()) or "Plugin"
+        for candidate in (key, fallback_key, "Plugin"):
+            try:
+                return NotificationType[candidate]
+            except Exception:
+                pass
+            try:
+                return NotificationType.__getitem__(candidate)
+            except Exception:
+                pass
+            try:
+                return NotificationType(candidate)
+            except Exception:
+                pass
+            try:
+                for item in NotificationType:
+                    if getattr(item, "name", "").lower() == candidate.lower() or str(getattr(item, "value", "")) == candidate:
+                        return item
+            except Exception:
+                pass
+            if hasattr(NotificationType, candidate):
+                return getattr(NotificationType, candidate)
+        return getattr(NotificationType, "Plugin", "Plugin")
+
+    @staticmethod
     def _slug(name: str) -> str:
         return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "订阅提醒": "subscribe_reminder", "订阅追新": "subscribe_reminder", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "站点数据统计": "site_stat", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "自动删种": "seed_clean", "订阅规则填充": "subfill", "清理填充历史": "subfill_clear_history", "清理已处理": "subfill_clear_handled", "种子打标签": "downloader_tag"}.get(name, "task")
 
@@ -3366,4 +3478,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_msgtype": "Plugin", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}

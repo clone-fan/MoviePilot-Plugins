@@ -14,6 +14,7 @@ import importlib.util
 import sys
 import types
 from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -75,6 +76,18 @@ class _StubEventManager:
     def register(self, *a, **k):
         def deco(fn): return fn
         return deco
+
+
+class _StubNotificationType(Enum):
+    Download = "Download"
+    Organize = "Organize"
+    Subscribe = "Subscribe"
+    SiteMessage = "SiteMessage"
+    MediaServer = "MediaServer"
+    Manual = "Manual"
+    Plugin = "Plugin"
+    Agent = "Agent"
+    Other = "Other"
 
 
 # 插件自动更新桩：测试通过 _PU 配置 在线/本地/已装/运行中 列表，并记录 install/reload 调用
@@ -144,7 +157,7 @@ def install_stubs():
     plugins = _mod("app.plugins")
     plugins._PluginBase = _StubPluginBase
     sch = _mod("app.schemas")
-    sch.NotificationType = types.SimpleNamespace(Plugin="Plugin", SiteMessage="SiteMessage", MediaServer="MediaServer")
+    sch.NotificationType = _StubNotificationType
     sch.ServiceInfo = object
     scht = _mod("app.schemas.types")
     scht.EventType = types.SimpleNamespace(
@@ -260,11 +273,15 @@ def main():
     check(p._format_bytes(1536) == "1.50 KB", "_format_bytes KB")
     check(p._parse_csv("a, b ,c") == ["a", "b", "c"], "_parse_csv 字符串")
     check(p._parse_csv(["x", " y "]) == ["x", "y"], "_parse_csv 列表")
+    check(p._notification_type("Other").name == "Other", "_notification_type 支持 Other")
+    check(p._notification_type("其他").name == "Other", "_notification_type 支持中文“其他”")
+    check(p._notification_type("不存在").name == "Plugin", "_notification_type 非法值回退 Plugin")
 
     print("== 存储行（_append_usage_line）==")
     items = []
     ok = p._append_usage_line(items, "本地", 100, None, 40)  # total=100, free=40 -> used=60
-    check(ok is True and len(items) == 1 and "已用 60%" in items[0], "有真实用量才输出，已用百分比正确")
+    check(ok is True and len(items) == 1 and "💽 60 B/100 B" in items[0] and "🟢 已用 60%" in items[0], "存储输出已用/总量与已用百分比")
+    check("剩余" not in items[0], "存储输出不重复展示剩余空间")
     items2 = []
     ok2 = p._append_usage_line(items2, "空盘", 0, None, 0)  # total<=0 -> skip
     check(ok2 is False and items2 == [], "total<=0 跳过（不输出“已配置”噪声）")
@@ -503,7 +520,7 @@ def main():
         setattr(pr, name, (lambda v=val: v))
     msg = pr._build_heartbeat_message()
     check(msg.startswith("📮 MP 运维日报｜"), "日报标题使用卡片式标题行")
-    check("━━━━━━━━━━━━" in msg, "日报分区使用视觉分隔线")
+    check("━━━━━━━━━━━━" not in msg, "日报不再使用扎眼的硬分割线")
     check("📡 站点状态" in msg and "📡 站点状态：" not in msg, "栏目标题去掉尾冒号，观感更清爽")
     check("• 馒头：✅ 正常" in msg, "正文项目统一使用更轻的圆点与状态图标")
     check("💾 存储空间" not in msg, "report_storage=False -> 日报不含存储空间")
@@ -512,20 +529,42 @@ def main():
     check("⬇️ 下载器" not in msg and "正在下载" not in msg, "下载器段已与今日下载去重移除")
     pr_pack = make_plugin(mod)
     packed = pr_pack._report_body_lines(["⦁ A", "⦁ B", "⦁ 这是一条比较长的内容，用来确认长信息不会被强行横向挤压而影响阅读"])
-    check(packed[0] == "• A　　• B" and packed[1].startswith("• 这是一条比较长"), "短信息横向并排，长信息独占一行")
+    check(packed[0] == "• A ｜ • B" and packed[1].startswith("• 这是一条比较长"), "短信息横向并排，长信息独占一行")
+    status_grid = pr_pack._report_body_lines(["⦁ 馒头 | 正常", "⦁ 青蛙 | 正常", "⦁ 红叶 | 异常（连接超时）", "⦁ 柠檬 | 正常"])
+    check(len(status_grid) == 2 and pr_pack._display_width(status_grid[0].split(" ｜ ")[0]) == pr_pack._display_width(status_grid[1].split(" ｜ ")[0]),
+          "站点状态两列展示时中轴对齐，上下堆叠对称")
     icon_rows = pr_pack._report_body_lines([
         "⦁ 当前版本：前端 1.0 / 后端 2.0",
-        "⦁ 今日成功：3｜失败：1",
+        "⦁ 失败：片名 - 路径不存在",
         "⦁ 电影 120 ｜ 电视剧 46 ｜ 剧集 2300 ｜ 用户 3",
     ])
     icon_text = "\n".join(icon_rows)
     check("🖥 前端 1.0 ｜ ⚙ 后端 2.0" in icon_text, "版本行改为图标化数据条")
-    check("✅ 成功 3 ｜ ❌ 失败 1" in icon_text, "入库整理改为状态图标数据条")
+    check("❌ 片名 ｜ 路径不存在" in icon_text, "入库整理只展示失败明细，方便定位")
     check("🎞 电影 120 ｜ 📺 电视剧 46 ｜ 🎞 剧集 2300 ｜ 👤 用户 3" in icon_text, "媒体统计改为图标化横向数据条")
     _SUB.update({"site_latest": [types.SimpleNamespace(name="馒头", domain="m.x", err_msg="超时", updated_day="")],
                  "sites": [types.SimpleNamespace(domain="m.x")]})
     sh = make_plugin(mod)._get_site_health_locked()
     check(any("馒头 | 异常" in x for x in sh), "站点状态逐站：异常格式 “馒头 | 异常（…）”")
+    _today = datetime.now().strftime("%Y-%m-%d")
+    _SUB.update({"site_latest": [types.SimpleNamespace(name="馒头", domain="m.x", err_msg="", updated_day=f"{_today} 08:30:00")],
+                 "sites": [types.SimpleNamespace(domain="m.x")]})
+    sh_today_time = make_plugin(mod)._get_site_health_locked()
+    check(any("馒头 | 正常" in x for x in sh_today_time), "站点状态：updated_day 带时间也识别为今日正常")
+
+    print("== 日报下载与入库展示口径 ==")
+    p_report = make_plugin(mod)
+    p_report._today_transfer_rows_locked = lambda: []
+    check(p_report._get_today_downloads_locked() == ["⦁ 无"], "今日下载无记录时只写无")
+    check(p_report._get_transfer_health_locked() == ["⦁ 无"], "入库整理无失败时只写无")
+    p_report._today_transfer_rows_locked = lambda: [
+        types.SimpleNamespace(status=True, title="成功片", year="2026", type="电影"),
+        types.SimpleNamespace(status=False, title="失败片", errmsg="硬链接失败"),
+    ]
+    downloads = p_report._get_today_downloads_locked()
+    transfers = p_report._get_transfer_health_locked()
+    check(all("今日下载：" not in x for x in downloads) and any("成功片" in x for x in downloads), "今日下载有内容时直接列片名，不展示数量摘要")
+    check(transfers == ["⦁ 失败：失败片 - 硬链接失败"], "入库整理只列失败明细")
 
     print("== 站点数据统计饼图数据 ==")
     _today = datetime.now().strftime("%Y-%m-%d")
@@ -561,8 +600,24 @@ def main():
     p_sr.post_message = lambda **kw: sr_sent.update(kw)
     ok_sr = p_sr.run_subscribe_reminder()
     check(ok_sr is True and "凡人修仙传" in str(sr_sent.get("text", "")), "run_subscribe_reminder 推送今日追新并返回 True")
+    p_sr_other = make_plugin(mod, subscribe_reminder_msgtype="其他")
+    p_sr_other._get_today_subscribe_updates_locked = lambda: ["凡人修仙传 S01E51"]
+    sr_other_sent = {}
+    p_sr_other.post_message = lambda **kw: sr_other_sent.update(kw)
+    p_sr_other.run_subscribe_reminder()
+    check(getattr(sr_other_sent.get("mtype"), "name", "") == "Other", "订阅追新消息类型支持 其他")
     p_off = make_plugin(mod, enabled=True, subscribe_reminder_enabled=False)
     check("AgentOpsAssistant.SubscribeReminder" not in [s.get("id") for s in (p_off.get_service() or [])], "关闭时不注册订阅追新服务")
+
+    print("== 通知类型统一 ==")
+    p_market = make_plugin(mod, market_update_notify=True, market_update_notify_type="Other")
+    p_market._build_market_update_status = lambda apply=False: {"success": True, "has_update": True}
+    p_market._auto_update_installed_plugins = lambda apply=True: {}
+    p_market._format_market_update_text = lambda data: "market update"
+    market_sent = {}
+    p_market.post_message = lambda **kw: market_sent.update(kw)
+    p_market.run_market_update()
+    check(getattr(market_sent.get("mtype"), "name", "") == "Other", "插件库更新通知使用所选消息类型")
 
     print("== onlyonce 保存后立即运行一次（修复死开关）==")
     p_once = make_plugin(mod, enabled=True)
