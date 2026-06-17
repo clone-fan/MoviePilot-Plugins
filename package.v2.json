@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅追新,站点统计,日志清理,自动备份,更新检查,插件卸载,本地插件",
-    "version": "1.0.28",
+    "version": "1.0.29",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.29": "健康巡查执行语义修复：区分巡查任务完成与健康结果异常，发现异常时接口仍返回执行完成并保留异常详情，避免按钮被误判为功能失败。",
       "v1.0.28": "健康巡查数据库多选排版补齐：数据库选择同样改为整行宽度展示，并将巡查时间与容量阈值放到底部并排，避免数据库选项继续纵向堆叠。",
       "v1.0.27": "健康巡查多选排版修复：多选项改为整行宽度展示并补齐 chip 标题取值，避免选项纵向堆叠、只显示关闭图标或长标签被截断。",
       "v1.0.26": "修复健康巡查多选排版未生效：改用 Vuetify chips 模式实际读取的 chip 插槽，确保多选项只展示两个标签与剩余数量，避免输入框继续被撑高。",

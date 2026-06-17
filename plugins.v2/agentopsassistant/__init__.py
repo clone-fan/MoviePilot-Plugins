@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.28"
+    plugin_version = "1.0.29"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -916,11 +916,26 @@ class AgentOpsAssistant(_PluginBase):
     def run_health_check(self) -> bool:
         data = self._build_health_summary()
         text = self._format_health_summary(data)
-        self._save_task_result("健康巡查", bool(data.get("success")), 0 if data.get("success") else 1, text)
-        return bool(data.get("success"))
+        self._save_task_result("健康巡查", True, 0, text)
+        self.save_data("last_health_check", {
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "success": bool(data.get("success")),
+            "output": text,
+        })
+        return True
 
     def api_run_health_check(self) -> Dict[str, Any]:
-        return self._api_run_task("健康巡查", self.run_health_check)
+        self.run_health_check()
+        data = self.get_data("last_health_check") or {}
+        failed = 0
+        match = re.search(r"发现\s*(\d+)\s*项异常", str(data.get("output") or ""))
+        if match:
+            failed = self._safe_int(match.group(1), 0, 0)
+        if data.get("success") is False:
+            msg = f"健康巡查已完成，发现 {failed or '若干'} 项异常。"
+        else:
+            msg = "健康巡查已完成，未发现异常。"
+        return {"code": 0, "msg": msg}
 
     def api_run_mp_update(self) -> Dict[str, Any]:
         return self._api_run_task("主程序更新检查", self.run_update_preview)

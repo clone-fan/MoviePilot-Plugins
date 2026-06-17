@@ -738,6 +738,27 @@ def main():
     all_names = {item.get("name") for item in all_summary.get("checks", [])}
     check({"database", "storage", "directory"} <= all_names, "health_check_items 为空时等价检查全部可选项")
 
+    hc_run = make_plugin(mod)
+    hc_run._build_health_summary = lambda: {
+        "success": False,
+        "checks": [{"name": "storage", "ok": False, "detail": "容量超过阈值"}],
+        "total": 1,
+        "pass": 0,
+        "fail": 1,
+    }
+    check(hc_run.run_health_check() is True, "健康巡查发现异常时接口仍表示巡查任务已完成")
+    check((hc_run.get_data("last_health_check") or {}).get("success") is False, "健康巡查异常状态仍保存在健康结果中")
+    hc_api = make_plugin(mod)
+    hc_api._build_health_summary = lambda: {
+        "success": False,
+        "checks": [{"name": "storage", "ok": False, "detail": "容量超过阈值"}],
+        "total": 1,
+        "pass": 0,
+        "fail": 1,
+    }
+    api_result = hc_api.api_run_health_check()
+    check(api_result.get("code") == 0 and "异常" in api_result.get("msg", ""), "健康巡查 API 完成但发现异常时返回可读提示")
+
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg_settings = sys.modules["app.core.config"].settings
         cfg_settings.CONFIG_PATH = tmpdir
