@@ -353,11 +353,6 @@ const healthSelectedCount = computed(() => {
   const selected = Array.isArray(form.health_check_items) ? form.health_check_items : []
   return selected.length || healthCheckItems.length
 })
-function healthItemActive(value) {
-  const selected = Array.isArray(form.health_check_items) ? form.health_check_items : []
-  return selected.length === 0 || selected.includes(value)
-}
-
 watch(() => props.initialConfig, value => {
   Object.keys(form).forEach(key => delete form[key])
   Object.assign(form, defaults, value || {})
@@ -641,33 +636,13 @@ onMounted(() => {
                 <div class="aoa-health-section">
                   <div class="aoa-health-section-head">
                     <div>
-                      <div class="aoa-health-section-title">巡查项目</div>
-                      <div class="aoa-health-section-note">留空时默认检查全部项目</div>
-                    </div>
-                    <VSelect v-model="form.health_check_items" :items="healthCheckItems"
-                      label="选择项目" multiple chips closable-chips clearable
-                      class="aoa-health-project-select" :disabled="!form.health_check_enabled" />
-                  </div>
-                  <div class="aoa-health-grid">
-                    <div v-for="item in healthCheckItems" :key="item.value"
-                      class="aoa-health-check" :class="{ 'aoa-health-check--active': healthItemActive(item.value) }">
-                      <VIcon :icon="item.icon" size="26" class="aoa-health-check-icon" />
-                      <div class="aoa-health-check-text">
-                        <div class="aoa-health-check-title">{{ item.title }}</div>
-                        <div class="aoa-health-check-desc">{{ item.desc }}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="aoa-health-section">
-                  <div class="aoa-health-section-head">
-                    <div>
-                      <div class="aoa-health-section-title">巡查范围</div>
-                      <div class="aoa-health-section-note">数据库、容量阈值、存储与目录都可单独控制</div>
+                      <div class="aoa-health-section-title">巡查设置</div>
+                      <div class="aoa-health-section-note">项目、时间、数据库、存储、目录和容量阈值集中配置</div>
                     </div>
                   </div>
                   <div class="aoa-health-scope-grid">
+                    <VSelect v-model="form.health_check_items" :items="healthCheckItems"
+                      label="巡查项目" multiple chips closable-chips clearable :disabled="!form.health_check_enabled" />
                     <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)"
                       :disabled="!form.health_check_enabled" />
                     <VSelect v-model="form.health_check_database_targets" :items="healthDatabaseTargets"
@@ -1742,53 +1717,9 @@ onMounted(() => {
   line-height: 1.35;
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
-.aoa-health-project-select {
-  width: min(360px, 48%);
-  min-width: 260px;
-}
-.aoa-health-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-.aoa-health-check {
-  min-height: 92px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 16px;
-  color: rgba(var(--v-theme-on-surface), 0.68);
-  background: rgba(var(--v-theme-on-surface), 0.035);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.12);
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
-}
-.aoa-health-check--active {
-  color: rgba(var(--v-theme-on-surface), 0.92);
-  background: rgba(var(--v-theme-primary), 0.08);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-primary), 0.24);
-}
-.aoa-health-check-icon {
-  flex: 0 0 auto;
-  color: rgb(var(--v-theme-primary));
-}
-.aoa-health-check-text {
-  min-width: 0;
-}
-.aoa-health-check-title {
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-.aoa-health-check-desc {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: rgba(var(--v-theme-on-surface), 0.58);
-}
 .aoa-health-scope-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
@@ -1913,11 +1844,6 @@ onMounted(() => {
     justify-content: flex-start;
     white-space: normal;
   }
-  .aoa-health-project-select {
-    width: 100%;
-    min-width: 0;
-  }
-  .aoa-health-grid,
   .aoa-health-scope-grid {
     grid-template-columns: 1fr;
   }

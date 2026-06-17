@@ -16,7 +16,7 @@ https://github.com/clone-fan/MoviePilot-Plugins
 
 | 插件 | 说明 | 版本 |
 | --- | --- | --- |
-| MP 运维助手（AgentOpsAssistant） | 每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理，离线自包含。 | 1.0.18 |
+| MP 运维助手（AgentOpsAssistant） | 每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理，离线自包含。 | 1.0.19 |
 
 ## 仓库结构
 
