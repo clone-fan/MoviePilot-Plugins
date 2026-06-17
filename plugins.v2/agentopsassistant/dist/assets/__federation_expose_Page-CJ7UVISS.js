@@ -51,8 +51,7 @@ const _hoisted_34 = {
   class: "health-grid"
 };
 const _hoisted_35 = { class: "health-card-head" };
-const _hoisted_36 = { class: "health-detail" };
-const _hoisted_37 = {
+const _hoisted_36 = {
   key: 2,
   class: "empty-soft"
 };
@@ -220,8 +219,10 @@ const healthItems = computed(() => {
       const parts = cleaned.split(/[:：]/);
       const name = (parts.shift() || '巡查项').trim();
       const detail = (parts.join('：') || '无更多信息').trim();
-      return { name, detail, ok, color: ok ? 'success' : 'error', icon: iconMap[name] || 'mdi-check-decagram-outline' }
+      const detailRows = detail.split(/[；;]/).map(v => v.trim()).filter(Boolean);
+      return { name, detail, detailRows, ok, color: ok ? 'success' : 'error', icon: iconMap[name] || 'mdi-check-decagram-outline' }
     })
+    .sort((a, b) => Number(a.ok) - Number(b.ok))
 });
 
 // 手动触发按钮分组
@@ -768,7 +769,7 @@ return (_ctx, _cache) => {
                                 (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(healthItems.value, (item) => {
                                   return (_openBlock(), _createElementBlock("div", {
                                     key: item.name,
-                                    class: "health-card"
+                                    class: _normalizeClass(["health-card", { 'health-card--bad': !item.ok }])
                                   }, [
                                     _createElementVNode("div", _hoisted_35, [
                                       _createVNode(_component_VIcon, {
@@ -788,11 +789,24 @@ return (_ctx, _cache) => {
                                         _: 2
                                       }, 1032, ["color"])
                                     ]),
-                                    _createElementVNode("div", _hoisted_36, _toDisplayString(item.detail), 1)
-                                  ]))
+                                    _createElementVNode("div", {
+                                      class: _normalizeClass(["health-detail", { 'health-detail--bad': !item.ok }])
+                                    }, [
+                                      (!item.ok && item.detailRows.length > 1)
+                                        ? (_openBlock(true), _createElementBlock(_Fragment, { key: 0 }, _renderList(item.detailRows, (row) => {
+                                            return (_openBlock(), _createElementBlock("div", {
+                                              key: row,
+                                              class: "health-detail-row"
+                                            }, _toDisplayString(row), 1))
+                                          }), 128))
+                                        : (_openBlock(), _createElementBlock(_Fragment, { key: 1 }, [
+                                            _createTextVNode(_toDisplayString(item.detail), 1)
+                                          ], 64))
+                                    ], 2)
+                                  ], 2))
                                 }), 128))
                               ]))
-                            : (_openBlock(), _createElementBlock("div", _hoisted_37, "暂无记录"))
+                            : (_openBlock(), _createElementBlock("div", _hoisted_36, "暂无记录"))
                         ]),
                         _: 1
                       })
@@ -814,6 +828,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-0a601403"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-fc93e37e"]]);
 
 export { Page as default };

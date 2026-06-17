@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.30"
+    plugin_version = "1.0.31"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -99,6 +99,7 @@ class AgentOpsAssistant(_PluginBase):
     _health_check_storage_targets: List[str] = []
     _health_check_directory_targets: List[str] = []
     _health_check_storage_threshold: int = 85
+    _health_check_notify_type: str = "Plugin"
     _report_health: bool = True
     _log_clean_enabled = False
     _log_clean_cron = "0 3 * * 1"
@@ -222,6 +223,7 @@ class AgentOpsAssistant(_PluginBase):
         self._health_check_storage_threshold = self._safe_int(config.get("health_check_storage_threshold"), 85, 1)
         if self._health_check_storage_threshold > 99:
             self._health_check_storage_threshold = 99
+        self._health_check_notify_type = config.get("health_check_notify_type") or "Plugin"
         self._report_health = bool(config.get("report_health", True))
         self._subscribe_reminder_onlyonce = bool(config.get("subscribe_reminder_onlyonce", False))
         self._subscribe_reminder_time = str(config.get("subscribe_reminder_time") or "9")
@@ -922,6 +924,7 @@ class AgentOpsAssistant(_PluginBase):
             "success": bool(data.get("success")),
             "output": text,
         })
+        self._notify_health_failures(data)
         return True
 
     def api_run_health_check(self) -> Dict[str, Any]:
@@ -3526,8 +3529,31 @@ class AgentOpsAssistant(_PluginBase):
         return result
 
     @staticmethod
+    def _health_name_map() -> Dict[str, str]:
+        return {"subscribe": "订阅", "sites": "站点", "downloaders": "下载器", "agentops_services": "本插件任务", "database": "数据库", "storage": "存储空间", "directory": "目录权限"}
+
+    def _health_failure_lines(self, data: Dict[str, Any]) -> List[str]:
+        name_map = self._health_name_map()
+        lines = []
+        for item in data.get("checks") or []:
+            if item.get("ok"):
+                continue
+            label = name_map.get(item.get("name"), item.get("name") or "巡查项")
+            detail = str(item.get("detail") or "未返回详情").strip()
+            lines.append(f"⦁ {label}：{detail}")
+        return lines
+
+    def _notify_health_failures(self, data: Dict[str, Any]):
+        failures = self._health_failure_lines(data)
+        if not failures:
+            return
+        failed = data.get("fail") or len(failures)
+        text = "\n".join([f"发现 {failed} 项异常", *failures])
+        self.post_message(mtype=self._notification_type(self._health_check_notify_type), title=f"MP 运维助手 - 健康巡查发现 {failed} 项异常", text=text)
+
+    @staticmethod
     def _format_health_summary(data: Dict[str, Any]) -> str:
-        name_map = {"subscribe": "订阅", "sites": "站点", "downloaders": "下载器", "agentops_services": "本插件任务", "database": "数据库", "storage": "存储空间", "directory": "目录权限"}
+        name_map = AgentOpsAssistant._health_name_map()
         total = data.get("total", 0)
         passed = data.get("pass", 0)
         failed = data.get("fail", 0)
@@ -3794,4 +3820,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_msgtype": "Plugin", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "health_check_database_targets": ["current"], "health_check_storage_targets": ["storages", "config", "download", "library"], "health_check_directory_targets": ["config", "plugin", "download", "library"], "health_check_storage_threshold": 85, "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_remove_plugin": True, "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_msgtype": "Plugin", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "health_check_database_targets": ["current"], "health_check_storage_targets": ["storages", "config", "download", "library"], "health_check_directory_targets": ["config", "plugin", "download", "library"], "health_check_storage_threshold": 85, "health_check_notify_type": "Plugin", "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_remove_plugin": True, "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}

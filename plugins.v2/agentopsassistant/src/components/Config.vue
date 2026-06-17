@@ -116,6 +116,7 @@ const defaults = {
   health_check_storage_targets: ['storages', 'config', 'download', 'library'],
   health_check_directory_targets: ['config', 'plugin', 'download', 'library'],
   health_check_storage_threshold: 85,
+  health_check_notify_type: 'Plugin',
   report_health: true,
   subscribe_reminder_enabled: true,
   subscribe_reminder_onlyonce: false,
@@ -736,6 +737,8 @@ onMounted(() => {
                       :disabled="!form.health_check_enabled" />
                     <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number" class="aoa-health-field-third"
                       min="1" max="99" suffix="%" :disabled="!form.health_check_enabled" />
+                    <VSelect v-model="form.health_check_notify_type" :items="notificationTypeItems" label="异常通知渠道"
+                      class="aoa-health-field-third" :disabled="!form.health_check_enabled" />
                   </div>
                 </div>
               </VForm>

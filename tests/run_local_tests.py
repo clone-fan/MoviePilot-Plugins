@@ -759,6 +759,34 @@ def main():
     api_result = hc_api.api_run_health_check()
     check(api_result.get("code") == 0 and "异常" in api_result.get("msg", ""), "健康巡查 API 完成但发现异常时返回可读提示")
 
+    hc_notify = make_plugin(mod, health_check_notify_type="Other")
+    hc_notify._build_health_summary = lambda: {
+        "success": False,
+        "checks": [
+            {"name": "storage", "ok": False, "detail": "下载目录 不存在 /downloads"},
+            {"name": "directory", "ok": False, "detail": "媒体库目录 权限不足 /media"},
+            {"name": "database", "ok": True, "detail": "连接正常"},
+        ],
+        "total": 3,
+        "pass": 1,
+        "fail": 2,
+    }
+    hc_notify.run_health_check()
+    notify_msg = hc_notify._stub_messages[-1] if hc_notify._stub_messages else {}
+    check(notify_msg.get("mtype") == mod.NotificationType.Other, "健康巡查发现异常时按配置消息类型主动通知")
+    check("发现 2 项异常" in notify_msg.get("title", "") and "存储空间：下载目录 不存在 /downloads" in notify_msg.get("text", "") and "目录权限：媒体库目录 权限不足 /media" in notify_msg.get("text", ""), "健康巡查异常通知列出具体异常项")
+
+    hc_notify_ok = make_plugin(mod)
+    hc_notify_ok._build_health_summary = lambda: {
+        "success": True,
+        "checks": [{"name": "database", "ok": True, "detail": "连接正常"}],
+        "total": 1,
+        "pass": 1,
+        "fail": 0,
+    }
+    hc_notify_ok.run_health_check()
+    check(not hc_notify_ok._stub_messages, "健康巡查全部正常时不主动发送异常通知")
+
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg_settings = sys.modules["app.core.config"].settings
         cfg_settings.CONFIG_PATH = tmpdir

@@ -156,8 +156,10 @@ const healthItems = computed(() => {
       const parts = cleaned.split(/[:：]/)
       const name = (parts.shift() || '巡查项').trim()
       const detail = (parts.join('：') || '无更多信息').trim()
-      return { name, detail, ok, color: ok ? 'success' : 'error', icon: iconMap[name] || 'mdi-check-decagram-outline' }
+      const detailRows = detail.split(/[；;]/).map(v => v.trim()).filter(Boolean)
+      return { name, detail, detailRows, ok, color: ok ? 'success' : 'error', icon: iconMap[name] || 'mdi-check-decagram-outline' }
     })
+    .sort((a, b) => Number(a.ok) - Number(b.ok))
 })
 
 // 手动触发按钮分组
@@ -391,13 +393,18 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
             <VCardText class="compact-card-text">
               <div v-if="data.health.time" class="panel-note">最近 {{ data.health.time }}</div>
               <div v-if="healthItems.length" class="health-grid">
-                <div v-for="item in healthItems" :key="item.name" class="health-card">
+                <div v-for="item in healthItems" :key="item.name" class="health-card" :class="{ 'health-card--bad': !item.ok }">
                   <div class="health-card-head">
                     <VIcon :icon="item.icon" :color="item.color" size="20" />
                     <strong>{{ item.name }}</strong>
                     <VChip size="x-small" variant="tonal" :color="item.color">{{ item.ok ? '正常' : '异常' }}</VChip>
                   </div>
-                  <div class="health-detail">{{ item.detail }}</div>
+                  <div class="health-detail" :class="{ 'health-detail--bad': !item.ok }">
+                    <template v-if="!item.ok && item.detailRows.length > 1">
+                      <div v-for="row in item.detailRows" :key="row" class="health-detail-row">{{ row }}</div>
+                    </template>
+                    <template v-else>{{ item.detail }}</template>
+                  </div>
                 </div>
               </div>
               <div v-else class="empty-soft">暂无记录</div>
@@ -814,11 +821,36 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   white-space: nowrap;
   font-size: 13px;
 }
+.health-card--bad {
+  grid-column: 1 / -1;
+  border-color: rgba(var(--v-theme-error), 0.26);
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-error), 0.10), rgba(var(--v-theme-surface), 0.30)),
+    rgba(var(--v-theme-on-surface), 0.014);
+}
 .health-detail {
   margin-top: 7px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.health-detail--bad {
+  display: grid;
+  gap: 5px;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+}
+.health-detail-row {
+  position: relative;
+  padding-left: 12px;
+}
+.health-detail-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.64em;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-error), 0.75);
 }
 .empty-soft {
   min-height: 72px;
