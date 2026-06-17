@@ -701,6 +701,12 @@ onMounted(() => {
                     </div>
                   </div>
                   <div class="aoa-health-scope-grid">
+                    <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)" class="aoa-health-field-third"
+                      :disabled="!form.health_check_enabled" />
+                    <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number" class="aoa-health-field-third"
+                      min="1" max="99" suffix="%" :disabled="!form.health_check_enabled" />
+                    <VSelect v-model="form.health_check_notify_type" :items="notificationTypeItems" label="异常通知渠道"
+                      class="aoa-health-field-third" :disabled="!form.health_check_enabled" />
                     <VSelect v-model="form.health_check_items" :items="healthCheckItems" class="aoa-health-field-full aoa-health-select"
                       label="巡查项目" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
                       <template #chip="{ item, props }">
@@ -733,12 +739,6 @@ onMounted(() => {
                         </VChip>
                       </template>
                     </VSelect>
-                    <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)" class="aoa-health-field-third"
-                      :disabled="!form.health_check_enabled" />
-                    <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number" class="aoa-health-field-third"
-                      min="1" max="99" suffix="%" :disabled="!form.health_check_enabled" />
-                    <VSelect v-model="form.health_check_notify_type" :items="notificationTypeItems" label="异常通知渠道"
-                      class="aoa-health-field-third" :disabled="!form.health_check_enabled" />
                   </div>
                 </div>
               </VForm>

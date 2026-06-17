@@ -1072,9 +1072,36 @@ return (_ctx, _cache) => {
                         ])
                       ], -1)),
                       _createElementVNode("div", _hoisted_30, [
+                        _createVNode(_component_VCronField, {
+                          modelValue: form.health_check_cron,
+                          "onUpdate:modelValue": _cache[15] || (_cache[15] = $event => ((form.health_check_cron) = $event)),
+                          label: "巡查时间 (Cron)",
+                          class: "aoa-health-field-third",
+                          disabled: !form.health_check_enabled
+                        }, null, 8, ["modelValue", "disabled"]),
+                        _createVNode(_component_VTextField, {
+                          modelValue: form.health_check_storage_threshold,
+                          "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((form.health_check_storage_threshold) = $event)),
+                          modelModifiers: { number: true },
+                          label: "容量阈值",
+                          type: "number",
+                          class: "aoa-health-field-third",
+                          min: "1",
+                          max: "99",
+                          suffix: "%",
+                          disabled: !form.health_check_enabled
+                        }, null, 8, ["modelValue", "disabled"]),
+                        _createVNode(_component_VSelect, {
+                          modelValue: form.health_check_notify_type,
+                          "onUpdate:modelValue": _cache[17] || (_cache[17] = $event => ((form.health_check_notify_type) = $event)),
+                          items: notificationTypeItems,
+                          label: "异常通知渠道",
+                          class: "aoa-health-field-third",
+                          disabled: !form.health_check_enabled
+                        }, null, 8, ["modelValue", "disabled"]),
                         _createVNode(_component_VSelect, {
                           modelValue: form.health_check_items,
-                          "onUpdate:modelValue": _cache[15] || (_cache[15] = $event => ((form.health_check_items) = $event)),
+                          "onUpdate:modelValue": _cache[18] || (_cache[18] = $event => ((form.health_check_items) = $event)),
                           items: healthCheckItems,
                           class: "aoa-health-field-full aoa-health-select",
                           label: "巡查项目",
@@ -1099,7 +1126,7 @@ return (_ctx, _cache) => {
                         }, 8, ["modelValue", "disabled"]),
                         _createVNode(_component_VSelect, {
                           modelValue: form.health_check_database_targets,
-                          "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((form.health_check_database_targets) = $event)),
+                          "onUpdate:modelValue": _cache[19] || (_cache[19] = $event => ((form.health_check_database_targets) = $event)),
                           items: healthDatabaseTargets,
                           class: "aoa-health-field-full aoa-health-select",
                           label: "数据库",
@@ -1124,7 +1151,7 @@ return (_ctx, _cache) => {
                         }, 8, ["modelValue", "disabled"]),
                         _createVNode(_component_VSelect, {
                           modelValue: form.health_check_storage_targets,
-                          "onUpdate:modelValue": _cache[17] || (_cache[17] = $event => ((form.health_check_storage_targets) = $event)),
+                          "onUpdate:modelValue": _cache[20] || (_cache[20] = $event => ((form.health_check_storage_targets) = $event)),
                           items: healthStorageTargets,
                           class: "aoa-health-field-full aoa-health-select",
                           label: "存储空间",
@@ -1149,7 +1176,7 @@ return (_ctx, _cache) => {
                         }, 8, ["modelValue", "disabled"]),
                         _createVNode(_component_VSelect, {
                           modelValue: form.health_check_directory_targets,
-                          "onUpdate:modelValue": _cache[18] || (_cache[18] = $event => ((form.health_check_directory_targets) = $event)),
+                          "onUpdate:modelValue": _cache[21] || (_cache[21] = $event => ((form.health_check_directory_targets) = $event)),
                           items: healthDirectoryTargets,
                           class: "aoa-health-field-full aoa-health-select",
                           label: "目录权限",
@@ -1171,34 +1198,7 @@ return (_ctx, _cache) => {
                             }, 1040)
                           ]),
                           _: 1
-                        }, 8, ["modelValue", "disabled"]),
-                        _createVNode(_component_VCronField, {
-                          modelValue: form.health_check_cron,
-                          "onUpdate:modelValue": _cache[19] || (_cache[19] = $event => ((form.health_check_cron) = $event)),
-                          label: "巡查时间 (Cron)",
-                          class: "aoa-health-field-third",
-                          disabled: !form.health_check_enabled
-                        }, null, 8, ["modelValue", "disabled"]),
-                        _createVNode(_component_VTextField, {
-                          modelValue: form.health_check_storage_threshold,
-                          "onUpdate:modelValue": _cache[20] || (_cache[20] = $event => ((form.health_check_storage_threshold) = $event)),
-                          modelModifiers: { number: true },
-                          label: "容量阈值",
-                          type: "number",
-                          class: "aoa-health-field-third",
-                          min: "1",
-                          max: "99",
-                          suffix: "%",
-                          disabled: !form.health_check_enabled
-                        }, null, 8, ["modelValue", "disabled"]),
-                        _createVNode(_component_VSelect, {
-                          modelValue: form.health_check_notify_type,
-                          "onUpdate:modelValue": _cache[21] || (_cache[21] = $event => ((form.health_check_notify_type) = $event)),
-                          items: notificationTypeItems,
-                          label: "异常通知渠道",
-                          class: "aoa-health-field-third",
-                          disabled: !form.health_check_enabled
-                        }, null, 8, ["modelValue", "disabled"])
+                        }, 8, ["modelValue", "disabled"])
                       ])
                     ])
                   ]),
@@ -3008,6 +3008,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-9ff5c3b8"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-b3b40b5e"]]);
 
 export { Config as default };
