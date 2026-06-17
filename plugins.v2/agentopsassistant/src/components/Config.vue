@@ -207,9 +207,10 @@ const mainTabs = [
   { key: 'subreminder', group: '订阅与站点', title: '订阅提醒', icon: 'mdi-bell-ring-outline', desc: '定时推送订阅追新提醒。' },
   { key: 'subfill', group: '订阅与站点', title: '订阅规则自动填充', icon: 'mdi-auto-fix', desc: '下载到资源后自动回填订阅的空规则，锁定后续剧集追同款。' },
   { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '采集站点上传/下载/做种等数据，可上仪表盘与日报。' },
-  { key: 'seedclean', group: '下载与媒体', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自“自动删种”）。' },
+  { key: 'seedclean', group: '下载与媒体', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自”自动删种”）。' },
   { key: 'dltag', group: '下载与媒体', title: '下载器助手', icon: 'mdi-download-network-outline', desc: '下载器活动种子概览（见仪表盘）+ 按站点为种子批量补打标签。' },
   { key: 'msgnotify', group: '下载与媒体', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知。' },
+  { key: 'healthcheck', group: '系统维护', title: '健康巡查', icon: 'mdi-heart-pulse-outline', desc: '定期检查系统健康状态（数据库、存储、目录等），发现问题及时通知。' },
   { key: 'backup', group: '系统维护', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '设置本地备份、保留数量和 WebDAV 远端备份。' },
   { key: 'cleanup', group: '系统维护', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知。' },
   { key: 'updates', group: '系统维护', title: '更新检查', icon: 'mdi-update', desc: '检查 MoviePilot 与插件库更新，可自动更新已安装插件。' },
@@ -239,6 +240,9 @@ const subTabs = {
   ],
   sitestat: [
     { key: 'sites', title: '站点数据统计', icon: 'mdi-chart-line' },
+  ],
+  healthcheck: [
+    { key: 'hc', title: '健康巡查', icon: 'mdi-heart-pulse-outline' },
   ],
   backup: [
     { key: 'local', title: '本地备份', icon: 'mdi-folder-arrow-up-outline' },
@@ -277,6 +281,7 @@ const intervalPresets = [3600, 21600, 43200, 86400, 604800].map(v => ({ title: v
 const seedActionItems = [{ title: '暂停', value: 'pause' }, { title: '删除种子', value: 'delete' }, { title: '删除种子和文件', value: 'deletefile' }]
 const subfillDetailItems = ['分辨率', '资源质量', '特效', '制作组', '站点'].map(v => ({ title: v, value: v }))
 const msgGroupItems = ['新入库', '开始播放', '停止播放', '登录成功', '登录失败', '标记'].map(v => ({ title: v, value: v }))
+const healthCheckItems = ['数据库', '存储空间', '目录权限'].map(v => ({ title: v, value: v }))
 const reportSections = [
   { key: 'report_version', label: 'MoviePilot 版本', group: '系统', requires: null },
   { key: 'report_site_status', label: '站点状态', group: '站点', requires: null },
@@ -309,6 +314,7 @@ watch(() => props.initialConfig, value => {
   form.msgnotify_types = toArr(form.msgnotify_types)
   form.msgnotify_servers = toArr(form.msgnotify_servers)
   form.dltag_downloaders = toArr(form.dltag_downloaders)
+  form.health_check_items = toArr(form.health_check_items)
 }, { immediate: true, deep: true })
 
 function saveConfig() {
@@ -535,6 +541,51 @@ onMounted(() => {
                 </VRow>
               </VForm>
             </div>
+
+            <!-- 系统维护 · 健康巡查 -->
+            <div v-show="activeSub === 'hc'" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">健康巡查</div>
+                <VRow>
+                  <VCol cols="12">
+                    <VSwitch v-model="form.health_check_enabled" color="primary" inset hide-details
+                      label="启用系统健康巡查" />
+                    <div class="aoa-hint">定期检查数据库、存储空间、配置目录等系统资源健康状态。发现问题时发送通知。</div>
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)"
+                      :disabled="!form.health_check_enabled" />
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12">
+                    <VSelect v-model="form.health_check_items" :items="healthCheckItems"
+                      label="选择要检查的项目" multiple chips closable-chips clearable
+                      :disabled="!form.health_check_enabled" />
+                    <div class="aoa-hint">选中的项目会在计划时间执行检查。不选则检查所有项目。</div>
+                  </VCol>
+                </VRow>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.report_health" color="primary" inset hide-details density="compact"
+                      label="健康检查结果并入每日汇报" :disabled="!form.health_check_enabled" />
+                  </VCol>
+                </VRow>
+
+                <VDivider class="my-4" />
+                <div class="aoa-section-title">手动触发</div>
+                <div class="aoa-hint mb-2">立即执行一次健康巡查，查看当前系统状态。</div>
+                <div class="aoa-btn-row">
+                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-heart-pulse"
+                    :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">
+                    立即执行
+                  </VBtn>
+                </div>
+              </VForm>
+            </div>
+
             <!-- 每日汇报 · 订阅规则填充 -->
             <div v-show="activeSub === 'subfill'" class="aoa-pane">
               <VForm>
