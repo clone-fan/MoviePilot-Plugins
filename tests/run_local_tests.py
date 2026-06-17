@@ -91,14 +91,19 @@ class _StubNotificationType(Enum):
 
 
 # 插件自动更新桩：测试通过 _PU 配置 在线/本地/已装/运行中 列表，并记录 install/reload 调用
-_PU = {"online": [], "local": [], "installed": [], "running": [],
-       "install_result": (True, "ok"), "install_calls": [], "reloaded": []}
+_PU = {"online": [], "local": [], "installed": [], "running": [], "folders": {},
+       "install_result": (True, "ok"), "install_calls": [], "reloaded": [],
+       "removed_plugins": [], "removed_jobs": [], "config_deleted": [], "data_deleted": [],
+       "system_deleted": []}
 
 
 class _StubPluginManager:
     def get_online_plugins(self): return list(_PU["online"])
     def get_local_plugins(self): return list(_PU["local"])
     def reload_plugin(self, pid): _PU["reloaded"].append(pid)
+    def remove_plugin(self, pid): _PU["removed_plugins"].append(pid)
+    def delete_plugin_config(self, pid): _PU["config_deleted"].append(pid); return True
+    def delete_plugin_data(self, pid): _PU["data_deleted"].append(pid); return True
     def get_plugin_apis(self): return []
 
 
@@ -112,11 +117,25 @@ class _StubScheduler:
     def list(self):
         return [types.SimpleNamespace(id=i, status="正在运行") for i in _PU["running"]]
     def update_plugin_job(self, pid): pass
+    def remove_plugin_job(self, pid): _PU["removed_jobs"].append(pid)
 
 
 class _StubSystemConfigOper:
     def get(self, key):
-        return list(_PU["installed"]) if key == "UserInstalledPlugins" else None
+        if key == "UserInstalledPlugins":
+            return list(_PU["installed"])
+        if key == "PluginFolders":
+            return json.loads(json.dumps(_PU["folders"]))
+        return None
+    def set(self, key, value):
+        if key == "UserInstalledPlugins":
+            _PU["installed"] = list(value or [])
+        elif key == "PluginFolders":
+            _PU["folders"] = value or {}
+        return True
+    def delete(self, key):
+        _PU["system_deleted"].append(key)
+        return True
 
 
 # 订阅规则填充桩：_SUB 配置下载历史/订阅列表，并记录 update 调用
@@ -394,7 +413,7 @@ def main():
                                           "backup_count": 0, "backup_size_text": "0 B", "errors": ["真失败"]})
     check("状态：异常" in t_err and "异常：" in t_err, "真失败仍报异常")
 
-    print("== 插件残留治理（多选 ID 回归）==")
+    print("== 插件卸载（多选 ID 与卸载流程回归）==")
     r1 = make_plugin(mod, plugin_uninstall_ids=["AutoBackup"])._build_plugin_uninstall_status(clean=False)
     check(r1.get("plugin_id") == "AutoBackup" and not r1.get("blocked") and r1.get("success") is True,
           "多选列表被识别（不再因单 ID 为空而 blocked）")
@@ -405,6 +424,19 @@ def main():
           "禁止治理 MoviePilot/本体（保护）")
     r4 = make_plugin(mod, plugin_uninstall_ids=["A", "B"])._build_plugin_uninstall_status(clean=False)
     check(r4.get("plugin_id") == "A、B", "多个插件 ID 合并展示")
+    _PU.update({"installed": ["AutoBackup", "OtherPlugin"], "removed_plugins": [], "removed_jobs": [],
+                "config_deleted": [], "data_deleted": [], "folders": {"系统": ["AutoBackup", "OtherPlugin"]}})
+    r5 = make_plugin(mod, plugin_uninstall_ids=["AutoBackup"])._build_plugin_uninstall_status(clean=True)
+    check(r5.get("success") is True and "AutoBackup" in _PU["removed_plugins"]
+          and "AutoBackup" not in _PU["installed"] and "AutoBackup" in _PU["removed_jobs"],
+          "默认执行插件卸载：移出已安装列表、移除调度并卸载运行实例")
+    check("AutoBackup" in _PU["config_deleted"] and "AutoBackup" in _PU["data_deleted"],
+          "勾选清理配置/数据时调用 MoviePilot 配置与数据清理")
+    _PU.update({"installed": ["AutoBackup"], "removed_plugins": [], "removed_jobs": [],
+                "config_deleted": [], "data_deleted": [], "folders": {"系统": ["AutoBackup"]}})
+    r6 = make_plugin(mod, plugin_uninstall_ids=["AutoBackup"], plugin_uninstall_remove_plugin=False)._build_plugin_uninstall_status(clean=True)
+    check(r6.get("success") is True and not _PU["removed_plugins"] and _PU["installed"] == ["AutoBackup"],
+          "关闭卸载插件时只做残留清理，不移除已安装插件")
 
     print("== 插件库更新增强：自动更新已安装插件 ==")
     def _reset_pu(**kw):

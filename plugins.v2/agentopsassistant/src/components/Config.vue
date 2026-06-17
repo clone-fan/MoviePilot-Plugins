@@ -31,7 +31,7 @@ async function runAction(path, label) {
   }
 }
 
-// 已安装插件（残留清理 / 日志限定 共用）
+// 已安装插件（插件卸载 / 日志限定 共用）
 const installedPlugins = ref([])
 const installedLoading = ref(false)
 async function loadInstalledPlugins() {
@@ -173,6 +173,7 @@ const defaults = {
   market_update_wiki_xpath: '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()',
   plugin_uninstall_id: '',
   plugin_uninstall_ids: [],
+  plugin_uninstall_remove_plugin: true,
   plugin_uninstall_clear_config: true,
   plugin_uninstall_clear_data: true,
   plugin_uninstall_delete_source: false,
@@ -222,7 +223,7 @@ const mainTabs = [
   { key: 'backup', group: '系统维护', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '设置本地备份、保留数量和 WebDAV 远端备份' },
   { key: 'cleanup', group: '系统维护', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知' },
   { key: 'updates', group: '系统维护', title: '更新检查', icon: 'mdi-update', desc: '检查 MoviePilot 与插件库更新，可自动更新已安装插件' },
-  { key: 'plugin', group: '系统维护', title: '插件残留清理', icon: 'mdi-puzzle-remove-outline', desc: '清理已卸载插件留下的配置、数据、日志或本地源码残留' },
+  { key: 'plugin', group: '系统维护', title: '插件卸载', icon: 'mdi-puzzle-remove-outline', desc: '卸载已安装插件，并按需清理配置、数据、日志和本地源码残留' },
 ]
 
 const navGroups = computed(() => {
@@ -263,7 +264,7 @@ const subTabs = {
     { key: 'market', title: '插件库', icon: 'mdi-puzzle-plus-outline' },
   ],
   plugin: [
-    { key: 'clean', title: '残留清理', icon: 'mdi-broom' },
+    { key: 'clean', title: '卸载清理', icon: 'mdi-puzzle-remove-outline' },
   ],
   seedclean: [
     { key: 'seedremove', title: '自动删种', icon: 'mdi-delete-sweep-outline' },
@@ -1026,26 +1027,30 @@ onMounted(() => {
               </VForm>
             </div>
 
-            <!-- 插件残留清理 · 残留清理（合并单页） -->
+            <!-- 插件卸载 · 卸载清理（合并单页） -->
             <div v-show="activeSub === 'clean'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">目标插件</div>
+                <div class="aoa-section-title">选择插件</div>
                 <VRow>
                   <VCol cols="12">
                     <VSelect v-model="form.plugin_uninstall_ids" :items="installedPlugins"
-                      :loading="installedLoading" label="选择要清理残留的已安装插件"
+                      :loading="installedLoading" label="选择要卸载的已安装插件"
                       multiple chips closable-chips clearable
                       prepend-inner-icon="mdi-puzzle-remove-outline" />
                   </VCol>
                 </VRow>
                 <VDivider class="my-4" />
-                <div class="aoa-section-title">清理范围</div>
+                <div class="aoa-section-title">卸载与清理</div>
                 <VRow>
-                  <VCol cols="12" md="6">
+                  <VCol cols="12" md="4">
+                    <VSwitch v-model="form.plugin_uninstall_remove_plugin" color="error" inset hide-details
+                      label="卸载插件" />
+                  </VCol>
+                  <VCol cols="12" md="4">
                     <VSwitch v-model="form.plugin_uninstall_clear_config" color="primary" inset hide-details
                       label="清除插件配置" />
                   </VCol>
-                  <VCol cols="12" md="6">
+                  <VCol cols="12" md="4">
                     <VSwitch v-model="form.plugin_uninstall_clear_data" color="primary" inset hide-details
                       label="清除插件数据" />
                   </VCol>
@@ -1068,13 +1073,13 @@ onMounted(() => {
                 <VDivider class="my-4" />
                 <div class="aoa-section-title">执行</div>
                 <div class="aoa-btn-row">
-                  <VBtn color="error" variant="tonal" prepend-icon="mdi-broom"
+                  <VBtn color="error" variant="tonal" prepend-icon="mdi-puzzle-remove-outline"
                     :disabled="!form.plugin_uninstall_ids || !form.plugin_uninstall_ids.length"
-                    :loading="action.running === 'run_plugin_uninstall'" @click="runAction('run_plugin_uninstall', '插件残留治理')">
-                    执行清理
+                    :loading="action.running === 'run_plugin_uninstall'" @click="runAction('run_plugin_uninstall', '插件卸载')">
+                    执行卸载
                   </VBtn>
                 </div>
-                <div class="aoa-hint mt-2">残留清理为不可逆操作，执行前请务必先预览确认</div>
+                <div class="aoa-hint mt-2">插件卸载为不可逆操作，执行前请确认目标插件和清理范围</div>
               </VForm>
             </div>
 

@@ -20,18 +20,18 @@ from app.utils.http import RequestUtils
 from app.schemas.types import EventType
 
 # 本地插件源码仓库默认路径。留空表示未配置：
-# 「插件残留治理」的本地源码清理功能仅在用户显式配置后才会生效，
+# 「插件卸载」的本地源码清理功能仅在用户显式配置后才会生效，
 # 避免对未知系统使用写死的开发期路径执行删除。
 DEFAULT_LOCAL_PLUGIN_REPO = ""
 
 
 class AgentOpsAssistant(_PluginBase):
-    """MP 运维助手：每日汇报、日志清理、备份、更新检查和插件残留治理。"""
+    """MP 运维助手：每日汇报、日志清理、备份、更新检查和插件卸载。"""
 
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.13"
+    plugin_version = "1.0.14"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -71,7 +71,7 @@ class AgentOpsAssistant(_PluginBase):
         {"key": "mp_update", "category": "ops_tools", "subcategory": "主程序", "name": "MoviePilot 更新推送", "phase": "v1.2", "risk": "中", "status": "已直接接替", "source": "AgentOpsAssistant", "goal": "检查后端/前端 release 并通知"},
         {"key": "market_update", "category": "ops_tools", "subcategory": "插件库", "name": "插件库更新推送", "phase": "v1.3", "risk": "中", "status": "已直接接替", "source": "AgentOpsAssistant", "goal": "抓取插件库记录、对比当前配置、通知变化"},
 
-        {"key": "plugin_uninstall", "category": "plugin", "subcategory": "插件残留", "name": "插件残留治理", "phase": "v1.4", "risk": "高", "status": "预览已接替", "source": "AgentOpsAssistant", "goal": "插件残留预览、备份与确认删除"},
+        {"key": "plugin_uninstall", "category": "plugin", "subcategory": "插件卸载", "name": "插件卸载", "phase": "v1.4", "risk": "高", "status": "已接入", "source": "AgentOpsAssistant", "goal": "插件卸载、配置/数据清理与残留文件备份删除"},
     ]
 
     _enabled = False
@@ -128,6 +128,9 @@ class AgentOpsAssistant(_PluginBase):
     _market_update_skip_running = True
     _market_update_wiki_url = "https://wiki.movie-pilot.org/zh/plugin"
     _plugin_uninstall_id = ""
+    _plugin_uninstall_remove_plugin = True
+    _plugin_uninstall_clear_config = True
+    _plugin_uninstall_clear_data = True
     _plugin_uninstall_delete_source = False
     _plugin_uninstall_notify = True
     _plugin_uninstall_notify_type = "Plugin"
@@ -275,6 +278,7 @@ class AgentOpsAssistant(_PluginBase):
         self._plugin_uninstall_ids = config.get("plugin_uninstall_ids") or ([] if not self._plugin_uninstall_id else [self._plugin_uninstall_id])
         if isinstance(self._plugin_uninstall_ids, str):
             self._plugin_uninstall_ids = self._parse_csv(self._plugin_uninstall_ids)
+        self._plugin_uninstall_remove_plugin = bool(config.get("plugin_uninstall_remove_plugin", True))
         self._plugin_uninstall_clear_config = bool(config.get("plugin_uninstall_clear_config", True))
         self._plugin_uninstall_clear_data = bool(config.get("plugin_uninstall_clear_data", True))
         self._plugin_uninstall_delete_source = bool(config.get("plugin_uninstall_delete_source", False))
@@ -364,8 +368,8 @@ class AgentOpsAssistant(_PluginBase):
             {"cmd": "/mpops_updates", "event": EventType.PluginAction, "desc": "检查 MoviePilot 后端/前端更新", "category": "MP运维", "data": {"action": "mpops_updates"}},
             {"cmd": "/mpops_market", "event": EventType.PluginAction, "desc": "检查插件库更新并按确认写入", "category": "MP运维", "data": {"action": "mpops_market"}},
             {"cmd": "/mpops_run_all", "event": EventType.PluginAction, "desc": "依次执行每日汇报与健康巡查", "category": "MP运维", "data": {"action": "mpops_run_all"}},
-            {"cmd": "/mpops_plugin_preview", "event": EventType.PluginAction, "desc": "预览插件残留治理范围", "category": "MP运维", "data": {"action": "mpops_plugin_preview"}},
-            {"cmd": "/mpops_plugin_clean", "event": EventType.PluginAction, "desc": "执行插件残留治理（需配置页显式确认）", "category": "MP运维", "data": {"action": "mpops_plugin_clean"}},
+            {"cmd": "/mpops_plugin_preview", "event": EventType.PluginAction, "desc": "预览插件卸载与残留清理范围", "category": "MP运维", "data": {"action": "mpops_plugin_preview"}},
+            {"cmd": "/mpops_plugin_clean", "event": EventType.PluginAction, "desc": "执行插件卸载（需配置页显式确认）", "category": "MP运维", "data": {"action": "mpops_plugin_clean"}},
             {"cmd": "/mpops_seed_clean", "event": EventType.PluginAction, "desc": "执行自动删种（按规则暂停/删除种子）", "category": "MP运维", "data": {"action": "mpops_seed_clean"}},
             {"cmd": "/mpops_downloader_tag", "event": EventType.PluginAction, "desc": "按站点为种子批量补打标签", "category": "MP运维", "data": {"action": "mpops_downloader_tag"}},
             {"cmd": "/agentops_heartbeat", "event": EventType.PluginAction, "desc": "兼容旧命令：发送每日汇报", "category": "MP运维", "data": {"action": "mpops_report"}},
@@ -375,7 +379,7 @@ class AgentOpsAssistant(_PluginBase):
     def get_api(self) -> List[Dict[str, Any]]:
         return [
             {"path": "/dashboard", "endpoint": self.api_dashboard, "auth": "bear", "methods": ["GET"], "summary": "仪表盘数据：模块状态、最近执行、健康概览"},
-            {"path": "/installed_plugins", "endpoint": self.api_installed_plugins, "auth": "bear", "methods": ["GET"], "summary": "已安装插件列表，供残留清理下拉选择"},
+            {"path": "/installed_plugins", "endpoint": self.api_installed_plugins, "auth": "bear", "methods": ["GET"], "summary": "已安装插件列表，供插件卸载下拉选择"},
             {"path": "/plugin_markets", "endpoint": self.api_plugin_markets, "auth": "bear", "methods": ["GET"], "summary": "已配置插件库仓库列表，供更新黑名单下拉选择"},
             {"path": "/run_daily_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "立即发送每日汇报"},
             {"path": "/run_subscribe_reminder", "endpoint": self.api_run_subscribe_reminder, "auth": "bear", "methods": ["POST"], "summary": "立即推送订阅追新"},
@@ -387,8 +391,8 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/run_mp_update", "endpoint": self.api_run_mp_update, "auth": "bear", "methods": ["POST"], "summary": "立即检查MoviePilot后端/前端更新并通知"},
             {"path": "/preview_market_update", "endpoint": self.api_preview_market_update, "auth": "bear", "methods": ["POST"], "summary": "预览插件库更新"},
             {"path": "/run_market_update", "endpoint": self.api_run_market_update, "auth": "bear", "methods": ["POST"], "summary": "执行插件库更新检查并按确认写入"},
-            {"path": "/preview_plugin_uninstall", "endpoint": self.api_preview_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "预览插件残留治理范围"},
-            {"path": "/run_plugin_uninstall", "endpoint": self.api_run_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "执行插件残留治理"},
+            {"path": "/preview_plugin_uninstall", "endpoint": self.api_preview_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "预览插件卸载与残留清理范围"},
+            {"path": "/run_plugin_uninstall", "endpoint": self.api_run_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "执行插件卸载与残留清理"},
             {"path": "/run_seed_clean", "endpoint": self.api_run_seed_clean, "auth": "bear", "methods": ["POST"], "summary": "立即执行自动删种"},
             {"path": "/downloaders", "endpoint": self.api_downloaders, "auth": "bear", "methods": ["GET"], "summary": "已配置下载器列表，供自动删种下拉选择"},
             {"path": "/mediaservers", "endpoint": self.api_mediaservers, "auth": "bear", "methods": ["GET"], "summary": "已配置媒体服务器列表，供媒体库通知过滤"},
@@ -453,8 +457,8 @@ class AgentOpsAssistant(_PluginBase):
             "mpops_updates": [("更新状态预览", self.run_update_preview)],
             "mpops_market": [("插件库更新", self.run_market_update)],
             "mpops_run_all": [("每日汇报", self.run_daily_report), ("健康巡查", self.run_health_check)],
-            "mpops_plugin_preview": [("插件治理预览", self.run_plugin_uninstall_preview)],
-            "mpops_plugin_clean": [("插件残留治理", self.run_plugin_uninstall_clean)],
+            "mpops_plugin_preview": [("插件卸载预览", self.run_plugin_uninstall_preview)],
+            "mpops_plugin_clean": [("插件卸载", self.run_plugin_uninstall_clean)],
             "mpops_seed_clean": [("自动删种", self.run_seed_clean)],
             "mpops_downloader_tag": [("种子打标签", self.run_downloader_tag)],
         }
@@ -951,7 +955,7 @@ class AgentOpsAssistant(_PluginBase):
             return {"code": 1, "msg": f"仪表盘数据获取失败：{err}", "data": {}}
 
     def api_installed_plugins(self) -> Dict[str, Any]:
-        """已安装插件列表，供残留清理下拉选择（排除本插件自身）。"""
+        """已安装插件列表，供插件卸载下拉选择（排除本插件自身）。"""
         try:
             from app.core.plugin import PluginManager
             plugins = PluginManager().get_local_plugins() or []
@@ -1037,37 +1041,37 @@ class AgentOpsAssistant(_PluginBase):
 
     def api_preview_plugin_uninstall(self) -> Dict[str, Any]:
         data = self._build_plugin_uninstall_status(clean=False)
-        return {"code": 0 if data.get("success", True) else 1, "msg": "插件残留治理预览完成，未删除任何文件。", "data": data, "text": self._format_plugin_uninstall_text(data)}
+        return {"code": 0 if data.get("success", True) else 1, "msg": "插件卸载预览完成，未执行卸载或删除文件。", "data": data, "text": self._format_plugin_uninstall_text(data)}
 
     def api_run_plugin_uninstall(self) -> Dict[str, Any]:
         ok = self.run_plugin_uninstall_clean()
         data = self._build_plugin_uninstall_status(clean=False)
-        return {"code": 0 if ok else 1, "msg": "插件残留治理执行成功" if ok else "插件残留治理未执行或失败，详情请查看插件日志。", "data": data}
+        return {"code": 0 if ok else 1, "msg": "插件卸载执行成功" if ok else "插件卸载未执行或失败，详情请查看插件日志。", "data": data}
 
     def run_plugin_uninstall_preview(self) -> bool:
         data = self._build_plugin_uninstall_status(clean=False)
         text = self._format_plugin_uninstall_text(data)
-        self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件残留治理预览", text=text)
-        self._save_task_result("插件治理预览", bool(data.get("success", True)), 0 if data.get("success", True) else 1, text)
+        self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件卸载预览", text=text)
+        self._save_task_result("插件卸载预览", bool(data.get("success", True)), 0 if data.get("success", True) else 1, text)
         return bool(data.get("success", True))
 
     def run_plugin_uninstall_clean(self) -> bool:
         if not (self._plugin_uninstall_ids or self._plugin_uninstall_id):
             text = "未执行：请先在配置页选择目标插件。"
-            self._save_task_result("插件残留治理", False, 2, text)
+            self._save_task_result("插件卸载", False, 2, text)
             if self._plugin_uninstall_notify:
-                self.post_message(mtype=self._notification_type(self._plugin_uninstall_notify_type), title="MP 运维助手 - 插件残留清理未执行", text=text)
+                self.post_message(mtype=self._notification_type(self._plugin_uninstall_notify_type), title="MP 运维助手 - 插件卸载未执行", text=text)
             return False
         try:
             data = self._build_plugin_uninstall_status(clean=True)
             text = self._format_plugin_uninstall_text(data)
             if self._plugin_uninstall_notify:
-                self.post_message(mtype=self._notification_type(self._plugin_uninstall_notify_type), title="MP 运维助手 - 插件残留治理结果", text=text)
-            self._save_task_result("插件残留治理", bool(data.get("success")), 0 if data.get("success") else 1, text)
+                self.post_message(mtype=self._notification_type(self._plugin_uninstall_notify_type), title="MP 运维助手 - 插件卸载结果", text=text)
+            self._save_task_result("插件卸载", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
         except Exception as err:
-            self._save_task_result("插件残留治理", False, -1, str(err))
-            logger.error(f"AgentOpsAssistant 插件残留治理执行失败：{err}")
+            self._save_task_result("插件卸载", False, -1, str(err))
+            logger.error(f"AgentOpsAssistant 插件卸载执行失败：{err}")
             return False
 
     def run_update_preview(self) -> bool:
@@ -2985,7 +2989,12 @@ class AgentOpsAssistant(_PluginBase):
             if pid and pid not in ids:
                 ids.append(pid)
         result = {"success": True, "dry_run": not clean, "plugin_id": "、".join(ids),
-                  "note": "只治理插件残留文件/日志/备份目录；不会删除媒体文件、下载任务或 MoviePilot 核心源码。",
+                  "note": "卸载插件并按勾选项清理配置、数据、日志、备份或本地源码残留；不会删除媒体文件、下载任务或 MoviePilot 核心源码。",
+                  "remove_plugin": self._plugin_uninstall_remove_plugin,
+                  "clear_config": self._plugin_uninstall_clear_config,
+                  "clear_data": self._plugin_uninstall_clear_data,
+                  "delete_source": self._plugin_uninstall_delete_source,
+                  "uninstalled": [], "cleaned_config": [], "cleaned_data": [],
                   "candidates": [], "deleted": [], "errors": [], "backup_path": "", "blocked": ""}
         if not ids:
             result.update({"success": False, "blocked": "请先在配置页选择目标插件。"})
@@ -2994,7 +3003,7 @@ class AgentOpsAssistant(_PluginBase):
         backups: List[str] = []
         for pid in ids:
             if pid.lower() in forbidden:
-                result["errors"].append(f"{pid}: 为避免自毁或误删核心组件，禁止治理 AgentOpsAssistant / MoviePilot 本体，已跳过。")
+                result["errors"].append(f"{pid}: 为避免自毁或误删核心组件，禁止卸载 AgentOpsAssistant / MoviePilot 本体，已跳过。")
                 continue
             candidates = self._plugin_uninstall_candidates(pid)
             for item in candidates:
@@ -3002,6 +3011,16 @@ class AgentOpsAssistant(_PluginBase):
             result["candidates"].extend(candidates)
             if not clean:
                 continue
+            if self._plugin_uninstall_remove_plugin:
+                ok, message, cleaned = self._uninstall_moviepilot_plugin(pid)
+                result["uninstalled"].append({"plugin_id": pid, "success": ok, "message": message})
+                if cleaned.get("config"):
+                    result["cleaned_config"].append(pid)
+                if cleaned.get("data"):
+                    result["cleaned_data"].append(pid)
+                if not ok:
+                    result["errors"].append(f"{pid}: {message}")
+                    continue
             if candidates:
                 backups.append(self._backup_plugin_uninstall_candidates(pid, candidates))
             for item in candidates:
@@ -3019,6 +3038,85 @@ class AgentOpsAssistant(_PluginBase):
         result["backup_path"] = "；".join([b for b in backups if b])
         result["success"] = not result["errors"]
         return result
+
+    def _uninstall_moviepilot_plugin(self, plugin_id: str) -> Tuple[bool, str, Dict[str, bool]]:
+        cleaned = {"config": False, "data": False}
+        try:
+            from app.core.plugin import PluginManager
+            from app.db.systemconfig_oper import SystemConfigOper
+            from app.scheduler import Scheduler
+            from app.schemas.types import SystemConfigKey
+        except Exception as err:
+            return False, f"当前 MoviePilot 环境缺少插件卸载依赖：{err}", cleaned
+
+        messages: List[str] = []
+        config_oper = SystemConfigOper()
+        installed_plugins = config_oper.get(SystemConfigKey.UserInstalledPlugins) or []
+        remaining = [p for p in installed_plugins if p != plugin_id]
+        if len(remaining) != len(installed_plugins):
+            config_oper.set(SystemConfigKey.UserInstalledPlugins, remaining)
+            messages.append("已移出已安装列表")
+        else:
+            messages.append("未在已安装列表中")
+
+        self._remove_plugin_api_safely(plugin_id)
+        self._remove_plugin_job_safely(Scheduler(), plugin_id)
+        self._remove_plugin_from_folders_safely(config_oper, SystemConfigKey, plugin_id)
+
+        plugin_manager = PluginManager()
+        if self._plugin_uninstall_clear_config:
+            try:
+                cleaned["config"] = bool(plugin_manager.delete_plugin_config(plugin_id))
+                messages.append("配置已清理" if cleaned["config"] else "配置未找到")
+            except Exception as err:
+                messages.append(f"配置清理失败：{err}")
+        if self._plugin_uninstall_clear_data:
+            try:
+                cleaned["data"] = bool(plugin_manager.delete_plugin_data(plugin_id))
+                messages.append("数据已清理" if cleaned["data"] else "数据未找到")
+            except Exception as err:
+                messages.append(f"数据清理失败：{err}")
+        try:
+            plugin_manager.remove_plugin(plugin_id)
+            messages.append("运行实例已移除")
+        except Exception as err:
+            return False, f"移除运行实例失败：{err}", cleaned
+        return True, "；".join(messages), cleaned
+
+    @staticmethod
+    def _remove_plugin_api_safely(plugin_id: str):
+        try:
+            from app.api.endpoints.plugin import remove_plugin_api
+            remove_plugin_api(plugin_id)
+        except Exception as err:
+            logger.debug(f"AgentOpsAssistant 移除插件 API 路由跳过：{plugin_id} {err}")
+
+    @staticmethod
+    def _remove_plugin_job_safely(scheduler: Any, plugin_id: str):
+        try:
+            if hasattr(scheduler, "remove_plugin_job"):
+                scheduler.remove_plugin_job(plugin_id)
+        except Exception as err:
+            logger.warning(f"AgentOpsAssistant 移除插件调度失败：{plugin_id} {err}")
+
+    @staticmethod
+    def _remove_plugin_from_folders_safely(config_oper: Any, system_config_key: Any, plugin_id: str):
+        try:
+            folders_key = getattr(system_config_key, "PluginFolders", "PluginFolders")
+            folders = config_oper.get(folders_key) or {}
+            modified = False
+            for _, folder_data in folders.items():
+                if isinstance(folder_data, dict) and isinstance(folder_data.get("plugins"), list):
+                    if plugin_id in folder_data["plugins"]:
+                        folder_data["plugins"].remove(plugin_id)
+                        modified = True
+                elif isinstance(folder_data, list) and plugin_id in folder_data:
+                    folder_data.remove(plugin_id)
+                    modified = True
+            if modified:
+                config_oper.set(folders_key, folders)
+        except Exception as err:
+            logger.warning(f"AgentOpsAssistant 从插件文件夹移除失败：{plugin_id} {err}")
 
     def _plugin_uninstall_candidates(self, plugin_id: str) -> List[Dict[str, Any]]:
         lower = plugin_id.lower()
@@ -3092,18 +3190,34 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _format_plugin_uninstall_text(data: Dict[str, Any]) -> str:
-        title = "🧩 插件残留治理预览" if data.get("dry_run") else "🧩 插件残留治理结果"
+        title = "🧩 插件卸载预览" if data.get("dry_run") else "🧩 插件卸载结果"
         lines = [title, f"⦁ 插件ID：{data.get('plugin_id') or '未填写'}", f"⦁ 说明：{data.get('note')}"]
         if data.get("blocked"):
             lines.append(f"⦁ 阻止原因：{data.get('blocked')}")
             return "\n".join(lines)
+        actions = []
+        actions.append("卸载插件" if data.get("remove_plugin") else "仅清残留")
+        if data.get("clear_config"):
+            actions.append("清配置")
+        if data.get("clear_data"):
+            actions.append("清数据")
+        actions.append("删本地源码" if data.get("delete_source") else "保留本地源码")
+        lines.append(f"⦁ 动作：{' ｜ '.join(actions)}")
         candidates = data.get("candidates") or []
         lines.append(f"⦁ 候选残留：{len(candidates)} 项")
         for item in candidates[:8]:
             lines.append(f"⦁ {item.get('kind')}｜{item.get('type')}｜{item.get('size_text')}｜{item.get('path')}")
         if data.get("dry_run"):
-            lines.append("⦁ 状态：仅预览，未删除。")
+            lines.append("⦁ 状态：仅预览，未卸载或删除")
         else:
+            uninstalled = data.get("uninstalled") or []
+            if uninstalled:
+                ok_count = sum(1 for item in uninstalled if item.get("success"))
+                lines.append(f"⦁ 卸载：{ok_count}/{len(uninstalled)} 个")
+                for item in uninstalled[:5]:
+                    lines.append(f"⦁ {item.get('plugin_id')}｜{item.get('message')}")
+            if data.get("cleaned_config") or data.get("cleaned_data"):
+                lines.append(f"⦁ 配置/数据：配置 {len(data.get('cleaned_config') or [])} 个 ｜ 数据 {len(data.get('cleaned_data') or [])} 个")
             lines.append(f"⦁ 已删除：{len(data.get('deleted') or [])} 项")
             lines.append(f"⦁ 备份：{data.get('backup_path') or '未生成'}")
         if data.get("errors"):
@@ -3486,7 +3600,7 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _slug(name: str) -> str:
-        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "订阅提醒": "subscribe_reminder", "订阅追新": "subscribe_reminder", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "站点数据统计": "site_stat", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "自动删种": "seed_clean", "订阅规则填充": "subfill", "清理填充历史": "subfill_clear_history", "清理已处理": "subfill_clear_handled", "种子打标签": "downloader_tag"}.get(name, "task")
+        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "订阅提醒": "subscribe_reminder", "订阅追新": "subscribe_reminder", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "站点数据统计": "site_stat", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件卸载预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "插件卸载": "plugin_uninstall", "自动删种": "seed_clean", "订阅规则填充": "subfill", "清理填充历史": "subfill_clear_history", "清理已处理": "subfill_clear_handled", "种子打标签": "downloader_tag"}.get(name, "task")
 
     @staticmethod
     def _parse_csv(value: Any) -> List[str]:
@@ -3496,4 +3610,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_msgtype": "Plugin", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_msgtype": "Plugin", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_remove_plugin": True, "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}
