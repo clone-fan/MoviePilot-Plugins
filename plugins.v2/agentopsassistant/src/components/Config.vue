@@ -197,6 +197,7 @@ const defaults = {
   msgnotify_enabled: false,
   msgnotify_types: [],
   msgnotify_servers: [],
+  dltag_enabled: false,
   dltag_downloaders: [],
   dltag_prefix: '',
   dltag_notify: true,

@@ -150,6 +150,8 @@ class AgentOpsAssistant(_PluginBase):
     _msgnotify_enabled = False
     _msgnotify_types: List[str] = []
     _msgnotify_servers: List[str] = []
+    _dltag_enabled = False
+    _dltag_enabled = False
     _dltag_downloaders: List[str] = []
     _dltag_prefix = ""
     _dltag_notify = True
@@ -287,7 +289,9 @@ class AgentOpsAssistant(_PluginBase):
         self._subfill_confs = self._parse_subfill_confs(self._subfill_category_confs)
         self._msgnotify_enabled = bool(config.get("msgnotify_enabled", False))
         self._msgnotify_types = self._parse_csv(config.get("msgnotify_types"))
+        self._dltag_enabled = bool(config.get("dltag_enabled", False))
         self._msgnotify_servers = self._parse_csv(config.get("msgnotify_servers"))
+        self._dltag_enabled = bool(config.get("dltag_enabled", False))
         self._dltag_downloaders = self._parse_csv(config.get("dltag_downloaders"))
         self._dltag_prefix = str(config.get("dltag_prefix") or "").strip()
         self._dltag_notify = bool(config.get("dltag_notify", True))
