@@ -278,15 +278,16 @@ const seedActionItems = [{ title: '暂停', value: 'pause' }, { title: '删除�
 const subfillDetailItems = ['分辨率', '资源质量', '特效', '制作组', '站点'].map(v => ({ title: v, value: v }))
 const msgGroupItems = ['新入库', '开始播放', '停止播放', '登录成功', '登录失败', '标记'].map(v => ({ title: v, value: v }))
 const reportSections = [
-  { key: 'report_version', label: 'MoviePilot 版本' },
-  { key: 'report_site_status', label: '站点状态' },
-  { key: 'report_site_increment', label: '站点增量' },
-  { key: 'report_today_download', label: '今日下载' },
-  { key: 'report_transfer', label: '入库整理' },
-  { key: 'report_subscribe', label: '订阅追新' },
-  { key: 'report_storage', label: '存储空间' },
-  { key: 'report_media_stat', label: '媒体统计' },
-  { key: 'report_summary', label: '今日摘要' },
+  { key: 'report_version', label: 'MoviePilot 版本', group: '系统', requires: null },
+  { key: 'report_site_status', label: '站点状态', group: '站点', requires: null },
+  { key: 'report_site_increment', label: '站点增量', group: '站点', requires: 'site_stat' },
+  { key: 'report_today_download', label: '今日下载', group: '下载', requires: null },
+  { key: 'report_transfer', label: '入库整理', group: '媒体', requires: null },
+  { key: 'report_subscribe', label: '订阅追新', group: '订阅', requires: 'subscribe_reminder' },
+  { key: 'report_storage', label: '存储空间', group: '系统', requires: null },
+  { key: 'report_media_stat', label: '媒体统计', group: '媒体', requires: null },
+  { key: 'report_health', label: '系统健康', group: '系统', requires: 'health_check' },
+  { key: 'report_summary', label: '今日摘要', group: '系统', requires: null },
 ]
 
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
@@ -424,12 +425,40 @@ onMounted(() => {
 
                 <VDivider class="my-4" />
                 <div class="aoa-section-title">汇报栏目</div>
-                <div class="aoa-hint mb-2">每日汇报是聚合中心：逐栏目勾选要并入日报的内容（关掉则该栏目不出现在汇报里）。</div>
-                <VRow>
-                  <VCol v-for="s in reportSections" :key="s.key" cols="6" md="4">
-                    <VSwitch v-model="form[s.key]" color="primary" inset hide-details density="compact" :label="s.label" />
-                  </VCol>
-                </VRow>
+                <div class="aoa-hint mb-3">每日汇报是聚合中心：逐栏目勾选要并入日报的内容。关掉则该栏目不出现在汇报里。</div>
+                <VTable class="text-caption">
+                  <thead>
+                    <tr style="background-color: rgba(0,0,0,0.02)">
+                      <th scope="col" class="px-3 py-2" style="text-align: left">栏目</th>
+                      <th scope="col" class="px-3 py-2" style="text-align: center; width: 50px">启用</th>
+                      <th scope="col" class="px-3 py-2" style="text-align: left">组件</th>
+                      <th scope="col" class="px-3 py-2" style="text-align: left">备注</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="s in reportSections" :key="s.key">
+                      <td class="px-3 py-2">{{ s.label }}</td>
+                      <td class="px-3 py-2" style="text-align: center">
+                        <VCheckbox
+                          v-model="form[s.key]"
+                          color="primary"
+                          hide-details
+                          density="compact"
+                          :disabled="s.requires && !form[`${s.requires}_enabled`]"
+                        />
+                      </td>
+                      <td class="px-3 py-2">
+                        <span class="text-x-small" style="color: #666">[{{ s.group }}]</span>
+                      </td>
+                      <td class="px-3 py-2" style="color: #999; font-size: 0.75rem">
+                        <span v-if="s.requires && !form[`${s.requires}_enabled`]">
+                          需启用对应组件
+                        </span>
+                        <span v-else>—</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </VTable>
 
                 <VDivider class="my-4" />
                 <div class="aoa-section-title">手动触发</div>
