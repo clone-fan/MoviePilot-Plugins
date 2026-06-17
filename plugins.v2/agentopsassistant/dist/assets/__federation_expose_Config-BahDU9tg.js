@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-DGWTz_NE.js';
 
-const {resolveComponent:_resolveComponent,createVNode:_createVNode,withCtx:_withCtx,createTextVNode:_createTextVNode,createElementVNode:_createElementVNode,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock,createElementBlock:_createElementBlock,toDisplayString:_toDisplayString,createBlock:_createBlock,normalizeClass:_normalizeClass,createCommentVNode:_createCommentVNode,vShow:_vShow,withDirectives:_withDirectives,unref:_unref} = await importShared('vue');
+const {resolveComponent:_resolveComponent,createVNode:_createVNode,withCtx:_withCtx,createTextVNode:_createTextVNode,createElementVNode:_createElementVNode,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock,createElementBlock:_createElementBlock,toDisplayString:_toDisplayString,createBlock:_createBlock,normalizeClass:_normalizeClass,createCommentVNode:_createCommentVNode,vShow:_vShow,withDirectives:_withDirectives,mergeProps:_mergeProps,unref:_unref} = await importShared('vue');
 
 
 const _hoisted_1 = { class: "aoa-config" };
@@ -491,22 +491,13 @@ const healthSelectedCount = computed(() => {
   return selected.length || healthCheckItems.length
 });
 
-function selectionValue(item) {
-  return item?.raw?.value ?? item?.value ?? item
-}
-
 function selectionTitle(item) {
-  return item?.raw?.title ?? item?.title ?? String(selectionValue(item) || '')
+  return item?.raw?.title ?? item?.title ?? String(item?.raw?.value ?? item?.value ?? item ?? '')
 }
 
 function selectionMoreCount(key, limit = 2) {
   const selected = Array.isArray(form[key]) ? form[key] : [];
   return Math.max(0, selected.length - limit)
-}
-
-function removeSelection(key, value) {
-  const selected = Array.isArray(form[key]) ? form[key] : [];
-  form[key] = selected.filter(item => item !== value);
 }
 
 watch(() => props.initialConfig, value => {
@@ -1094,21 +1085,17 @@ return (_ctx, _cache) => {
                           clearable: "",
                           disabled: !form.health_check_enabled
                         }, {
-                          selection: _withCtx(({ item, index }) => [
+                          chip: _withCtx(({ item, index, props }) => [
                             (index < 2)
-                              ? (_openBlock(), _createBlock(_component_VChip, {
-                                  key: 0,
+                              ? (_openBlock(), _createBlock(_component_VChip, _mergeProps({ key: 0 }, props, {
                                   class: "aoa-health-selection-chip",
-                                  size: "small",
-                                  variant: "tonal",
-                                  closable: "",
-                                  "onClick:close": $event => (removeSelection('health_check_items', selectionValue(item)))
-                                }, {
+                                  variant: "tonal"
+                                }), {
                                   default: _withCtx(() => [
                                     _createTextVNode(_toDisplayString(selectionTitle(item)), 1)
                                   ]),
                                   _: 2
-                                }, 1032, ["onClick:close"]))
+                                }, 1040))
                               : (index === 2)
                                 ? (_openBlock(), _createElementBlock("span", _hoisted_31, "+" + _toDisplayString(selectionMoreCount('health_check_items')), 1))
                                 : _createCommentVNode("", true)
@@ -1134,21 +1121,17 @@ return (_ctx, _cache) => {
                           clearable: "",
                           disabled: !form.health_check_enabled
                         }, {
-                          selection: _withCtx(({ item, index }) => [
+                          chip: _withCtx(({ item, index, props }) => [
                             (index < 2)
-                              ? (_openBlock(), _createBlock(_component_VChip, {
-                                  key: 0,
+                              ? (_openBlock(), _createBlock(_component_VChip, _mergeProps({ key: 0 }, props, {
                                   class: "aoa-health-selection-chip",
-                                  size: "small",
-                                  variant: "tonal",
-                                  closable: "",
-                                  "onClick:close": $event => (removeSelection('health_check_database_targets', selectionValue(item)))
-                                }, {
+                                  variant: "tonal"
+                                }), {
                                   default: _withCtx(() => [
                                     _createTextVNode(_toDisplayString(selectionTitle(item)), 1)
                                   ]),
                                   _: 2
-                                }, 1032, ["onClick:close"]))
+                                }, 1040))
                               : (index === 2)
                                 ? (_openBlock(), _createElementBlock("span", _hoisted_32, "+" + _toDisplayString(selectionMoreCount('health_check_database_targets')), 1))
                                 : _createCommentVNode("", true)
@@ -1167,21 +1150,17 @@ return (_ctx, _cache) => {
                           clearable: "",
                           disabled: !form.health_check_enabled
                         }, {
-                          selection: _withCtx(({ item, index }) => [
+                          chip: _withCtx(({ item, index, props }) => [
                             (index < 2)
-                              ? (_openBlock(), _createBlock(_component_VChip, {
-                                  key: 0,
+                              ? (_openBlock(), _createBlock(_component_VChip, _mergeProps({ key: 0 }, props, {
                                   class: "aoa-health-selection-chip",
-                                  size: "small",
-                                  variant: "tonal",
-                                  closable: "",
-                                  "onClick:close": $event => (removeSelection('health_check_storage_targets', selectionValue(item)))
-                                }, {
+                                  variant: "tonal"
+                                }), {
                                   default: _withCtx(() => [
                                     _createTextVNode(_toDisplayString(selectionTitle(item)), 1)
                                   ]),
                                   _: 2
-                                }, 1032, ["onClick:close"]))
+                                }, 1040))
                               : (index === 2)
                                 ? (_openBlock(), _createElementBlock("span", _hoisted_33, "+" + _toDisplayString(selectionMoreCount('health_check_storage_targets')), 1))
                                 : _createCommentVNode("", true)
@@ -1200,21 +1179,17 @@ return (_ctx, _cache) => {
                           clearable: "",
                           disabled: !form.health_check_enabled
                         }, {
-                          selection: _withCtx(({ item, index }) => [
+                          chip: _withCtx(({ item, index, props }) => [
                             (index < 2)
-                              ? (_openBlock(), _createBlock(_component_VChip, {
-                                  key: 0,
+                              ? (_openBlock(), _createBlock(_component_VChip, _mergeProps({ key: 0 }, props, {
                                   class: "aoa-health-selection-chip",
-                                  size: "small",
-                                  variant: "tonal",
-                                  closable: "",
-                                  "onClick:close": $event => (removeSelection('health_check_directory_targets', selectionValue(item)))
-                                }, {
+                                  variant: "tonal"
+                                }), {
                                   default: _withCtx(() => [
                                     _createTextVNode(_toDisplayString(selectionTitle(item)), 1)
                                   ]),
                                   _: 2
-                                }, 1032, ["onClick:close"]))
+                                }, 1040))
                               : (index === 2)
                                 ? (_openBlock(), _createElementBlock("span", _hoisted_34, "+" + _toDisplayString(selectionMoreCount('health_check_directory_targets')), 1))
                                 : _createCommentVNode("", true)
@@ -3042,6 +3017,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-a665896a"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-84eafbfc"]]);
 
 export { Config as default };

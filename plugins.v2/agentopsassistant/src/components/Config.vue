@@ -411,22 +411,13 @@ const healthSelectedCount = computed(() => {
   return selected.length || healthCheckItems.length
 })
 
-function selectionValue(item) {
-  return item?.raw?.value ?? item?.value ?? item
-}
-
 function selectionTitle(item) {
-  return item?.raw?.title ?? item?.title ?? String(selectionValue(item) || '')
+  return item?.raw?.title ?? item?.title ?? String(item?.raw?.value ?? item?.value ?? item ?? '')
 }
 
 function selectionMoreCount(key, limit = 2) {
   const selected = Array.isArray(form[key]) ? form[key] : []
   return Math.max(0, selected.length - limit)
-}
-
-function removeSelection(key, value) {
-  const selected = Array.isArray(form[key]) ? form[key] : []
-  form[key] = selected.filter(item => item !== value)
 }
 
 watch(() => props.initialConfig, value => {
@@ -697,9 +688,8 @@ onMounted(() => {
                   <div class="aoa-health-scope-grid">
                     <VSelect v-model="form.health_check_items" :items="healthCheckItems" class="aoa-health-field-third aoa-health-select"
                       label="巡查项目" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
-                      <template #selection="{ item, index }">
-                        <VChip v-if="index < 2" class="aoa-health-selection-chip" size="small" variant="tonal" closable
-                          @click:close="removeSelection('health_check_items', selectionValue(item))">
+                      <template #chip="{ item, index, props }">
+                        <VChip v-if="index < 2" v-bind="props" class="aoa-health-selection-chip" variant="tonal">
                           {{ selectionTitle(item) }}
                         </VChip>
                         <span v-else-if="index === 2" class="aoa-health-selection-more">+{{ selectionMoreCount('health_check_items') }}</span>
@@ -709,9 +699,8 @@ onMounted(() => {
                       :disabled="!form.health_check_enabled" />
                     <VSelect v-model="form.health_check_database_targets" :items="healthDatabaseTargets" class="aoa-health-field-third aoa-health-select"
                       label="数据库" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
-                      <template #selection="{ item, index }">
-                        <VChip v-if="index < 2" class="aoa-health-selection-chip" size="small" variant="tonal" closable
-                          @click:close="removeSelection('health_check_database_targets', selectionValue(item))">
+                      <template #chip="{ item, index, props }">
+                        <VChip v-if="index < 2" v-bind="props" class="aoa-health-selection-chip" variant="tonal">
                           {{ selectionTitle(item) }}
                         </VChip>
                         <span v-else-if="index === 2" class="aoa-health-selection-more">+{{ selectionMoreCount('health_check_database_targets') }}</span>
@@ -719,9 +708,8 @@ onMounted(() => {
                     </VSelect>
                     <VSelect v-model="form.health_check_storage_targets" :items="healthStorageTargets" class="aoa-health-field-half aoa-health-select"
                       label="存储空间" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
-                      <template #selection="{ item, index }">
-                        <VChip v-if="index < 2" class="aoa-health-selection-chip" size="small" variant="tonal" closable
-                          @click:close="removeSelection('health_check_storage_targets', selectionValue(item))">
+                      <template #chip="{ item, index, props }">
+                        <VChip v-if="index < 2" v-bind="props" class="aoa-health-selection-chip" variant="tonal">
                           {{ selectionTitle(item) }}
                         </VChip>
                         <span v-else-if="index === 2" class="aoa-health-selection-more">+{{ selectionMoreCount('health_check_storage_targets') }}</span>
@@ -729,9 +717,8 @@ onMounted(() => {
                     </VSelect>
                     <VSelect v-model="form.health_check_directory_targets" :items="healthDirectoryTargets" class="aoa-health-field-half aoa-health-select"
                       label="目录权限" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
-                      <template #selection="{ item, index }">
-                        <VChip v-if="index < 2" class="aoa-health-selection-chip" size="small" variant="tonal" closable
-                          @click:close="removeSelection('health_check_directory_targets', selectionValue(item))">
+                      <template #chip="{ item, index, props }">
+                        <VChip v-if="index < 2" v-bind="props" class="aoa-health-selection-chip" variant="tonal">
                           {{ selectionTitle(item) }}
                         </VChip>
                         <span v-else-if="index === 2" class="aoa-health-selection-more">+{{ selectionMoreCount('health_check_directory_targets') }}</span>
