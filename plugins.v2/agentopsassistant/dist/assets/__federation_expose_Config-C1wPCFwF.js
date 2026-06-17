@@ -512,14 +512,15 @@ return (_ctx, _cache) => {
                 label: form.enabled ? '已启用' : '已停用'
               }, null, 8, ["modelValue", "label"]),
               _createVNode(_component_VBtn, {
-                variant: "tonal",
+                size: "small",
+                variant: "text",
                 color: "primary",
                 "prepend-icon": "mdi-view-dashboard-outline",
-                class: "text-none",
+                class: "text-none aoa-header-link",
                 onClick: _cache[1] || (_cache[1] = $event => (emit('switch')))
               }, {
                 default: _withCtx(() => [...(_cache[116] || (_cache[116] = [
-                  _createTextVNode(" 返回仪表盘 ", -1)
+                  _createTextVNode(" 仪表盘 ", -1)
                 ]))]),
                 _: 1
               }),
@@ -2993,6 +2994,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-ef1434fc"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-2be82906"]]);
 
 export { Config as default };

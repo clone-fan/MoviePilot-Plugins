@@ -392,8 +392,8 @@ onMounted(() => {
               inset
               :label="form.enabled ? '已启用' : '已停用'"
             />
-            <VBtn variant="tonal" color="primary" prepend-icon="mdi-view-dashboard-outline" class="text-none" @click="emit('switch')">
-              返回仪表盘
+            <VBtn size="small" variant="text" color="primary" prepend-icon="mdi-view-dashboard-outline" class="text-none aoa-header-link" @click="emit('switch')">
+              仪表盘
             </VBtn>
             <VBtn icon="mdi-close" variant="text" @click="emit('close')" />
           </div>
@@ -1291,6 +1291,23 @@ onMounted(() => {
 }
 .aoa-header {
   padding: 16px 20px;
+}
+.aoa-header-link {
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+.aoa-header-link :deep(.v-btn__prepend) {
+  margin-inline-end: 5px;
+}
+.aoa-header-link:hover,
+.aoa-header-link:focus-visible {
+  background: rgba(var(--v-theme-primary), 0.12);
+  box-shadow: 0 6px 18px rgba(var(--v-theme-primary), 0.12);
 }
 .aoa-body {
   display: flex;
