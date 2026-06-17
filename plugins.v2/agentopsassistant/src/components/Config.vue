@@ -334,6 +334,19 @@ const healthDirectoryTargets = [
   { title: '下载目录', value: 'download' },
   { title: '媒体库目录', value: 'library' },
 ]
+const healthChipLabels = {
+  数据库: '数据库',
+  存储空间: '存储',
+  目录权限: '目录',
+  current: '当前主库',
+  sqlite: 'SQLite',
+  postgresql: 'PG 主库',
+  storages: '存储配置',
+  config: '配置目录',
+  plugin: '插件目录',
+  download: '下载目录',
+  library: '媒体库',
+}
 const reportSections = [
   { key: 'report_version', label: 'MoviePilot 版本', component: '每日汇报', requires: null, note: '基础版本信息' },
   { key: 'report_site_status', label: '站点状态', component: '站点数据统计', requires: null, note: '逐站状态' },
@@ -411,13 +424,14 @@ const healthSelectedCount = computed(() => {
   return selected.length || healthCheckItems.length
 })
 
-function selectionTitle(item) {
-  return item?.raw?.title ?? item?.title ?? String(item?.raw?.value ?? item?.value ?? item ?? '')
+function selectionValue(item) {
+  return item?.raw?.value ?? item?.value ?? item?.props?.value ?? item
 }
 
-function selectionMoreCount(key, limit = 2) {
-  const selected = Array.isArray(form[key]) ? form[key] : []
-  return Math.max(0, selected.length - limit)
+function selectionTitle(item) {
+  const value = selectionValue(item)
+  const title = healthChipLabels[value] || item?.props?.title || item?.raw?.title || item?.title || value
+  return String(title || '')
 }
 
 watch(() => props.initialConfig, value => {
@@ -686,42 +700,38 @@ onMounted(() => {
                     </div>
                   </div>
                   <div class="aoa-health-scope-grid">
-                    <VSelect v-model="form.health_check_items" :items="healthCheckItems" class="aoa-health-field-third aoa-health-select"
+                    <VSelect v-model="form.health_check_items" :items="healthCheckItems" class="aoa-health-field-full aoa-health-select"
                       label="巡查项目" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
-                      <template #chip="{ item, index, props }">
-                        <VChip v-if="index < 2" v-bind="props" class="aoa-health-selection-chip" variant="tonal">
+                      <template #chip="{ item, props }">
+                        <VChip v-bind="props" class="aoa-health-selection-chip" variant="tonal">
                           {{ selectionTitle(item) }}
                         </VChip>
-                        <span v-else-if="index === 2" class="aoa-health-selection-more">+{{ selectionMoreCount('health_check_items') }}</span>
                       </template>
                     </VSelect>
                     <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)" class="aoa-health-field-third"
                       :disabled="!form.health_check_enabled" />
                     <VSelect v-model="form.health_check_database_targets" :items="healthDatabaseTargets" class="aoa-health-field-third aoa-health-select"
                       label="数据库" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
-                      <template #chip="{ item, index, props }">
-                        <VChip v-if="index < 2" v-bind="props" class="aoa-health-selection-chip" variant="tonal">
+                      <template #chip="{ item, props }">
+                        <VChip v-bind="props" class="aoa-health-selection-chip" variant="tonal">
                           {{ selectionTitle(item) }}
                         </VChip>
-                        <span v-else-if="index === 2" class="aoa-health-selection-more">+{{ selectionMoreCount('health_check_database_targets') }}</span>
                       </template>
                     </VSelect>
-                    <VSelect v-model="form.health_check_storage_targets" :items="healthStorageTargets" class="aoa-health-field-half aoa-health-select"
+                    <VSelect v-model="form.health_check_storage_targets" :items="healthStorageTargets" class="aoa-health-field-full aoa-health-select"
                       label="存储空间" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
-                      <template #chip="{ item, index, props }">
-                        <VChip v-if="index < 2" v-bind="props" class="aoa-health-selection-chip" variant="tonal">
+                      <template #chip="{ item, props }">
+                        <VChip v-bind="props" class="aoa-health-selection-chip" variant="tonal">
                           {{ selectionTitle(item) }}
                         </VChip>
-                        <span v-else-if="index === 2" class="aoa-health-selection-more">+{{ selectionMoreCount('health_check_storage_targets') }}</span>
                       </template>
                     </VSelect>
-                    <VSelect v-model="form.health_check_directory_targets" :items="healthDirectoryTargets" class="aoa-health-field-half aoa-health-select"
+                    <VSelect v-model="form.health_check_directory_targets" :items="healthDirectoryTargets" class="aoa-health-field-full aoa-health-select"
                       label="目录权限" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
-                      <template #chip="{ item, index, props }">
-                        <VChip v-if="index < 2" v-bind="props" class="aoa-health-selection-chip" variant="tonal">
+                      <template #chip="{ item, props }">
+                        <VChip v-bind="props" class="aoa-health-selection-chip" variant="tonal">
                           {{ selectionTitle(item) }}
                         </VChip>
-                        <span v-else-if="index === 2" class="aoa-health-selection-more">+{{ selectionMoreCount('health_check_directory_targets') }}</span>
                       </template>
                     </VSelect>
                     <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number" class="aoa-health-field-third"
@@ -1752,45 +1762,14 @@ onMounted(() => {
 .aoa-health-field-half {
   grid-column: span 3;
 }
-.aoa-health-scope-grid :deep(.v-input) {
-  min-width: 0;
-}
-.aoa-health-select :deep(.v-field) {
-  min-height: 56px;
-}
-.aoa-health-select :deep(.v-field__input) {
-  flex-wrap: nowrap;
-  min-width: 0;
-  min-height: 40px;
-  max-height: 40px;
-  align-items: center;
-  overflow: hidden;
-  padding-top: 0;
-  padding-bottom: 0;
+.aoa-health-field-full {
+  grid-column: 1 / -1;
 }
 .aoa-health-selection-chip {
-  flex: 0 1 auto;
-  max-width: min(132px, 42%);
+  flex: 0 0 auto;
+  max-width: none;
   margin-inline-end: 4px;
   color: rgba(var(--v-theme-on-surface), 0.78);
-}
-.aoa-health-selection-chip :deep(.v-chip__content) {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.aoa-health-selection-more {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  margin-inline-start: 2px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 750;
-  color: rgba(var(--v-theme-on-surface), 0.58);
-  background: rgba(var(--v-theme-on-surface), 0.075);
 }
 .aoa-table-wrap {
   position: relative;
