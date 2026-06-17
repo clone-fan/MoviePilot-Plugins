@@ -41,17 +41,16 @@ const _hoisted_28 = { class: "task-title-wrap" };
 const _hoisted_29 = { class: "task-name" };
 const _hoisted_30 = { class: "task-meta" };
 const _hoisted_31 = { class: "task-foot" };
-const _hoisted_32 = { class: "task-summary" };
-const _hoisted_33 = {
+const _hoisted_32 = {
   key: 0,
   class: "panel-note"
 };
-const _hoisted_34 = {
+const _hoisted_33 = {
   key: 1,
   class: "health-grid"
 };
-const _hoisted_35 = { class: "health-card-head" };
-const _hoisted_36 = {
+const _hoisted_34 = { class: "health-card-head" };
+const _hoisted_35 = {
   key: 2,
   class: "empty-soft"
 };
@@ -401,7 +400,7 @@ return (_ctx, _cache) => {
                 default: _withCtx(() => [
                   _createVNode(_component_VCard, {
                     elevation: "0",
-                    class: "glass-panel h-100"
+                    class: "glass-panel site-stat-panel h-100"
                   }, {
                     default: _withCtx(() => [
                       _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
@@ -713,8 +712,7 @@ return (_ctx, _cache) => {
                                         ]),
                                         _: 2
                                       }, 1032, ["color"])
-                                    ]),
-                                    _createElementVNode("div", _hoisted_32, _toDisplayString(task.last_summary), 1)
+                                    ])
                                   ]))
                                 }), 128))
                               ])
@@ -762,16 +760,16 @@ return (_ctx, _cache) => {
                       _createVNode(_component_VCardText, { class: "compact-card-text" }, {
                         default: _withCtx(() => [
                           (data.health.time)
-                            ? (_openBlock(), _createElementBlock("div", _hoisted_33, "最近 " + _toDisplayString(data.health.time), 1))
+                            ? (_openBlock(), _createElementBlock("div", _hoisted_32, "最近 " + _toDisplayString(data.health.time), 1))
                             : _createCommentVNode("", true),
                           (healthItems.value.length)
-                            ? (_openBlock(), _createElementBlock("div", _hoisted_34, [
+                            ? (_openBlock(), _createElementBlock("div", _hoisted_33, [
                                 (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(healthItems.value, (item) => {
                                   return (_openBlock(), _createElementBlock("div", {
                                     key: item.name,
                                     class: _normalizeClass(["health-card", { 'health-card--bad': !item.ok }])
                                   }, [
-                                    _createElementVNode("div", _hoisted_35, [
+                                    _createElementVNode("div", _hoisted_34, [
                                       _createVNode(_component_VIcon, {
                                         icon: item.icon,
                                         color: item.color,
@@ -806,7 +804,7 @@ return (_ctx, _cache) => {
                                   ], 2))
                                 }), 128))
                               ]))
-                            : (_openBlock(), _createElementBlock("div", _hoisted_36, "暂无记录"))
+                            : (_openBlock(), _createElementBlock("div", _hoisted_35, "暂无记录"))
                         ]),
                         _: 1
                       })
@@ -828,6 +826,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-0ed8a86e"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-2c53d16a"]]);
 
 export { Page as default };

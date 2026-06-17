@@ -247,7 +247,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
       <!-- 站点数据统计 + 手动触发：左右各一个 -->
       <VRow dense class="mt-2 dashboard-main-grid">
         <VCol cols="12" lg="8">
-          <VCard elevation="0" class="glass-panel h-100">
+          <VCard elevation="0" class="glass-panel site-stat-panel h-100">
             <VCardTitle class="compact-card-title">
               <VIcon icon="mdi-chart-pie" color="primary" class="me-2" />站点数据统计
               <VSpacer />
@@ -376,7 +376,6 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
                     <span>最近 {{ task.last_time || '—' }}</span>
                     <VChip size="x-small" variant="tonal" :color="task.color">{{ task.state }}</VChip>
                   </div>
-                  <div class="task-summary">{{ task.last_summary }}</div>
                 </div>
               </div>
             </VCardText>
@@ -483,6 +482,17 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   box-shadow:
     inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.055),
     0 10px 24px rgba(0, 0, 0, 0.026);
+}
+.site-stat-panel {
+  border-color: rgba(var(--v-theme-error), 0.14);
+  background:
+    radial-gradient(circle at 8% 10%, rgba(var(--v-theme-error), 0.13), transparent 34%),
+    radial-gradient(circle at 78% 0%, rgba(var(--v-theme-error), 0.055), transparent 32%),
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.44), rgba(var(--v-theme-surface), 0.25)),
+    rgba(var(--v-theme-on-surface), 0.012);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.06),
+    0 12px 28px rgba(0, 0, 0, 0.030);
 }
 .compact-card-title {
   display: flex;
@@ -596,12 +606,15 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   gap: 5px 7px;
   min-height: 48px;
   padding: 7px 9px;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.09);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.13);
   border-radius: 12px;
   background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.30), rgba(var(--v-theme-surface), 0.18)),
+    linear-gradient(180deg, rgba(var(--v-theme-on-surface), 0.060), rgba(var(--v-theme-on-surface), 0.024)),
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.40), rgba(var(--v-theme-surface), 0.24)),
     rgba(var(--v-theme-on-surface), 0.018);
-  box-shadow: inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.034);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.065),
+    0 8px 20px rgba(0, 0, 0, 0.018);
 }
 .site-summary-item span {
   min-width: 0;
@@ -803,7 +816,6 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .task-meta,
 .panel-note,
 .task-foot,
-.task-summary,
 .health-detail,
 .empty-soft {
   color: rgba(var(--v-theme-on-surface), 0.55);
@@ -821,12 +833,6 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.task-summary {
-  margin-top: 5px;
-  overflow: auto;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 .health-grid {
   display: grid;
