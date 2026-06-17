@@ -1359,6 +1359,14 @@ onMounted(() => {
 .aoa-config :deep(*)::-webkit-scrollbar-corner {
   background: transparent;
 }
+.aoa-config :deep(*)::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+  display: none;
+}
+.aoa-config :deep(*)::-webkit-scrollbar-track-piece {
+  background: transparent;
+}
 .aoa-card {
   border-radius: 18px;
   overflow: hidden;
@@ -1401,7 +1409,24 @@ onMounted(() => {
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 44px;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.aoa-nav-scroll::-webkit-scrollbar {
+  width: 1px;
+  height: 1px;
+}
+.aoa-nav-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.10);
+}
+.aoa-nav-scroll::-webkit-scrollbar-track,
+.aoa-nav-scroll::-webkit-scrollbar-corner,
+.aoa-nav-scroll::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+  background: transparent;
+  display: none;
 }
 .aoa-nav-item {
   margin: 3px 10px;
@@ -1459,7 +1484,24 @@ onMounted(() => {
   overflow-x: hidden;
   overflow-y: auto;
   padding-bottom: 2px;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.aoa-subtab-list::-webkit-scrollbar {
+  width: 1px;
+  height: 1px;
+}
+.aoa-subtab-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.10);
+}
+.aoa-subtab-list::-webkit-scrollbar-track,
+.aoa-subtab-list::-webkit-scrollbar-corner,
+.aoa-subtab-list::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+  background: transparent;
+  display: none;
 }
 .aoa-subtab {
   display: inline-flex;
