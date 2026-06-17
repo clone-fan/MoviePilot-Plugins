@@ -197,6 +197,7 @@ const actionGroups = [
     ]
   }
 ]
+const actionItems = computed(() => actionGroups.flatMap(group => group.actions))
 
 onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 </script>
@@ -243,7 +244,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 
       <!-- 站点数据统计 + 手动触发：左右各一个 -->
       <VRow dense class="mt-2 dashboard-main-grid">
-        <VCol cols="12" lg="7">
+        <VCol cols="12" lg="8">
           <VCard elevation="0" class="glass-panel h-100">
             <VCardTitle class="compact-card-title">
               <VIcon icon="mdi-chart-pie" color="primary" class="me-2" />站点数据统计
@@ -303,16 +304,13 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
         </VCol>
 
         <!-- 手动触发：模块化放在站点数据右边 -->
-        <VCol cols="12" lg="5">
+        <VCol cols="12" lg="4">
           <VCard elevation="0" class="glass-panel action-panel h-100">
             <VCardText class="compact-card-text action-panel-body">
               <div class="action-scroll">
-                <div v-for="grp in actionGroups" :key="grp.group" class="action-group">
-                  <div class="action-group-title">{{ grp.group }}</div>
-                  <div class="action-buttons">
+                <div class="action-buttons">
+                  <div v-for="action in actionItems" :key="action.path" class="action-item">
                     <VBtn
-                      v-for="action in grp.actions"
-                      :key="action.path"
                       block
                       variant="text"
                       density="comfortable"
@@ -325,8 +323,8 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
                         <VIcon :icon="action.icon" size="18" />
                         <span class="action-btn-label">{{ action.label }}</span>
                       </span>
-                      <span class="action-btn-desc">{{ action.desc }}</span>
                     </VBtn>
+                    <span class="action-btn-desc">{{ action.desc }}</span>
                   </div>
                 </div>
               </div>
@@ -419,14 +417,14 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .agentops-card {
   border-radius: 18px;
   overflow: hidden;
-  border: 1px solid rgba(var(--v-border-color), 0.14);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.10);
   background:
-    linear-gradient(145deg, rgba(var(--v-theme-surface), 0.78), rgba(var(--v-theme-surface), 0.52)),
-    rgba(var(--v-theme-on-surface), 0.012);
-  backdrop-filter: blur(22px);
+    linear-gradient(145deg, rgba(var(--v-theme-surface), 0.74), rgba(var(--v-theme-surface), 0.48)),
+    rgba(var(--v-theme-on-surface), 0.026);
+  backdrop-filter: blur(24px) saturate(145%);
   box-shadow:
-    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.045),
-    0 18px 44px rgba(0, 0, 0, 0.10);
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.07),
+    0 18px 44px rgba(0, 0, 0, 0.09);
 }
 .agentops-toolbar {
   position: sticky;
@@ -442,15 +440,15 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .agentops-dashboard :deep(.v-row) { margin: -4px; }
 .agentops-dashboard :deep(.v-col) { padding: 4px; }
 .glass-panel {
-  border: 1px solid rgba(var(--v-border-color), 0.14);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.10);
   background:
-    radial-gradient(circle at top left, rgba(var(--v-theme-primary), 0.045), transparent 34%),
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.70), rgba(var(--v-theme-surface), 0.46)),
-    rgba(var(--v-theme-on-surface), 0.014);
-  backdrop-filter: blur(18px);
+    radial-gradient(circle at top left, rgba(var(--v-theme-primary), 0.055), transparent 34%),
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.66), rgba(var(--v-theme-surface), 0.42)),
+    rgba(var(--v-theme-on-surface), 0.034);
+  backdrop-filter: blur(20px) saturate(145%);
   box-shadow:
-    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.045),
-    0 12px 28px rgba(0, 0, 0, 0.055);
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.07),
+    0 12px 28px rgba(0, 0, 0, 0.05);
 }
 .compact-card-title {
   display: flex;
@@ -527,8 +525,10 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   position: absolute;
   inset: 28px;
   border-radius: 50%;
-  background: rgba(var(--v-theme-surface), 0.72);
-  box-shadow: inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.05);
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.64), rgba(var(--v-theme-surface), 0.42)),
+    rgba(var(--v-theme-on-surface), 0.038);
+  box-shadow: inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.06);
 }
 .site-pie-center {
   position: relative;
@@ -562,9 +562,12 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   gap: 5px 7px;
   min-height: 52px;
   padding: 8px 10px;
-  border: 1px solid rgba(var(--v-border-color), 0.12);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.09);
   border-radius: 12px;
-  background: rgba(var(--v-theme-surface), 0.32);
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.40), rgba(var(--v-theme-surface), 0.24)),
+    rgba(var(--v-theme-on-surface), 0.040);
+  box-shadow: inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.045);
 }
 .site-summary-item span {
   min-width: 0;
@@ -591,7 +594,9 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   min-height: 31px;
   padding: 5px 8px;
   border-radius: 10px;
-  background: rgba(var(--v-theme-surface), 0.28);
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.28), rgba(var(--v-theme-surface), 0.18)),
+    rgba(var(--v-theme-on-surface), 0.034);
 }
 .site-dot {
   width: 9px;
@@ -630,48 +635,43 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 .action-panel {
   background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.68), rgba(var(--v-theme-surface), 0.44)),
-    rgba(var(--v-theme-on-surface), 0.012);
+    radial-gradient(circle at top right, rgba(var(--v-theme-error), 0.045), transparent 38%),
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.64), rgba(var(--v-theme-surface), 0.40)),
+    rgba(var(--v-theme-on-surface), 0.032);
 }
 .action-panel-body {
   padding: 14px !important;
 }
 .action-scroll {
-  display: grid;
-  gap: 13px;
+  display: block;
   max-height: 285px;
   overflow: auto;
   padding-right: 3px;
 }
-.action-group {
-  display: grid;
-  gap: 7px;
-}
-.action-group-title {
-  padding: 0 2px;
-  color: rgba(var(--v-theme-on-surface), 0.46);
-  font-size: 11px;
-  font-weight: 750;
-  line-height: 1.2;
-}
 .action-buttons {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 13px 10px;
+}
+.action-item {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
 }
 .action-btn {
   --action-rgb: 96, 165, 250;
-  min-height: 62px;
-  justify-content: flex-start;
+  min-height: 34px;
+  justify-content: center;
   border-radius: 12px;
   color: rgba(var(--v-theme-on-surface), 0.9);
   background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.42), rgba(var(--v-theme-surface), 0.28)),
-    rgba(var(--action-rgb), 0.035);
-  border: 1px solid rgba(var(--v-border-color), 0.12);
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.32), rgba(var(--v-theme-surface), 0.20)),
+    rgba(var(--action-rgb), 0.085);
+  border: 1px solid rgba(var(--action-rgb), 0.20);
   box-shadow:
-    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.032),
-    0 8px 18px rgba(0, 0, 0, 0.035);
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.045),
+    0 8px 18px rgba(0, 0, 0, 0.028);
   transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
 }
 .action-btn:hover {
@@ -697,8 +697,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   width: 100%;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   gap: 7px;
   line-height: 1.2;
@@ -707,6 +706,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
 }
 .action-btn-main :deep(.v-icon) {
@@ -721,10 +721,12 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   font-weight: 800;
 }
 .action-btn-desc {
+  display: block;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.52);
   font-size: 11px;
   font-weight: 650;

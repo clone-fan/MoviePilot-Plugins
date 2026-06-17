@@ -31,29 +31,28 @@ const _hoisted_20 = {
   class: "site-empty"
 };
 const _hoisted_21 = { class: "action-scroll" };
-const _hoisted_22 = { class: "action-group-title" };
-const _hoisted_23 = { class: "action-buttons" };
-const _hoisted_24 = { class: "action-btn-main" };
-const _hoisted_25 = { class: "action-btn-label" };
-const _hoisted_26 = { class: "action-btn-desc" };
-const _hoisted_27 = { class: "task-grid" };
-const _hoisted_28 = { class: "task-head" };
-const _hoisted_29 = { class: "task-title-wrap" };
-const _hoisted_30 = { class: "task-name" };
-const _hoisted_31 = { class: "task-meta" };
-const _hoisted_32 = { class: "task-foot" };
-const _hoisted_33 = { class: "task-summary" };
-const _hoisted_34 = {
+const _hoisted_22 = { class: "action-buttons" };
+const _hoisted_23 = { class: "action-btn-main" };
+const _hoisted_24 = { class: "action-btn-label" };
+const _hoisted_25 = { class: "action-btn-desc" };
+const _hoisted_26 = { class: "task-grid" };
+const _hoisted_27 = { class: "task-head" };
+const _hoisted_28 = { class: "task-title-wrap" };
+const _hoisted_29 = { class: "task-name" };
+const _hoisted_30 = { class: "task-meta" };
+const _hoisted_31 = { class: "task-foot" };
+const _hoisted_32 = { class: "task-summary" };
+const _hoisted_33 = {
   key: 0,
   class: "panel-note"
 };
-const _hoisted_35 = {
+const _hoisted_34 = {
   key: 1,
   class: "health-grid"
 };
-const _hoisted_36 = { class: "health-card-head" };
-const _hoisted_37 = { class: "health-detail" };
-const _hoisted_38 = {
+const _hoisted_35 = { class: "health-card-head" };
+const _hoisted_36 = { class: "health-detail" };
+const _hoisted_37 = {
   key: 2,
   class: "empty-soft"
 };
@@ -262,6 +261,7 @@ const actionGroups = [
     ]
   }
 ];
+const actionItems = computed(() => actionGroups.flatMap(group => group.actions));
 
 onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview(); });
 
@@ -395,7 +395,7 @@ return (_ctx, _cache) => {
             default: _withCtx(() => [
               _createVNode(_component_VCol, {
                 cols: "12",
-                lg: "7"
+                lg: "8"
               }, {
                 default: _withCtx(() => [
                   _createVNode(_component_VCard, {
@@ -513,7 +513,7 @@ return (_ctx, _cache) => {
               }),
               _createVNode(_component_VCol, {
                 cols: "12",
-                lg: "5"
+                lg: "4"
               }, {
                 default: _withCtx(() => [
                   _createVNode(_component_VCard, {
@@ -524,39 +524,35 @@ return (_ctx, _cache) => {
                       _createVNode(_component_VCardText, { class: "compact-card-text action-panel-body" }, {
                         default: _withCtx(() => [
                           _createElementVNode("div", _hoisted_21, [
-                            (_openBlock(), _createElementBlock(_Fragment, null, _renderList(actionGroups, (grp) => {
-                              return _createElementVNode("div", {
-                                key: grp.group,
-                                class: "action-group"
-                              }, [
-                                _createElementVNode("div", _hoisted_22, _toDisplayString(grp.group), 1),
-                                _createElementVNode("div", _hoisted_23, [
-                                  (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(grp.actions, (action) => {
-                                    return (_openBlock(), _createBlock(_component_VBtn, {
-                                      key: action.path,
-                                      block: "",
-                                      variant: "text",
-                                      density: "comfortable",
-                                      loading: actionRunning.value === action.path,
-                                      onClick: $event => (runAction(action.path, action.label)),
-                                      class: _normalizeClass(["action-btn text-none", `action-btn--${action.tone}`])
-                                    }, {
-                                      default: _withCtx(() => [
-                                        _createElementVNode("span", _hoisted_24, [
-                                          _createVNode(_component_VIcon, {
-                                            icon: action.icon,
-                                            size: "18"
-                                          }, null, 8, ["icon"]),
-                                          _createElementVNode("span", _hoisted_25, _toDisplayString(action.label), 1)
-                                        ]),
-                                        _createElementVNode("span", _hoisted_26, _toDisplayString(action.desc), 1)
-                                      ]),
-                                      _: 2
-                                    }, 1032, ["loading", "onClick", "class"]))
-                                  }), 128))
-                                ])
-                              ])
-                            }), 64))
+                            _createElementVNode("div", _hoisted_22, [
+                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(actionItems.value, (action) => {
+                                return (_openBlock(), _createElementBlock("div", {
+                                  key: action.path,
+                                  class: "action-item"
+                                }, [
+                                  _createVNode(_component_VBtn, {
+                                    block: "",
+                                    variant: "text",
+                                    density: "comfortable",
+                                    loading: actionRunning.value === action.path,
+                                    onClick: $event => (runAction(action.path, action.label)),
+                                    class: _normalizeClass(["action-btn text-none", `action-btn--${action.tone}`])
+                                  }, {
+                                    default: _withCtx(() => [
+                                      _createElementVNode("span", _hoisted_23, [
+                                        _createVNode(_component_VIcon, {
+                                          icon: action.icon,
+                                          size: "18"
+                                        }, null, 8, ["icon"]),
+                                        _createElementVNode("span", _hoisted_24, _toDisplayString(action.label), 1)
+                                      ])
+                                    ]),
+                                    _: 2
+                                  }, 1032, ["loading", "onClick", "class"]),
+                                  _createElementVNode("span", _hoisted_25, _toDisplayString(action.desc), 1)
+                                ]))
+                              }), 128))
+                            ])
                           ]),
                           (actionMessage.value)
                             ? (_openBlock(), _createBlock(_component_VAlert, {
@@ -669,13 +665,13 @@ return (_ctx, _cache) => {
                             class: "compact-card-text"
                           }, {
                             default: _withCtx(() => [
-                              _createElementVNode("div", _hoisted_27, [
+                              _createElementVNode("div", _hoisted_26, [
                                 (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(data.tasks, (task) => {
                                   return (_openBlock(), _createElementBlock("div", {
                                     key: task.key,
                                     class: "task-card"
                                   }, [
-                                    _createElementVNode("div", _hoisted_28, [
+                                    _createElementVNode("div", _hoisted_27, [
                                       _createVNode(_component_VAvatar, {
                                         size: "34",
                                         variant: "tonal",
@@ -689,9 +685,9 @@ return (_ctx, _cache) => {
                                         ]),
                                         _: 2
                                       }, 1032, ["color"]),
-                                      _createElementVNode("div", _hoisted_29, [
-                                        _createElementVNode("div", _hoisted_30, _toDisplayString(task.name), 1),
-                                        _createElementVNode("div", _hoisted_31, "下次 " + _toDisplayString(task.next || '—'), 1)
+                                      _createElementVNode("div", _hoisted_28, [
+                                        _createElementVNode("div", _hoisted_29, _toDisplayString(task.name), 1),
+                                        _createElementVNode("div", _hoisted_30, "下次 " + _toDisplayString(task.next || '—'), 1)
                                       ]),
                                       _createVNode(_component_VChip, {
                                         size: "x-small",
@@ -704,7 +700,7 @@ return (_ctx, _cache) => {
                                         _: 2
                                       }, 1032, ["color"])
                                     ]),
-                                    _createElementVNode("div", _hoisted_32, [
+                                    _createElementVNode("div", _hoisted_31, [
                                       _createElementVNode("span", null, "最近 " + _toDisplayString(task.last_time || '—'), 1),
                                       _createVNode(_component_VChip, {
                                         size: "x-small",
@@ -717,7 +713,7 @@ return (_ctx, _cache) => {
                                         _: 2
                                       }, 1032, ["color"])
                                     ]),
-                                    _createElementVNode("div", _hoisted_33, _toDisplayString(task.last_summary), 1)
+                                    _createElementVNode("div", _hoisted_32, _toDisplayString(task.last_summary), 1)
                                   ]))
                                 }), 128))
                               ])
@@ -765,16 +761,16 @@ return (_ctx, _cache) => {
                       _createVNode(_component_VCardText, { class: "compact-card-text" }, {
                         default: _withCtx(() => [
                           (data.health.time)
-                            ? (_openBlock(), _createElementBlock("div", _hoisted_34, "最近 " + _toDisplayString(data.health.time), 1))
+                            ? (_openBlock(), _createElementBlock("div", _hoisted_33, "最近 " + _toDisplayString(data.health.time), 1))
                             : _createCommentVNode("", true),
                           (healthItems.value.length)
-                            ? (_openBlock(), _createElementBlock("div", _hoisted_35, [
+                            ? (_openBlock(), _createElementBlock("div", _hoisted_34, [
                                 (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(healthItems.value, (item) => {
                                   return (_openBlock(), _createElementBlock("div", {
                                     key: item.name,
                                     class: "health-card"
                                   }, [
-                                    _createElementVNode("div", _hoisted_36, [
+                                    _createElementVNode("div", _hoisted_35, [
                                       _createVNode(_component_VIcon, {
                                         icon: item.icon,
                                         color: item.color,
@@ -792,11 +788,11 @@ return (_ctx, _cache) => {
                                         _: 2
                                       }, 1032, ["color"])
                                     ]),
-                                    _createElementVNode("div", _hoisted_37, _toDisplayString(item.detail), 1)
+                                    _createElementVNode("div", _hoisted_36, _toDisplayString(item.detail), 1)
                                   ]))
                                 }), 128))
                               ]))
-                            : (_openBlock(), _createElementBlock("div", _hoisted_38, "暂无记录"))
+                            : (_openBlock(), _createElementBlock("div", _hoisted_37, "暂无记录"))
                         ]),
                         _: 1
                       })
@@ -818,6 +814,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-fab958e1"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-f77cf5c7"]]);
 
 export { Page as default };
