@@ -11,16 +11,6 @@ const emit = defineEmits(['save', 'close', 'switch'])
 const form = reactive({})
 const activeMain = ref('report')
 const activeSub = ref('overview')
-const navScrollRef = ref(null)
-const subtabScrollRef = ref(null)
-const contentScrollRef = ref(null)
-const reportColumnsScrollRef = ref(null)
-
-function scrollDown(targetRef) {
-  const el = targetRef?.value || targetRef
-  if (!el) return
-  el.scrollBy({ top: Math.max(160, Math.round(el.clientHeight * 0.72)), left: Math.max(120, Math.round(el.clientWidth * 0.72)), behavior: 'smooth' })
-}
 
 // 手动触发动作状态
 const action = reactive({ running: '', message: '', ok: true })
@@ -412,7 +402,7 @@ onMounted(() => {
       <VDivider />
       <div class="aoa-body">
         <nav class="aoa-nav">
-          <div ref="navScrollRef" class="aoa-nav-scroll">
+          <div class="aoa-nav-scroll">
             <VList density="comfortable" nav class="py-2">
               <template v-for="grp in navGroups" :key="grp.name">
                 <VListSubheader class="aoa-nav-group">{{ grp.name }}</VListSubheader>
@@ -433,11 +423,10 @@ onMounted(() => {
               </template>
             </VList>
           </div>
-          <VBtn icon="mdi-chevron-down" size="small" variant="tonal" color="primary" class="aoa-scroll-btn aoa-nav-scroll-btn" @click="scrollDown(navScrollRef)" />
         </nav>
         <section class="aoa-content">
           <div class="aoa-subtabs">
-            <div ref="subtabScrollRef" class="aoa-subtab-list">
+            <div class="aoa-subtab-list">
               <button
                 v-for="sub in currentSubs"
                 :key="sub.key"
@@ -452,10 +441,9 @@ onMounted(() => {
             <div v-if="currentMain.desc" class="aoa-subtab-desc">
               {{ currentMain.desc }}
             </div>
-            <VBtn icon="mdi-chevron-down" size="small" variant="tonal" color="primary" class="aoa-scroll-btn aoa-subtab-scroll-btn" @click="scrollDown(subtabScrollRef)" />
           </div>
           <VDivider />
-          <div ref="contentScrollRef" class="aoa-window">
+          <div class="aoa-window">
             <!-- 每日汇报 · 汇报总览 -->
             <div v-show="activeSub === 'overview'" class="aoa-pane">
               <VForm>
@@ -504,7 +492,7 @@ onMounted(() => {
                 <div class="aoa-section-title">汇报栏目</div>
                 <div class="aoa-hint mb-3">所有并入日报的栏目都在这里统一勾选，组件负责能力，栏目负责出现在日报里的内容</div>
                 <div class="aoa-table-wrap">
-                  <div ref="reportColumnsScrollRef" class="aoa-report-table-scroll">
+                  <div class="aoa-report-table-scroll">
                     <VTable class="aoa-report-table">
                       <thead>
                         <tr>
@@ -537,7 +525,6 @@ onMounted(() => {
                       </tbody>
                     </VTable>
                   </div>
-                  <VBtn icon="mdi-chevron-down" size="small" variant="tonal" color="primary" class="aoa-scroll-btn aoa-table-scroll-btn" @click="scrollDown(reportColumnsScrollRef)" />
                 </div>
               </VForm>
             </div>
@@ -1276,7 +1263,6 @@ onMounted(() => {
               </VForm>
             </div>
           </div>
-          <VBtn icon="mdi-chevron-down" size="small" variant="tonal" color="primary" class="aoa-scroll-btn aoa-content-scroll-btn" @click="scrollDown(contentScrollRef)" />
         </section>
       </div>
       <VDivider />
@@ -1609,28 +1595,6 @@ onMounted(() => {
   line-height: 1.4;
   color: rgba(var(--v-theme-on-surface), 0.58);
 }
-.aoa-scroll-btn {
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
-  border-radius: 999px;
-  opacity: 0.82;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
-}
-.aoa-nav-scroll-btn {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-}
-.aoa-subtab-scroll-btn {
-  flex: 0 0 auto;
-}
-.aoa-content-scroll-btn {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  z-index: 3;
-}
 .aoa-table-wrap {
   position: relative;
   overflow: hidden;
@@ -1681,12 +1645,6 @@ onMounted(() => {
   color: rgba(var(--v-theme-on-surface), 0.46) !important;
   font-size: 12px;
 }
-.aoa-table-scroll-btn {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 2;
-}
 .aoa-actions {
   padding: 12px 20px;
 }
@@ -1720,11 +1678,6 @@ onMounted(() => {
     padding-right: 0;
     line-height: 1.4;
     text-align: left;
-  }
-  .aoa-subtab-scroll-btn {
-    position: absolute;
-    right: 12px;
-    top: 12px;
   }
   .aoa-pane {
     padding: 18px 16px;
