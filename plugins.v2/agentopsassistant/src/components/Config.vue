@@ -1121,6 +1121,7 @@ onMounted(() => {
                   <VCol cols="12" md="6">
                     <VSwitch v-model="form.msgnotify_enabled" color="primary" inset hide-details
                       label="启用媒体库服务器通知" />
+                    <div class="aoa-hint">监听 Emby/Jellyfin/Plex 的 webhook 事件，按筛选规则推送通知。</div>
                   </VCol>
                 </VRow>
                 <VRow>
@@ -1139,6 +1140,10 @@ onMounted(() => {
                       no-data-text="未获取到媒体服务器"
                       :disabled="!form.msgnotify_enabled" />
                   </VCol>
+                <VDivider class="my-4" />
+                <div class="aoa-hint text-caption">
+                  <strong>说明：</strong> 需先在 MoviePilot 中将媒体服务器 webhook 指向本插件。推送目标为各服务器的 webhook，不走 MP 通知渠道。
+                </div>
                 </VRow>
               </VForm>
             </div>
@@ -1146,18 +1151,27 @@ onMounted(() => {
             <div v-show="activeSub === 'dltagmain'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">按站点为种子批量补打标签</div>
-                <div class="aoa-hint mb-2">遍历下载器中的种子，按其 tracker 所属站点补打标签（已打的跳过，幂等安全）；活动种子概览见仪表盘。功能移植自“下载器助手”。</div>
+                <VRow>
+                  <VCol cols="12" md="6">
+                    <VSwitch v-model="form.dltag_enabled" color="primary" inset hide-details
+                      label="启用下载器助手(批量打标签)" />
+                    <div class="aoa-hint">遍历下载器中的种子，按其 tracker 所属站点补打标签(已打的跳过，幂等安全)。</div>
+                  </VCol>
+                </VRow>
                 <VRow>
                   <VCol cols="12" md="6">
                     <VSelect v-model="form.dltag_downloaders" :items="downloaderOptions"
                       :loading="downloadersLoading" label="下载器（留空＝全部已配置）"
-                      multiple chips closable-chips clearable prepend-inner-icon="mdi-download-network-outline" />
+                      multiple chips closable-chips clearable prepend-inner-icon="mdi-download-network-outline"
+                      :disabled="!form.dltag_enabled" />
                   </VCol>
                   <VCol cols="12" md="3">
-                    <VTextField v-model="form.dltag_prefix" label="标签前缀（可选）" placeholder="如 站点-" clearable />
+                    <VTextField v-model="form.dltag_prefix" label="标签前缀（可选）" placeholder="如 站点-" clearable
+                      :disabled="!form.dltag_enabled" />
                   </VCol>
                   <VCol cols="12" md="3">
-                    <VSwitch v-model="form.dltag_notify" color="primary" inset hide-details label="完成后通知" />
+                    <VSwitch v-model="form.dltag_notify" color="primary" inset hide-details label="完成后通知"
+                      :disabled="!form.dltag_enabled" />
                   </VCol>
                 </VRow>
                 <VDivider class="my-4" />

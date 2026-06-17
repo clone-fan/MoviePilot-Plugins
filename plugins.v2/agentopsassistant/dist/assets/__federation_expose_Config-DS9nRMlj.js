@@ -259,6 +259,7 @@ const defaults = {
   msgnotify_enabled: false,
   msgnotify_types: [],
   msgnotify_servers: [],
+  dltag_enabled: false,
   dltag_downloaders: [],
   dltag_prefix: '',
   dltag_notify: true,
@@ -466,7 +467,7 @@ return (_ctx, _cache) => {
           ]),
           default: _withCtx(() => [
             _createVNode(_component_VCardTitle, { class: "text-h6" }, {
-              default: _withCtx(() => [...(_cache[103] || (_cache[103] = [
+              default: _withCtx(() => [...(_cache[104] || (_cache[104] = [
                 _createTextVNode("MP 运维助手", -1)
               ]))]),
               _: 1
@@ -567,7 +568,7 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_9, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[108] || (_cache[108] = _createElementVNode("div", { class: "aoa-section-title" }, "汇报开关", -1)),
+                    _cache[109] || (_cache[109] = _createElementVNode("div", { class: "aoa-section-title" }, "汇报开关", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -583,7 +584,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用定时每日汇报"
                             }, null, 8, ["modelValue"]),
-                            _cache[104] || (_cache[104] = _createElementVNode("div", { class: "aoa-hint" }, "关闭后将不再按计划自动发送汇报，仍可在下方手动触发。", -1))
+                            _cache[105] || (_cache[105] = _createElementVNode("div", { class: "aoa-hint" }, "关闭后将不再按计划自动发送汇报，仍可在下方手动触发。", -1))
                           ]),
                           _: 1
                         }),
@@ -628,11 +629,11 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[109] || (_cache[109] = _createElementVNode("div", { class: "aoa-section-title" }, "汇报栏目", -1)),
-                    _cache[110] || (_cache[110] = _createElementVNode("div", { class: "aoa-hint mb-3" }, "每日汇报是聚合中心：逐栏目勾选要并入日报的内容。关掉则该栏目不出现在汇报里。", -1)),
+                    _cache[110] || (_cache[110] = _createElementVNode("div", { class: "aoa-section-title" }, "汇报栏目", -1)),
+                    _cache[111] || (_cache[111] = _createElementVNode("div", { class: "aoa-hint mb-3" }, "每日汇报是聚合中心：逐栏目勾选要并入日报的内容。关掉则该栏目不出现在汇报里。", -1)),
                     _createVNode(_component_VTable, { class: "text-caption" }, {
                       default: _withCtx(() => [
-                        _cache[105] || (_cache[105] = _createElementVNode("thead", null, [
+                        _cache[106] || (_cache[106] = _createElementVNode("thead", null, [
                           _createElementVNode("tr", { style: {"background-color":"rgba(0,0,0,0.02)"} }, [
                             _createElementVNode("th", {
                               scope: "col",
@@ -687,7 +688,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[111] || (_cache[111] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
+                    _cache[112] || (_cache[112] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
                     _createElementVNode("div", _hoisted_17, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
@@ -696,7 +697,7 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_daily_report',
                         onClick: _cache[4] || (_cache[4] = $event => (runAction('run_daily_report', '发送每日汇报')))
                       }, {
-                        default: _withCtx(() => [...(_cache[106] || (_cache[106] = [
+                        default: _withCtx(() => [...(_cache[107] || (_cache[107] = [
                           _createTextVNode(" 立即发送汇报 ", -1)
                         ]))]),
                         _: 1
@@ -708,7 +709,7 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_health_check',
                         onClick: _cache[5] || (_cache[5] = $event => (runAction('run_health_check', '健康巡查')))
                       }, {
-                        default: _withCtx(() => [...(_cache[107] || (_cache[107] = [
+                        default: _withCtx(() => [...(_cache[108] || (_cache[108] = [
                           _createTextVNode(" 立即健康巡查 ", -1)
                         ]))]),
                         _: 1
@@ -723,7 +724,7 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_18, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[114] || (_cache[114] = _createElementVNode("div", { class: "aoa-section-title" }, "订阅提醒", -1)),
+                    _cache[115] || (_cache[115] = _createElementVNode("div", { class: "aoa-section-title" }, "订阅提醒", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, { cols: "12" }, {
@@ -736,7 +737,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用独立订阅提醒推送"
                             }, null, 8, ["modelValue"]),
-                            _cache[112] || (_cache[112] = _createElementVNode("div", { class: "aoa-hint" }, "在指定时间单独推送订阅追新提醒（是否并入每日汇报见基础设置）。", -1))
+                            _cache[113] || (_cache[113] = _createElementVNode("div", { class: "aoa-hint" }, "在指定时间单独推送订阅追新提醒（是否并入每日汇报见基础设置）。", -1))
                           ]),
                           _: 1
                         })
@@ -796,8 +797,8 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[115] || (_cache[115] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
-                    _cache[116] || (_cache[116] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "立即按当前设置推送一次今日订阅追新（独立于每日汇报）。", -1)),
+                    _cache[116] || (_cache[116] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
+                    _cache[117] || (_cache[117] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "立即按当前设置推送一次今日订阅追新（独立于每日汇报）。", -1)),
                     _createElementVNode("div", _hoisted_19, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
@@ -806,7 +807,7 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_subscribe_reminder',
                         onClick: _cache[10] || (_cache[10] = $event => (runAction('run_subscribe_reminder', '订阅提醒')))
                       }, {
-                        default: _withCtx(() => [...(_cache[113] || (_cache[113] = [
+                        default: _withCtx(() => [...(_cache[114] || (_cache[114] = [
                           _createTextVNode(" 立即推送订阅提醒 ", -1)
                         ]))]),
                         _: 1
@@ -821,7 +822,7 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_20, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[118] || (_cache[118] = _createElementVNode("div", { class: "aoa-section-title" }, "站点数据统计", -1)),
+                    _cache[119] || (_cache[119] = _createElementVNode("div", { class: "aoa-section-title" }, "站点数据统计", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, { cols: "12" }, {
@@ -834,7 +835,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用站点数据统计采集"
                             }, null, 8, ["modelValue"]),
-                            _cache[117] || (_cache[117] = _createElementVNode("div", { class: "aoa-hint" }, "关闭后不再统计站点数据（是否并入每日汇报见基础设置）。", -1))
+                            _cache[118] || (_cache[118] = _createElementVNode("div", { class: "aoa-hint" }, "关闭后不再统计站点数据（是否并入每日汇报见基础设置）。", -1))
                           ]),
                           _: 1
                         })
@@ -885,7 +886,7 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_21, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[122] || (_cache[122] = _createElementVNode("div", { class: "aoa-section-title" }, "健康巡查", -1)),
+                    _cache[123] || (_cache[123] = _createElementVNode("div", { class: "aoa-section-title" }, "健康巡查", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, { cols: "12" }, {
@@ -898,7 +899,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用系统健康巡查"
                             }, null, 8, ["modelValue"]),
-                            _cache[119] || (_cache[119] = _createElementVNode("div", { class: "aoa-hint" }, "定期检查数据库、存储空间、配置目录等系统资源健康状态。发现问题时发送通知。", -1))
+                            _cache[120] || (_cache[120] = _createElementVNode("div", { class: "aoa-hint" }, "定期检查数据库、存储空间、配置目录等系统资源健康状态。发现问题时发送通知。", -1))
                           ]),
                           _: 1
                         })
@@ -939,7 +940,7 @@ return (_ctx, _cache) => {
                               clearable: "",
                               disabled: !form.health_check_enabled
                             }, null, 8, ["modelValue", "items", "disabled"]),
-                            _cache[120] || (_cache[120] = _createElementVNode("div", { class: "aoa-hint" }, "选中的项目会在计划时间执行检查。不选则检查所有项目。", -1))
+                            _cache[121] || (_cache[121] = _createElementVNode("div", { class: "aoa-hint" }, "选中的项目会在计划时间执行检查。不选则检查所有项目。", -1))
                           ]),
                           _: 1
                         })
@@ -970,8 +971,8 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[123] || (_cache[123] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
-                    _cache[124] || (_cache[124] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "立即执行一次健康巡查，查看当前系统状态。", -1)),
+                    _cache[124] || (_cache[124] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
+                    _cache[125] || (_cache[125] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "立即执行一次健康巡查，查看当前系统状态。", -1)),
                     _createElementVNode("div", _hoisted_22, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
@@ -980,7 +981,7 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_health_check',
                         onClick: _cache[18] || (_cache[18] = $event => (runAction('run_health_check', '健康巡查')))
                       }, {
-                        default: _withCtx(() => [...(_cache[121] || (_cache[121] = [
+                        default: _withCtx(() => [...(_cache[122] || (_cache[122] = [
                           _createTextVNode(" 立即执行 ", -1)
                         ]))]),
                         _: 1
@@ -995,8 +996,8 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_23, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[129] || (_cache[129] = _createElementVNode("div", { class: "aoa-section-title" }, "订阅规则自动填充", -1)),
-                    _cache[130] || (_cache[130] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "电视剧订阅下载到资源后，用该资源的实际规格自动回填订阅中“尚为空”的规则，锁定后续剧集追同款版本（功能移植自“订阅规则自动填充”）。已设置的字段不会被覆盖。", -1)),
+                    _cache[130] || (_cache[130] = _createElementVNode("div", { class: "aoa-section-title" }, "订阅规则自动填充", -1)),
+                    _cache[131] || (_cache[131] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "电视剧订阅下载到资源后，用该资源的实际规格自动回填订阅中“尚为空”的规则，锁定后续剧集追同款版本（功能移植自“订阅规则自动填充”）。已设置的字段不会被覆盖。", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -1012,7 +1013,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用订阅规则自动填充"
                             }, null, 8, ["modelValue"]),
-                            _cache[125] || (_cache[125] = _createElementVNode("div", { class: "aoa-hint" }, "监听下载添加事件（仅电视剧），每个剧集 tmdbid 只填充一次。", -1))
+                            _cache[126] || (_cache[126] = _createElementVNode("div", { class: "aoa-hint" }, "监听下载添加事件（仅电视剧），每个剧集 tmdbid 只填充一次。", -1))
                           ]),
                           _: 1
                         }),
@@ -1052,7 +1053,7 @@ return (_ctx, _cache) => {
                               "prepend-inner-icon": "mdi-auto-fix",
                               disabled: !form.subfill_enabled
                             }, null, 8, ["modelValue", "items", "disabled"]),
-                            _cache[126] || (_cache[126] = _createElementVNode("div", { class: "aoa-hint" }, "从下载资源中提取并回填：分辨率 / 资源质量 / 特效 / 制作组 / 站点。留空则不填充。", -1))
+                            _cache[127] || (_cache[127] = _createElementVNode("div", { class: "aoa-hint" }, "从下载资源中提取并回填：分辨率 / 资源质量 / 特效 / 制作组 / 站点。留空则不填充。", -1))
                           ]),
                           _: 1
                         })
@@ -1060,8 +1061,8 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[131] || (_cache[131] = _createElementVNode("div", { class: "aoa-section-title" }, "二级分类自定义填充", -1)),
-                    _cache[132] || (_cache[132] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "新增订阅时，按媒体的二级分类自动套用预设规则。每行一个分类，用 # 分隔字段；可用键：category、resolution、quality、effect、include、exclude、sites（站点名,逗号分隔）、savepath（支持 {name}）、filter_groups。", -1)),
+                    _cache[132] || (_cache[132] = _createElementVNode("div", { class: "aoa-section-title" }, "二级分类自定义填充", -1)),
+                    _cache[133] || (_cache[133] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "新增订阅时，按媒体的二级分类自动套用预设规则。每行一个分类，用 # 分隔字段；可用键：category、resolution、quality、effect、include、exclude、sites（站点名,逗号分隔）、savepath（支持 {name}）、filter_groups。", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -1103,7 +1104,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[133] || (_cache[133] = _createElementVNode("div", { class: "aoa-section-title" }, "维护", -1)),
+                    _cache[134] || (_cache[134] = _createElementVNode("div", { class: "aoa-section-title" }, "维护", -1)),
                     _createElementVNode("div", _hoisted_24, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
@@ -1112,7 +1113,7 @@ return (_ctx, _cache) => {
                         loading: action.running === 'subfill_clear_history',
                         onClick: _cache[24] || (_cache[24] = $event => (runAction('subfill_clear_history', '清理填充历史')))
                       }, {
-                        default: _withCtx(() => [...(_cache[127] || (_cache[127] = [
+                        default: _withCtx(() => [...(_cache[128] || (_cache[128] = [
                           _createTextVNode(" 清理历史记录 ", -1)
                         ]))]),
                         _: 1
@@ -1124,13 +1125,13 @@ return (_ctx, _cache) => {
                         loading: action.running === 'subfill_clear_handled',
                         onClick: _cache[25] || (_cache[25] = $event => (runAction('subfill_clear_handled', '清理已处理记录')))
                       }, {
-                        default: _withCtx(() => [...(_cache[128] || (_cache[128] = [
+                        default: _withCtx(() => [...(_cache[129] || (_cache[129] = [
                           _createTextVNode(" 清理已处理记录 ", -1)
                         ]))]),
                         _: 1
                       }, 8, ["loading"])
                     ]),
-                    _cache[134] || (_cache[134] = _createElementVNode("div", { class: "aoa-hint mt-2" }, "“清理已处理记录”后，已处理过的剧集下次下载会重新尝试填充。", -1))
+                    _cache[135] || (_cache[135] = _createElementVNode("div", { class: "aoa-hint mt-2" }, "“清理已处理记录”后，已处理过的剧集下次下载会重新尝试填充。", -1))
                   ]),
                   _: 1
                 })
@@ -1140,7 +1141,7 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_25, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[139] || (_cache[139] = _createElementVNode("div", { class: "aoa-section-title" }, "本地备份", -1)),
+                    _cache[140] || (_cache[140] = _createElementVNode("div", { class: "aoa-section-title" }, "本地备份", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -1156,7 +1157,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用定时本地备份"
                             }, null, 8, ["modelValue"]),
-                            _cache[135] || (_cache[135] = _createElementVNode("div", { class: "aoa-hint" }, "按计划打包配置目录到本地备份路径。", -1))
+                            _cache[136] || (_cache[136] = _createElementVNode("div", { class: "aoa-hint" }, "按计划打包配置目录到本地备份路径。", -1))
                           ]),
                           _: 1
                         }),
@@ -1200,7 +1201,7 @@ return (_ctx, _cache) => {
                         }, {
                           default: _withCtx(() => [
                             _createElementVNode("div", _hoisted_26, [
-                              _cache[136] || (_cache[136] = _createElementVNode("span", { class: "text-body-2" }, "本地保留份数", -1)),
+                              _cache[137] || (_cache[137] = _createElementVNode("span", { class: "text-body-2" }, "本地保留份数", -1)),
                               _createVNode(_component_VChip, {
                                 size: "small",
                                 color: "primary",
@@ -1223,7 +1224,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               disabled: !form.backup_enabled
                             }, null, 8, ["modelValue", "disabled"]),
-                            _cache[137] || (_cache[137] = _createElementVNode("div", { class: "aoa-hint" }, "超出份数时自动删除最旧的备份，范围 1-30 份。", -1))
+                            _cache[138] || (_cache[138] = _createElementVNode("div", { class: "aoa-hint" }, "超出份数时自动删除最旧的备份，范围 1-30 份。", -1))
                           ]),
                           _: 1
                         })
@@ -1278,7 +1279,7 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_backup',
                         onClick: _cache[32] || (_cache[32] = $event => (runAction('run_backup', '立即备份')))
                       }, {
-                        default: _withCtx(() => [...(_cache[138] || (_cache[138] = [
+                        default: _withCtx(() => [...(_cache[139] || (_cache[139] = [
                           _createTextVNode(" 立即备份 ", -1)
                         ]))]),
                         _: 1
@@ -1293,7 +1294,7 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_28, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[141] || (_cache[141] = _createElementVNode("div", { class: "aoa-section-title" }, "WebDAV 远端备份", -1)),
+                    _cache[142] || (_cache[142] = _createElementVNode("div", { class: "aoa-section-title" }, "WebDAV 远端备份", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, { cols: "12" }, {
@@ -1306,7 +1307,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用 WebDAV 远端备份"
                             }, null, 8, ["modelValue"]),
-                            _cache[140] || (_cache[140] = _createElementVNode("div", { class: "aoa-hint" }, "本地备份完成后同步上传到 WebDAV。", -1))
+                            _cache[141] || (_cache[141] = _createElementVNode("div", { class: "aoa-hint" }, "本地备份完成后同步上传到 WebDAV。", -1))
                           ]),
                           _: 1
                         })
@@ -1448,7 +1449,7 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_29, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[145] || (_cache[145] = _createElementVNode("div", { class: "aoa-section-title" }, "插件日志清理", -1)),
+                    _cache[146] || (_cache[146] = _createElementVNode("div", { class: "aoa-section-title" }, "插件日志清理", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -1464,7 +1465,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用定时日志清理"
                             }, null, 8, ["modelValue"]),
-                            _cache[142] || (_cache[142] = _createElementVNode("div", { class: "aoa-hint" }, "按计划裁剪插件日志文件，仅保留指定行数。", -1))
+                            _cache[143] || (_cache[143] = _createElementVNode("div", { class: "aoa-hint" }, "按计划裁剪插件日志文件，仅保留指定行数。", -1))
                           ]),
                           _: 1
                         }),
@@ -1520,7 +1521,7 @@ return (_ctx, _cache) => {
                               "prepend-inner-icon": "mdi-puzzle-outline",
                               disabled: !form.log_clean_enabled
                             }, null, 8, ["modelValue", "items", "loading", "disabled"]),
-                            _cache[143] || (_cache[143] = _createElementVNode("div", { class: "aoa-hint" }, "从已安装插件中选择；不选则清理全部插件日志。", -1))
+                            _cache[144] || (_cache[144] = _createElementVNode("div", { class: "aoa-hint" }, "从已安装插件中选择；不选则清理全部插件日志。", -1))
                           ]),
                           _: 1
                         })
@@ -1567,7 +1568,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[146] || (_cache[146] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
+                    _cache[147] || (_cache[147] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
                     _createElementVNode("div", _hoisted_30, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
@@ -1576,7 +1577,7 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_log_clean',
                         onClick: _cache[47] || (_cache[47] = $event => (runAction('run_log_clean', '日志清理')))
                       }, {
-                        default: _withCtx(() => [...(_cache[144] || (_cache[144] = [
+                        default: _withCtx(() => [...(_cache[145] || (_cache[145] = [
                           _createTextVNode(" 立即清理 ", -1)
                         ]))]),
                         _: 1
@@ -1591,8 +1592,8 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_31, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[149] || (_cache[149] = _createElementVNode("div", { class: "aoa-section-title" }, "MoviePilot 更新检查", -1)),
-                    _cache[150] || (_cache[150] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "仅检查并通知是否有新版本，不会在这里直接升级。", -1)),
+                    _cache[150] || (_cache[150] = _createElementVNode("div", { class: "aoa-section-title" }, "MoviePilot 更新检查", -1)),
+                    _cache[151] || (_cache[151] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "仅检查并通知是否有新版本，不会在这里直接升级。", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -1681,7 +1682,7 @@ return (_ctx, _cache) => {
                               label: "允许自动重启以应用更新（高风险，谨慎开启）",
                               disabled: !form.mp_update_enabled
                             }, null, 8, ["modelValue", "disabled"]),
-                            _cache[147] || (_cache[147] = _createElementVNode("div", { class: "aoa-hint" }, "默认仅提醒；开启后将在更新后尝试重启 MoviePilot。", -1))
+                            _cache[148] || (_cache[148] = _createElementVNode("div", { class: "aoa-hint" }, "默认仅提醒；开启后将在更新后尝试重启 MoviePilot。", -1))
                           ]),
                           _: 1
                         })
@@ -1697,7 +1698,7 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_mp_update',
                         onClick: _cache[53] || (_cache[53] = $event => (runAction('run_mp_update', '检查主程序更新')))
                       }, {
-                        default: _withCtx(() => [...(_cache[148] || (_cache[148] = [
+                        default: _withCtx(() => [...(_cache[149] || (_cache[149] = [
                           _createTextVNode(" 检查更新 ", -1)
                         ]))]),
                         _: 1
@@ -1712,7 +1713,7 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_33, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[155] || (_cache[155] = _createElementVNode("div", { class: "aoa-section-title" }, "插件库更新检查", -1)),
+                    _cache[156] || (_cache[156] = _createElementVNode("div", { class: "aoa-section-title" }, "插件库更新检查", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -1728,7 +1729,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用插件库更新检查"
                             }, null, 8, ["modelValue"]),
-                            _cache[151] || (_cache[151] = _createElementVNode("div", { class: "aoa-hint" }, "按间隔检查已安装插件是否有新版本。", -1))
+                            _cache[152] || (_cache[152] = _createElementVNode("div", { class: "aoa-hint" }, "按间隔检查已安装插件是否有新版本。", -1))
                           ]),
                           _: 1
                         }),
@@ -1962,8 +1963,8 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[156] || (_cache[156] = _createElementVNode("div", { class: "aoa-section-title" }, "自动更新已安装插件", -1)),
-                    _cache[157] || (_cache[157] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "检测到已安装插件有新版时自动下载安装并重载（功能移植自“插件自动更新”）。不开启则仅在检查时提醒有新版。", -1)),
+                    _cache[157] || (_cache[157] = _createElementVNode("div", { class: "aoa-section-title" }, "自动更新已安装插件", -1)),
+                    _cache[158] || (_cache[158] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "检测到已安装插件有新版时自动下载安装并重载（功能移植自“插件自动更新”）。不开启则仅在检查时提醒有新版。", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -1980,7 +1981,7 @@ return (_ctx, _cache) => {
                               label: "自动安装插件新版",
                               disabled: !form.market_update_enabled
                             }, null, 8, ["modelValue", "disabled"]),
-                            _cache[152] || (_cache[152] = _createElementVNode("div", { class: "aoa-hint" }, "高风险：会自动替换插件代码并重载。默认关闭，仅提醒；本插件自身永不自动更新。", -1))
+                            _cache[153] || (_cache[153] = _createElementVNode("div", { class: "aoa-hint" }, "高风险：会自动替换插件代码并重载。默认关闭，仅提醒；本插件自身永不自动更新。", -1))
                           ]),
                           _: 1
                         }),
@@ -1998,7 +1999,7 @@ return (_ctx, _cache) => {
                               label: "跳过正在运行的插件",
                               disabled: !form.market_update_enabled || !form.market_update_auto_install
                             }, null, 8, ["modelValue", "disabled"]),
-                            _cache[153] || (_cache[153] = _createElementVNode("div", { class: "aoa-hint" }, "插件正在执行任务时不升级，避免中断。", -1))
+                            _cache[154] || (_cache[154] = _createElementVNode("div", { class: "aoa-hint" }, "插件正在执行任务时不升级，避免中断。", -1))
                           ]),
                           _: 1
                         })
@@ -2061,7 +2062,7 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_market_update',
                         onClick: _cache[70] || (_cache[70] = $event => (runAction('run_market_update', '插件库更新')))
                       }, {
-                        default: _withCtx(() => [...(_cache[154] || (_cache[154] = [
+                        default: _withCtx(() => [...(_cache[155] || (_cache[155] = [
                           _createTextVNode(" 立即检查 ", -1)
                         ]))]),
                         _: 1
@@ -2076,7 +2077,7 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_35, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[161] || (_cache[161] = _createElementVNode("div", { class: "aoa-section-title" }, "目标插件", -1)),
+                    _cache[162] || (_cache[162] = _createElementVNode("div", { class: "aoa-section-title" }, "目标插件", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, { cols: "12" }, {
@@ -2093,7 +2094,7 @@ return (_ctx, _cache) => {
                               clearable: "",
                               "prepend-inner-icon": "mdi-puzzle-remove-outline"
                             }, null, 8, ["modelValue", "items", "loading"]),
-                            _cache[158] || (_cache[158] = _createElementVNode("div", { class: "aoa-hint" }, "从已安装插件中多选。先“预览”确认范围，再“执行”清理。", -1))
+                            _cache[159] || (_cache[159] = _createElementVNode("div", { class: "aoa-hint" }, "从已安装插件中多选。先“预览”确认范围，再“执行”清理。", -1))
                           ]),
                           _: 1
                         })
@@ -2101,7 +2102,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[162] || (_cache[162] = _createElementVNode("div", { class: "aoa-section-title" }, "清理范围", -1)),
+                    _cache[163] || (_cache[163] = _createElementVNode("div", { class: "aoa-section-title" }, "清理范围", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -2170,7 +2171,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "删除本地源码（高风险，不可恢复）"
                             }, null, 8, ["modelValue"]),
-                            _cache[159] || (_cache[159] = _createElementVNode("div", { class: "aoa-hint" }, "仅对本地源码插件生效，删除后需重新安装。", -1))
+                            _cache[160] || (_cache[160] = _createElementVNode("div", { class: "aoa-hint" }, "仅对本地源码插件生效，删除后需重新安装。", -1))
                           ]),
                           _: 1
                         })
@@ -2178,7 +2179,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[163] || (_cache[163] = _createElementVNode("div", { class: "aoa-section-title" }, "执行", -1)),
+                    _cache[164] || (_cache[164] = _createElementVNode("div", { class: "aoa-section-title" }, "执行", -1)),
                     _createElementVNode("div", _hoisted_36, [
                       _createVNode(_component_VBtn, {
                         color: "error",
@@ -2188,13 +2189,13 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_plugin_uninstall',
                         onClick: _cache[76] || (_cache[76] = $event => (runAction('run_plugin_uninstall', '插件残留治理')))
                       }, {
-                        default: _withCtx(() => [...(_cache[160] || (_cache[160] = [
+                        default: _withCtx(() => [...(_cache[161] || (_cache[161] = [
                           _createTextVNode(" 执行清理 ", -1)
                         ]))]),
                         _: 1
                       }, 8, ["disabled", "loading"])
                     ]),
-                    _cache[164] || (_cache[164] = _createElementVNode("div", { class: "aoa-hint mt-2" }, "残留清理为不可逆操作，执行前请务必先预览确认。", -1))
+                    _cache[165] || (_cache[165] = _createElementVNode("div", { class: "aoa-hint mt-2" }, "残留清理为不可逆操作，执行前请务必先预览确认。", -1))
                   ]),
                   _: 1
                 })
@@ -2210,7 +2211,7 @@ return (_ctx, _cache) => {
                       class: "mb-4",
                       text: "自动删种有风险，设置不当可能丢数据！建议先用“暂停”动作验证条件命中正确，再改“删除”。未填写任何筛选条件时不会执行。"
                     }),
-                    _cache[167] || (_cache[167] = _createElementVNode("div", { class: "aoa-section-title" }, "自动删种", -1)),
+                    _cache[168] || (_cache[168] = _createElementVNode("div", { class: "aoa-section-title" }, "自动删种", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -2226,7 +2227,7 @@ return (_ctx, _cache) => {
                               "hide-details": "",
                               label: "启用定时自动删种"
                             }, null, 8, ["modelValue"]),
-                            _cache[165] || (_cache[165] = _createElementVNode("div", { class: "aoa-hint" }, "按计划在所选下载器中处理符合条件的种子。", -1))
+                            _cache[166] || (_cache[166] = _createElementVNode("div", { class: "aoa-hint" }, "按计划在所选下载器中处理符合条件的种子。", -1))
                           ]),
                           _: 1
                         }),
@@ -2290,8 +2291,8 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[168] || (_cache[168] = _createElementVNode("div", { class: "aoa-section-title" }, "筛选条件", -1)),
-                    _cache[169] || (_cache[169] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "仅处理“同时满足所有已填条件”的种子；留空的条件不参与。全部留空则跳过不处理。", -1)),
+                    _cache[169] || (_cache[169] = _createElementVNode("div", { class: "aoa-section-title" }, "筛选条件", -1)),
+                    _cache[170] || (_cache[170] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "仅处理“同时满足所有已填条件”的种子；留空的条件不参与。全部留空则跳过不处理。", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -2524,7 +2525,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _cache[170] || (_cache[170] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
+                    _cache[171] || (_cache[171] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
                     _createElementVNode("div", _hoisted_38, [
                       _createVNode(_component_VBtn, {
                         color: "error",
@@ -2534,13 +2535,13 @@ return (_ctx, _cache) => {
                         loading: action.running === 'run_seed_clean',
                         onClick: _cache[94] || (_cache[94] = $event => (runAction('run_seed_clean', '自动删种')))
                       }, {
-                        default: _withCtx(() => [...(_cache[166] || (_cache[166] = [
+                        default: _withCtx(() => [...(_cache[167] || (_cache[167] = [
                           _createTextVNode(" 立即执行 ", -1)
                         ]))]),
                         _: 1
                       }, 8, ["disabled", "loading"])
                     ]),
-                    _cache[171] || (_cache[171] = _createElementVNode("div", { class: "aoa-hint mt-2" }, "立即执行将按上面已填条件处理；建议先把动作设为“暂停”确认无误。", -1))
+                    _cache[172] || (_cache[172] = _createElementVNode("div", { class: "aoa-hint mt-2" }, "立即执行将按上面已填条件处理；建议先把动作设为“暂停”确认无误。", -1))
                   ]),
                   _: 1
                 })
@@ -2550,8 +2551,8 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_39, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[173] || (_cache[173] = _createElementVNode("div", { class: "aoa-section-title" }, "媒体库服务器通知", -1)),
-                    _cache[174] || (_cache[174] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "监听 Emby/Jellyfin/Plex 的 webhook 事件并推送通知（需先在 MoviePilot 把媒体服务器 webhook 指向 MP）。不含原插件的剧集聚合/IP定位/海报抓取。", -1)),
+                    _cache[176] || (_cache[176] = _createElementVNode("div", { class: "aoa-section-title" }, "媒体库服务器通知", -1)),
+                    _cache[177] || (_cache[177] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "监听 Emby/Jellyfin/Plex 的 webhook 事件并推送通知（需先在 MoviePilot 把媒体服务器 webhook 指向 MP）。不含原插件的剧集聚合/IP定位/海报抓取。", -1)),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -2566,7 +2567,8 @@ return (_ctx, _cache) => {
                               inset: "",
                               "hide-details": "",
                               label: "启用媒体库服务器通知"
-                            }, null, 8, ["modelValue"])
+                            }, null, 8, ["modelValue"]),
+                            _cache[173] || (_cache[173] = _createElementVNode("div", { class: "aoa-hint" }, "监听 Emby/Jellyfin/Plex 的 webhook 事件，按筛选规则推送通知。", -1))
                           ]),
                           _: 1
                         })
@@ -2592,7 +2594,7 @@ return (_ctx, _cache) => {
                               "prepend-inner-icon": "mdi-bell-cog-outline",
                               disabled: !form.msgnotify_enabled
                             }, null, 8, ["modelValue", "items", "disabled"]),
-                            _cache[172] || (_cache[172] = _createElementVNode("div", { class: "aoa-hint" }, "新入库 / 开始播放 / 停止播放 / 登录成功 / 登录失败 / 标记。留空则不通知。", -1))
+                            _cache[174] || (_cache[174] = _createElementVNode("div", { class: "aoa-hint" }, "新入库 / 开始播放 / 停止播放 / 登录成功 / 登录失败 / 标记。留空则不通知。", -1))
                           ]),
                           _: 1
                         }),
@@ -2617,7 +2619,12 @@ return (_ctx, _cache) => {
                             }, null, 8, ["modelValue", "items", "loading", "disabled"])
                           ]),
                           _: 1
-                        })
+                        }),
+                        _createVNode(_component_VDivider, { class: "my-4" }),
+                        _cache[175] || (_cache[175] = _createElementVNode("div", { class: "aoa-hint text-caption" }, [
+                          _createElementVNode("strong", null, "说明："),
+                          _createTextVNode(" 需先在 MoviePilot 中将媒体服务器 webhook 指向本插件。推送目标为各服务器的 webhook，不走 MP 通知渠道。 ")
+                        ], -1))
                       ]),
                       _: 1
                     })
@@ -2630,8 +2637,29 @@ return (_ctx, _cache) => {
               _withDirectives(_createElementVNode("div", _hoisted_40, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
-                    _cache[176] || (_cache[176] = _createElementVNode("div", { class: "aoa-section-title" }, "按站点为种子批量补打标签", -1)),
-                    _cache[177] || (_cache[177] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "遍历下载器中的种子，按其 tracker 所属站点补打标签（已打的跳过，幂等安全）；活动种子概览见仪表盘。功能移植自“下载器助手”。", -1)),
+                    _cache[180] || (_cache[180] = _createElementVNode("div", { class: "aoa-section-title" }, "按站点为种子批量补打标签", -1)),
+                    _createVNode(_component_VRow, null, {
+                      default: _withCtx(() => [
+                        _createVNode(_component_VCol, {
+                          cols: "12",
+                          md: "6"
+                        }, {
+                          default: _withCtx(() => [
+                            _createVNode(_component_VSwitch, {
+                              modelValue: form.dltag_enabled,
+                              "onUpdate:modelValue": _cache[98] || (_cache[98] = $event => ((form.dltag_enabled) = $event)),
+                              color: "primary",
+                              inset: "",
+                              "hide-details": "",
+                              label: "启用下载器助手(批量打标签)"
+                            }, null, 8, ["modelValue"]),
+                            _cache[178] || (_cache[178] = _createElementVNode("div", { class: "aoa-hint" }, "遍历下载器中的种子，按其 tracker 所属站点补打标签(已打的跳过，幂等安全)。", -1))
+                          ]),
+                          _: 1
+                        })
+                      ]),
+                      _: 1
+                    }),
                     _createVNode(_component_VRow, null, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
@@ -2641,7 +2669,7 @@ return (_ctx, _cache) => {
                           default: _withCtx(() => [
                             _createVNode(_component_VSelect, {
                               modelValue: form.dltag_downloaders,
-                              "onUpdate:modelValue": _cache[98] || (_cache[98] = $event => ((form.dltag_downloaders) = $event)),
+                              "onUpdate:modelValue": _cache[99] || (_cache[99] = $event => ((form.dltag_downloaders) = $event)),
                               items: downloaderOptions.value,
                               loading: downloadersLoading.value,
                               label: "下载器（留空＝全部已配置）",
@@ -2649,8 +2677,9 @@ return (_ctx, _cache) => {
                               chips: "",
                               "closable-chips": "",
                               clearable: "",
-                              "prepend-inner-icon": "mdi-download-network-outline"
-                            }, null, 8, ["modelValue", "items", "loading"])
+                              "prepend-inner-icon": "mdi-download-network-outline",
+                              disabled: !form.dltag_enabled
+                            }, null, 8, ["modelValue", "items", "loading", "disabled"])
                           ]),
                           _: 1
                         }),
@@ -2661,11 +2690,12 @@ return (_ctx, _cache) => {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.dltag_prefix,
-                              "onUpdate:modelValue": _cache[99] || (_cache[99] = $event => ((form.dltag_prefix) = $event)),
+                              "onUpdate:modelValue": _cache[100] || (_cache[100] = $event => ((form.dltag_prefix) = $event)),
                               label: "标签前缀（可选）",
                               placeholder: "如 站点-",
-                              clearable: ""
-                            }, null, 8, ["modelValue"])
+                              clearable: "",
+                              disabled: !form.dltag_enabled
+                            }, null, 8, ["modelValue", "disabled"])
                           ]),
                           _: 1
                         }),
@@ -2676,12 +2706,13 @@ return (_ctx, _cache) => {
                           default: _withCtx(() => [
                             _createVNode(_component_VSwitch, {
                               modelValue: form.dltag_notify,
-                              "onUpdate:modelValue": _cache[100] || (_cache[100] = $event => ((form.dltag_notify) = $event)),
+                              "onUpdate:modelValue": _cache[101] || (_cache[101] = $event => ((form.dltag_notify) = $event)),
                               color: "primary",
                               inset: "",
                               "hide-details": "",
-                              label: "完成后通知"
-                            }, null, 8, ["modelValue"])
+                              label: "完成后通知",
+                              disabled: !form.dltag_enabled
+                            }, null, 8, ["modelValue", "disabled"])
                           ]),
                           _: 1
                         })
@@ -2695,9 +2726,9 @@ return (_ctx, _cache) => {
                         variant: "tonal",
                         "prepend-icon": "mdi-tag-multiple-outline",
                         loading: action.running === 'run_downloader_tag',
-                        onClick: _cache[101] || (_cache[101] = $event => (runAction('run_downloader_tag', '种子打标签')))
+                        onClick: _cache[102] || (_cache[102] = $event => (runAction('run_downloader_tag', '种子打标签')))
                       }, {
-                        default: _withCtx(() => [...(_cache[175] || (_cache[175] = [
+                        default: _withCtx(() => [...(_cache[179] || (_cache[179] = [
                           _createTextVNode(" 立即按站点打标签 ", -1)
                         ]))]),
                         _: 1
@@ -2736,9 +2767,9 @@ return (_ctx, _cache) => {
             _createVNode(_component_VSpacer),
             _createVNode(_component_VBtn, {
               variant: "text",
-              onClick: _cache[102] || (_cache[102] = $event => (emit('close')))
+              onClick: _cache[103] || (_cache[103] = $event => (emit('close')))
             }, {
-              default: _withCtx(() => [...(_cache[178] || (_cache[178] = [
+              default: _withCtx(() => [...(_cache[181] || (_cache[181] = [
                 _createTextVNode("取消", -1)
               ]))]),
               _: 1
@@ -2749,7 +2780,7 @@ return (_ctx, _cache) => {
               "prepend-icon": "mdi-content-save-outline",
               onClick: saveConfig
             }, {
-              default: _withCtx(() => [...(_cache[179] || (_cache[179] = [
+              default: _withCtx(() => [...(_cache[182] || (_cache[182] = [
                 _createTextVNode("保存配置", -1)
               ]))]),
               _: 1
@@ -2765,6 +2796,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-2586f22e"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-cf981781"]]);
 
 export { Config as default };
