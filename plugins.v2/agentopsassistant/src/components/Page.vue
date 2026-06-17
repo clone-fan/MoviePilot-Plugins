@@ -166,34 +166,34 @@ const actionGroups = [
     group: '汇报中心',
     icon: 'mdi-newspaper-variant-outline',
     actions: [
-      { path: 'run_daily_report', label: '每日汇报', icon: 'mdi-send-clock-outline', desc: '发送完整日报' },
+      { path: 'run_daily_report', label: '每日汇报', icon: 'mdi-send-clock-outline', desc: '发送完整日报', tone: 'green' },
     ]
   },
   {
     group: '订阅与站点',
     icon: 'mdi-bell-ring-outline',
     actions: [
-      { path: 'run_subscribe_reminder', label: '订阅追新', icon: 'mdi-bell-badge-outline', desc: '推送今日追新' },
-      { path: 'run_site_stat', label: '站点统计', icon: 'mdi-chart-pie', desc: '刷新增量数据' },
+      { path: 'run_subscribe_reminder', label: '订阅追新', icon: 'mdi-bell-badge-outline', desc: '推送今日追新', tone: 'blue' },
+      { path: 'run_site_stat', label: '站点统计', icon: 'mdi-chart-pie', desc: '刷新增量数据', tone: 'blue' },
     ]
   },
   {
     group: '下载与媒体',
     icon: 'mdi-download-network-outline',
     actions: [
-      { path: 'run_downloader_tag', label: '种子标签', icon: 'mdi-tag-plus-outline', desc: '按站点补标签' },
-      { path: 'run_seed_clean', label: '自动删种', icon: 'mdi-delete-sweep-outline', desc: '执行删种规则' },
+      { path: 'run_downloader_tag', label: '种子标签', icon: 'mdi-tag-plus-outline', desc: '按站点补标签', tone: 'cyan' },
+      { path: 'run_seed_clean', label: '自动删种', icon: 'mdi-delete-sweep-outline', desc: '执行删种规则', tone: 'red' },
     ]
   },
   {
     group: '系统维护',
     icon: 'mdi-cog-outline',
     actions: [
-      { path: 'run_backup', label: '配置备份', icon: 'mdi-database-arrow-up-outline', desc: '备份关键配置' },
-      { path: 'run_log_clean', label: '日志清理', icon: 'mdi-broom', desc: '清理插件日志' },
-      { path: 'run_mp_update', label: 'MP 更新', icon: 'mdi-update', desc: '检查主程序更新' },
-      { path: 'run_market_update', label: '插件更新', icon: 'mdi-puzzle-check-outline', desc: '检查插件市场' },
-      { path: 'run_health_check', label: '健康巡查', icon: 'mdi-heart-pulse', desc: '检查运行健康' },
+      { path: 'run_backup', label: '配置备份', icon: 'mdi-database-arrow-up-outline', desc: '备份关键配置', tone: 'purple' },
+      { path: 'run_log_clean', label: '日志清理', icon: 'mdi-broom', desc: '清理插件日志', tone: 'purple' },
+      { path: 'run_health_check', label: '健康巡查', icon: 'mdi-heart-pulse', desc: '检查运行健康', tone: 'green' },
+      { path: 'run_mp_update', label: 'MP 更新', icon: 'mdi-update', desc: '检查主程序更新', tone: 'amber' },
+      { path: 'run_market_update', label: '插件更新', icon: 'mdi-puzzle-check-outline', desc: '检查插件市场', tone: 'amber' },
     ]
   }
 ]
@@ -304,33 +304,29 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 
         <!-- 手动触发：模块化放在站点数据右边 -->
         <VCol cols="12" lg="5">
-          <VCard elevation="0" class="glass-panel h-100">
-            <VCardTitle class="compact-card-title">
-              <VIcon icon="mdi-play-circle-outline" color="primary" class="me-2" />手动触发
-            </VCardTitle>
-            <VCardText class="compact-card-text">
+          <VCard elevation="0" class="glass-panel action-panel h-100">
+            <VCardText class="compact-card-text action-panel-body">
               <div class="action-scroll">
                 <div v-for="grp in actionGroups" :key="grp.group" class="action-group">
-                  <div class="action-group-title">
-                    <VIcon :icon="grp.icon" size="17" color="primary" />
-                    <span>{{ grp.group }}</span>
-                  </div>
+                  <div class="action-group-title">{{ grp.group }}</div>
                   <div class="action-buttons">
-                    <div v-for="action in grp.actions" :key="action.path" class="action-item">
-                      <VBtn
-                        block
-                        size="small"
-                        variant="text"
-                        density="comfortable"
-                        :loading="actionRunning === action.path"
-                        @click="runAction(action.path, action.label)"
-                        class="action-btn text-none"
-                      >
+                    <VBtn
+                      v-for="action in grp.actions"
+                      :key="action.path"
+                      block
+                      variant="text"
+                      density="comfortable"
+                      :loading="actionRunning === action.path"
+                      @click="runAction(action.path, action.label)"
+                      class="action-btn text-none"
+                      :class="`action-btn--${action.tone}`"
+                    >
+                      <span class="action-btn-main">
                         <VIcon :icon="action.icon" size="18" />
                         <span class="action-btn-label">{{ action.label }}</span>
-                      </VBtn>
-                      <div class="action-btn-desc">{{ action.desc }}</div>
-                    </div>
+                      </span>
+                      <span class="action-btn-desc">{{ action.desc }}</span>
+                    </VBtn>
                   </div>
                 </div>
               </div>
@@ -622,55 +618,85 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   border-radius: 14px;
   background: rgba(var(--v-theme-primary), 0.06);
 }
+.action-panel {
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.8), rgba(var(--v-theme-surface), 0.62)),
+    rgba(var(--v-theme-on-surface), 0.018);
+}
+.action-panel-body {
+  padding: 14px !important;
+}
 .action-scroll {
   display: grid;
-  gap: 12px;
+  gap: 13px;
   max-height: 285px;
   overflow: auto;
-  padding-right: 2px;
+  padding-right: 3px;
 }
 .action-group {
   display: grid;
-  gap: 8px;
+  gap: 7px;
 }
 .action-group-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: rgba(var(--v-theme-on-surface), 0.74);
-  font-size: 12px;
-  font-weight: 700;
+  padding: 0 2px;
+  color: rgba(var(--v-theme-on-surface), 0.46);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
 }
 .action-buttons {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px 10px;
-}
-.action-item {
-  min-width: 0;
+  gap: 10px;
 }
 .action-btn {
-  min-height: 42px;
-  justify-content: center;
-  border-radius: 13px;
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-primary), 0.13), rgba(var(--v-theme-primary), 0.06));
-  border: 1px solid rgba(var(--v-theme-primary), 0.14);
-  box-shadow: inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.04);
-  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  --action-rgb: var(--v-theme-primary);
+  min-height: 62px;
+  justify-content: flex-start;
+  border-radius: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.9);
+  background: rgba(var(--v-theme-on-surface), 0.032);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.075);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.035),
+    0 10px 28px rgba(var(--v-theme-on-surface), 0.035);
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
 }
 .action-btn:hover {
-  border-color: rgba(var(--v-theme-primary), 0.26);
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-primary), 0.18), rgba(var(--v-theme-primary), 0.08));
+  color: rgb(var(--action-rgb));
+  border-color: rgba(var(--action-rgb), 0.28);
+  background: rgba(var(--action-rgb), 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.045),
+    0 12px 30px rgba(var(--action-rgb), 0.08);
+}
+.action-btn--green { --action-rgb: var(--v-theme-success); }
+.action-btn--blue { --action-rgb: var(--v-theme-primary); }
+.action-btn--cyan { --action-rgb: var(--v-theme-info); }
+.action-btn--red { --action-rgb: var(--v-theme-error); }
+.action-btn--purple { --action-rgb: var(--v-theme-secondary); }
+.action-btn--amber { --action-rgb: var(--v-theme-warning); }
+.action-btn :deep(.v-btn__overlay) {
+  display: none;
 }
 .action-btn :deep(.v-btn__content) {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 7px;
+  line-height: 1.2;
+}
+.action-btn-main {
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  line-height: 1.2;
+  gap: 7px;
+}
+.action-btn-main :deep(.v-icon) {
+  color: rgb(var(--action-rgb));
 }
 .action-btn-label {
   max-width: 100%;
@@ -678,18 +704,17 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
 }
 .action-btn-desc {
-  margin-top: 5px;
-  text-align: center;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: rgba(var(--v-theme-on-surface), 0.50);
+  color: rgba(var(--v-theme-on-surface), 0.52);
   font-size: 11px;
-  line-height: 1.2;
+  font-weight: 650;
+  line-height: 1.15;
 }
 .task-grid {
   display: grid;
