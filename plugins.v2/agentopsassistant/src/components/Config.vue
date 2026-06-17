@@ -218,16 +218,16 @@ const defaults = {
 }
 
 const mainTabs = [
-  { key: 'report', group: '汇报中心', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '控制日报发送节奏、手动推送和所有并入日报的栏目' },
-  { key: 'subreminder', group: '订阅与站点', title: '订阅管理', icon: 'mdi-bell-cog-outline', desc: '订阅追新与订阅规则填充统一管理' },
-  { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '提供仪表盘站点数据，以及日报里的站点状态、站点增量栏目' },
-  { key: 'seedclean', group: '下载与媒体', title: '下载器管理', icon: 'mdi-download-network-outline', desc: '集中管理下载器相关能力：自动删种、种子批量打标签与下载器活动概览' },
-  { key: 'msgnotify', group: '下载与媒体', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知' },
-  { key: 'healthcheck', group: '系统维护', title: '健康巡查', icon: 'mdi-heart-pulse', desc: '定期检查系统健康状态（数据库、存储、目录等），发现问题及时通知' },
-  { key: 'backup', group: '系统维护', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '设置本地备份、保留数量和 WebDAV 远端备份' },
-  { key: 'cleanup', group: '系统维护', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '设置插件日志保留行数、清理时间和结果通知' },
-  { key: 'updates', group: '系统维护', title: '更新检查', icon: 'mdi-update', desc: '检查 MoviePilot 与插件库更新，可自动更新已安装插件' },
-  { key: 'plugin', group: '系统维护', title: '插件卸载', icon: 'mdi-puzzle-remove-outline', desc: '卸载已安装插件，并按需清理配置、数据、日志和本地源码残留' },
+  { key: 'report', group: '汇报中心', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '日报发送、手动推送与栏目控制' },
+  { key: 'subreminder', group: '订阅与站点', title: '订阅管理', icon: 'mdi-bell-cog-outline', desc: '订阅追新与规则填充' },
+  { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '仪表盘站点数据与日报栏目' },
+  { key: 'seedclean', group: '下载与媒体', title: '下载器管理', icon: 'mdi-download-network-outline', desc: '自动删种、种子标签与下载器治理' },
+  { key: 'msgnotify', group: '下载与媒体', title: '媒体通知', icon: 'mdi-television-play', desc: '媒体服务器 webhook 事件通知' },
+  { key: 'healthcheck', group: '系统维护', title: '健康巡查', icon: 'mdi-heart-pulse', desc: '数据库、存储、目录健康检查' },
+  { key: 'backup', group: '系统维护', title: '自动备份', icon: 'mdi-archive-arrow-up-outline', desc: '本地与 WebDAV 备份' },
+  { key: 'cleanup', group: '系统维护', title: '日志清理', icon: 'mdi-file-document-remove-outline', desc: '插件日志保留与清理通知' },
+  { key: 'updates', group: '系统维护', title: '更新检查', icon: 'mdi-update', desc: 'MoviePilot 与插件库更新' },
+  { key: 'plugin', group: '系统维护', title: '插件卸载', icon: 'mdi-puzzle-remove-outline', desc: '卸载插件并清理残留' },
 ]
 
 const navGroups = computed(() => {
@@ -349,6 +349,63 @@ const reportSections = [
 
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
 const currentSubs = computed(() => subTabs[activeMain.value] || [])
+const activeActionItems = computed(() => {
+  const actions = {
+    overview: [
+      { path: 'run_daily_report', label: '立即发送汇报', icon: 'mdi-send-outline', note: '按当前设置发送一次完整日报' },
+      { path: 'run_health_check', label: '立即健康巡查', icon: 'mdi-heart-pulse', note: '顺手刷新日报里的健康巡查结果' },
+    ],
+    subscribe: [
+      { path: 'run_subscribe_reminder', label: '立即推送订阅追新', icon: 'mdi-bell-ring-outline', note: '按当前设置推送今日订阅追新' },
+    ],
+    sites: [
+      { path: 'run_site_stat', label: '立即统计', icon: 'mdi-chart-line', note: '刷新站点数据与仪表盘统计' },
+    ],
+    hc: [
+      { path: 'run_health_check', label: '立即巡查', icon: 'mdi-heart-pulse', note: '按当前范围检查系统健康' },
+    ],
+    subfill: [
+      { path: 'subfill_clear_history', label: '清理历史记录', icon: 'mdi-history', note: '清理订阅规则填充历史' },
+      { path: 'subfill_clear_handled', label: '清理已处理记录', icon: 'mdi-backup-restore', note: '让已处理剧集下次重新尝试填充', color: 'warning' },
+    ],
+    local: [
+      { path: 'run_backup', label: '立即备份', icon: 'mdi-archive-arrow-up-outline', note: '按当前本地配置备份一次' },
+    ],
+    logs: [
+      { path: 'run_log_clean', label: '立即清理', icon: 'mdi-broom', note: '按当前保留行数裁剪插件日志' },
+    ],
+    mp: [
+      { path: 'run_mp_update', label: '检查更新', icon: 'mdi-update', note: '仅检查 MoviePilot 主程序版本' },
+    ],
+    market: [
+      { path: 'run_market_update', label: '立即检查', icon: 'mdi-cloud-sync-outline', note: '检查插件库并处理已安装插件更新' },
+    ],
+    clean: [
+      {
+        path: 'run_plugin_uninstall',
+        label: '执行卸载',
+        icon: 'mdi-puzzle-remove-outline',
+        note: '不可逆操作，执行前确认插件和清理范围',
+        color: 'error',
+        disabled: !form.plugin_uninstall_ids || !form.plugin_uninstall_ids.length,
+      },
+    ],
+    seedremove: [
+      {
+        path: 'run_seed_clean',
+        label: '立即执行',
+        icon: 'mdi-delete-sweep-outline',
+        note: '按当前条件处理种子，建议先暂停验证命中',
+        color: 'error',
+        disabled: !form.seedclean_downloaders || !form.seedclean_downloaders.length,
+      },
+    ],
+    dltagmain: [
+      { path: 'run_downloader_tag', label: '立即打标签', icon: 'mdi-tag-multiple-outline', note: '按 tracker 站点为种子补标签' },
+    ],
+  }
+  return actions[activeSub.value] || []
+})
 const healthSelectedCount = computed(() => {
   const selected = Array.isArray(form.health_check_items) ? form.health_check_items : []
   return selected.length || healthCheckItems.length
@@ -472,7 +529,7 @@ onMounted(() => {
                   <VCol cols="12" md="6">
                     <VSwitch v-model="form.daily_report_enabled" color="primary" inset hide-details
                       label="启用定时每日汇报" />
-                    <div class="aoa-hint">关闭后将不再按计划自动发送汇报，仍可在下方手动触发</div>
+                    <div class="aoa-hint">关闭后将不再按计划自动发送汇报，仍可在底部动作区手动触发</div>
                   </VCol>
                   <VCol cols="12" md="6">
                     <VCronField v-model="form.daily_report_cron" label="汇报时间 (Cron)"
@@ -490,19 +547,6 @@ onMounted(() => {
                       label="消息类型" :disabled="!form.daily_report_enabled" />
                   </VCol>
                 </VRow>
-
-                <VDivider class="my-4" />
-                <div class="aoa-section-title">手动触发</div>
-                <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-send-outline"
-                    :loading="action.running === 'run_daily_report'" @click="runAction('run_daily_report', '发送每日汇报')">
-                    立即发送汇报
-                  </VBtn>
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-heart-pulse"
-                    :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">
-                    立即健康巡查
-                  </VBtn>
-                </div>
               </VForm>
             </div>
 
@@ -574,15 +618,6 @@ onMounted(() => {
                       label="消息类型" :disabled="!form.subscribe_reminder_enabled" />
                   </VCol>
                 </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-section-title">手动触发</div>
-                <div class="aoa-hint mb-2">立即按当前设置推送一次今日订阅追新（独立于每日汇报）</div>
-                <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-bell-ring-outline"
-                    :loading="action.running === 'run_subscribe_reminder'" @click="runAction('run_subscribe_reminder', '订阅追新')">
-                    立即推送订阅追新
-                  </VBtn>
-                </div>
               </VForm>
             </div>
 
@@ -655,13 +690,6 @@ onMounted(() => {
                       min="1" max="99" suffix="%" :disabled="!form.health_check_enabled" />
                   </div>
                 </div>
-
-                <div class="aoa-health-action-row">
-                  <VBtn color="primary" variant="flat" prepend-icon="mdi-heart-pulse" class="aoa-health-run"
-                    :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">
-                    立即巡查
-                  </VBtn>
-                </div>
               </VForm>
             </div>
 
@@ -712,20 +740,6 @@ onMounted(() => {
                       :disabled="!form.subfill_category_enabled" />
                   </VCol>
                 </VRow>
-
-                <VDivider class="my-4" />
-                <div class="aoa-section-title">维护</div>
-                <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-history"
-                    :loading="action.running === 'subfill_clear_history'" @click="runAction('subfill_clear_history', '清理填充历史')">
-                    清理历史记录
-                  </VBtn>
-                  <VBtn color="warning" variant="tonal" prepend-icon="mdi-backup-restore"
-                    :loading="action.running === 'subfill_clear_handled'" @click="runAction('subfill_clear_handled', '清理已处理记录')">
-                    清理已处理记录
-                  </VBtn>
-                </div>
-                <div class="aoa-hint mt-2">“清理已处理记录”后，已处理过的剧集下次下载会重新尝试填充</div>
               </VForm>
             </div>
             <!-- 自动备份 · 本地备份 -->
@@ -772,13 +786,6 @@ onMounted(() => {
                       label="保存后立即备份一次" :disabled="!form.backup_enabled" />
                   </VCol>
                 </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-archive-arrow-up-outline"
-                    :loading="action.running === 'run_backup'" @click="runAction('run_backup', '立即备份')">
-                    立即备份
-                  </VBtn>
-                </div>
               </VForm>
             </div>
 
@@ -876,14 +883,6 @@ onMounted(() => {
                       label="保存后立即清理一次" :disabled="!form.log_clean_enabled" />
                   </VCol>
                 </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-section-title">手动触发</div>
-                <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-broom"
-                    :loading="action.running === 'run_log_clean'" @click="runAction('run_log_clean', '日志清理')">
-                    立即清理
-                  </VBtn>
-                </div>
               </VForm>
             </div>
 
@@ -923,13 +922,6 @@ onMounted(() => {
                     <div class="aoa-hint">默认仅提醒，开启后将在更新后尝试重启 MoviePilot</div>
                   </VCol>
                 </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-update"
-                    :loading="action.running === 'run_mp_update'" @click="runAction('run_mp_update', '检查主程序更新')">
-                    检查更新
-                  </VBtn>
-                </div>
               </VForm>
             </div>
 
@@ -1039,13 +1031,6 @@ onMounted(() => {
                       :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
                   </VCol>
                 </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-cloud-sync-outline"
-                    :loading="action.running === 'run_market_update'" @click="runAction('run_market_update', '插件库更新')">
-                    立即检查
-                  </VBtn>
-                </div>
               </VForm>
             </div>
 
@@ -1092,16 +1077,6 @@ onMounted(() => {
                     <div class="aoa-hint">仅对本地源码插件生效，删除后需重新安装</div>
                   </VCol>
                 </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-section-title">执行</div>
-                <div class="aoa-btn-row">
-                  <VBtn color="error" variant="tonal" prepend-icon="mdi-puzzle-remove-outline"
-                    :disabled="!form.plugin_uninstall_ids || !form.plugin_uninstall_ids.length"
-                    :loading="action.running === 'run_plugin_uninstall'" @click="runAction('run_plugin_uninstall', '插件卸载')">
-                    执行卸载
-                  </VBtn>
-                </div>
-                <div class="aoa-hint mt-2">插件卸载为不可逆操作，执行前请确认目标插件和清理范围</div>
               </VForm>
             </div>
 
@@ -1190,19 +1165,12 @@ onMounted(() => {
                   </VCol>
                 </VRow>
 
-                <VDivider class="my-5" />
-                <div class="aoa-seed-action-row">
-                  <div class="aoa-seed-action-type">
+                <VRow>
+                  <VCol cols="12" md="4">
                     <VSelect v-model="form.seedclean_notify_type" :items="notificationTypeItems"
                       hide-details label="消息类型" :disabled="!form.seedclean_enabled || !form.seedclean_notify" />
-                  </div>
-                  <VBtn color="error" variant="tonal" prepend-icon="mdi-delete-sweep-outline"
-                    :disabled="!form.seedclean_downloaders || !form.seedclean_downloaders.length"
-                    :loading="action.running === 'run_seed_clean'" @click="runAction('run_seed_clean', '自动删种')">
-                    立即执行
-                  </VBtn>
-                  <div class="aoa-hint">立即执行按当前条件处理，建议先用“暂停”确认命中无误</div>
-                </div>
+                  </VCol>
+                </VRow>
               </VForm>
             </div>
             <!-- 媒体通知 · 服务器通知 -->
@@ -1270,14 +1238,26 @@ onMounted(() => {
                       label="消息类型" :disabled="!form.dltag_enabled || !form.dltag_notify" />
                   </VCol>
                 </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-btn-row">
-                  <VBtn color="primary" variant="tonal" prepend-icon="mdi-tag-multiple-outline"
-                    :loading="action.running === 'run_downloader_tag'" @click="runAction('run_downloader_tag', '种子打标签')">
-                    立即按站点打标签
-                  </VBtn>
-                </div>
               </VForm>
+            </div>
+          </div>
+          <div v-if="activeActionItems.length" class="aoa-action-dock">
+            <div class="aoa-action-dock-list">
+              <div v-for="item in activeActionItems" :key="item.path" class="aoa-action-dock-item">
+                <VBtn
+                  size="small"
+                  :color="item.color || 'primary'"
+                  variant="tonal"
+                  :prepend-icon="item.icon"
+                  class="aoa-action-btn text-none"
+                  :disabled="item.disabled"
+                  :loading="action.running === item.path"
+                  @click="runAction(item.path, item.label)"
+                >
+                  {{ item.label }}
+                </VBtn>
+                <span class="aoa-action-note">{{ item.note }}</span>
+              </div>
             </div>
           </div>
         </section>
@@ -1392,6 +1372,7 @@ onMounted(() => {
 }
 .aoa-subtab-list {
   display: flex;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
@@ -1428,19 +1409,20 @@ onMounted(() => {
 }
 .aoa-subtab-desc {
   display: block;
-  flex: 1 1 auto;
-  justify-content: flex-end;
-  max-width: 52%;
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: max-content;
+  max-width: calc(100% - 220px);
   min-height: 36px;
   min-width: 0;
-  padding-right: 44px;
+  padding-right: 6px;
   font-size: 13px;
   font-weight: 500;
   line-height: 36px;
   color: rgba(var(--v-theme-on-surface), 0.58);
   text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
 }
 .aoa-window {
@@ -1448,7 +1430,7 @@ onMounted(() => {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: 48px;
+  padding-bottom: 12px;
   scrollbar-width: thin;
 }
 .aoa-pane {
@@ -1563,22 +1545,35 @@ onMounted(() => {
 .aoa-inline-hint {
   margin-top: 0;
 }
-.aoa-btn-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.9), rgba(var(--v-theme-surface), 0.72)),
-    rgba(var(--v-theme-on-surface), 0.018);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.13);
+.aoa-action-dock {
+  flex: 0 0 auto;
+  padding: 10px 24px 16px;
 }
-.aoa-btn-row :deep(.v-btn) {
-  min-height: 42px;
+.aoa-action-dock-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+.aoa-action-dock-item {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.aoa-action-btn {
+  min-height: 38px;
   border-radius: 999px;
-  font-weight: 700;
+  font-weight: 750;
+}
+.aoa-action-note {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(var(--v-theme-on-surface), 0.52);
+  font-size: 12px;
+  line-height: 1.3;
 }
 .aoa-seed-form,
 .aoa-dltag-form {
@@ -1608,16 +1603,6 @@ onMounted(() => {
 }
 .aoa-seed-options :deep(.v-selection-control) {
   min-height: 42px;
-}
-.aoa-seed-action-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.aoa-seed-action-type {
-  flex: 0 1 260px;
-  min-width: 220px;
 }
 .aoa-health-form {
   display: grid;
@@ -1723,16 +1708,6 @@ onMounted(() => {
   gap: 14px;
   align-items: start;
 }
-.aoa-health-action-row {
-  display: flex;
-  justify-content: flex-end;
-}
-.aoa-health-run {
-  min-width: 132px;
-  min-height: 44px;
-  border-radius: 999px;
-  font-weight: 700;
-}
 .aoa-table-wrap {
   position: relative;
   overflow: hidden;
@@ -1817,6 +1792,23 @@ onMounted(() => {
     line-height: 1.4;
     text-align: left;
   }
+  .aoa-action-dock {
+    padding: 8px 16px 14px;
+  }
+  .aoa-action-dock-list {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .aoa-action-dock-item {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .aoa-action-note {
+    max-width: 100%;
+  }
   .aoa-pane {
     padding: 18px 16px;
   }
@@ -1825,14 +1817,6 @@ onMounted(() => {
   }
   .aoa-seed-options {
     grid-template-columns: 1fr;
-  }
-  .aoa-seed-action-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .aoa-seed-action-type {
-    width: 100%;
-    min-width: 0;
   }
   .aoa-health-hero,
   .aoa-health-state,
@@ -1846,12 +1830,6 @@ onMounted(() => {
   }
   .aoa-health-scope-grid {
     grid-template-columns: 1fr;
-  }
-  .aoa-health-action-row {
-    justify-content: stretch;
-  }
-  .aoa-health-run {
-    width: 100%;
   }
 }
 </style>
