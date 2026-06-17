@@ -676,17 +676,17 @@ onMounted(() => {
                     </div>
                   </div>
                   <div class="aoa-health-scope-grid">
-                    <VSelect v-model="form.health_check_items" :items="healthCheckItems"
+                    <VSelect v-model="form.health_check_items" :items="healthCheckItems" class="aoa-health-field-third"
                       label="巡查项目" multiple chips closable-chips clearable :disabled="!form.health_check_enabled" />
-                    <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)"
+                    <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)" class="aoa-health-field-third"
                       :disabled="!form.health_check_enabled" />
-                    <VSelect v-model="form.health_check_database_targets" :items="healthDatabaseTargets"
+                    <VSelect v-model="form.health_check_database_targets" :items="healthDatabaseTargets" class="aoa-health-field-third"
                       label="数据库" multiple chips closable-chips clearable :disabled="!form.health_check_enabled" />
-                    <VSelect v-model="form.health_check_storage_targets" :items="healthStorageTargets"
+                    <VSelect v-model="form.health_check_storage_targets" :items="healthStorageTargets" class="aoa-health-field-half"
                       label="存储空间" multiple chips closable-chips clearable :disabled="!form.health_check_enabled" />
-                    <VSelect v-model="form.health_check_directory_targets" :items="healthDirectoryTargets"
+                    <VSelect v-model="form.health_check_directory_targets" :items="healthDirectoryTargets" class="aoa-health-field-half"
                       label="目录权限" multiple chips closable-chips clearable :disabled="!form.health_check_enabled" />
-                    <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number"
+                    <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number" class="aoa-health-field-third"
                       min="1" max="99" suffix="%" :disabled="!form.health_check_enabled" />
                   </div>
                 </div>
@@ -1704,9 +1704,15 @@ onMounted(() => {
 }
 .aoa-health-scope-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
+}
+.aoa-health-field-third {
+  grid-column: span 2;
+}
+.aoa-health-field-half {
+  grid-column: span 3;
 }
 .aoa-table-wrap {
   position: relative;
@@ -1849,6 +1855,10 @@ onMounted(() => {
   }
   .aoa-health-scope-grid {
     grid-template-columns: 1fr;
+  }
+  .aoa-health-field-third,
+  .aoa-health-field-half {
+    grid-column: 1 / -1;
   }
 }
 </style>

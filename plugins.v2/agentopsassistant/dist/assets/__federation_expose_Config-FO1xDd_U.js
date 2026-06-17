@@ -1051,6 +1051,7 @@ return (_ctx, _cache) => {
                           modelValue: form.health_check_items,
                           "onUpdate:modelValue": _cache[15] || (_cache[15] = $event => ((form.health_check_items) = $event)),
                           items: healthCheckItems,
+                          class: "aoa-health-field-third",
                           label: "巡查项目",
                           multiple: "",
                           chips: "",
@@ -1062,12 +1063,14 @@ return (_ctx, _cache) => {
                           modelValue: form.health_check_cron,
                           "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((form.health_check_cron) = $event)),
                           label: "巡查时间 (Cron)",
+                          class: "aoa-health-field-third",
                           disabled: !form.health_check_enabled
                         }, null, 8, ["modelValue", "disabled"]),
                         _createVNode(_component_VSelect, {
                           modelValue: form.health_check_database_targets,
                           "onUpdate:modelValue": _cache[17] || (_cache[17] = $event => ((form.health_check_database_targets) = $event)),
                           items: healthDatabaseTargets,
+                          class: "aoa-health-field-third",
                           label: "数据库",
                           multiple: "",
                           chips: "",
@@ -1079,6 +1082,7 @@ return (_ctx, _cache) => {
                           modelValue: form.health_check_storage_targets,
                           "onUpdate:modelValue": _cache[18] || (_cache[18] = $event => ((form.health_check_storage_targets) = $event)),
                           items: healthStorageTargets,
+                          class: "aoa-health-field-half",
                           label: "存储空间",
                           multiple: "",
                           chips: "",
@@ -1090,6 +1094,7 @@ return (_ctx, _cache) => {
                           modelValue: form.health_check_directory_targets,
                           "onUpdate:modelValue": _cache[19] || (_cache[19] = $event => ((form.health_check_directory_targets) = $event)),
                           items: healthDirectoryTargets,
+                          class: "aoa-health-field-half",
                           label: "目录权限",
                           multiple: "",
                           chips: "",
@@ -1103,6 +1108,7 @@ return (_ctx, _cache) => {
                           modelModifiers: { number: true },
                           label: "容量阈值",
                           type: "number",
+                          class: "aoa-health-field-third",
                           min: "1",
                           max: "99",
                           suffix: "%",
@@ -2917,6 +2923,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-204aad40"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-e1477cff"]]);
 
 export { Config as default };
