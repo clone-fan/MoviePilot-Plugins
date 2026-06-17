@@ -37,25 +37,41 @@ const _hoisted_27 = { class: "aoa-health-title" };
 const _hoisted_28 = { class: "aoa-health-state" };
 const _hoisted_29 = { class: "aoa-health-section" };
 const _hoisted_30 = { class: "aoa-health-scope-grid" };
-const _hoisted_31 = { class: "aoa-pane" };
-const _hoisted_32 = { class: "aoa-pane" };
-const _hoisted_33 = { class: "d-flex align-center justify-space-between mb-1" };
-const _hoisted_34 = { class: "aoa-pane" };
+const _hoisted_31 = {
+  key: 1,
+  class: "aoa-health-selection-more"
+};
+const _hoisted_32 = {
+  key: 1,
+  class: "aoa-health-selection-more"
+};
+const _hoisted_33 = {
+  key: 1,
+  class: "aoa-health-selection-more"
+};
+const _hoisted_34 = {
+  key: 1,
+  class: "aoa-health-selection-more"
+};
 const _hoisted_35 = { class: "aoa-pane" };
 const _hoisted_36 = { class: "aoa-pane" };
-const _hoisted_37 = { class: "aoa-pane" };
+const _hoisted_37 = { class: "d-flex align-center justify-space-between mb-1" };
 const _hoisted_38 = { class: "aoa-pane" };
 const _hoisted_39 = { class: "aoa-pane" };
-const _hoisted_40 = { class: "aoa-seed-options" };
-const _hoisted_41 = { class: "aoa-pane aoa-media-pane" };
-const _hoisted_42 = { class: "aoa-inline-switch" };
+const _hoisted_40 = { class: "aoa-pane" };
+const _hoisted_41 = { class: "aoa-pane" };
+const _hoisted_42 = { class: "aoa-pane" };
 const _hoisted_43 = { class: "aoa-pane" };
-const _hoisted_44 = {
+const _hoisted_44 = { class: "aoa-seed-options" };
+const _hoisted_45 = { class: "aoa-pane aoa-media-pane" };
+const _hoisted_46 = { class: "aoa-inline-switch" };
+const _hoisted_47 = { class: "aoa-pane" };
+const _hoisted_48 = {
   key: 0,
   class: "aoa-action-dock"
 };
-const _hoisted_45 = { class: "aoa-action-dock-list" };
-const _hoisted_46 = { class: "aoa-action-note" };
+const _hoisted_49 = { class: "aoa-action-dock-list" };
+const _hoisted_50 = { class: "aoa-action-note" };
 
 const {reactive,ref,computed,watch,onMounted} = await importShared('vue');
 
@@ -474,6 +490,25 @@ const healthSelectedCount = computed(() => {
   const selected = Array.isArray(form.health_check_items) ? form.health_check_items : [];
   return selected.length || healthCheckItems.length
 });
+
+function selectionValue(item) {
+  return item?.raw?.value ?? item?.value ?? item
+}
+
+function selectionTitle(item) {
+  return item?.raw?.title ?? item?.title ?? String(selectionValue(item) || '')
+}
+
+function selectionMoreCount(key, limit = 2) {
+  const selected = Array.isArray(form[key]) ? form[key] : [];
+  return Math.max(0, selected.length - limit)
+}
+
+function removeSelection(key, value) {
+  const selected = Array.isArray(form[key]) ? form[key] : [];
+  form[key] = selected.filter(item => item !== value);
+}
+
 watch(() => props.initialConfig, value => {
   Object.keys(form).forEach(key => delete form[key]);
   Object.assign(form, defaults, value || {});
@@ -1051,14 +1086,35 @@ return (_ctx, _cache) => {
                           modelValue: form.health_check_items,
                           "onUpdate:modelValue": _cache[15] || (_cache[15] = $event => ((form.health_check_items) = $event)),
                           items: healthCheckItems,
-                          class: "aoa-health-field-third",
+                          class: "aoa-health-field-third aoa-health-select",
                           label: "巡查项目",
                           multiple: "",
                           chips: "",
                           "closable-chips": "",
                           clearable: "",
                           disabled: !form.health_check_enabled
-                        }, null, 8, ["modelValue", "disabled"]),
+                        }, {
+                          selection: _withCtx(({ item, index }) => [
+                            (index < 2)
+                              ? (_openBlock(), _createBlock(_component_VChip, {
+                                  key: 0,
+                                  class: "aoa-health-selection-chip",
+                                  size: "small",
+                                  variant: "tonal",
+                                  closable: "",
+                                  "onClick:close": $event => (removeSelection('health_check_items', selectionValue(item)))
+                                }, {
+                                  default: _withCtx(() => [
+                                    _createTextVNode(_toDisplayString(selectionTitle(item)), 1)
+                                  ]),
+                                  _: 2
+                                }, 1032, ["onClick:close"]))
+                              : (index === 2)
+                                ? (_openBlock(), _createElementBlock("span", _hoisted_31, "+" + _toDisplayString(selectionMoreCount('health_check_items')), 1))
+                                : _createCommentVNode("", true)
+                          ]),
+                          _: 1
+                        }, 8, ["modelValue", "disabled"]),
                         _createVNode(_component_VCronField, {
                           modelValue: form.health_check_cron,
                           "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((form.health_check_cron) = $event)),
@@ -1070,38 +1126,101 @@ return (_ctx, _cache) => {
                           modelValue: form.health_check_database_targets,
                           "onUpdate:modelValue": _cache[17] || (_cache[17] = $event => ((form.health_check_database_targets) = $event)),
                           items: healthDatabaseTargets,
-                          class: "aoa-health-field-third",
+                          class: "aoa-health-field-third aoa-health-select",
                           label: "数据库",
                           multiple: "",
                           chips: "",
                           "closable-chips": "",
                           clearable: "",
                           disabled: !form.health_check_enabled
-                        }, null, 8, ["modelValue", "disabled"]),
+                        }, {
+                          selection: _withCtx(({ item, index }) => [
+                            (index < 2)
+                              ? (_openBlock(), _createBlock(_component_VChip, {
+                                  key: 0,
+                                  class: "aoa-health-selection-chip",
+                                  size: "small",
+                                  variant: "tonal",
+                                  closable: "",
+                                  "onClick:close": $event => (removeSelection('health_check_database_targets', selectionValue(item)))
+                                }, {
+                                  default: _withCtx(() => [
+                                    _createTextVNode(_toDisplayString(selectionTitle(item)), 1)
+                                  ]),
+                                  _: 2
+                                }, 1032, ["onClick:close"]))
+                              : (index === 2)
+                                ? (_openBlock(), _createElementBlock("span", _hoisted_32, "+" + _toDisplayString(selectionMoreCount('health_check_database_targets')), 1))
+                                : _createCommentVNode("", true)
+                          ]),
+                          _: 1
+                        }, 8, ["modelValue", "disabled"]),
                         _createVNode(_component_VSelect, {
                           modelValue: form.health_check_storage_targets,
                           "onUpdate:modelValue": _cache[18] || (_cache[18] = $event => ((form.health_check_storage_targets) = $event)),
                           items: healthStorageTargets,
-                          class: "aoa-health-field-half",
+                          class: "aoa-health-field-half aoa-health-select",
                           label: "存储空间",
                           multiple: "",
                           chips: "",
                           "closable-chips": "",
                           clearable: "",
                           disabled: !form.health_check_enabled
-                        }, null, 8, ["modelValue", "disabled"]),
+                        }, {
+                          selection: _withCtx(({ item, index }) => [
+                            (index < 2)
+                              ? (_openBlock(), _createBlock(_component_VChip, {
+                                  key: 0,
+                                  class: "aoa-health-selection-chip",
+                                  size: "small",
+                                  variant: "tonal",
+                                  closable: "",
+                                  "onClick:close": $event => (removeSelection('health_check_storage_targets', selectionValue(item)))
+                                }, {
+                                  default: _withCtx(() => [
+                                    _createTextVNode(_toDisplayString(selectionTitle(item)), 1)
+                                  ]),
+                                  _: 2
+                                }, 1032, ["onClick:close"]))
+                              : (index === 2)
+                                ? (_openBlock(), _createElementBlock("span", _hoisted_33, "+" + _toDisplayString(selectionMoreCount('health_check_storage_targets')), 1))
+                                : _createCommentVNode("", true)
+                          ]),
+                          _: 1
+                        }, 8, ["modelValue", "disabled"]),
                         _createVNode(_component_VSelect, {
                           modelValue: form.health_check_directory_targets,
                           "onUpdate:modelValue": _cache[19] || (_cache[19] = $event => ((form.health_check_directory_targets) = $event)),
                           items: healthDirectoryTargets,
-                          class: "aoa-health-field-half",
+                          class: "aoa-health-field-half aoa-health-select",
                           label: "目录权限",
                           multiple: "",
                           chips: "",
                           "closable-chips": "",
                           clearable: "",
                           disabled: !form.health_check_enabled
-                        }, null, 8, ["modelValue", "disabled"]),
+                        }, {
+                          selection: _withCtx(({ item, index }) => [
+                            (index < 2)
+                              ? (_openBlock(), _createBlock(_component_VChip, {
+                                  key: 0,
+                                  class: "aoa-health-selection-chip",
+                                  size: "small",
+                                  variant: "tonal",
+                                  closable: "",
+                                  "onClick:close": $event => (removeSelection('health_check_directory_targets', selectionValue(item)))
+                                }, {
+                                  default: _withCtx(() => [
+                                    _createTextVNode(_toDisplayString(selectionTitle(item)), 1)
+                                  ]),
+                                  _: 2
+                                }, 1032, ["onClick:close"]))
+                              : (index === 2)
+                                ? (_openBlock(), _createElementBlock("span", _hoisted_34, "+" + _toDisplayString(selectionMoreCount('health_check_directory_targets')), 1))
+                                : _createCommentVNode("", true)
+                          ]),
+                          _: 1
+                        }, 8, ["modelValue", "disabled"]),
                         _createVNode(_component_VTextField, {
                           modelValue: form.health_check_storage_threshold,
                           "onUpdate:modelValue": _cache[20] || (_cache[20] = $event => ((form.health_check_storage_threshold) = $event)),
@@ -1122,7 +1241,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'hc']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_31, [
+              _withDirectives(_createElementVNode("div", _hoisted_35, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[123] || (_cache[123] = _createElementVNode("div", { class: "aoa-section-title" }, "订阅规则填充", -1)),
@@ -1253,7 +1372,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'subfill']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_32, [
+              _withDirectives(_createElementVNode("div", _hoisted_36, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[130] || (_cache[130] = _createElementVNode("div", { class: "aoa-section-title" }, "本地备份", -1)),
@@ -1315,7 +1434,7 @@ return (_ctx, _cache) => {
                           md: "6"
                         }, {
                           default: _withCtx(() => [
-                            _createElementVNode("div", _hoisted_33, [
+                            _createElementVNode("div", _hoisted_37, [
                               _cache[128] || (_cache[128] = _createElementVNode("span", { class: "text-body-2" }, "本地保留份数", -1)),
                               _createVNode(_component_VChip, {
                                 size: "small",
@@ -1406,7 +1525,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'local']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_34, [
+              _withDirectives(_createElementVNode("div", _hoisted_38, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[132] || (_cache[132] = _createElementVNode("div", { class: "aoa-section-title" }, "WebDAV 远端备份", -1)),
@@ -1576,7 +1695,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'webdav']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_35, [
+              _withDirectives(_createElementVNode("div", _hoisted_39, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[134] || (_cache[134] = _createElementVNode("div", { class: "aoa-section-title" }, "插件日志清理", -1)),
@@ -1717,7 +1836,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'logs']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_36, [
+              _withDirectives(_createElementVNode("div", _hoisted_40, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[136] || (_cache[136] = _createElementVNode("div", { class: "aoa-section-title" }, "MoviePilot 更新检查", -1)),
@@ -1838,7 +1957,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'mp']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_37, [
+              _withDirectives(_createElementVNode("div", _hoisted_41, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[141] || (_cache[141] = _createElementVNode("div", { class: "aoa-section-title" }, "插件库更新检查", -1)),
@@ -2187,7 +2306,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'market']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_38, [
+              _withDirectives(_createElementVNode("div", _hoisted_42, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[145] || (_cache[145] = _createElementVNode("div", { class: "aoa-section-title" }, "选择插件", -1)),
@@ -2327,7 +2446,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'clean']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_39, [
+              _withDirectives(_createElementVNode("div", _hoisted_43, [
                 _createVNode(_component_VForm, { class: "aoa-seed-form" }, {
                   default: _withCtx(() => [
                     _createVNode(_component_VAlert, {
@@ -2593,7 +2712,7 @@ return (_ctx, _cache) => {
                           md: "8"
                         }, {
                           default: _withCtx(() => [
-                            _createElementVNode("div", _hoisted_40, [
+                            _createElementVNode("div", _hoisted_44, [
                               _createVNode(_component_VSwitch, {
                                 modelValue: form.seedclean_samedata,
                                 "onUpdate:modelValue": _cache[93] || (_cache[93] = $event => ((form.seedclean_samedata) = $event)),
@@ -2655,7 +2774,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'seedremove']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_41, [
+              _withDirectives(_createElementVNode("div", _hoisted_45, [
                 _createVNode(_component_VForm, { class: "aoa-media-form" }, {
                   default: _withCtx(() => [
                     _cache[151] || (_cache[151] = _createElementVNode("div", { class: "aoa-section-title" }, "媒体库服务器通知", -1)),
@@ -2664,7 +2783,7 @@ return (_ctx, _cache) => {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, { cols: "12" }, {
                           default: _withCtx(() => [
-                            _createElementVNode("div", _hoisted_42, [
+                            _createElementVNode("div", _hoisted_46, [
                               _createVNode(_component_VSwitch, {
                                 modelValue: form.msgnotify_enabled,
                                 "onUpdate:modelValue": _cache[97] || (_cache[97] = $event => ((form.msgnotify_enabled) = $event)),
@@ -2734,7 +2853,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'server']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_43, [
+              _withDirectives(_createElementVNode("div", _hoisted_47, [
                 _createVNode(_component_VForm, { class: "aoa-dltag-form" }, {
                   default: _withCtx(() => [
                     _cache[154] || (_cache[154] = _createElementVNode("div", { class: "aoa-section-title" }, "按站点为种子批量补打标签", -1)),
@@ -2847,8 +2966,8 @@ return (_ctx, _cache) => {
               ])
             ]),
             (activeActionItems.value.length)
-              ? (_openBlock(), _createElementBlock("div", _hoisted_44, [
-                  _createElementVNode("div", _hoisted_45, [
+              ? (_openBlock(), _createElementBlock("div", _hoisted_48, [
+                  _createElementVNode("div", _hoisted_49, [
                     (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(activeActionItems.value, (item) => {
                       return (_openBlock(), _createElementBlock("div", {
                         key: item.path,
@@ -2869,7 +2988,7 @@ return (_ctx, _cache) => {
                           ]),
                           _: 2
                         }, 1032, ["color", "prepend-icon", "disabled", "loading", "onClick"]),
-                        _createElementVNode("span", _hoisted_46, _toDisplayString(item.note), 1)
+                        _createElementVNode("span", _hoisted_50, _toDisplayString(item.note), 1)
                       ]))
                     }), 128))
                   ])
@@ -2923,6 +3042,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-e1477cff"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-a665896a"]]);
 
 export { Config as default };

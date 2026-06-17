@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅追新,站点统计,日志清理,自动备份,更新检查,插件卸载,本地插件",
-    "version": "1.0.24",
+    "version": "1.0.25",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.25": "健康巡查配置页排版修正：多选项增加后不再撑高输入框，改为最多显示两个标签和剩余数量，保持巡查设置网格稳定整齐。",
       "v1.0.24": "仪表盘手动触发按钮收敛：取消各按钮彩色底色、彩色边框与彩色投影，统一为克制的雾透玻璃按钮，降低视觉噪声。",
       "v1.0.23": "健康巡查配置排版微调：存储空间与目录权限改为独立一行并各占半行，容量阈值下移，避免多选标签与阈值输入挤在同一行。",
       "v1.0.22": "仪表盘观感回调：手动触发区移除分组标题，仅保留按钮；按钮说明恢复到按钮下方展示；站点数据统计恢复更宽的 8/4 摆放，并统一为雾透玻璃面板与微透白信息块。",
