@@ -5,44 +5,43 @@ const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElement
 
 
 const _hoisted_1 = { class: "agentops-dashboard" };
-const _hoisted_2 = { class: "pa-3" };
-const _hoisted_3 = { class: "text-h6 font-weight-bold" };
-const _hoisted_4 = { class: "text-h6 font-weight-bold" };
-const _hoisted_5 = { class: "text-h6 font-weight-bold" };
-const _hoisted_6 = { class: "site-summary" };
-const _hoisted_7 = { class: "site-summary-item" };
+const _hoisted_2 = { class: "agentops-body" };
+const _hoisted_3 = { class: "overview-item" };
+const _hoisted_4 = { class: "overview-item" };
+const _hoisted_5 = { class: "overview-item" };
+const _hoisted_6 = { class: "overview-summary" };
+const _hoisted_7 = { class: "site-summary" };
 const _hoisted_8 = { class: "site-summary-item" };
 const _hoisted_9 = { class: "site-summary-item" };
-const _hoisted_10 = {
+const _hoisted_10 = { class: "site-summary-item" };
+const _hoisted_11 = {
   key: 0,
   class: "site-table mt-3"
 };
-const _hoisted_11 = { class: "site-name" };
-const _hoisted_12 = { class: "site-bars" };
-const _hoisted_13 = { class: "site-metric" };
-const _hoisted_14 = { class: "site-metric-label" };
-const _hoisted_15 = { class: "site-bar site-bar-up" };
-const _hoisted_16 = { class: "site-metric" };
-const _hoisted_17 = { class: "site-metric-label" };
-const _hoisted_18 = { class: "site-bar site-bar-down" };
-const _hoisted_19 = {
+const _hoisted_12 = { class: "site-name" };
+const _hoisted_13 = { class: "site-bars" };
+const _hoisted_14 = { class: "site-metric" };
+const _hoisted_15 = { class: "site-metric-label" };
+const _hoisted_16 = { class: "site-bar site-bar-up" };
+const _hoisted_17 = { class: "site-metric" };
+const _hoisted_18 = { class: "site-metric-label" };
+const _hoisted_19 = { class: "site-bar site-bar-down" };
+const _hoisted_20 = {
   key: 1,
   class: "site-empty"
 };
-const _hoisted_20 = { class: "d-flex align-center mb-2" };
-const _hoisted_21 = { class: "text-subtitle2 font-weight-medium" };
-const _hoisted_22 = { class: "ml-4" };
-const _hoisted_23 = { class: "text-caption text-grey mt-1" };
-const _hoisted_24 = { class: "d-flex align-center ga-2" };
-const _hoisted_25 = {
+const _hoisted_21 = { class: "action-group-title" };
+const _hoisted_22 = { class: "action-buttons" };
+const _hoisted_23 = { class: "d-flex align-center ga-2" };
+const _hoisted_24 = {
   key: 0,
   class: "text-caption text-medium-emphasis mb-2"
 };
-const _hoisted_26 = {
+const _hoisted_25 = {
   key: 1,
   class: "health-output"
 };
-const _hoisted_27 = {
+const _hoisted_26 = {
   key: 2,
   class: "text-medium-emphasis text-body-2"
 };
@@ -210,22 +209,22 @@ return (_ctx, _cache) => {
   const _component_VToolbar = _resolveComponent("VToolbar");
   const _component_VDivider = _resolveComponent("VDivider");
   const _component_VAlert = _resolveComponent("VAlert");
-  const _component_VAvatar = _resolveComponent("VAvatar");
-  const _component_VCardText = _resolveComponent("VCardText");
   const _component_VCard = _resolveComponent("VCard");
+  const _component_VCardTitle = _resolveComponent("VCardTitle");
+  const _component_VCardText = _resolveComponent("VCardText");
   const _component_VCol = _resolveComponent("VCol");
   const _component_VRow = _resolveComponent("VRow");
-  const _component_VCardTitle = _resolveComponent("VCardTitle");
   const _component_VListItemTitle = _resolveComponent("VListItemTitle");
   const _component_VListItemSubtitle = _resolveComponent("VListItemSubtitle");
   const _component_VListItem = _resolveComponent("VListItem");
   const _component_VList = _resolveComponent("VList");
   const _component_VSkeletonLoader = _resolveComponent("VSkeletonLoader");
+  const _component_VAvatar = _resolveComponent("VAvatar");
   const _component_VChip = _resolveComponent("VChip");
 
   return (_openBlock(), _createElementBlock("div", _hoisted_1, [
     _createVNode(_component_VToolbar, {
-      density: "comfortable",
+      density: "compact",
       class: "agentops-toolbar"
     }, {
       default: _withCtx(() => [
@@ -234,13 +233,14 @@ return (_ctx, _cache) => {
           class: "ms-3 me-2",
           color: "primary"
         }),
-        _cache[5] || (_cache[5] = _createElementVNode("div", { class: "text-h6" }, "MP 运维助手 · 仪表盘", -1)),
+        _cache[5] || (_cache[5] = _createElementVNode("div", { class: "text-subtitle-1 font-weight-bold" }, "MP 运维助手 · 仪表盘", -1)),
         _createVNode(_component_VSpacer),
         _createVNode(_component_VBtn, {
+          size: "small",
           color: "primary",
           variant: "tonal",
           "prepend-icon": "mdi-refresh",
-          class: "text-none me-2",
+          class: "text-none me-1",
           loading: loading.value,
           onClick: loadDashboard
         }, {
@@ -250,6 +250,7 @@ return (_ctx, _cache) => {
           _: 1
         }, 8, ["loading"]),
         _createVNode(_component_VBtn, {
+          size: "small",
           variant: "text",
           "prepend-icon": "mdi-cog-outline",
           class: "text-none",
@@ -261,6 +262,7 @@ return (_ctx, _cache) => {
           _: 1
         }),
         _createVNode(_component_VBtn, {
+          size: "small",
           icon: "mdi-close",
           variant: "text",
           onClick: _cache[1] || (_cache[1] = $event => (emit('close')))
@@ -279,132 +281,47 @@ return (_ctx, _cache) => {
             text: error.value
           }, null, 8, ["text"]))
         : _createCommentVNode("", true),
-      _createVNode(_component_VRow, { class: "mb-1" }, {
+      _createVNode(_component_VCard, {
+        variant: "tonal",
+        color: "primary",
+        class: "overview-strip"
+      }, {
         default: _withCtx(() => [
-          _createVNode(_component_VCol, {
-            cols: "12",
-            sm: "4"
-          }, {
-            default: _withCtx(() => [
-              _createVNode(_component_VCard, {
-                variant: "tonal",
-                color: overallColor.value,
-                class: "rounded-lg"
-              }, {
-                default: _withCtx(() => [
-                  _createVNode(_component_VCardText, { class: "d-flex align-center" }, {
-                    default: _withCtx(() => [
-                      _createVNode(_component_VAvatar, {
-                        color: overallColor.value,
-                        variant: "flat",
-                        size: "44",
-                        class: "me-3"
-                      }, {
-                        default: _withCtx(() => [
-                          _createVNode(_component_VIcon, {
-                            icon: "mdi-shield-check-outline",
-                            color: "white"
-                          })
-                        ]),
-                        _: 1
-                      }, 8, ["color"]),
-                      _createElementVNode("div", null, [
-                        _cache[6] || (_cache[6] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "插件状态", -1)),
-                        _createElementVNode("div", _hoisted_3, _toDisplayString(overallText.value), 1)
-                      ])
-                    ]),
-                    _: 1
-                  })
-                ]),
-                _: 1
-              }, 8, ["color"])
-            ]),
-            _: 1
-          }),
-          _createVNode(_component_VCol, {
-            cols: "12",
-            sm: "4"
-          }, {
-            default: _withCtx(() => [
-              _createVNode(_component_VCard, {
-                variant: "tonal",
-                color: "primary",
-                class: "rounded-lg"
-              }, {
-                default: _withCtx(() => [
-                  _createVNode(_component_VCardText, { class: "d-flex align-center" }, {
-                    default: _withCtx(() => [
-                      _createVNode(_component_VAvatar, {
-                        color: "primary",
-                        variant: "flat",
-                        size: "44",
-                        class: "me-3"
-                      }, {
-                        default: _withCtx(() => [
-                          _createVNode(_component_VIcon, {
-                            icon: "mdi-format-list-checks",
-                            color: "white"
-                          })
-                        ]),
-                        _: 1
-                      }),
-                      _createElementVNode("div", null, [
-                        _cache[7] || (_cache[7] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "已启用任务", -1)),
-                        _createElementVNode("div", _hoisted_4, _toDisplayString(data.task_on) + " / " + _toDisplayString(data.task_total), 1)
-                      ])
-                    ]),
-                    _: 1
-                  })
-                ]),
-                _: 1
-              })
-            ]),
-            _: 1
-          }),
-          _createVNode(_component_VCol, {
-            cols: "12",
-            sm: "4"
-          }, {
-            default: _withCtx(() => [
-              _createVNode(_component_VCard, {
-                variant: "tonal",
-                color: data.task_failed > 0 ? 'error' : 'success',
-                class: "rounded-lg"
-              }, {
-                default: _withCtx(() => [
-                  _createVNode(_component_VCardText, { class: "d-flex align-center" }, {
-                    default: _withCtx(() => [
-                      _createVNode(_component_VAvatar, {
-                        color: data.task_failed > 0 ? 'error' : 'success',
-                        variant: "flat",
-                        size: "44",
-                        class: "me-3"
-                      }, {
-                        default: _withCtx(() => [
-                          _createVNode(_component_VIcon, {
-                            icon: data.task_failed > 0 ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline',
-                            color: "white"
-                          }, null, 8, ["icon"])
-                        ]),
-                        _: 1
-                      }, 8, ["color"]),
-                      _createElementVNode("div", null, [
-                        _cache[8] || (_cache[8] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "最近执行异常", -1)),
-                        _createElementVNode("div", _hoisted_5, _toDisplayString(data.task_failed), 1)
-                      ])
-                    ]),
-                    _: 1
-                  })
-                ]),
-                _: 1
-              }, 8, ["color"])
-            ]),
-            _: 1
-          })
+          _createElementVNode("div", _hoisted_3, [
+            _createVNode(_component_VIcon, {
+              icon: "mdi-shield-check-outline",
+              color: overallColor.value,
+              size: "20"
+            }, null, 8, ["color"]),
+            _cache[6] || (_cache[6] = _createElementVNode("span", null, "状态", -1)),
+            _createElementVNode("strong", null, _toDisplayString(overallText.value), 1)
+          ]),
+          _createElementVNode("div", _hoisted_4, [
+            _createVNode(_component_VIcon, {
+              icon: "mdi-format-list-checks",
+              color: "primary",
+              size: "20"
+            }),
+            _cache[7] || (_cache[7] = _createElementVNode("span", null, "任务", -1)),
+            _createElementVNode("strong", null, _toDisplayString(data.task_on) + " / " + _toDisplayString(data.task_total), 1)
+          ]),
+          _createElementVNode("div", _hoisted_5, [
+            _createVNode(_component_VIcon, {
+              icon: data.task_failed > 0 ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline',
+              color: data.task_failed > 0 ? 'error' : 'success',
+              size: "20"
+            }, null, 8, ["icon", "color"]),
+            _cache[8] || (_cache[8] = _createElementVNode("span", null, "异常", -1)),
+            _createElementVNode("strong", null, _toDisplayString(data.task_failed), 1)
+          ]),
+          _createElementVNode("div", _hoisted_6, _toDisplayString(data.summary), 1)
         ]),
         _: 1
       }),
-      _createVNode(_component_VRow, { class: "mb-1" }, {
+      _createVNode(_component_VRow, {
+        dense: "",
+        class: "mt-2"
+      }, {
         default: _withCtx(() => [
           _createVNode(_component_VCol, {
             cols: "12",
@@ -416,7 +333,7 @@ return (_ctx, _cache) => {
                 class: "rounded-lg h-100"
               }, {
                 default: _withCtx(() => [
-                  _createVNode(_component_VCardTitle, { class: "text-subtitle-1 d-flex align-center py-3" }, {
+                  _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
                     default: _withCtx(() => [
                       _createVNode(_component_VIcon, {
                         icon: "mdi-chart-line",
@@ -426,7 +343,7 @@ return (_ctx, _cache) => {
                       _cache[10] || (_cache[10] = _createTextVNode("站点数据统计 ", -1)),
                       _createVNode(_component_VSpacer),
                       _createVNode(_component_VBtn, {
-                        size: "small",
+                        size: "x-small",
                         variant: "tonal",
                         color: "primary",
                         "prepend-icon": "mdi-refresh",
@@ -442,10 +359,10 @@ return (_ctx, _cache) => {
                     _: 1
                   }),
                   _createVNode(_component_VDivider),
-                  _createVNode(_component_VCardText, null, {
+                  _createVNode(_component_VCardText, { class: "compact-card-text" }, {
                     default: _withCtx(() => [
-                      _createElementVNode("div", _hoisted_6, [
-                        _createElementVNode("div", _hoisted_7, [
+                      _createElementVNode("div", _hoisted_7, [
+                        _createElementVNode("div", _hoisted_8, [
                           _createVNode(_component_VIcon, {
                             icon: "mdi-upload-network-outline",
                             color: "success",
@@ -454,7 +371,7 @@ return (_ctx, _cache) => {
                           _cache[11] || (_cache[11] = _createElementVNode("span", null, "今日上传", -1)),
                           _createElementVNode("strong", null, _toDisplayString(formatGB(siteChart.upload_total)), 1)
                         ]),
-                        _createElementVNode("div", _hoisted_8, [
+                        _createElementVNode("div", _hoisted_9, [
                           _createVNode(_component_VIcon, {
                             icon: "mdi-download-network-outline",
                             color: "info",
@@ -463,7 +380,7 @@ return (_ctx, _cache) => {
                           _cache[12] || (_cache[12] = _createElementVNode("span", null, "今日下载", -1)),
                           _createElementVNode("strong", null, _toDisplayString(formatGB(siteChart.download_total)), 1)
                         ]),
-                        _createElementVNode("div", _hoisted_9, [
+                        _createElementVNode("div", _hoisted_10, [
                           _createVNode(_component_VIcon, {
                             icon: "mdi-calendar-blank-outline",
                             color: "primary",
@@ -474,25 +391,25 @@ return (_ctx, _cache) => {
                         ])
                       ]),
                       (hasSiteChart.value)
-                        ? (_openBlock(), _createElementBlock("div", _hoisted_10, [
+                        ? (_openBlock(), _createElementBlock("div", _hoisted_11, [
                             (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(siteRows.value, (site) => {
                               return (_openBlock(), _createElementBlock("div", {
                                 key: site.name,
                                 class: "site-row"
                               }, [
-                                _createElementVNode("div", _hoisted_11, _toDisplayString(site.name), 1),
-                                _createElementVNode("div", _hoisted_12, [
-                                  _createElementVNode("div", _hoisted_13, [
-                                    _createElementVNode("span", _hoisted_14, "↑ " + _toDisplayString(formatGB(site.upload)), 1),
-                                    _createElementVNode("span", _hoisted_15, [
+                                _createElementVNode("div", _hoisted_12, _toDisplayString(site.name), 1),
+                                _createElementVNode("div", _hoisted_13, [
+                                  _createElementVNode("div", _hoisted_14, [
+                                    _createElementVNode("span", _hoisted_15, "↑ " + _toDisplayString(formatGB(site.upload)), 1),
+                                    _createElementVNode("span", _hoisted_16, [
                                       _createElementVNode("i", {
                                         style: _normalizeStyle({ width: barWidth(site.upload) })
                                       }, null, 4)
                                     ])
                                   ]),
-                                  _createElementVNode("div", _hoisted_16, [
-                                    _createElementVNode("span", _hoisted_17, "↓ " + _toDisplayString(formatGB(site.download)), 1),
-                                    _createElementVNode("span", _hoisted_18, [
+                                  _createElementVNode("div", _hoisted_17, [
+                                    _createElementVNode("span", _hoisted_18, "↓ " + _toDisplayString(formatGB(site.download)), 1),
+                                    _createElementVNode("span", _hoisted_19, [
                                       _createElementVNode("i", {
                                         style: _normalizeStyle({ width: barWidth(site.download) })
                                       }, null, 4)
@@ -502,15 +419,15 @@ return (_ctx, _cache) => {
                               ]))
                             }), 128))
                           ]))
-                        : (_openBlock(), _createElementBlock("div", _hoisted_19, [
+                        : (_openBlock(), _createElementBlock("div", _hoisted_20, [
                             _createVNode(_component_VIcon, {
                               icon: "mdi-chart-line-variant",
-                              size: "36",
+                              size: "24",
                               color: "primary"
                             }),
                             _cache[14] || (_cache[14] = _createElementVNode("div", null, [
                               _createElementVNode("div", { class: "font-weight-medium" }, "暂无今日站点增量"),
-                              _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "站点数据模块已恢复显示，可手动刷新查看最新上传/下载增量。")
+                              _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "可手动刷新查看最新上传/下载增量。")
                             ], -1))
                           ]))
                     ]),
@@ -532,7 +449,7 @@ return (_ctx, _cache) => {
                 class: "rounded-lg h-100"
               }, {
                 default: _withCtx(() => [
-                  _createVNode(_component_VCardTitle, { class: "text-subtitle-1 d-flex align-center py-3" }, {
+                  _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
                     default: _withCtx(() => [
                       _createVNode(_component_VIcon, {
                         icon: "mdi-play-circle-outline",
@@ -544,43 +461,38 @@ return (_ctx, _cache) => {
                     _: 1
                   }),
                   _createVNode(_component_VDivider),
-                  _createVNode(_component_VCardText, null, {
+                  _createVNode(_component_VCardText, { class: "compact-card-text" }, {
                     default: _withCtx(() => [
                       (_openBlock(), _createElementBlock(_Fragment, null, _renderList(actionGroups, (grp) => {
                         return _createElementVNode("div", {
                           key: grp.group,
-                          class: "mb-4"
+                          class: "action-group"
                         }, [
-                          _createElementVNode("div", _hoisted_20, [
+                          _createElementVNode("div", _hoisted_21, [
                             _createVNode(_component_VIcon, {
                               icon: grp.icon,
-                              size: "20",
-                              class: "mr-2",
+                              size: "16",
                               color: "primary"
                             }, null, 8, ["icon"]),
-                            _createElementVNode("span", _hoisted_21, _toDisplayString(grp.group), 1)
+                            _createElementVNode("span", null, _toDisplayString(grp.group), 1)
                           ]),
                           _createElementVNode("div", _hoisted_22, [
                             (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(grp.actions, (action) => {
-                              return (_openBlock(), _createElementBlock("div", {
+                              return (_openBlock(), _createBlock(_component_VBtn, {
                                 key: action.path,
-                                class: "mb-3"
-                              }, [
-                                _createVNode(_component_VBtn, {
-                                  size: "small",
-                                  variant: "outlined",
-                                  color: "primary",
-                                  loading: actionRunning.value === action.path,
-                                  onClick: $event => (runAction(action.path, action.label)),
-                                  class: "text-none"
-                                }, {
-                                  default: _withCtx(() => [
-                                    _createTextVNode(_toDisplayString(action.label), 1)
-                                  ]),
-                                  _: 2
-                                }, 1032, ["loading", "onClick"]),
-                                _createElementVNode("div", _hoisted_23, _toDisplayString(action.desc), 1)
-                              ]))
+                                size: "x-small",
+                                variant: "outlined",
+                                color: "primary",
+                                density: "comfortable",
+                                loading: actionRunning.value === action.path,
+                                onClick: $event => (runAction(action.path, action.label)),
+                                class: "text-none"
+                              }, {
+                                default: _withCtx(() => [
+                                  _createTextVNode(_toDisplayString(action.label), 1)
+                                ]),
+                                _: 2
+                              }, 1032, ["loading", "onClick"]))
                             }), 128))
                           ])
                         ])
@@ -611,10 +523,10 @@ return (_ctx, _cache) => {
         ? (_openBlock(), _createBlock(_component_VCard, {
             key: 1,
             variant: "outlined",
-            class: "rounded-lg mb-3"
+            class: "rounded-lg mt-2"
           }, {
             default: _withCtx(() => [
-              _createVNode(_component_VCardTitle, { class: "text-subtitle-1 d-flex align-center py-3" }, {
+              _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
                 default: _withCtx(() => [
                   _createVNode(_component_VIcon, {
                     icon: "mdi-download-network-outline",
@@ -626,13 +538,16 @@ return (_ctx, _cache) => {
                 _: 1
               }),
               _createVNode(_component_VDivider),
-              _createVNode(_component_VList, { class: "bg-transparent py-0" }, {
+              _createVNode(_component_VList, {
+                class: "bg-transparent py-0",
+                density: "compact"
+              }, {
                 default: _withCtx(() => [
                   (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(downloaders.value, (d, i) => {
                     return (_openBlock(), _createElementBlock(_Fragment, {
                       key: d.name
                     }, [
-                      _createVNode(_component_VListItem, { class: "py-2" }, {
+                      _createVNode(_component_VListItem, { class: "py-1" }, {
                         default: _withCtx(() => [
                           _createVNode(_component_VListItemTitle, { class: "font-weight-medium" }, {
                             default: _withCtx(() => [
@@ -661,7 +576,10 @@ return (_ctx, _cache) => {
             _: 1
           }))
         : _createCommentVNode("", true),
-      _createVNode(_component_VRow, null, {
+      _createVNode(_component_VRow, {
+        dense: "",
+        class: "mt-2"
+      }, {
         default: _withCtx(() => [
           _createVNode(_component_VCol, {
             cols: "12",
@@ -670,10 +588,10 @@ return (_ctx, _cache) => {
             default: _withCtx(() => [
               _createVNode(_component_VCard, {
                 variant: "outlined",
-                class: "rounded-lg mb-3 h-100"
+                class: "rounded-lg h-100"
               }, {
                 default: _withCtx(() => [
-                  _createVNode(_component_VCardTitle, { class: "text-subtitle-1 d-flex align-center py-3" }, {
+                  _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
                     default: _withCtx(() => [
                       _createVNode(_component_VIcon, {
                         icon: "mdi-timeline-clock-outline",
@@ -692,30 +610,32 @@ return (_ctx, _cache) => {
                       }))
                     : (_openBlock(), _createBlock(_component_VList, {
                         key: 1,
-                        class: "bg-transparent py-0"
+                        class: "bg-transparent py-0 task-list",
+                        density: "compact"
                       }, {
                         default: _withCtx(() => [
                           (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(data.tasks, (task, i) => {
                             return (_openBlock(), _createElementBlock(_Fragment, {
                               key: task.key
                             }, [
-                              _createVNode(_component_VListItem, { class: "py-2" }, {
+                              _createVNode(_component_VListItem, { class: "py-1" }, {
                                 prepend: _withCtx(() => [
                                   _createVNode(_component_VAvatar, {
-                                    size: "40",
+                                    size: "30",
                                     variant: "tonal",
                                     color: task.enabled ? task.color : 'default'
                                   }, {
                                     default: _withCtx(() => [
                                       _createVNode(_component_VIcon, {
-                                        icon: task.icon
+                                        icon: task.icon,
+                                        size: "17"
                                       }, null, 8, ["icon"])
                                     ]),
                                     _: 2
                                   }, 1032, ["color"])
                                 ]),
                                 append: _withCtx(() => [
-                                  _createElementVNode("div", _hoisted_24, [
+                                  _createElementVNode("div", _hoisted_23, [
                                     _createVNode(_component_VChip, {
                                       size: "x-small",
                                       variant: "tonal",
@@ -739,13 +659,13 @@ return (_ctx, _cache) => {
                                   ])
                                 ]),
                                 default: _withCtx(() => [
-                                  _createVNode(_component_VListItemTitle, { class: "font-weight-medium" }, {
+                                  _createVNode(_component_VListItemTitle, { class: "font-weight-medium text-body-2" }, {
                                     default: _withCtx(() => [
                                       _createTextVNode(_toDisplayString(task.name), 1)
                                     ]),
                                     _: 2
                                   }, 1024),
-                                  _createVNode(_component_VListItemSubtitle, { class: "mt-1" }, {
+                                  _createVNode(_component_VListItemSubtitle, { class: "task-subtitle" }, {
                                     default: _withCtx(() => [
                                       _createTextVNode(" 最近 " + _toDisplayString(task.last_time || '—') + "｜下次 " + _toDisplayString(task.next) + "｜" + _toDisplayString(task.last_summary), 1)
                                     ]),
@@ -775,10 +695,10 @@ return (_ctx, _cache) => {
             default: _withCtx(() => [
               _createVNode(_component_VCard, {
                 variant: "outlined",
-                class: "rounded-lg mb-3 h-100"
+                class: "rounded-lg h-100"
               }, {
                 default: _withCtx(() => [
-                  _createVNode(_component_VCardTitle, { class: "text-subtitle-1 d-flex align-center py-3" }, {
+                  _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
                     default: _withCtx(() => [
                       _createVNode(_component_VIcon, {
                         icon: "mdi-heart-pulse",
@@ -788,7 +708,7 @@ return (_ctx, _cache) => {
                       _cache[18] || (_cache[18] = _createTextVNode("最近健康巡查 ", -1)),
                       _createVNode(_component_VSpacer),
                       _createVNode(_component_VChip, {
-                        size: "small",
+                        size: "x-small",
                         variant: "tonal",
                         color: healthColor.value
                       }, {
@@ -801,14 +721,14 @@ return (_ctx, _cache) => {
                     _: 1
                   }),
                   _createVNode(_component_VDivider),
-                  _createVNode(_component_VCardText, null, {
+                  _createVNode(_component_VCardText, { class: "compact-card-text" }, {
                     default: _withCtx(() => [
                       (data.health.time)
-                        ? (_openBlock(), _createElementBlock("div", _hoisted_25, "巡查时间：" + _toDisplayString(data.health.time), 1))
+                        ? (_openBlock(), _createElementBlock("div", _hoisted_24, "巡查时间：" + _toDisplayString(data.health.time), 1))
                         : _createCommentVNode("", true),
                       (data.health.output)
-                        ? (_openBlock(), _createElementBlock("pre", _hoisted_26, _toDisplayString(data.health.output), 1))
-                        : (_openBlock(), _createElementBlock("div", _hoisted_27, "尚无健康巡查记录，可在设置页手动触发或等待每日汇报自动执行。"))
+                        ? (_openBlock(), _createElementBlock("pre", _hoisted_25, _toDisplayString(data.health.output), 1))
+                        : (_openBlock(), _createElementBlock("div", _hoisted_26, "尚无健康巡查记录，可在设置页手动触发或等待每日汇报自动执行。"))
                     ]),
                     _: 1
                   })
@@ -827,6 +747,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-ea70f013"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-e1287e1e"]]);
 
 export { Page as default };

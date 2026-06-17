@@ -152,76 +152,53 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 
 <template>
   <div class="agentops-dashboard">
-    <VToolbar density="comfortable" class="agentops-toolbar">
+    <VToolbar density="compact" class="agentops-toolbar">
       <VIcon icon="mdi-view-dashboard-outline" class="ms-3 me-2" color="primary" />
-      <div class="text-h6">MP 运维助手 · 仪表盘</div>
+      <div class="text-subtitle-1 font-weight-bold">MP 运维助手 · 仪表盘</div>
       <VSpacer />
-      <VBtn color="primary" variant="tonal" prepend-icon="mdi-refresh" class="text-none me-2" :loading="loading" @click="loadDashboard">刷新</VBtn>
-      <VBtn variant="text" prepend-icon="mdi-cog-outline" class="text-none" @click="emit('switch')">设置</VBtn>
-      <VBtn icon="mdi-close" variant="text" @click="emit('close')" />
+      <VBtn size="small" color="primary" variant="tonal" prepend-icon="mdi-refresh" class="text-none me-1" :loading="loading" @click="loadDashboard">刷新</VBtn>
+      <VBtn size="small" variant="text" prepend-icon="mdi-cog-outline" class="text-none" @click="emit('switch')">设置</VBtn>
+      <VBtn size="small" icon="mdi-close" variant="text" @click="emit('close')" />
     </VToolbar>
     <VDivider />
 
-    <div class="pa-3">
+    <div class="agentops-body">
       <VAlert v-if="error" type="error" variant="tonal" class="mb-3" :text="error" />
 
       <!-- 状态总览 -->
-      <VRow class="mb-1">
-        <VCol cols="12" sm="4">
-          <VCard variant="tonal" :color="overallColor" class="rounded-lg">
-            <VCardText class="d-flex align-center">
-              <VAvatar :color="overallColor" variant="flat" size="44" class="me-3">
-                <VIcon icon="mdi-shield-check-outline" color="white" />
-              </VAvatar>
-              <div>
-                <div class="text-caption text-medium-emphasis">插件状态</div>
-                <div class="text-h6 font-weight-bold">{{ overallText }}</div>
-              </div>
-            </VCardText>
-          </VCard>
-        </VCol>
-        <VCol cols="12" sm="4">
-          <VCard variant="tonal" color="primary" class="rounded-lg">
-            <VCardText class="d-flex align-center">
-              <VAvatar color="primary" variant="flat" size="44" class="me-3">
-                <VIcon icon="mdi-format-list-checks" color="white" />
-              </VAvatar>
-              <div>
-                <div class="text-caption text-medium-emphasis">已启用任务</div>
-                <div class="text-h6 font-weight-bold">{{ data.task_on }} / {{ data.task_total }}</div>
-              </div>
-            </VCardText>
-          </VCard>
-        </VCol>
-        <VCol cols="12" sm="4">
-          <VCard variant="tonal" :color="data.task_failed > 0 ? 'error' : 'success'" class="rounded-lg">
-            <VCardText class="d-flex align-center">
-              <VAvatar :color="data.task_failed > 0 ? 'error' : 'success'" variant="flat" size="44" class="me-3">
-                <VIcon :icon="data.task_failed > 0 ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline'" color="white" />
-              </VAvatar>
-              <div>
-                <div class="text-caption text-medium-emphasis">最近执行异常</div>
-                <div class="text-h6 font-weight-bold">{{ data.task_failed }}</div>
-              </div>
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
+      <VCard variant="tonal" color="primary" class="overview-strip">
+        <div class="overview-item">
+          <VIcon icon="mdi-shield-check-outline" :color="overallColor" size="20" />
+          <span>状态</span>
+          <strong>{{ overallText }}</strong>
+        </div>
+        <div class="overview-item">
+          <VIcon icon="mdi-format-list-checks" color="primary" size="20" />
+          <span>任务</span>
+          <strong>{{ data.task_on }} / {{ data.task_total }}</strong>
+        </div>
+        <div class="overview-item">
+          <VIcon :icon="data.task_failed > 0 ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline'" :color="data.task_failed > 0 ? 'error' : 'success'" size="20" />
+          <span>异常</span>
+          <strong>{{ data.task_failed }}</strong>
+        </div>
+        <div class="overview-summary">{{ data.summary }}</div>
+      </VCard>
 
       <!-- 站点数据统计 + 手动触发：左右各一个 -->
-      <VRow class="mb-1">
+      <VRow dense class="mt-2">
         <VCol cols="12" lg="8">
           <VCard variant="outlined" class="rounded-lg h-100">
-            <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+            <VCardTitle class="compact-card-title">
               <VIcon icon="mdi-chart-line" color="primary" class="me-2" />站点数据统计
               <VSpacer />
-              <VBtn size="small" variant="tonal" color="primary" prepend-icon="mdi-refresh"
+              <VBtn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-refresh"
                 :loading="actionRunning === 'run_site_stat'" @click="runAction('run_site_stat', '刷新站点数据')">
                 刷新
               </VBtn>
             </VCardTitle>
             <VDivider />
-            <VCardText>
+            <VCardText class="compact-card-text">
               <div class="site-summary">
                 <div class="site-summary-item">
                   <VIcon icon="mdi-upload-network-outline" color="success" size="20" />
@@ -256,10 +233,10 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
                 </div>
               </div>
               <div v-else class="site-empty">
-                <VIcon icon="mdi-chart-line-variant" size="36" color="primary" />
+                <VIcon icon="mdi-chart-line-variant" size="24" color="primary" />
                 <div>
                   <div class="font-weight-medium">暂无今日站点增量</div>
-                  <div class="text-caption text-medium-emphasis">站点数据模块已恢复显示，可手动刷新查看最新上传/下载增量。</div>
+                  <div class="text-caption text-medium-emphasis">可手动刷新查看最新上传/下载增量。</div>
                 </div>
               </div>
             </VCardText>
@@ -269,30 +246,30 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
         <!-- 手动触发：模块化放在站点数据右边 -->
         <VCol cols="12" lg="4">
           <VCard variant="outlined" class="rounded-lg h-100">
-            <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+            <VCardTitle class="compact-card-title">
               <VIcon icon="mdi-play-circle-outline" color="primary" class="me-2" />手动触发
             </VCardTitle>
             <VDivider />
-            <VCardText>
-              <div v-for="grp in actionGroups" :key="grp.group" class="mb-4">
-                <div class="d-flex align-center mb-2">
-                  <VIcon :icon="grp.icon" size="20" class="mr-2" color="primary" />
-                  <span class="text-subtitle2 font-weight-medium">{{ grp.group }}</span>
+            <VCardText class="compact-card-text">
+              <div v-for="grp in actionGroups" :key="grp.group" class="action-group">
+                <div class="action-group-title">
+                  <VIcon :icon="grp.icon" size="16" color="primary" />
+                  <span>{{ grp.group }}</span>
                 </div>
-                <div class="ml-4">
-                  <div v-for="action in grp.actions" :key="action.path" class="mb-3">
-                    <VBtn
-                      size="small"
-                      variant="outlined"
-                      color="primary"
-                      :loading="actionRunning === action.path"
-                      @click="runAction(action.path, action.label)"
-                      class="text-none"
-                    >
-                      {{ action.label }}
-                    </VBtn>
-                    <div class="text-caption text-grey mt-1">{{ action.desc }}</div>
-                  </div>
+                <div class="action-buttons">
+                  <VBtn
+                    v-for="action in grp.actions"
+                    :key="action.path"
+                    size="x-small"
+                    variant="outlined"
+                    color="primary"
+                    density="comfortable"
+                    :loading="actionRunning === action.path"
+                    @click="runAction(action.path, action.label)"
+                    class="text-none"
+                  >
+                    {{ action.label }}
+                  </VBtn>
                 </div>
               </div>
               <VAlert v-if="actionMessage" type="info" variant="tonal" density="compact" class="mt-3" :text="actionMessage" />
@@ -302,14 +279,14 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
       </VRow>
 
       <!-- 下载器活动种子 -->
-      <VCard v-if="downloaders.length" variant="outlined" class="rounded-lg mb-3">
-        <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+      <VCard v-if="downloaders.length" variant="outlined" class="rounded-lg mt-2">
+        <VCardTitle class="compact-card-title">
           <VIcon icon="mdi-download-network-outline" color="primary" class="me-2" />下载器活动种子
         </VCardTitle>
         <VDivider />
-        <VList class="bg-transparent py-0">
+        <VList class="bg-transparent py-0" density="compact">
           <template v-for="(d, i) in downloaders" :key="d.name">
-            <VListItem class="py-2">
+            <VListItem class="py-1">
               <VListItemTitle class="font-weight-medium">{{ d.name }}</VListItemTitle>
               <VListItemSubtitle class="mt-1">下载中 {{ d.count }} 个｜↓ {{ formatGB(d.dl_speed) }}/s　↑ {{ formatGB(d.up_speed) }}/s</VListItemSubtitle>
             </VListItem>
@@ -319,24 +296,24 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
       </VCard>
 
       <!-- 模块运行概览 + 最近健康巡查：横向并排 -->
-      <VRow>
+      <VRow dense class="mt-2">
         <VCol cols="12" md="6">
-          <VCard variant="outlined" class="rounded-lg mb-3 h-100">
-            <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+          <VCard variant="outlined" class="rounded-lg h-100">
+            <VCardTitle class="compact-card-title">
               <VIcon icon="mdi-timeline-clock-outline" color="primary" class="me-2" />模块运行概览
             </VCardTitle>
             <VDivider />
             <VSkeletonLoader v-if="loading" type="list-item-avatar-three-line@3" />
-            <VList v-else class="bg-transparent py-0">
+            <VList v-else class="bg-transparent py-0 task-list" density="compact">
               <template v-for="(task, i) in data.tasks" :key="task.key">
-                <VListItem class="py-2">
+                <VListItem class="py-1">
                   <template #prepend>
-                    <VAvatar size="40" variant="tonal" :color="task.enabled ? task.color : 'default'">
-                      <VIcon :icon="task.icon" />
+                    <VAvatar size="30" variant="tonal" :color="task.enabled ? task.color : 'default'">
+                      <VIcon :icon="task.icon" size="17" />
                     </VAvatar>
                   </template>
-                  <VListItemTitle class="font-weight-medium">{{ task.name }}</VListItemTitle>
-                  <VListItemSubtitle class="mt-1">
+                  <VListItemTitle class="font-weight-medium text-body-2">{{ task.name }}</VListItemTitle>
+                  <VListItemSubtitle class="task-subtitle">
                     最近 {{ task.last_time || '—' }}｜下次 {{ task.next }}｜{{ task.last_summary }}
                   </VListItemSubtitle>
                   <template #append>
@@ -353,14 +330,14 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
         </VCol>
 
         <VCol cols="12" md="6">
-          <VCard variant="outlined" class="rounded-lg mb-3 h-100">
-            <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
+          <VCard variant="outlined" class="rounded-lg h-100">
+            <VCardTitle class="compact-card-title">
               <VIcon icon="mdi-heart-pulse" color="primary" class="me-2" />最近健康巡查
               <VSpacer />
-              <VChip size="small" variant="tonal" :color="healthColor">{{ healthText }}</VChip>
+              <VChip size="x-small" variant="tonal" :color="healthColor">{{ healthText }}</VChip>
             </VCardTitle>
             <VDivider />
-            <VCardText>
+            <VCardText class="compact-card-text">
               <div v-if="data.health.time" class="text-caption text-medium-emphasis mb-2">巡查时间：{{ data.health.time }}</div>
               <pre v-if="data.health.output" class="health-output">{{ data.health.output }}</pre>
               <div v-else class="text-medium-emphasis text-body-2">尚无健康巡查记录，可在设置页手动触发或等待每日汇报自动执行。</div>
@@ -374,18 +351,65 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 
 <style scoped>
 .agentops-toolbar { position: sticky; top: 0; z-index: 10; background: rgb(var(--v-theme-surface)); }
-.agentops-dashboard :deep(.v-card) { border-radius: 12px; }
+.agentops-body {
+  padding: 8px;
+}
+.agentops-dashboard :deep(.v-card) { border-radius: 8px; }
+.agentops-dashboard :deep(.v-row) { margin: -4px; }
+.agentops-dashboard :deep(.v-col) { padding: 4px; }
+.compact-card-title {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 7px 10px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.compact-card-text {
+  padding: 8px 10px;
+}
+.overview-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(96px, 150px)) minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 6px 10px;
+}
+.overview-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.overview-item span {
+  color: rgba(var(--v-theme-on-surface), 0.62);
+  font-size: 12px;
+}
+.overview-item strong {
+  font-size: 14px;
+  white-space: nowrap;
+}
+.overview-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  font-size: 12px;
+}
 .site-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 .site-summary-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 42px;
-  padding: 8px 10px;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 8px;
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   border-radius: 8px;
   background: rgba(var(--v-theme-on-surface), 0.025);
@@ -397,19 +421,19 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   font-size: 12px;
 }
 .site-summary-item strong {
-  font-size: 13px;
+  font-size: 12px;
   white-space: nowrap;
 }
 .site-table {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 .site-row {
   display: grid;
   grid-template-columns: minmax(84px, 150px) minmax(0, 1fr);
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 8px 0;
+  padding: 5px 0;
   border-top: 1px solid rgba(var(--v-border-color), 0.5);
 }
 .site-name {
@@ -421,11 +445,11 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .site-bars {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 .site-metric {
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 .site-metric-label {
   color: rgba(var(--v-theme-on-surface), 0.68);
@@ -433,7 +457,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 .site-bar {
   display: block;
-  height: 8px;
+  height: 6px;
   overflow: hidden;
   border-radius: 999px;
   background: rgba(var(--v-theme-on-surface), 0.08);
@@ -448,25 +472,68 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .site-empty {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 112px;
-  margin-top: 12px;
-  padding: 14px;
+  gap: 8px;
+  min-height: 54px;
+  margin-top: 8px;
+  padding: 8px 10px;
   border: 1px dashed rgba(var(--v-theme-primary), 0.42);
   border-radius: 8px;
   background: rgba(var(--v-theme-primary), 0.04);
+}
+.action-group {
+  display: grid;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(var(--v-border-color), 0.38);
+}
+.action-group:first-child {
+  padding-top: 0;
+}
+.action-group:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.action-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  font-size: 12px;
+  font-weight: 650;
+}
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.task-list {
+  max-height: 220px;
+  overflow: auto;
+}
+.task-subtitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  font-size: 12px;
+  line-height: 1.4;
 }
 .health-output {
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.45;
   margin: 0;
+  max-height: 220px;
+  overflow: auto;
   font-family: 'JetBrains Mono', Consolas, Menlo, monospace;
   color: rgb(var(--v-theme-on-surface));
   opacity: .85;
 }
 @media (max-width: 760px) {
+  .overview-strip {
+    grid-template-columns: 1fr;
+  }
   .site-summary,
   .site-bars {
     grid-template-columns: 1fr;
