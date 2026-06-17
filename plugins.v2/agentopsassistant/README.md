@@ -1,16 +1,16 @@
 # MP 运维助手（AgentOpsAssistant）
 
-面向 MoviePilot 的日常运维配置插件。设置页只保留用户可操作的配置项、必要说明和安全提示；详情页面板已移除。
+面向 MoviePilot 的日常运维配置插件。提供模块化仪表盘、每日汇报、订阅追新、站点统计、备份、清理、更新与插件治理能力。
 
 ## 当前功能
 
-- 每日汇报：设置是否发送、发送时间，以及是否包含健康巡查、订阅追新和站点统计。
-- 订阅提醒：设置提醒开关、提醒时间、媒体类型和通知类型。
+- 每日汇报：设置是否发送、发送时间，并统一勾选要并入日报的栏目。
+- 订阅追新：设置独立推送开关、推送时间、媒体类型和通知类型。
 - 站点统计：设置是否采集站点数据、统计范围和通知内容。
 - 插件日志清理：设置定时清理、保留行数、限定插件 ID 和结果通知。
 - 自动备份：设置备份时间、本地保留数量、保存路径和 WebDAV 备份参数。
 - 更新检查：设置 MoviePilot 主程序和插件库更新检查；默认只检查和通知，不自动升级。
-- 插件残留清理：填写目标插件 ID，选择是否清理配置、运行数据、日志和本地源码残留。
+- 插件残留清理：多选目标插件，选择是否清理配置、运行数据、日志和本地源码残留。
 
 ## 设置提示原则
 
@@ -21,6 +21,7 @@
 ## 常用命令
 
 - `/mpops_report`：发送 MP 运维每日汇报。
+- `/mpops_subscribe`：立即推送订阅追新。
 - `/mpops_report_preview`：预览每日汇报，不发送通知。
 - `/mpops_health`：执行健康巡查。
 - `/mpops_logs`：预览插件日志清理范围。
@@ -40,7 +41,7 @@
 | 历史记录清理 | https://github.com/InfinityPacer/MoviePilot-Plugins | InfinityPacer |
 | 自动备份 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
 | 插件彻底卸载 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
-| 订阅提醒 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
+| 订阅追新 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
 | MoviePilot 更新推送 | https://github.com/jxxghp/MoviePilot-Plugins | jxxghp |
 | 站点数据统计 | https://github.com/jxxghp/MoviePilot-Plugins | jxxghp |
 | 插件库更新推送 | https://github.com/Aqr-K/MoviePilot-Plugins | Aqr-K |

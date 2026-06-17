@@ -502,10 +502,26 @@ def main():
                       ("_version_report_lines", ["⦁ v"])]:
         setattr(pr, name, (lambda v=val: v))
     msg = pr._build_heartbeat_message()
+    check(msg.startswith("📮 MP 运维日报｜"), "日报标题使用卡片式标题行")
+    check("━━━━━━━━━━━━" in msg, "日报分区使用视觉分隔线")
+    check("📡 站点状态" in msg and "📡 站点状态：" not in msg, "栏目标题去掉尾冒号，观感更清爽")
+    check("• 馒头：✅ 正常" in msg, "正文项目统一使用更轻的圆点与状态图标")
     check("💾 存储空间" not in msg, "report_storage=False -> 日报不含存储空间")
     check("🎬 媒体统计" not in msg, "report_media_stat=False -> 日报不含媒体统计")
     check("📥 今日下载" in msg and "📡 站点状态" in msg, "默认栏目仍在")
     check("⬇️ 下载器" not in msg and "正在下载" not in msg, "下载器段已与今日下载去重移除")
+    pr_pack = make_plugin(mod)
+    packed = pr_pack._report_body_lines(["⦁ A", "⦁ B", "⦁ 这是一条比较长的内容，用来确认长信息不会被强行横向挤压而影响阅读"])
+    check(packed[0] == "• A　　• B" and packed[1].startswith("• 这是一条比较长"), "短信息横向并排，长信息独占一行")
+    icon_rows = pr_pack._report_body_lines([
+        "⦁ 当前版本：前端 1.0 / 后端 2.0",
+        "⦁ 今日成功：3｜失败：1",
+        "⦁ 电影 120 ｜ 电视剧 46 ｜ 剧集 2300 ｜ 用户 3",
+    ])
+    icon_text = "\n".join(icon_rows)
+    check("🖥 前端 1.0 ｜ ⚙ 后端 2.0" in icon_text, "版本行改为图标化数据条")
+    check("✅ 成功 3 ｜ ❌ 失败 1" in icon_text, "入库整理改为状态图标数据条")
+    check("🎞 电影 120 ｜ 📺 电视剧 46 ｜ 🎞 剧集 2300 ｜ 👤 用户 3" in icon_text, "媒体统计改为图标化横向数据条")
     _SUB.update({"site_latest": [types.SimpleNamespace(name="馒头", domain="m.x", err_msg="超时", updated_day="")],
                  "sites": [types.SimpleNamespace(domain="m.x")]})
     sh = make_plugin(mod)._get_site_health_locked()
@@ -516,7 +532,7 @@ def main():
     _SUB.update({
         "sites": [types.SimpleNamespace(domain="m.x"), types.SimpleNamespace(domain="q.x")],
         "site_latest": [
-            types.SimpleNamespace(name="馒头", domain="m.x", err_msg="", updated_day=_today, upload=100 * 1024 ** 3, download=10 * 1024 ** 3),
+            types.SimpleNamespace(name="馒头", domain="m.x", err_msg="", updated_day=_today, upload=100 * 1024 ** 3, download=10 * 1024 ** 3, ratio="3.405", bonus=18619.5),
             types.SimpleNamespace(name="青蛙", domain="q.x", err_msg="", updated_day=_today, upload=30 * 1024 ** 3, download=0),
         ],
         "site_prev": [
@@ -528,22 +544,25 @@ def main():
     cd = chart.get("data", {})
     check(chart.get("code") == 0 and cd.get("upload_total") == 11 * 1024 ** 3, "饼图：今日上传合计=各站增量之和(10+1 GB)")
     check(cd.get("download_total") == 2 * 1024 ** 3 and len(cd.get("sites", [])) == 2, "饼图：下载合计与站点数正确")
+    inc_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
+    check("📊 3.405" in inc_text and "⬆" in inc_text and "⬇" in inc_text and "🪙 18,619.5" in inc_text,
+          "站点增量使用图标展示分享率/上传/下载/魔力")
 
-    print("== 订阅提醒：cron 统一 + 独立推送服务 ==")
+    print("== 订阅追新：cron 统一 + 独立推送服务 ==")
     p_old = make_plugin(mod, subscribe_reminder_time="9")
     check(p_old._subscribe_reminder_cron == "0 9 * * *", "无 cron 时由小时 9 迁移为 '0 9 * * *'")
     p_cron = make_plugin(mod, subscribe_reminder_cron="30 8 * * *", subscribe_reminder_time="9")
     check(p_cron._subscribe_reminder_cron == "30 8 * * *", "显式 cron 优先于小时")
     p_sr = make_plugin(mod, enabled=True, subscribe_reminder_enabled=True, subscribe_reminder_cron="0 9 * * *")
     sr_ids = [s.get("id") for s in (p_sr.get_service() or [])]
-    check("AgentOpsAssistant.SubscribeReminder" in sr_ids, "启用后注册独立订阅提醒定时服务")
+    check("AgentOpsAssistant.SubscribeReminder" in sr_ids, "启用后注册独立订阅追新定时服务")
     p_sr._get_today_subscribe_updates_locked = lambda: ["凡人修仙传 S01E50"]
     sr_sent = {}
     p_sr.post_message = lambda **kw: sr_sent.update(kw)
     ok_sr = p_sr.run_subscribe_reminder()
     check(ok_sr is True and "凡人修仙传" in str(sr_sent.get("text", "")), "run_subscribe_reminder 推送今日追新并返回 True")
     p_off = make_plugin(mod, enabled=True, subscribe_reminder_enabled=False)
-    check("AgentOpsAssistant.SubscribeReminder" not in [s.get("id") for s in (p_off.get_service() or [])], "关闭时不注册订阅提醒服务")
+    check("AgentOpsAssistant.SubscribeReminder" not in [s.get("id") for s in (p_off.get_service() or [])], "关闭时不注册订阅追新服务")
 
     print("== onlyonce 保存后立即运行一次（修复死开关）==")
     p_once = make_plugin(mod, enabled=True)
@@ -565,6 +584,28 @@ def main():
     apis = pa.get_api() or []
     check(len(apis) > 0 and all(callable(a.get("endpoint")) for a in apis), f"get_api 全部 endpoint 可调用（{len(apis)} 个）")
     check(len({a.get("path") for a in apis}) == len(apis), "get_api path 无重复")
+    api_paths = {str(a.get("path") or "").lstrip("/") for a in apis}
+    frontend_api_calls = {
+        "dashboard", "site_stat_chart", "downloader_overview",
+        "run_daily_report", "run_subscribe_reminder", "run_site_stat",
+        "run_downloader_tag", "run_backup", "run_log_clean", "run_mp_update",
+        "run_market_update", "run_health_check", "run_seed_clean",
+        "installed_plugins", "plugin_markets", "downloaders", "mediaservers",
+        "subfill_clear_history", "subfill_clear_handled", "run_plugin_uninstall",
+    }
+    check(frontend_api_calls <= api_paths, "前端调用的插件 API 均已在 get_api 注册")
+    pr_health = make_plugin(mod, report_health=True)
+    pr_health._get_site_increment_locked = lambda: []
+    pr_health._get_site_health_locked = lambda: []
+    pr_health._get_transfer_health_locked = lambda: []
+    pr_health._get_today_subscribe_updates_locked = lambda: []
+    pr_health._get_downloader_health_locked = lambda: []
+    pr_health._get_storage_health_locked = lambda: []
+    pr_health._get_today_downloads_locked = lambda: []
+    pr_health._get_media_stats_locked = lambda: []
+    pr_health.save_data("last_health_check", {"time": "2026-06-18 08:00:00", "success": True, "output": "⦁ 状态：全部正常"})
+    msg_health = pr_health._build_heartbeat_message()
+    check("🩺 健康巡查" in msg_health and "状态：全部正常" in msg_health, "report_health=True -> 日报包含健康巡查结果")
     svcs = pa.get_service() or []
     check(all(callable(s.get("func")) for s in svcs), f"get_service 全部 func 可调用（{len(svcs)} 个）")
     cmds = mod.AgentOpsAssistant.get_command() or []

@@ -9,30 +9,26 @@ const _hoisted_2 = { class: "pa-3" };
 const _hoisted_3 = { class: "text-h6 font-weight-bold" };
 const _hoisted_4 = { class: "text-h6 font-weight-bold" };
 const _hoisted_5 = { class: "text-h6 font-weight-bold" };
-const _hoisted_6 = { class: "text-body-2 text-medium-emphasis mb-2" };
-const _hoisted_7 = { class: "d-flex align-center" };
-const _hoisted_8 = {
-  viewBox: "0 0 180 180",
-  width: "150",
-  height: "150",
-  class: "flex-shrink-0"
+const _hoisted_6 = { class: "site-summary" };
+const _hoisted_7 = { class: "site-summary-item" };
+const _hoisted_8 = { class: "site-summary-item" };
+const _hoisted_9 = { class: "site-summary-item" };
+const _hoisted_10 = {
+  key: 0,
+  class: "site-table mt-3"
 };
-const _hoisted_9 = ["d", "fill"];
-const _hoisted_10 = { class: "ms-3 flex-grow-1" };
-const _hoisted_11 = { class: "me-2" };
-const _hoisted_12 = { class: "text-medium-emphasis" };
-const _hoisted_13 = { class: "text-body-2 text-medium-emphasis mb-2" };
-const _hoisted_14 = { class: "d-flex align-center" };
-const _hoisted_15 = {
-  viewBox: "0 0 180 180",
-  width: "150",
-  height: "150",
-  class: "flex-shrink-0"
+const _hoisted_11 = { class: "site-name" };
+const _hoisted_12 = { class: "site-bars" };
+const _hoisted_13 = { class: "site-metric" };
+const _hoisted_14 = { class: "site-metric-label" };
+const _hoisted_15 = { class: "site-bar site-bar-up" };
+const _hoisted_16 = { class: "site-metric" };
+const _hoisted_17 = { class: "site-metric-label" };
+const _hoisted_18 = { class: "site-bar site-bar-down" };
+const _hoisted_19 = {
+  key: 1,
+  class: "site-empty"
 };
-const _hoisted_16 = ["d", "fill"];
-const _hoisted_17 = { class: "ms-3 flex-grow-1" };
-const _hoisted_18 = { class: "me-2" };
-const _hoisted_19 = { class: "text-medium-emphasis" };
 const _hoisted_20 = { class: "d-flex align-center mb-2" };
 const _hoisted_21 = { class: "text-subtitle2 font-weight-medium" };
 const _hoisted_22 = { class: "ml-4" };
@@ -120,7 +116,11 @@ async function runAction(path, label) {
     const ok = !res || res.code === 0 || res.code === undefined;
     actionMessage.value = (res && res.msg) || `${label}已${ok ? '完成' : '失败'}`;
     setTimeout(() => { actionMessage.value = ''; }, 5000);
-    if (ok) loadDashboard();
+    if (ok) {
+      loadDashboard();
+      loadSiteChart();
+      loadDownloaderOverview();
+    }
   } catch (err) {
     actionMessage.value = err?.message || `${label}失败`;
     setTimeout(() => { actionMessage.value = ''; }, 5000);
@@ -130,35 +130,17 @@ async function runAction(path, label) {
 }
 
 const siteChart = reactive({ date: '', sites: [], upload_total: 0, download_total: 0 });
-const PIE_COLORS = ['#2196F3', '#26C6DA', '#66BB6A', '#FFCA28', '#FF7043', '#AB47BC', '#EC407A', '#8D6E63', '#5C6BC0', '#9CCC65'];
 function formatGB(bytes) {
   const n = Number(bytes) || 0;
   const gb = n / (1024 ** 3);
   if (gb >= 1) return gb.toFixed(2) + ' GB'
   return (n / (1024 ** 2)).toFixed(1) + ' MB'
 }
-function buildPie(key) {
-  const items = (siteChart.sites || []).filter(s => (s[key] || 0) > 0);
-  const total = items.reduce((sum, x) => sum + (x[key] || 0), 0);
-  if (total <= 0) return []
-  let ang = -Math.PI / 2;
-  const cx = 90, cy = 90, r = 80;
-  return items.map((it, i) => {
-    const frac = (it[key] || 0) / total;
-    const a0 = ang;
-    const a1 = ang + frac * 2 * Math.PI;
-    ang = a1;
-    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
-    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-    const large = (a1 - a0) > Math.PI ? 1 : 0;
-    const path = frac >= 0.999
-      ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${(cx - 0.01).toFixed(3)} ${cy - r} Z`
-      : `M ${cx} ${cy} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
-    return { path, color: PIE_COLORS[i % PIE_COLORS.length], name: it.name, value: it[key], frac }
-  })
+const siteRows = computed(() => [...(siteChart.sites || [])].sort((a, b) => ((b.upload || 0) + (b.download || 0)) - ((a.upload || 0) + (a.download || 0))));
+const maxSiteTraffic = computed(() => Math.max(1, ...siteRows.value.map(s => Math.max(s.upload || 0, s.download || 0))));
+function barWidth(value) {
+  return `${Math.max(4, Math.round(((Number(value) || 0) / maxSiteTraffic.value) * 100))}%`
 }
-const uploadPie = computed(() => buildPie('upload'));
-const downloadPie = computed(() => buildPie('download'));
 
 async function loadSiteChart() {
   try {
@@ -194,15 +176,15 @@ const actionGroups = [
     group: '订阅与站点',
     icon: 'mdi-bell-ring-outline',
     actions: [
-      { path: 'run_subscribe_reminder', label: '推送订阅提醒', desc: '手动推送一次订阅追新提醒' },
-      { path: 'run_site_stat', label: '更新站点数据', desc: '重新采集站点上传/下载数据' },
+      { path: 'run_subscribe_reminder', label: '推送订阅追新', desc: '手动推送一次今日订阅追新' },
+      { path: 'run_site_stat', label: '刷新站点数据', desc: '重新汇总站点上传/下载增量' },
     ]
   },
   {
     group: '下载与媒体',
     icon: 'mdi-download-network-outline',
     actions: [
-      { path: 'run_downloader_tag', label: '刷新活动种子', desc: '重新加载下载器中的活动种子概览' },
+      { path: 'run_downloader_tag', label: '按站点打标签', desc: '为下载器种子补打站点标签' },
     ]
   },
   {
@@ -252,7 +234,7 @@ return (_ctx, _cache) => {
           class: "ms-3 me-2",
           color: "primary"
         }),
-        _cache[4] || (_cache[4] = _createElementVNode("div", { class: "text-h6" }, "MP 运维助手 · 仪表盘", -1)),
+        _cache[5] || (_cache[5] = _createElementVNode("div", { class: "text-h6" }, "MP 运维助手 · 仪表盘", -1)),
         _createVNode(_component_VSpacer),
         _createVNode(_component_VBtn, {
           color: "primary",
@@ -262,7 +244,7 @@ return (_ctx, _cache) => {
           loading: loading.value,
           onClick: loadDashboard
         }, {
-          default: _withCtx(() => [...(_cache[2] || (_cache[2] = [
+          default: _withCtx(() => [...(_cache[3] || (_cache[3] = [
             _createTextVNode("刷新", -1)
           ]))]),
           _: 1
@@ -273,7 +255,7 @@ return (_ctx, _cache) => {
           class: "text-none",
           onClick: _cache[0] || (_cache[0] = $event => (emit('switch')))
         }, {
-          default: _withCtx(() => [...(_cache[3] || (_cache[3] = [
+          default: _withCtx(() => [...(_cache[4] || (_cache[4] = [
             _createTextVNode("设置", -1)
           ]))]),
           _: 1
@@ -327,7 +309,7 @@ return (_ctx, _cache) => {
                         _: 1
                       }, 8, ["color"]),
                       _createElementVNode("div", null, [
-                        _cache[5] || (_cache[5] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "插件状态", -1)),
+                        _cache[6] || (_cache[6] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "插件状态", -1)),
                         _createElementVNode("div", _hoisted_3, _toDisplayString(overallText.value), 1)
                       ])
                     ]),
@@ -367,7 +349,7 @@ return (_ctx, _cache) => {
                         _: 1
                       }),
                       _createElementVNode("div", null, [
-                        _cache[6] || (_cache[6] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "已启用任务", -1)),
+                        _cache[7] || (_cache[7] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "已启用任务", -1)),
                         _createElementVNode("div", _hoisted_4, _toDisplayString(data.task_on) + " / " + _toDisplayString(data.task_total), 1)
                       ])
                     ]),
@@ -407,7 +389,7 @@ return (_ctx, _cache) => {
                         _: 1
                       }, 8, ["color"]),
                       _createElementVNode("div", null, [
-                        _cache[7] || (_cache[7] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "最近执行异常", -1)),
+                        _cache[8] || (_cache[8] = _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "最近执行异常", -1)),
                         _createElementVNode("div", _hoisted_5, _toDisplayString(data.task_failed), 1)
                       ])
                     ]),
@@ -424,124 +406,125 @@ return (_ctx, _cache) => {
       }),
       _createVNode(_component_VRow, { class: "mb-1" }, {
         default: _withCtx(() => [
-          (hasSiteChart.value)
-            ? (_openBlock(), _createBlock(_component_VCol, {
-                key: 0,
-                cols: "12",
-                lg: "8"
+          _createVNode(_component_VCol, {
+            cols: "12",
+            lg: "8"
+          }, {
+            default: _withCtx(() => [
+              _createVNode(_component_VCard, {
+                variant: "outlined",
+                class: "rounded-lg h-100"
               }, {
                 default: _withCtx(() => [
-                  _createVNode(_component_VCard, {
-                    variant: "outlined",
-                    class: "rounded-lg h-100"
-                  }, {
+                  _createVNode(_component_VCardTitle, { class: "text-subtitle-1 d-flex align-center py-3" }, {
                     default: _withCtx(() => [
-                      _createVNode(_component_VCardTitle, { class: "text-subtitle-1 d-flex align-center py-3" }, {
-                        default: _withCtx(() => [
-                          _createVNode(_component_VIcon, {
-                            icon: "mdi-chart-pie",
-                            color: "primary",
-                            class: "me-2"
-                          }),
-                          _cache[8] || (_cache[8] = _createTextVNode("站点数据统计 ", -1))
-                        ]),
-                        _: 1
+                      _createVNode(_component_VIcon, {
+                        icon: "mdi-chart-line",
+                        color: "primary",
+                        class: "me-2"
                       }),
-                      _createVNode(_component_VDivider),
-                      _createVNode(_component_VCardText, null, {
-                        default: _withCtx(() => [
-                          _createVNode(_component_VRow, null, {
-                            default: _withCtx(() => [
-                              _createVNode(_component_VCol, {
-                                cols: "12",
-                                md: "6"
-                              }, {
-                                default: _withCtx(() => [
-                                  _createElementVNode("div", _hoisted_6, "今日上传（" + _toDisplayString(siteChart.date) + "）共 " + _toDisplayString(formatGB(siteChart.upload_total)), 1),
-                                  _createElementVNode("div", _hoisted_7, [
-                                    (_openBlock(), _createElementBlock("svg", _hoisted_8, [
-                                      (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(uploadPie.value, (s, i) => {
-                                        return (_openBlock(), _createElementBlock("path", {
-                                          key: i,
-                                          d: s.path,
-                                          fill: s.color,
-                                          stroke: "rgba(255,255,255,0.25)",
-                                          "stroke-width": "0.6"
-                                        }, null, 8, _hoisted_9))
-                                      }), 128))
-                                    ])),
-                                    _createElementVNode("div", _hoisted_10, [
-                                      (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(uploadPie.value, (s, i) => {
-                                        return (_openBlock(), _createElementBlock("div", {
-                                          key: i,
-                                          class: "d-flex align-center text-caption mb-1"
-                                        }, [
-                                          _createElementVNode("span", {
-                                            class: "aoa-legend-dot",
-                                            style: _normalizeStyle({ background: s.color })
-                                          }, null, 4),
-                                          _createElementVNode("span", _hoisted_11, _toDisplayString(s.name), 1),
-                                          _createElementVNode("span", _hoisted_12, _toDisplayString(formatGB(s.value)) + "（" + _toDisplayString((s.frac * 100).toFixed(0)) + "%）", 1)
-                                        ]))
-                                      }), 128))
-                                    ])
-                                  ])
-                                ]),
-                                _: 1
-                              }),
-                              _createVNode(_component_VCol, {
-                                cols: "12",
-                                md: "6"
-                              }, {
-                                default: _withCtx(() => [
-                                  _createElementVNode("div", _hoisted_13, "今日下载（" + _toDisplayString(siteChart.date) + "）共 " + _toDisplayString(formatGB(siteChart.download_total)), 1),
-                                  _createElementVNode("div", _hoisted_14, [
-                                    (_openBlock(), _createElementBlock("svg", _hoisted_15, [
-                                      (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(downloadPie.value, (s, i) => {
-                                        return (_openBlock(), _createElementBlock("path", {
-                                          key: i,
-                                          d: s.path,
-                                          fill: s.color,
-                                          stroke: "rgba(255,255,255,0.25)",
-                                          "stroke-width": "0.6"
-                                        }, null, 8, _hoisted_16))
-                                      }), 128))
-                                    ])),
-                                    _createElementVNode("div", _hoisted_17, [
-                                      (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(downloadPie.value, (s, i) => {
-                                        return (_openBlock(), _createElementBlock("div", {
-                                          key: i,
-                                          class: "d-flex align-center text-caption mb-1"
-                                        }, [
-                                          _createElementVNode("span", {
-                                            class: "aoa-legend-dot",
-                                            style: _normalizeStyle({ background: s.color })
-                                          }, null, 4),
-                                          _createElementVNode("span", _hoisted_18, _toDisplayString(s.name), 1),
-                                          _createElementVNode("span", _hoisted_19, _toDisplayString(formatGB(s.value)) + "（" + _toDisplayString((s.frac * 100).toFixed(0)) + "%）", 1)
-                                        ]))
-                                      }), 128))
-                                    ])
-                                  ])
-                                ]),
-                                _: 1
-                              })
-                            ]),
-                            _: 1
-                          })
-                        ]),
+                      _cache[10] || (_cache[10] = _createTextVNode("站点数据统计 ", -1)),
+                      _createVNode(_component_VSpacer),
+                      _createVNode(_component_VBtn, {
+                        size: "small",
+                        variant: "tonal",
+                        color: "primary",
+                        "prepend-icon": "mdi-refresh",
+                        loading: actionRunning.value === 'run_site_stat',
+                        onClick: _cache[2] || (_cache[2] = $event => (runAction('run_site_stat', '刷新站点数据')))
+                      }, {
+                        default: _withCtx(() => [...(_cache[9] || (_cache[9] = [
+                          _createTextVNode(" 刷新 ", -1)
+                        ]))]),
                         _: 1
-                      })
+                      }, 8, ["loading"])
+                    ]),
+                    _: 1
+                  }),
+                  _createVNode(_component_VDivider),
+                  _createVNode(_component_VCardText, null, {
+                    default: _withCtx(() => [
+                      _createElementVNode("div", _hoisted_6, [
+                        _createElementVNode("div", _hoisted_7, [
+                          _createVNode(_component_VIcon, {
+                            icon: "mdi-upload-network-outline",
+                            color: "success",
+                            size: "20"
+                          }),
+                          _cache[11] || (_cache[11] = _createElementVNode("span", null, "今日上传", -1)),
+                          _createElementVNode("strong", null, _toDisplayString(formatGB(siteChart.upload_total)), 1)
+                        ]),
+                        _createElementVNode("div", _hoisted_8, [
+                          _createVNode(_component_VIcon, {
+                            icon: "mdi-download-network-outline",
+                            color: "info",
+                            size: "20"
+                          }),
+                          _cache[12] || (_cache[12] = _createElementVNode("span", null, "今日下载", -1)),
+                          _createElementVNode("strong", null, _toDisplayString(formatGB(siteChart.download_total)), 1)
+                        ]),
+                        _createElementVNode("div", _hoisted_9, [
+                          _createVNode(_component_VIcon, {
+                            icon: "mdi-calendar-blank-outline",
+                            color: "primary",
+                            size: "20"
+                          }),
+                          _cache[13] || (_cache[13] = _createElementVNode("span", null, "统计日期", -1)),
+                          _createElementVNode("strong", null, _toDisplayString(siteChart.date || '—'), 1)
+                        ])
+                      ]),
+                      (hasSiteChart.value)
+                        ? (_openBlock(), _createElementBlock("div", _hoisted_10, [
+                            (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(siteRows.value, (site) => {
+                              return (_openBlock(), _createElementBlock("div", {
+                                key: site.name,
+                                class: "site-row"
+                              }, [
+                                _createElementVNode("div", _hoisted_11, _toDisplayString(site.name), 1),
+                                _createElementVNode("div", _hoisted_12, [
+                                  _createElementVNode("div", _hoisted_13, [
+                                    _createElementVNode("span", _hoisted_14, "↑ " + _toDisplayString(formatGB(site.upload)), 1),
+                                    _createElementVNode("span", _hoisted_15, [
+                                      _createElementVNode("i", {
+                                        style: _normalizeStyle({ width: barWidth(site.upload) })
+                                      }, null, 4)
+                                    ])
+                                  ]),
+                                  _createElementVNode("div", _hoisted_16, [
+                                    _createElementVNode("span", _hoisted_17, "↓ " + _toDisplayString(formatGB(site.download)), 1),
+                                    _createElementVNode("span", _hoisted_18, [
+                                      _createElementVNode("i", {
+                                        style: _normalizeStyle({ width: barWidth(site.download) })
+                                      }, null, 4)
+                                    ])
+                                  ])
+                                ])
+                              ]))
+                            }), 128))
+                          ]))
+                        : (_openBlock(), _createElementBlock("div", _hoisted_19, [
+                            _createVNode(_component_VIcon, {
+                              icon: "mdi-chart-line-variant",
+                              size: "36",
+                              color: "primary"
+                            }),
+                            _cache[14] || (_cache[14] = _createElementVNode("div", null, [
+                              _createElementVNode("div", { class: "font-weight-medium" }, "暂无今日站点增量"),
+                              _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "站点数据模块已恢复显示，可手动刷新查看最新上传/下载增量。")
+                            ], -1))
+                          ]))
                     ]),
                     _: 1
                   })
                 ]),
                 _: 1
-              }))
-            : _createCommentVNode("", true),
+              })
+            ]),
+            _: 1
+          }),
           _createVNode(_component_VCol, {
             cols: "12",
-            lg: hasSiteChart.value ? 4 : 12
+            lg: "4"
           }, {
             default: _withCtx(() => [
               _createVNode(_component_VCard, {
@@ -556,7 +539,7 @@ return (_ctx, _cache) => {
                         color: "primary",
                         class: "me-2"
                       }),
-                      _cache[9] || (_cache[9] = _createTextVNode("手动触发 ", -1))
+                      _cache[15] || (_cache[15] = _createTextVNode("手动触发 ", -1))
                     ]),
                     _: 1
                   }),
@@ -620,7 +603,7 @@ return (_ctx, _cache) => {
               })
             ]),
             _: 1
-          }, 8, ["lg"])
+          })
         ]),
         _: 1
       }),
@@ -638,7 +621,7 @@ return (_ctx, _cache) => {
                     color: "primary",
                     class: "me-2"
                   }),
-                  _cache[10] || (_cache[10] = _createTextVNode("下载器活动种子 ", -1))
+                  _cache[16] || (_cache[16] = _createTextVNode("下载器活动种子 ", -1))
                 ]),
                 _: 1
               }),
@@ -697,7 +680,7 @@ return (_ctx, _cache) => {
                         color: "primary",
                         class: "me-2"
                       }),
-                      _cache[11] || (_cache[11] = _createTextVNode("模块运行概览 ", -1))
+                      _cache[17] || (_cache[17] = _createTextVNode("模块运行概览 ", -1))
                     ]),
                     _: 1
                   }),
@@ -802,7 +785,7 @@ return (_ctx, _cache) => {
                         color: "primary",
                         class: "me-2"
                       }),
-                      _cache[12] || (_cache[12] = _createTextVNode("最近健康巡查 ", -1)),
+                      _cache[18] || (_cache[18] = _createTextVNode("最近健康巡查 ", -1)),
                       _createVNode(_component_VSpacer),
                       _createVNode(_component_VChip, {
                         size: "small",
@@ -844,6 +827,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-9c971536"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-ea70f013"]]);
 
 export { Page as default };

@@ -10,7 +10,7 @@ const emit = defineEmits(['save', 'close', 'switch'])
 
 const form = reactive({})
 const activeMain = ref('report')
-const activeSub = ref('basic')
+const activeSub = ref('overview')
 
 // 手动触发动作状态
 const action = reactive({ running: '', message: '', ok: true })
@@ -204,10 +204,10 @@ const defaults = {
 }
 
 const mainTabs = [
-  { key: 'report', group: '汇报中心', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '聚合汇报中心：勾选要并入每日汇报的内容，按计划统一推送。' },
-  { key: 'subreminder', group: '订阅与站点', title: '订阅提醒', icon: 'mdi-bell-ring-outline', desc: '定时推送订阅追新提醒。' },
+  { key: 'report', group: '汇报中心', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '控制日报发送节奏、手动推送和所有并入日报的栏目。' },
+  { key: 'subreminder', group: '订阅与站点', title: '订阅追新', icon: 'mdi-bell-ring-outline', desc: '独立推送今日订阅追新；是否写入日报由「汇报栏目」统一控制。' },
   { key: 'subfill', group: '订阅与站点', title: '订阅规则自动填充', icon: 'mdi-auto-fix', desc: '下载到资源后自动回填订阅的空规则，锁定后续剧集追同款。' },
-  { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '采集站点上传/下载/做种等数据，可上仪表盘与日报。' },
+  { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '提供仪表盘站点数据，以及日报里的站点状态、站点增量栏目。' },
   { key: 'seedclean', group: '下载与媒体', title: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '按规则自动暂停/删除下载器中的种子（功能移植自”自动删种”）。' },
   { key: 'dltag', group: '下载与媒体', title: '下载器助手', icon: 'mdi-download-network-outline', desc: '下载器活动种子概览（见仪表盘）+ 按站点为种子批量补打标签。' },
   { key: 'msgnotify', group: '下载与媒体', title: '媒体通知', icon: 'mdi-television-play', desc: 'Emby/Jellyfin/Plex 的播放、入库、登录等 webhook 事件推送通知。' },
@@ -231,10 +231,11 @@ const navGroups = computed(() => {
 
 const subTabs = {
   report: [
-    { key: 'basic', title: '汇报栏目', icon: 'mdi-tune-variant' },
+    { key: 'overview', title: '汇报总览', icon: 'mdi-newspaper-variant-outline' },
+    { key: 'columns', title: '汇报栏目', icon: 'mdi-view-column-outline' },
   ],
   subreminder: [
-    { key: 'subscribe', title: '订阅提醒', icon: 'mdi-bell-ring-outline' },
+    { key: 'subscribe', title: '订阅追新', icon: 'mdi-bell-ring-outline' },
   ],
   subfill: [
     { key: 'subfill', title: '订阅规则自动填充', icon: 'mdi-auto-fix' },
@@ -284,16 +285,16 @@ const subfillDetailItems = ['分辨率', '资源质量', '特效', '制作组', 
 const msgGroupItems = ['新入库', '开始播放', '停止播放', '登录成功', '登录失败', '标记'].map(v => ({ title: v, value: v }))
 const healthCheckItems = ['数据库', '存储空间', '目录权限'].map(v => ({ title: v, value: v }))
 const reportSections = [
-  { key: 'report_version', label: 'MoviePilot 版本', group: '系统', requires: null },
-  { key: 'report_site_status', label: '站点状态', group: '站点', requires: null },
-  { key: 'report_site_increment', label: '站点增量', group: '站点', requires: 'site_stat' },
-  { key: 'report_today_download', label: '今日下载', group: '下载', requires: null },
-  { key: 'report_transfer', label: '入库整理', group: '媒体', requires: null },
-  { key: 'report_subscribe', label: '订阅追新', group: '订阅', requires: 'subscribe_reminder' },
-  { key: 'report_storage', label: '存储空间', group: '系统', requires: null },
-  { key: 'report_media_stat', label: '媒体统计', group: '媒体', requires: null },
-  { key: 'report_health', label: '系统健康', group: '系统', requires: 'health_check' },
-  { key: 'report_summary', label: '今日摘要', group: '系统', requires: null },
+  { key: 'report_version', label: 'MoviePilot 版本', component: '每日汇报', requires: null, note: '基础版本信息' },
+  { key: 'report_site_status', label: '站点状态', component: '站点数据统计', requires: null, note: '逐站状态' },
+  { key: 'report_site_increment', label: '站点增量', component: '站点数据统计', requires: 'site_stat', note: '上传 / 下载 / 分享率 / 魔力' },
+  { key: 'report_today_download', label: '今日下载', component: '下载入库', requires: null, note: '今日已下载入库明细' },
+  { key: 'report_transfer', label: '入库整理', component: '下载入库', requires: null, note: '今日入库成功 / 失败' },
+  { key: 'report_subscribe', label: '订阅追新', component: '订阅追新', requires: 'subscribe_reminder', note: '今日追新内容' },
+  { key: 'report_storage', label: '存储空间', component: '存储空间', requires: null, note: '下载 / 媒体库目录用量' },
+  { key: 'report_media_stat', label: '媒体统计', component: '媒体库', requires: null, note: '电影 / 剧集 / 用户统计' },
+  { key: 'report_health', label: '健康巡查', component: '健康巡查', requires: 'health_check', note: '最近一次健康巡查结果' },
+  { key: 'report_summary', label: '今日摘要', component: '每日汇报', requires: null, note: '前文摘要' },
 ]
 
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
@@ -345,9 +346,12 @@ onMounted(() => {
           </VAvatar>
         </template>
         <VCardTitle class="text-h6">MP 运维助手</VCardTitle>
-        <VCardSubtitle class="text-caption">{{ currentMain.desc }}</VCardSubtitle>
+        <VCardSubtitle class="text-caption">配置中心</VCardSubtitle>
         <template #append>
-          <div class="d-flex align-center">
+          <div class="d-flex align-center ga-2">
+            <VBtn variant="tonal" color="primary" prepend-icon="mdi-view-dashboard-outline" class="text-none" @click="emit('switch')">
+              返回仪表盘
+            </VBtn>
             <VSwitch
               v-model="form.enabled"
               color="primary"
@@ -355,6 +359,7 @@ onMounted(() => {
               inset
               :label="form.enabled ? '已启用' : '已停用'"
             />
+            <VBtn icon="mdi-close" variant="text" @click="emit('close')" />
           </div>
         </template>
       </VCardItem>
@@ -383,32 +388,26 @@ onMounted(() => {
         </nav>
         <section class="aoa-content">
           <div class="aoa-subtabs">
-            <button
-              v-for="sub in currentSubs"
-              :key="sub.key"
-              type="button"
-              class="aoa-subtab"
-              :class="{ 'aoa-subtab--active': activeSub === sub.key }"
-              @click="activeSub = sub.key"
-            >
-              <VIcon :icon="sub.icon" size="18" class="mr-1" />{{ sub.title }}
-            </button>
+            <div class="aoa-subtab-list">
+              <button
+                v-for="sub in currentSubs"
+                :key="sub.key"
+                type="button"
+                class="aoa-subtab"
+                :class="{ 'aoa-subtab--active': activeSub === sub.key }"
+                @click="activeSub = sub.key"
+              >
+                <VIcon :icon="sub.icon" size="18" class="mr-1" />{{ sub.title }}
+              </button>
+            </div>
+            <div v-if="currentMain.desc" class="aoa-subtab-desc">
+              <VIcon icon="mdi-information-outline" size="16" class="mr-1" />{{ currentMain.desc }}
+            </div>
           </div>
           <VDivider />
-          <VAlert 
-            v-if="currentMain.desc" 
-            type="info" 
-            variant="tonal" 
-            class="ma-3"
-            :text="currentMain.desc"
-          >
-            <template #prepend>
-              <VIcon icon="mdi-information-outline" />
-            </template>
-          </VAlert>
           <div class="aoa-window">
-            <!-- 每日汇报 · 基础设置 -->
-            <div v-show="activeSub === 'basic'" class="aoa-pane">
+            <!-- 每日汇报 · 汇报总览 -->
+            <div v-show="activeSub === 'overview'" class="aoa-pane">
               <VForm>
                 <div class="aoa-section-title">汇报开关</div>
                 <VRow>
@@ -431,43 +430,6 @@ onMounted(() => {
                 </VRow>
 
                 <VDivider class="my-4" />
-                <div class="aoa-section-title">汇报栏目</div>
-                <div class="aoa-hint mb-3">每日汇报是聚合中心：逐栏目勾选要并入日报的内容。关掉则该栏目不出现在汇报里。</div>
-                <VTable class="text-caption">
-                  <thead>
-                    <tr style="background-color: rgba(0,0,0,0.02)">
-                      <th scope="col" class="px-3 py-2" style="text-align: left">栏目</th>
-                      <th scope="col" class="px-3 py-2" style="text-align: center; width: 50px">启用</th>
-                      <th scope="col" class="px-3 py-2" style="text-align: left">组件</th>
-                      <th scope="col" class="px-3 py-2" style="text-align: left">备注</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="s in reportSections" :key="s.key">
-                      <td class="px-3 py-2">{{ s.label }}</td>
-                      <td class="px-3 py-2" style="text-align: center">
-                        <VCheckbox
-                          v-model="form[s.key]"
-                          color="primary"
-                          hide-details
-                          density="compact"
-                          :disabled="s.requires && !form[`${s.requires}_enabled`]"
-                        />
-                      </td>
-                      <td class="px-3 py-2">
-                        <span class="text-x-small" style="color: #666">[{{ s.group }}]</span>
-                      </td>
-                      <td class="px-3 py-2" style="color: #999; font-size: 0.75rem">
-                        <span v-if="s.requires && !form[`${s.requires}_enabled`]">
-                          需启用对应组件
-                        </span>
-                        <span v-else>—</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </VTable>
-
-                <VDivider class="my-4" />
                 <div class="aoa-section-title">手动触发</div>
                 <div class="aoa-btn-row">
                   <VBtn color="primary" variant="tonal" prepend-icon="mdi-send-outline"
@@ -482,15 +444,56 @@ onMounted(() => {
               </VForm>
             </div>
 
-            <!-- 每日汇报 · 订阅提醒 -->
+            <!-- 每日汇报 · 汇报栏目 -->
+            <div v-show="activeSub === 'columns'" class="aoa-pane">
+              <VForm>
+                <div class="aoa-section-title">汇报栏目</div>
+                <div class="aoa-hint mb-3">每日汇报是聚合中心：所有“是否并入日报”的栏目都在这里统一勾选。组件负责能力，栏目负责出现在日报里的内容。</div>
+                <VTable class="text-caption">
+                  <thead>
+                    <tr style="background-color: rgba(0,0,0,0.02)">
+                      <th scope="col" class="px-3 py-2" style="text-align: center; width: 50px">启用</th>
+                      <th scope="col" class="px-3 py-2" style="text-align: left">组件</th>
+                      <th scope="col" class="px-3 py-2" style="text-align: left">日报栏目</th>
+                      <th scope="col" class="px-3 py-2" style="text-align: left">备注</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="s in reportSections" :key="s.key">
+                      <td class="px-3 py-2" style="text-align: center">
+                        <VCheckbox
+                          v-model="form[s.key]"
+                          color="primary"
+                          hide-details
+                          density="compact"
+                          :disabled="s.requires && !form[`${s.requires}_enabled`]"
+                        />
+                      </td>
+                      <td class="px-3 py-2">
+                        <VChip size="x-small" variant="tonal" color="primary">{{ s.component }}</VChip>
+                      </td>
+                      <td class="px-3 py-2">{{ s.label }}</td>
+                      <td class="px-3 py-2" style="color: #777; font-size: 0.75rem">
+                        <span v-if="s.requires && !form[`${s.requires}_enabled`]">
+                          需启用对应组件
+                        </span>
+                        <span v-else>{{ s.note }}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </VTable>
+              </VForm>
+            </div>
+
+            <!-- 订阅与站点 · 订阅追新 -->
             <div v-show="activeSub === 'subscribe'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">订阅提醒</div>
+                <div class="aoa-section-title">订阅追新</div>
                 <VRow>
                   <VCol cols="12">
                     <VSwitch v-model="form.subscribe_reminder_enabled" color="primary" inset hide-details
-                      label="启用独立订阅提醒推送" />
-                    <div class="aoa-hint">在指定时间单独推送订阅追新提醒（是否并入每日汇报见基础设置）。</div>
+                      label="启用独立订阅追新推送" />
+                    <div class="aoa-hint">在指定时间单独推送订阅追新；是否并入每日汇报见「汇报栏目」。</div>
                   </VCol>
                 </VRow>
                 <VRow>
@@ -512,8 +515,8 @@ onMounted(() => {
                 <div class="aoa-hint mb-2">立即按当前设置推送一次今日订阅追新（独立于每日汇报）。</div>
                 <div class="aoa-btn-row">
                   <VBtn color="primary" variant="tonal" prepend-icon="mdi-bell-ring-outline"
-                    :loading="action.running === 'run_subscribe_reminder'" @click="runAction('run_subscribe_reminder', '订阅提醒')">
-                    立即推送订阅提醒
+                    :loading="action.running === 'run_subscribe_reminder'" @click="runAction('run_subscribe_reminder', '订阅追新')">
+                    立即推送订阅追新
                   </VBtn>
                 </div>
               </VForm>
@@ -568,13 +571,6 @@ onMounted(() => {
                     <div class="aoa-hint">选中的项目会在计划时间执行检查。不选则检查所有项目。</div>
                   </VCol>
                 </VRow>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.report_health" color="primary" inset hide-details density="compact"
-                      label="健康检查结果并入每日汇报" :disabled="!form.health_check_enabled" />
-                  </VCol>
-                </VRow>
-
                 <VDivider class="my-4" />
                 <div class="aoa-section-title">手动触发</div>
                 <div class="aoa-hint mb-2">立即执行一次健康巡查，查看当前系统状态。</div>
@@ -1140,11 +1136,11 @@ onMounted(() => {
                       no-data-text="未获取到媒体服务器"
                       :disabled="!form.msgnotify_enabled" />
                   </VCol>
+                </VRow>
                 <VDivider class="my-4" />
                 <div class="aoa-hint text-caption">
                   <strong>说明：</strong> 需先在 MoviePilot 中将媒体服务器 webhook 指向本插件。推送目标为各服务器的 webhook，不走 MP 通知渠道。
                 </div>
-                </VRow>
               </VForm>
             </div>
             <!-- 下载器助手 · 批量打标签 -->
@@ -1234,9 +1230,16 @@ onMounted(() => {
 .aoa-subtabs {
   flex: 0 0 auto;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+}
+.aoa-subtab-list {
+  display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 8px 12px;
+  min-width: 0;
 }
 .aoa-subtab {
   display: inline-flex;
@@ -1260,6 +1263,15 @@ onMounted(() => {
   background: rgba(var(--v-theme-primary), 0.14);
   color: rgb(var(--v-theme-primary));
   font-weight: 600;
+}
+.aoa-subtab-desc {
+  display: inline-flex;
+  align-items: center;
+  max-width: 46%;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(var(--v-theme-on-surface), 0.62);
+  text-align: right;
 }
 .aoa-window {
   flex: 1 1 auto;
@@ -1296,6 +1308,14 @@ onMounted(() => {
     flex: 0 0 auto;
     border-right: none;
     border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  }
+  .aoa-subtabs {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .aoa-subtab-desc {
+    max-width: 100%;
+    text-align: left;
   }
 }
 </style>

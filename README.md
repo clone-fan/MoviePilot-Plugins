@@ -16,7 +16,7 @@ https://github.com/clone-fan/MoviePilot-Plugins
 
 | 插件 | 说明 | 版本 |
 | --- | --- | --- |
-| MP 运维助手（AgentOpsAssistant） | 每日汇报、订阅提醒、站点统计、插件日志清理、自动备份、更新检查与插件残留清理，离线自包含。 | 0.0.1 |
+| MP 运维助手（AgentOpsAssistant） | 每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件残留清理，离线自包含。 | 1.0.4 |
 
 ## 仓库结构
 
@@ -53,7 +53,7 @@ npm run build
 | 历史记录清理 | https://github.com/InfinityPacer/MoviePilot-Plugins | InfinityPacer |
 | 自动备份 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
 | 插件彻底卸载 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
-| 订阅提醒 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
+| 订阅追新 | https://github.com/thsrite/MoviePilot-Plugins | thsrite |
 | MoviePilot 更新推送 | https://github.com/jxxghp/MoviePilot-Plugins | jxxghp |
 | 站点数据统计 | https://github.com/jxxghp/MoviePilot-Plugins | jxxghp |
 | 插件库更新推送 | https://github.com/Aqr-K/MoviePilot-Plugins | Aqr-K |

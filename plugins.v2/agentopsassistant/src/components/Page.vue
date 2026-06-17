@@ -62,7 +62,11 @@ async function runAction(path, label) {
     const ok = !res || res.code === 0 || res.code === undefined
     actionMessage.value = (res && res.msg) || `${label}已${ok ? '完成' : '失败'}`
     setTimeout(() => { actionMessage.value = '' }, 5000)
-    if (ok) loadDashboard()
+    if (ok) {
+      loadDashboard()
+      loadSiteChart()
+      loadDownloaderOverview()
+    }
   } catch (err) {
     actionMessage.value = err?.message || `${label}失败`
     setTimeout(() => { actionMessage.value = '' }, 5000)
@@ -72,35 +76,17 @@ async function runAction(path, label) {
 }
 
 const siteChart = reactive({ date: '', sites: [], upload_total: 0, download_total: 0 })
-const PIE_COLORS = ['#2196F3', '#26C6DA', '#66BB6A', '#FFCA28', '#FF7043', '#AB47BC', '#EC407A', '#8D6E63', '#5C6BC0', '#9CCC65']
 function formatGB(bytes) {
   const n = Number(bytes) || 0
   const gb = n / (1024 ** 3)
   if (gb >= 1) return gb.toFixed(2) + ' GB'
   return (n / (1024 ** 2)).toFixed(1) + ' MB'
 }
-function buildPie(key) {
-  const items = (siteChart.sites || []).filter(s => (s[key] || 0) > 0)
-  const total = items.reduce((sum, x) => sum + (x[key] || 0), 0)
-  if (total <= 0) return []
-  let ang = -Math.PI / 2
-  const cx = 90, cy = 90, r = 80
-  return items.map((it, i) => {
-    const frac = (it[key] || 0) / total
-    const a0 = ang
-    const a1 = ang + frac * 2 * Math.PI
-    ang = a1
-    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0)
-    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1)
-    const large = (a1 - a0) > Math.PI ? 1 : 0
-    const path = frac >= 0.999
-      ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${(cx - 0.01).toFixed(3)} ${cy - r} Z`
-      : `M ${cx} ${cy} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`
-    return { path, color: PIE_COLORS[i % PIE_COLORS.length], name: it.name, value: it[key], frac }
-  })
+const siteRows = computed(() => [...(siteChart.sites || [])].sort((a, b) => ((b.upload || 0) + (b.download || 0)) - ((a.upload || 0) + (a.download || 0))))
+const maxSiteTraffic = computed(() => Math.max(1, ...siteRows.value.map(s => Math.max(s.upload || 0, s.download || 0))))
+function barWidth(value) {
+  return `${Math.max(4, Math.round(((Number(value) || 0) / maxSiteTraffic.value) * 100))}%`
 }
-const uploadPie = computed(() => buildPie('upload'))
-const downloadPie = computed(() => buildPie('download'))
 
 async function loadSiteChart() {
   try {
@@ -136,15 +122,15 @@ const actionGroups = [
     group: '订阅与站点',
     icon: 'mdi-bell-ring-outline',
     actions: [
-      { path: 'run_subscribe_reminder', label: '推送订阅提醒', desc: '手动推送一次订阅追新提醒' },
-      { path: 'run_site_stat', label: '更新站点数据', desc: '重新采集站点上传/下载数据' },
+      { path: 'run_subscribe_reminder', label: '推送订阅追新', desc: '手动推送一次今日订阅追新' },
+      { path: 'run_site_stat', label: '刷新站点数据', desc: '重新汇总站点上传/下载增量' },
     ]
   },
   {
     group: '下载与媒体',
     icon: 'mdi-download-network-outline',
     actions: [
-      { path: 'run_downloader_tag', label: '刷新活动种子', desc: '重新加载下载器中的活动种子概览' },
+      { path: 'run_downloader_tag', label: '按站点打标签', desc: '为下载器种子补打站点标签' },
     ]
   },
   {
@@ -224,51 +210,64 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 
       <!-- 站点数据统计 + 手动触发：左右各一个 -->
       <VRow class="mb-1">
-        <VCol v-if="hasSiteChart" cols="12" lg="8">
+        <VCol cols="12" lg="8">
           <VCard variant="outlined" class="rounded-lg h-100">
             <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
-              <VIcon icon="mdi-chart-pie" color="primary" class="me-2" />站点数据统计
+              <VIcon icon="mdi-chart-line" color="primary" class="me-2" />站点数据统计
+              <VSpacer />
+              <VBtn size="small" variant="tonal" color="primary" prepend-icon="mdi-refresh"
+                :loading="actionRunning === 'run_site_stat'" @click="runAction('run_site_stat', '刷新站点数据')">
+                刷新
+              </VBtn>
             </VCardTitle>
             <VDivider />
             <VCardText>
-              <VRow>
-                <VCol cols="12" md="6">
-                  <div class="text-body-2 text-medium-emphasis mb-2">今日上传（{{ siteChart.date }}）共 {{ formatGB(siteChart.upload_total) }}</div>
-                  <div class="d-flex align-center">
-                    <svg viewBox="0 0 180 180" width="150" height="150" class="flex-shrink-0">
-                      <path v-for="(s, i) in uploadPie" :key="i" :d="s.path" :fill="s.color" stroke="rgba(255,255,255,0.25)" stroke-width="0.6" />
-                    </svg>
-                    <div class="ms-3 flex-grow-1">
-                      <div v-for="(s, i) in uploadPie" :key="i" class="d-flex align-center text-caption mb-1">
-                        <span class="aoa-legend-dot" :style="{ background: s.color }"></span>
-                        <span class="me-2">{{ s.name }}</span>
-                        <span class="text-medium-emphasis">{{ formatGB(s.value) }}（{{ (s.frac * 100).toFixed(0) }}%）</span>
-                      </div>
+              <div class="site-summary">
+                <div class="site-summary-item">
+                  <VIcon icon="mdi-upload-network-outline" color="success" size="20" />
+                  <span>今日上传</span>
+                  <strong>{{ formatGB(siteChart.upload_total) }}</strong>
+                </div>
+                <div class="site-summary-item">
+                  <VIcon icon="mdi-download-network-outline" color="info" size="20" />
+                  <span>今日下载</span>
+                  <strong>{{ formatGB(siteChart.download_total) }}</strong>
+                </div>
+                <div class="site-summary-item">
+                  <VIcon icon="mdi-calendar-blank-outline" color="primary" size="20" />
+                  <span>统计日期</span>
+                  <strong>{{ siteChart.date || '—' }}</strong>
+                </div>
+              </div>
+
+              <div v-if="hasSiteChart" class="site-table mt-3">
+                <div v-for="site in siteRows" :key="site.name" class="site-row">
+                  <div class="site-name">{{ site.name }}</div>
+                  <div class="site-bars">
+                    <div class="site-metric">
+                      <span class="site-metric-label">↑ {{ formatGB(site.upload) }}</span>
+                      <span class="site-bar site-bar-up"><i :style="{ width: barWidth(site.upload) }"></i></span>
+                    </div>
+                    <div class="site-metric">
+                      <span class="site-metric-label">↓ {{ formatGB(site.download) }}</span>
+                      <span class="site-bar site-bar-down"><i :style="{ width: barWidth(site.download) }"></i></span>
                     </div>
                   </div>
-                </VCol>
-                <VCol cols="12" md="6">
-                  <div class="text-body-2 text-medium-emphasis mb-2">今日下载（{{ siteChart.date }}）共 {{ formatGB(siteChart.download_total) }}</div>
-                  <div class="d-flex align-center">
-                    <svg viewBox="0 0 180 180" width="150" height="150" class="flex-shrink-0">
-                      <path v-for="(s, i) in downloadPie" :key="i" :d="s.path" :fill="s.color" stroke="rgba(255,255,255,0.25)" stroke-width="0.6" />
-                    </svg>
-                    <div class="ms-3 flex-grow-1">
-                      <div v-for="(s, i) in downloadPie" :key="i" class="d-flex align-center text-caption mb-1">
-                        <span class="aoa-legend-dot" :style="{ background: s.color }"></span>
-                        <span class="me-2">{{ s.name }}</span>
-                        <span class="text-medium-emphasis">{{ formatGB(s.value) }}（{{ (s.frac * 100).toFixed(0) }}%）</span>
-                      </div>
-                    </div>
-                  </div>
-                </VCol>
-              </VRow>
+                </div>
+              </div>
+              <div v-else class="site-empty">
+                <VIcon icon="mdi-chart-line-variant" size="36" color="primary" />
+                <div>
+                  <div class="font-weight-medium">暂无今日站点增量</div>
+                  <div class="text-caption text-medium-emphasis">站点数据模块已恢复显示，可手动刷新查看最新上传/下载增量。</div>
+                </div>
+              </div>
             </VCardText>
           </VCard>
         </VCol>
 
         <!-- 手动触发：模块化放在站点数据右边 -->
-        <VCol cols="12" :lg="hasSiteChart ? 4 : 12">
+        <VCol cols="12" lg="4">
           <VCard variant="outlined" class="rounded-lg h-100">
             <VCardTitle class="text-subtitle-1 d-flex align-center py-3">
               <VIcon icon="mdi-play-circle-outline" color="primary" class="me-2" />手动触发
@@ -376,7 +375,87 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 <style scoped>
 .agentops-toolbar { position: sticky; top: 0; z-index: 10; background: rgb(var(--v-theme-surface)); }
 .agentops-dashboard :deep(.v-card) { border-radius: 12px; }
-.aoa-legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
+.site-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.site-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px;
+  background: rgba(var(--v-theme-on-surface), 0.025);
+}
+.site-summary-item span {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgba(var(--v-theme-on-surface), 0.64);
+  font-size: 12px;
+}
+.site-summary-item strong {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.site-table {
+  display: grid;
+  gap: 8px;
+}
+.site-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 150px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid rgba(var(--v-border-color), 0.5);
+}
+.site-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.site-bars {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.site-metric {
+  display: grid;
+  gap: 4px;
+}
+.site-metric-label {
+  color: rgba(var(--v-theme-on-surface), 0.68);
+  font-size: 12px;
+}
+.site-bar {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+}
+.site-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+.site-bar-up i { background: rgb(var(--v-theme-success)); }
+.site-bar-down i { background: rgb(var(--v-theme-info)); }
+.site-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 112px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px dashed rgba(var(--v-theme-primary), 0.42);
+  border-radius: 8px;
+  background: rgba(var(--v-theme-primary), 0.04);
+}
 .health-output {
   white-space: pre-wrap;
   word-break: break-word;
@@ -386,5 +465,15 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   font-family: 'JetBrains Mono', Consolas, Menlo, monospace;
   color: rgb(var(--v-theme-on-surface));
   opacity: .85;
+}
+@media (max-width: 760px) {
+  .site-summary,
+  .site-bars {
+    grid-template-columns: 1fr;
+  }
+  .site-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
 </style>

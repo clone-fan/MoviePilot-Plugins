@@ -29,9 +29,9 @@ class AgentOpsAssistant(_PluginBase):
     """MP 运维助手：每日汇报、日志清理、备份、更新检查和插件残留治理。"""
 
     plugin_name = "MP 运维助手"
-    plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅提醒、站点统计、日志清理、备份与更新治理。"
+    plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.3"
+    plugin_version = "1.0.4"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -41,10 +41,10 @@ class AgentOpsAssistant(_PluginBase):
     MODULES: List[Dict[str, str]] = [
         {"key": "daily_report", "category": "report", "subcategory": "日报编排", "name": "每日汇报", "phase": "v1.4", "risk": "低", "status": "已直接接替", "source": "AgentOpsAssistant", "goal": "固定模板日报与定时/手动发送"},
 
-        {"key": "subscribe_today", "category": "subscribe_center", "subcategory": "今日追新", "name": "今日追新", "phase": "v2.0", "risk": "低", "status": "待接替", "source": "SubscribeReminder + SubscribeOper", "goal": "直接接替订阅提醒的今日播出口径"},
+        {"key": "subscribe_today", "category": "subscribe_center", "subcategory": "今日追新", "name": "今日追新", "phase": "v2.0", "risk": "低", "status": "待接替", "source": "SubscribeReminder + SubscribeOper", "goal": "直接接替订阅追新的今日播出口径"},
         {"key": "subscribe_status", "category": "subscribe_center", "subcategory": "订阅状态", "name": "订阅状态总览", "phase": "v2.0", "risk": "低", "status": "待接替", "source": "SubscribeOper", "goal": "启用、待处理、缺集、今日追新统计"},
         {"key": "subscribe_lack", "category": "subscribe_center", "subcategory": "缺集提醒", "name": "缺集提醒", "phase": "v2.0", "risk": "低", "status": "规划中", "source": "SubscribeOper", "goal": "缺集订阅 Top 列表与提醒"},
-        {"key": "subscribe_notify", "category": "subscribe_center", "subcategory": "提醒推送", "name": "订阅提醒推送", "phase": "v2.0", "risk": "低", "status": "规划中", "source": "AgentOpsAssistant", "goal": "由本插件独立发送订阅提醒，原插件可卸载"},
+        {"key": "subscribe_notify", "category": "subscribe_center", "subcategory": "追新推送", "name": "订阅追新推送", "phase": "v2.0", "risk": "低", "status": "规划中", "source": "AgentOpsAssistant", "goal": "由本插件独立发送订阅追新，原插件可卸载"},
 
         {"key": "site_snapshot", "category": "site_center", "subcategory": "站点快照", "name": "站点快照", "phase": "v2.1", "risk": "低", "status": "待接替", "source": "SiteStatistic + SiteOper", "goal": "复刻站点统计快照口径"},
         {"key": "site_increment", "category": "site_center", "subcategory": "站点增量", "name": "站点增量", "phase": "v2.1", "risk": "低", "status": "待接替", "source": "SiteStatistic + SiteOper", "goal": "复刻上传/下载/分享率/魔力增量口径"},
@@ -336,7 +336,7 @@ class AgentOpsAssistant(_PluginBase):
     def get_command() -> List[Dict[str, Any]]:
         return [
             {"cmd": "/mpops_report", "event": EventType.PluginAction, "desc": "发送 MP 运维每日汇报", "category": "MP运维", "data": {"action": "mpops_report"}},
-            {"cmd": "/mpops_subscribe", "event": EventType.PluginAction, "desc": "立即推送订阅追新提醒", "category": "MP运维", "data": {"action": "mpops_subscribe"}},
+            {"cmd": "/mpops_subscribe", "event": EventType.PluginAction, "desc": "立即推送订阅追新", "category": "MP运维", "data": {"action": "mpops_subscribe"}},
             {"cmd": "/mpops_report_preview", "event": EventType.PluginAction, "desc": "预览 MP 运维每日汇报（不发送）", "category": "MP运维", "data": {"action": "mpops_report_preview"}},
             {"cmd": "/mpops_health", "event": EventType.PluginAction, "desc": "执行 MP 运维健康巡查", "category": "MP运维", "data": {"action": "mpops_health"}},
             {"cmd": "/mpops_logs", "event": EventType.PluginAction, "desc": "预览 MoviePilot 日志清理范围", "category": "MP运维", "data": {"action": "mpops_logs"}},
@@ -359,7 +359,7 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/installed_plugins", "endpoint": self.api_installed_plugins, "auth": "bear", "methods": ["GET"], "summary": "已安装插件列表，供残留清理下拉选择"},
             {"path": "/plugin_markets", "endpoint": self.api_plugin_markets, "auth": "bear", "methods": ["GET"], "summary": "已配置插件库仓库列表，供更新黑名单下拉选择"},
             {"path": "/run_daily_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "立即发送每日汇报"},
-            {"path": "/run_subscribe_reminder", "endpoint": self.api_run_subscribe_reminder, "auth": "bear", "methods": ["POST"], "summary": "立即推送订阅追新提醒"},
+            {"path": "/run_subscribe_reminder", "endpoint": self.api_run_subscribe_reminder, "auth": "bear", "methods": ["POST"], "summary": "立即推送订阅追新"},
             {"path": "/preview_daily_report", "endpoint": self.api_preview_daily_report, "auth": "bear", "methods": ["POST"], "summary": "预览每日汇报（不发送）"},
             {"path": "/run_health_check", "endpoint": self.api_run_health_check, "auth": "bear", "methods": ["POST"], "summary": "立即执行健康巡查"},
             {"path": "/preview_log_clean", "endpoint": self.api_preview_log_clean, "auth": "bear", "methods": ["POST"], "summary": "预览日志清理范围"},
@@ -376,6 +376,7 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/subfill_clear_history", "endpoint": self.api_subfill_clear_history, "auth": "bear", "methods": ["POST"], "summary": "清理订阅规则填充历史记录"},
             {"path": "/subfill_clear_handled", "endpoint": self.api_subfill_clear_handled, "auth": "bear", "methods": ["POST"], "summary": "清理订阅规则填充已处理记录"},
             {"path": "/site_stat_chart", "endpoint": self.api_site_stat_chart, "auth": "bear", "methods": ["GET"], "summary": "今日各站点上传/下载增量，供仪表盘饼图"},
+            {"path": "/run_site_stat", "endpoint": self.api_run_site_stat, "auth": "bear", "methods": ["POST"], "summary": "刷新站点数据统计"},
             {"path": "/run_downloader_tag", "endpoint": self.api_run_downloader_tag, "auth": "bear", "methods": ["POST"], "summary": "按站点为种子批量补打标签"},
             {"path": "/downloader_overview", "endpoint": self.api_downloader_overview, "auth": "bear", "methods": ["GET"], "summary": "下载器活动种子概览"},
             {"path": "/run_heartbeat_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "兼容旧接口：立即发送每日汇报"},
@@ -393,7 +394,7 @@ class AgentOpsAssistant(_PluginBase):
         if self._daily_report_enabled:
             services.append({"id": "AgentOpsAssistant.DailyReport", "name": "MP 运维助手 - 每日汇报", "trigger": CronTrigger.from_crontab(self._daily_report_cron), "func": self.run_daily_report, "kwargs": {}})
         if self._subscribe_reminder_enabled:
-            services.append({"id": "AgentOpsAssistant.SubscribeReminder", "name": "MP 运维助手 - 订阅提醒推送", "trigger": CronTrigger.from_crontab(self._subscribe_reminder_cron), "func": self.run_subscribe_reminder, "kwargs": {}})
+            services.append({"id": "AgentOpsAssistant.SubscribeReminder", "name": "MP 运维助手 - 订阅追新推送", "trigger": CronTrigger.from_crontab(self._subscribe_reminder_cron), "func": self.run_subscribe_reminder, "kwargs": {}})
         if self._log_clean_enabled:
             services.append({"id": "AgentOpsAssistant.LogClean", "name": "MP 运维助手 - 插件日志清理", "trigger": CronTrigger.from_crontab(self._log_clean_cron), "func": self.run_log_clean, "kwargs": {}})
         if self._backup_enabled:
@@ -424,7 +425,7 @@ class AgentOpsAssistant(_PluginBase):
         action = (event.event_data or {}).get("action", "")
         handlers = {
             "mpops_report": [("每日汇报", self.run_daily_report)],
-            "mpops_subscribe": [("订阅提醒", self.run_subscribe_reminder)],
+            "mpops_subscribe": [("订阅追新", self.run_subscribe_reminder)],
             "mpops_report_preview": [("预览每日汇报", self.run_daily_report_preview)],
             "mpops_health": [("健康巡查", self.run_health_check)],
             "mpops_logs": [("日志清理预览", self.run_log_preview)],
@@ -802,8 +803,8 @@ class AgentOpsAssistant(_PluginBase):
         return "\n".join(parts)
 
     def run_subscribe_reminder(self) -> bool:
-        """独立推送今日订阅追新提醒（与每日汇报分开，按 subscribe_reminder_cron 调度，也可手动触发）。"""
-        name = "订阅提醒"
+        """独立推送今日订阅追新（与每日汇报分开，按 subscribe_reminder_cron 调度，也可手动触发）。"""
+        name = "订阅追新"
         try:
             items = self._get_today_subscribe_updates_locked()
             if items:
@@ -814,12 +815,12 @@ class AgentOpsAssistant(_PluginBase):
                 mtype = NotificationType[self._subscribe_reminder_msgtype]
             except Exception:
                 mtype = NotificationType.Plugin
-            self.post_message(mtype=mtype, title="MP 运维助手 - 订阅提醒", text=body)
+            self.post_message(mtype=mtype, title="MP 运维助手 - 订阅追新", text=body)
             self._save_task_result(name, True, 0, body)
             return True
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
-            logger.error(f"AgentOpsAssistant 订阅提醒推送失败：{err}")
+            logger.error(f"AgentOpsAssistant 订阅追新推送失败：{err}")
             return False
 
     def run_daily_report(self) -> bool:
@@ -865,7 +866,7 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _count_report_sections(text: str) -> int:
-        icons = ["🕒", "🤖", "📡", "📈", "⬇️", "📥", "📦", "📺", "💾", "🎬", "✅", "⚠️"]
+        icons = ["🕒", "🤖", "📡", "📈", "⬇️", "📥", "📦", "📺", "💾", "🎬", "🩺", "✅", "⚠️"]
         return sum(1 for icon in icons if icon in (text or ""))
 
     def api_preview_daily_report(self) -> Dict[str, Any]:
@@ -877,7 +878,7 @@ class AgentOpsAssistant(_PluginBase):
         return self._api_run_task("每日汇报", self.run_daily_report)
 
     def api_run_subscribe_reminder(self) -> Dict[str, Any]:
-        return self._api_run_task("订阅提醒", self.run_subscribe_reminder)
+        return self._api_run_task("订阅追新", self.run_subscribe_reminder)
 
     def run_health_check(self) -> bool:
         data = self._build_health_summary()
@@ -1105,32 +1106,146 @@ class AgentOpsAssistant(_PluginBase):
         media_stats = self._get_media_stats_locked()
 
         lines = [
+            self._daily_report_title(),
             self._daily_greeting_locked(),
             "",
-            f"🕒 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         ]
 
         def section(enabled: bool, header: str, body: List[str]):
             if enabled and body:
-                lines.extend(["", header])
-                lines.extend(body)
+                lines.extend(["", "━━━━━━━━━━━━━━━━━━━━", header])
+                lines.extend(self._report_body_lines(body))
 
         if self._report_version:
-            lines.extend(["", "🤖 MoviePilot："])
-            lines.extend(self._version_report_lines())
-        section(self._report_site_status, "📡 站点状态：", site_health)
-        section(self._report_site_increment, "📈 站点增量：", site_increment)
+            lines.extend(["", "━━━━━━━━━━━━━━━━━━━━", "🤖 MoviePilot"])
+            lines.extend(self._report_body_lines(self._version_report_lines()))
+        section(self._report_site_status, "📡 站点状态", site_health)
+        section(self._report_site_increment, "📈 站点增量", site_increment)
         # 「下载器/正在下载」与「今日下载」重复，统一只保留今日下载
-        section(self._report_today_download, "📥 今日下载：", today_downloads)
-        section(self._report_transfer, "📦 入库整理：", transfer_health)
-        section(self._report_subscribe, "📺 订阅追新：",
-                ([f"⦁ {x}" for x in subs] if subs else ["⦁ 今日追新：无"]))
-        section(self._report_storage, "💾 存储空间：", storage_health)
-        section(self._report_media_stat, "🎬 媒体统计：", media_stats)
+        section(self._report_today_download, "📥 今日下载", today_downloads)
+        section(self._report_transfer, "📦 入库整理", transfer_health)
+        section(self._report_subscribe, "📺 订阅追新", ([f"⦁ {x}" for x in subs] if subs else ["⦁ 今日追新：无"]))
+        section(self._report_storage, "💾 存储空间", storage_health)
+        section(self._report_media_stat, "🎬 媒体统计", media_stats)
+        section(self._report_health and self._health_check_enabled, "🩺 健康巡查", self._get_health_report_locked())
         if self._report_summary:
-            lines.append("")
-            lines.extend(self._get_summary_locked(site_health, transfer_health, downloader_health, storage_health))
+            lines.extend(["", "━━━━━━━━━━━━━━━━━━━━"])
+            lines.extend(self._report_body_lines(self._get_summary_locked(site_health, transfer_health, downloader_health, storage_health)))
         return "\n".join(lines)
+
+    @staticmethod
+    def _daily_report_title() -> str:
+        weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        now = datetime.now()
+        return f"📮 MP 运维日报｜{now.strftime('%Y-%m-%d')} {weekdays[now.weekday()]}"
+
+    @classmethod
+    def _report_body_lines(cls, items: List[str]) -> List[str]:
+        """将日报内容转成图标化数据条；短项横向排布，长项保留纵向。"""
+        cleaned = [cls._report_visual_line(item) for item in (items or []) if str(item or "").strip()]
+        cleaned = [line for line in cleaned if line]
+        if not cleaned:
+            return ["• 无"]
+        compact: List[str] = []
+        buffer: List[str] = []
+        for text in cleaned:
+            if len(text) <= 22:
+                buffer.append(text)
+                if len(buffer) == 2:
+                    compact.append("　　".join(buffer))
+                    buffer = []
+            else:
+                if buffer:
+                    compact.append("　　".join(buffer))
+                    buffer = []
+                compact.append(text)
+        if buffer:
+            compact.append("　　".join(buffer))
+        return compact
+
+    @staticmethod
+    def _report_visual_line(item: Any) -> str:
+        text = str(item or "").strip()
+        if text.startswith("- "):
+            text = f"⦁ {text[2:].strip()}"
+        if text.startswith("  - "):
+            text = f"⦁ {text[4:].strip()}"
+        text = text.replace("⦁ ", "• ").replace("⦁", "•").strip()
+        body = text[2:].strip() if text.startswith("• ") else text
+
+        version_match = re.match(r"当前版本：前端\s*(.*?)\s*/\s*后端\s*(.*)$", body)
+        if version_match:
+            return f"• 🖥 前端 {version_match.group(1)} ｜ ⚙ 后端 {version_match.group(2)}"
+
+        if body.startswith("最新版本："):
+            latest = body.replace("最新版本：", "", 1).strip()
+            icon = "✅" if "已是最新" in latest else ("🆕" if "新版" in latest else "⚠")
+            return f"• {icon} 最新 {latest}"
+
+        status_match = re.match(r"(.+?)\s*\|\s*(.+)$", body)
+        if status_match:
+            name, status = status_match.group(1).strip(), status_match.group(2).strip()
+            icon = "✅" if status == "正常" else ("⏳" if "过期" in status else "⚠")
+            return f"• {name}：{icon} {status}"
+
+        transfer_match = re.match(r"今日成功：(\d+)｜失败：(\d+)", body)
+        if transfer_match:
+            return f"• ✅ 成功 {transfer_match.group(1)} ｜ ❌ 失败 {transfer_match.group(2)}"
+
+        if body.startswith("失败："):
+            detail = body.replace("失败：", "", 1)
+            if " - " in detail:
+                title, reason = detail.split(" - ", 1)
+                return f"• ❌ {title.strip()} ｜ {reason.strip()}"
+            return f"• ❌ {detail.strip()}"
+
+        if body.startswith("今日下载："):
+            value = body.replace("今日下载：", "", 1).strip()
+            return f"• 📦 今日下载 {value}"
+
+        seed_match = re.match(r"(.+?)（做种：(.*?)）$", body)
+        if seed_match:
+            label, seed = seed_match.group(1).strip(), seed_match.group(2).strip()
+            icon = "📺" if re.search(r"S\d{1,2}E", label, re.I) else "🎬"
+            return f"• {icon} {label} ｜ 🌱 {seed}"
+
+        if re.search(r"电影\s+\d+", body) and ("电视剧" in body or "剧集" in body or "用户" in body):
+            parts = []
+            for part in re.split(r"\s*｜\s*", body):
+                part = part.strip()
+                if part.startswith("电影 "):
+                    parts.append("🎞 " + part)
+                elif part.startswith("电视剧 "):
+                    parts.append("📺 " + part)
+                elif part.startswith("剧集 "):
+                    parts.append("🎞 " + part)
+                elif part.startswith("用户 "):
+                    parts.append("👤 " + part)
+                elif part:
+                    parts.append(part)
+            return f"• {' ｜ '.join(parts)}"
+
+        storage_match = re.match(r"(.+?)：(.+)$", body)
+        if storage_match and ("剩余" in body or "已用" in body):
+            name, rest = storage_match.group(1).strip(), storage_match.group(2).strip()
+            parts = []
+            for part in re.split(r"\s*｜\s*", rest):
+                part = part.strip()
+                if not part:
+                    continue
+                if part.startswith("剩余"):
+                    parts.append(f"🧺 {part}")
+                elif part.startswith("已用"):
+                    pct_match = re.search(r"(\d+)", part)
+                    pct = int(pct_match.group(1)) if pct_match else 0
+                    icon = "🔴" if pct >= 85 else ("🟡" if pct >= 70 else "🟢")
+                    parts.append(f"{icon} {part}")
+                else:
+                    parts.append(f"💽 {part}")
+            return f"• {name}：{' ｜ '.join(parts)}"
+
+        return text if text.startswith("• ") else f"• {body}"
 
     def _version_report_lines(self) -> List[str]:
         """当前/最新版本 + 按检查结果区分话术（已是最新 / 有新版 / 检查失败）。"""
@@ -1288,17 +1403,24 @@ class AgentOpsAssistant(_PluginBase):
                 ratio = getattr(current, "ratio", None)
                 bonus = getattr(current, "bonus", None)
                 if ratio not in (None, ""):
-                    extras.append(f"分享率 {ratio}")
+                    extras.append(f"📊 {ratio}")
                 if bonus not in (None, ""):
-                    try:
-                        extras.append(f"魔力 {float(bonus):.0f}")
-                    except Exception:
-                        extras.append(f"魔力 {bonus}")
+                    extras.append(f"🪙 {self._format_metric_number(bonus)}")
                 suffix = "｜" + "｜".join(extras) if extras else ""
-                result.append(f"⦁ {site_name}：↑ {self._format_bytes(upload_delta)} ｜ ↓ {self._format_bytes(download_delta)}{suffix}")
+                result.append(f"⦁ {site_name}：⬆ {self._format_bytes(upload_delta)} ｜ ⬇ {self._format_bytes(download_delta)}{suffix}")
             return result or ["⦁ 无"]
         except Exception as e:
             return [f"⦁ 异常 - {e}"]
+
+    @staticmethod
+    def _format_metric_number(value: Any) -> str:
+        try:
+            num = float(value)
+            if num.is_integer():
+                return f"{int(num):,}"
+            return f"{num:,.1f}".rstrip("0").rstrip(".")
+        except Exception:
+            return str(value)
 
     def _site_increment_data(self) -> List[Dict[str, Any]]:
         """今日各站点上传/下载增量（原始字节），供仪表盘饼图。"""
@@ -1722,6 +1844,22 @@ class AgentOpsAssistant(_PluginBase):
         except Exception as err:
             logger.error(f"站点统计图数据获取失败：{err}")
             return {"code": 1, "msg": str(err), "data": {"date": "", "sites": [], "upload_total": 0, "download_total": 0}}
+
+    def api_run_site_stat(self) -> Dict[str, Any]:
+        """刷新站点数据统计：站点快照来自 MoviePilot SiteOper，这里重新汇总并记录一次任务结果。"""
+        try:
+            chart = self.api_site_stat_chart()
+            payload = chart.get("data") or {}
+            site_count = len(payload.get("sites") or [])
+            upload = self._format_bytes(payload.get("upload_total", 0))
+            download = self._format_bytes(payload.get("download_total", 0))
+            text = f"已刷新 {site_count} 个站点｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无今日增量。"
+            self._save_task_result("站点数据统计", True, 0, text)
+            return {"code": 0, "msg": text, "data": payload}
+        except Exception as err:
+            self._save_task_result("站点数据统计", False, -1, str(err))
+            logger.error(f"站点数据统计刷新失败：{err}")
+            return {"code": 1, "msg": f"站点数据统计刷新失败：{err}", "data": {"date": "", "sites": [], "upload_total": 0, "download_total": 0}}
 
     def api_run_downloader_tag(self) -> Dict[str, Any]:
         return self._api_run_task("种子打标签", self.run_downloader_tag)
@@ -3016,6 +3154,17 @@ class AgentOpsAssistant(_PluginBase):
             lines.append(f"⦁ {mark} {label}：{item.get('detail')}")
         return "\n".join(lines)
 
+    def _get_health_report_locked(self) -> List[str]:
+        """日报中的健康巡查栏目：优先使用最近巡查结果，没有记录时现场生成一次。"""
+        data = self.get_data("last_health_check") or {}
+        output = str(data.get("output") or "").strip()
+        if not output and self._health_check_enabled:
+            try:
+                output = self._format_health_summary(self._build_health_summary())
+            except Exception as err:
+                output = f"⦁ 状态：巡查失败\n⦁ 异常：{str(err)[:120]}"
+        return [line for line in output.splitlines() if line.strip()] or ["⦁ 尚无健康巡查记录"]
+
     def _run_named_task(self, name: str, cmd: List[str], expect: str = "") -> bool:
         result = self._run_command_capture(cmd, timeout=600)
         output = result["output"]
@@ -3065,7 +3214,7 @@ class AgentOpsAssistant(_PluginBase):
     def _task_definitions(self) -> List[Dict[str, Any]]:
         return [
             {"key": "daily_report", "name": "每日汇报", "enabled": self._daily_report_enabled, "last_keys": ["last_daily_report", "last_daily_report_preview"], "next": self._daily_report_cron, "icon": "mdi-newspaper-variant"},
-            {"key": "subscribe_reminder", "name": "订阅提醒", "enabled": self._subscribe_reminder_enabled, "last_keys": ["last_subscribe_reminder"], "next": self._subscribe_reminder_cron, "icon": "mdi-bell-ring"},
+            {"key": "subscribe_reminder", "name": "订阅追新", "enabled": self._subscribe_reminder_enabled, "last_keys": ["last_subscribe_reminder"], "next": self._subscribe_reminder_cron, "icon": "mdi-bell-ring"},
             {"key": "log_clean", "name": "日志清理", "enabled": self._log_clean_enabled, "last_keys": ["last_log_clean", "last_log_clean_preview"], "next": self._log_clean_cron, "icon": "mdi-broom"},
             {"key": "backup", "name": "自动备份", "enabled": self._backup_enabled, "last_keys": ["last_backup"], "next": self._backup_cron, "icon": "mdi-database-arrow-up"},
             {"key": "mp_update", "name": "MP 更新", "enabled": self._mp_update_enabled, "last_keys": ["last_update_preview"], "next": self._mp_update_cron, "icon": "mdi-update"},
@@ -3207,7 +3356,7 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _slug(name: str) -> str:
-        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "订阅提醒": "subscribe_reminder", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "自动删种": "seed_clean", "订阅规则填充": "subfill", "清理填充历史": "subfill_clear_history", "清理已处理": "subfill_clear_handled", "种子打标签": "downloader_tag"}.get(name, "task")
+        return {"MP运维每日汇报": "daily_report", "每日汇报": "daily_report", "订阅提醒": "subscribe_reminder", "订阅追新": "subscribe_reminder", "预览每日汇报": "daily_report_preview", "日报预览": "daily_report_preview", "健康巡查": "health_check", "站点数据统计": "site_stat", "日志清理": "log_clean", "日志清理预览": "log_clean_preview", "自动备份": "backup", "插件库更新": "market_update", "更新状态预览": "update_preview", "插件治理预览": "plugin_uninstall_preview", "插件残留治理": "plugin_uninstall", "自动删种": "seed_clean", "订阅规则填充": "subfill", "清理填充历史": "subfill_clear_history", "清理已处理": "subfill_clear_handled", "种子打标签": "downloader_tag"}.get(name, "task")
 
     @staticmethod
     def _parse_csv(value: Any) -> List[str]:
@@ -3217,4 +3366,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True}
