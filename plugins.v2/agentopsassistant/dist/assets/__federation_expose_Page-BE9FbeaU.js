@@ -6,45 +6,55 @@ const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElement
 
 const _hoisted_1 = { class: "agentops-dashboard" };
 const _hoisted_2 = { class: "agentops-body" };
-const _hoisted_3 = { class: "overview-item" };
+const _hoisted_3 = { class: "overview-strip" };
 const _hoisted_4 = { class: "overview-item" };
 const _hoisted_5 = { class: "overview-item" };
-const _hoisted_6 = { class: "overview-summary" };
-const _hoisted_7 = {
+const _hoisted_6 = { class: "overview-item" };
+const _hoisted_7 = { class: "overview-item" };
+const _hoisted_8 = {
   key: 0,
   class: "site-stat-layout"
 };
-const _hoisted_8 = { class: "site-pie-wrap" };
-const _hoisted_9 = { class: "site-pie-center" };
-const _hoisted_10 = { class: "site-stat-content" };
-const _hoisted_11 = { class: "site-summary" };
-const _hoisted_12 = { class: "site-summary-item" };
+const _hoisted_9 = { class: "site-pie-wrap" };
+const _hoisted_10 = { class: "site-pie-center" };
+const _hoisted_11 = { class: "site-stat-content" };
+const _hoisted_12 = { class: "site-summary" };
 const _hoisted_13 = { class: "site-summary-item" };
 const _hoisted_14 = { class: "site-summary-item" };
-const _hoisted_15 = { class: "site-legend" };
-const _hoisted_16 = { class: "site-name" };
-const _hoisted_17 = { class: "site-traffic" };
-const _hoisted_18 = { class: "site-percent" };
-const _hoisted_19 = {
+const _hoisted_15 = { class: "site-summary-item" };
+const _hoisted_16 = { class: "site-legend" };
+const _hoisted_17 = { class: "site-name" };
+const _hoisted_18 = { class: "site-traffic" };
+const _hoisted_19 = { class: "site-percent" };
+const _hoisted_20 = {
   key: 1,
   class: "site-empty"
 };
-const _hoisted_20 = { class: "action-group-title" };
-const _hoisted_21 = { class: "action-buttons" };
-const _hoisted_22 = { class: "action-btn-label" };
-const _hoisted_23 = { class: "action-btn-desc" };
-const _hoisted_24 = { class: "d-flex align-center ga-2" };
-const _hoisted_25 = {
+const _hoisted_21 = { class: "action-scroll" };
+const _hoisted_22 = { class: "action-group-title" };
+const _hoisted_23 = { class: "action-buttons" };
+const _hoisted_24 = { class: "action-btn-label" };
+const _hoisted_25 = { class: "action-btn-desc" };
+const _hoisted_26 = { class: "task-grid" };
+const _hoisted_27 = { class: "task-head" };
+const _hoisted_28 = { class: "task-title-wrap" };
+const _hoisted_29 = { class: "task-name" };
+const _hoisted_30 = { class: "task-meta" };
+const _hoisted_31 = { class: "task-foot" };
+const _hoisted_32 = { class: "task-summary" };
+const _hoisted_33 = {
   key: 0,
-  class: "text-caption text-medium-emphasis mb-2"
+  class: "panel-note"
 };
-const _hoisted_26 = {
+const _hoisted_34 = {
   key: 1,
-  class: "health-output"
+  class: "health-grid"
 };
-const _hoisted_27 = {
+const _hoisted_35 = { class: "health-card-head" };
+const _hoisted_36 = { class: "health-detail" };
+const _hoisted_37 = {
   key: 2,
-  class: "text-medium-emphasis text-body-2"
+  class: "empty-soft"
 };
 
 const {ref,reactive,computed,onMounted} = await importShared('vue');
@@ -129,7 +139,7 @@ async function runAction(path, label) {
   }
 }
 
-const siteChart = reactive({ date: '', sites: [], upload_total: 0, download_total: 0 });
+const siteChart = reactive({ date: '', basis: 'today', sites: [], upload_total: 0, download_total: 0 });
 function formatGB(bytes) {
   const n = Number(bytes) || 0;
   const gb = n / (1024 ** 3);
@@ -139,6 +149,10 @@ function formatGB(bytes) {
 const siteRows = computed(() => [...(siteChart.sites || [])].sort((a, b) => ((b.upload || 0) + (b.download || 0)) - ((a.upload || 0) + (a.download || 0))));
 const sitePieColors = ['#22c55e', '#38bdf8', '#f59e0b', '#a78bfa', '#fb7185', '#14b8a6', '#eab308', '#60a5fa'];
 const siteTrafficTotal = computed(() => siteRows.value.reduce((sum, site) => sum + (Number(site.upload) || 0) + (Number(site.download) || 0), 0));
+const siteDateLabel = computed(() => {
+  if (!siteChart.date) return '—'
+  return siteChart.basis === 'latest' ? `最近快照 ${siteChart.date}` : siteChart.date
+});
 const sitePieSegments = computed(() => {
   const total = siteTrafficTotal.value;
   if (!total) return []
@@ -186,6 +200,29 @@ async function loadDownloaderOverview() {
 }
 
 const hasSiteChart = computed(() => !!(siteChart.sites && siteChart.sites.length));
+const healthItems = computed(() => {
+  const iconMap = {
+    订阅: 'mdi-bell-ring-outline',
+    站点: 'mdi-satellite-uplink',
+    下载器: 'mdi-download-network-outline',
+    本插件任务: 'mdi-puzzle-check-outline',
+    数据库: 'mdi-database-check-outline',
+    存储空间: 'mdi-harddisk',
+    目录权限: 'mdi-folder-check-outline',
+  };
+  return String(data.health.output || '')
+    .split('\n')
+    .map(line => line.replace(/^[⦁•\s]+/, '').trim())
+    .filter(line => line && !line.includes('状态') && !line.includes('巡查项'))
+    .map(line => {
+      const ok = !/[⚠❌✖]/.test(line) && !line.includes('异常') && !line.includes('失败');
+      const cleaned = line.replace(/[✅⚠️❌✖]/g, '').trim();
+      const parts = cleaned.split(/[:：]/);
+      const name = (parts.shift() || '巡查项').trim();
+      const detail = (parts.join('：') || '无更多信息').trim();
+      return { name, detail, ok, color: ok ? 'success' : 'error', icon: iconMap[name] || 'mdi-check-decagram-outline' }
+    })
+});
 
 // 手动触发按钮分组
 const actionGroups = [
@@ -193,34 +230,34 @@ const actionGroups = [
     group: '汇报中心',
     icon: 'mdi-newspaper-variant-outline',
     actions: [
-      { path: 'run_daily_report', label: '立即推送每日汇报', desc: '手动发送一份汇报到通知渠道' },
+      { path: 'run_daily_report', label: '每日汇报', icon: 'mdi-send-clock-outline', desc: '发送完整日报' },
     ]
   },
   {
     group: '订阅与站点',
     icon: 'mdi-bell-ring-outline',
     actions: [
-      { path: 'run_subscribe_reminder', label: '推送订阅追新', desc: '手动推送一次今日订阅追新' },
-      { path: 'run_site_stat', label: '刷新站点数据', desc: '重新汇总站点上传/下载增量' },
+      { path: 'run_subscribe_reminder', label: '订阅追新', icon: 'mdi-bell-badge-outline', desc: '推送今日追新' },
+      { path: 'run_site_stat', label: '站点统计', icon: 'mdi-chart-pie', desc: '刷新增量数据' },
     ]
   },
   {
     group: '下载与媒体',
     icon: 'mdi-download-network-outline',
     actions: [
-      { path: 'run_downloader_tag', label: '按站点打标签', desc: '为下载器种子补打站点标签' },
+      { path: 'run_downloader_tag', label: '种子标签', icon: 'mdi-tag-plus-outline', desc: '按站点补标签' },
+      { path: 'run_seed_clean', label: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '执行删种规则' },
     ]
   },
   {
     group: '系统维护',
     icon: 'mdi-cog-outline',
     actions: [
-      { path: 'run_backup', label: '执行备份', desc: '立即执行一次配置备份' },
-      { path: 'run_log_clean', label: '清理日志', desc: '立即清理插件日志（按保留行数）' },
-      { path: 'run_mp_update', label: '检查MP更新', desc: '检查 MoviePilot 后端/前端更新' },
-      { path: 'run_market_update', label: '检查插件库更新', desc: '检查插件库及已安装插件更新' },
-      { path: 'run_health_check', label: '执行健康巡查', desc: '手动执行一次系统健康巡查' },
-      { path: 'run_seed_clean', label: '自动删种', desc: '按规则自动暂停/删除种子' },
+      { path: 'run_backup', label: '配置备份', icon: 'mdi-database-arrow-up-outline', desc: '备份关键配置' },
+      { path: 'run_log_clean', label: '日志清理', icon: 'mdi-broom', desc: '清理插件日志' },
+      { path: 'run_mp_update', label: 'MP 更新', icon: 'mdi-update', desc: '检查主程序更新' },
+      { path: 'run_market_update', label: '插件更新', icon: 'mdi-puzzle-check-outline', desc: '检查插件市场' },
+      { path: 'run_health_check', label: '健康巡查', icon: 'mdi-heart-pulse', desc: '检查运行健康' },
     ]
   }
 ];
@@ -234,9 +271,9 @@ return (_ctx, _cache) => {
   const _component_VToolbar = _resolveComponent("VToolbar");
   const _component_VDivider = _resolveComponent("VDivider");
   const _component_VAlert = _resolveComponent("VAlert");
-  const _component_VCard = _resolveComponent("VCard");
   const _component_VCardTitle = _resolveComponent("VCardTitle");
   const _component_VCardText = _resolveComponent("VCardText");
+  const _component_VCard = _resolveComponent("VCard");
   const _component_VCol = _resolveComponent("VCol");
   const _component_VRow = _resolveComponent("VRow");
   const _component_VListItemTitle = _resolveComponent("VListItemTitle");
@@ -311,43 +348,44 @@ return (_ctx, _cache) => {
                 text: error.value
               }, null, 8, ["text"]))
             : _createCommentVNode("", true),
-          _createVNode(_component_VCard, {
-            variant: "tonal",
-            color: "primary",
-            class: "overview-strip"
-          }, {
-            default: _withCtx(() => [
-              _createElementVNode("div", _hoisted_3, [
-                _createVNode(_component_VIcon, {
-                  icon: "mdi-shield-check-outline",
-                  color: overallColor.value,
-                  size: "20"
-                }, null, 8, ["color"]),
-                _cache[6] || (_cache[6] = _createElementVNode("span", null, "状态", -1)),
-                _createElementVNode("strong", null, _toDisplayString(overallText.value), 1)
-              ]),
-              _createElementVNode("div", _hoisted_4, [
-                _createVNode(_component_VIcon, {
-                  icon: "mdi-format-list-checks",
-                  color: "primary",
-                  size: "20"
-                }),
-                _cache[7] || (_cache[7] = _createElementVNode("span", null, "任务", -1)),
-                _createElementVNode("strong", null, _toDisplayString(data.task_on) + " / " + _toDisplayString(data.task_total), 1)
-              ]),
-              _createElementVNode("div", _hoisted_5, [
-                _createVNode(_component_VIcon, {
-                  icon: data.task_failed > 0 ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline',
-                  color: data.task_failed > 0 ? 'error' : 'success',
-                  size: "20"
-                }, null, 8, ["icon", "color"]),
-                _cache[8] || (_cache[8] = _createElementVNode("span", null, "异常", -1)),
-                _createElementVNode("strong", null, _toDisplayString(data.task_failed), 1)
-              ]),
-              _createElementVNode("div", _hoisted_6, _toDisplayString(data.summary), 1)
+          _createElementVNode("div", _hoisted_3, [
+            _createElementVNode("div", _hoisted_4, [
+              _createVNode(_component_VIcon, {
+                icon: "mdi-shield-check-outline",
+                color: overallColor.value,
+                size: "22"
+              }, null, 8, ["color"]),
+              _cache[6] || (_cache[6] = _createElementVNode("span", null, "运行状态", -1)),
+              _createElementVNode("strong", null, _toDisplayString(overallText.value), 1)
             ]),
-            _: 1
-          }),
+            _createElementVNode("div", _hoisted_5, [
+              _createVNode(_component_VIcon, {
+                icon: "mdi-view-grid-check-outline",
+                color: "primary",
+                size: "22"
+              }),
+              _cache[7] || (_cache[7] = _createElementVNode("span", null, "启用组件", -1)),
+              _createElementVNode("strong", null, _toDisplayString(data.task_on) + " / " + _toDisplayString(data.task_total), 1)
+            ]),
+            _createElementVNode("div", _hoisted_6, [
+              _createVNode(_component_VIcon, {
+                icon: data.task_failed > 0 ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline',
+                color: data.task_failed > 0 ? 'error' : 'success',
+                size: "22"
+              }, null, 8, ["icon", "color"]),
+              _cache[8] || (_cache[8] = _createElementVNode("span", null, "异常组件", -1)),
+              _createElementVNode("strong", null, _toDisplayString(data.task_failed), 1)
+            ]),
+            _createElementVNode("div", _hoisted_7, [
+              _createVNode(_component_VIcon, {
+                icon: "mdi-heart-pulse",
+                color: healthColor.value,
+                size: "22"
+              }, null, 8, ["color"]),
+              _cache[9] || (_cache[9] = _createElementVNode("span", null, "健康巡查", -1)),
+              _createElementVNode("strong", null, _toDisplayString(healthText.value), 1)
+            ])
+          ]),
           _createVNode(_component_VRow, {
             dense: "",
             class: "mt-2 dashboard-main-grid"
@@ -359,8 +397,8 @@ return (_ctx, _cache) => {
               }, {
                 default: _withCtx(() => [
                   _createVNode(_component_VCard, {
-                    variant: "outlined",
-                    class: "rounded-lg h-100"
+                    elevation: "0",
+                    class: "glass-panel h-100"
                   }, {
                     default: _withCtx(() => [
                       _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
@@ -370,17 +408,17 @@ return (_ctx, _cache) => {
                             color: "primary",
                             class: "me-2"
                           }),
-                          _cache[10] || (_cache[10] = _createTextVNode("站点数据统计 ", -1)),
+                          _cache[11] || (_cache[11] = _createTextVNode("站点数据统计 ", -1)),
                           _createVNode(_component_VSpacer),
                           _createVNode(_component_VBtn, {
-                            size: "x-small",
+                            size: "small",
                             variant: "tonal",
                             color: "primary",
                             "prepend-icon": "mdi-refresh",
                             loading: actionRunning.value === 'run_site_stat',
                             onClick: _cache[2] || (_cache[2] = $event => (runAction('run_site_stat', '刷新站点数据')))
                           }, {
-                            default: _withCtx(() => [...(_cache[9] || (_cache[9] = [
+                            default: _withCtx(() => [...(_cache[10] || (_cache[10] = [
                               _createTextVNode(" 刷新 ", -1)
                             ]))]),
                             _: 1
@@ -388,53 +426,52 @@ return (_ctx, _cache) => {
                         ]),
                         _: 1
                       }),
-                      _createVNode(_component_VDivider),
                       _createVNode(_component_VCardText, { class: "compact-card-text" }, {
                         default: _withCtx(() => [
                           (hasSiteChart.value)
-                            ? (_openBlock(), _createElementBlock("div", _hoisted_7, [
-                                _createElementVNode("div", _hoisted_8, [
+                            ? (_openBlock(), _createElementBlock("div", _hoisted_8, [
+                                _createElementVNode("div", _hoisted_9, [
                                   _createElementVNode("div", {
                                     class: "site-pie",
                                     style: _normalizeStyle(sitePieStyle.value)
                                   }, [
-                                    _createElementVNode("div", _hoisted_9, [
+                                    _createElementVNode("div", _hoisted_10, [
                                       _createElementVNode("strong", null, _toDisplayString(siteRows.value.length), 1),
-                                      _cache[11] || (_cache[11] = _createElementVNode("span", null, "站点", -1))
+                                      _cache[12] || (_cache[12] = _createElementVNode("span", null, "站点", -1))
                                     ])
                                   ], 4)
                                 ]),
-                                _createElementVNode("div", _hoisted_10, [
-                                  _createElementVNode("div", _hoisted_11, [
-                                    _createElementVNode("div", _hoisted_12, [
+                                _createElementVNode("div", _hoisted_11, [
+                                  _createElementVNode("div", _hoisted_12, [
+                                    _createElementVNode("div", _hoisted_13, [
                                       _createVNode(_component_VIcon, {
                                         icon: "mdi-upload-network-outline",
                                         color: "success",
                                         size: "20"
                                       }),
-                                      _cache[12] || (_cache[12] = _createElementVNode("span", null, "今日上传", -1)),
+                                      _cache[13] || (_cache[13] = _createElementVNode("span", null, "上传增量", -1)),
                                       _createElementVNode("strong", null, _toDisplayString(formatGB(siteChart.upload_total)), 1)
                                     ]),
-                                    _createElementVNode("div", _hoisted_13, [
+                                    _createElementVNode("div", _hoisted_14, [
                                       _createVNode(_component_VIcon, {
                                         icon: "mdi-download-network-outline",
                                         color: "info",
                                         size: "20"
                                       }),
-                                      _cache[13] || (_cache[13] = _createElementVNode("span", null, "今日下载", -1)),
+                                      _cache[14] || (_cache[14] = _createElementVNode("span", null, "下载增量", -1)),
                                       _createElementVNode("strong", null, _toDisplayString(formatGB(siteChart.download_total)), 1)
                                     ]),
-                                    _createElementVNode("div", _hoisted_14, [
+                                    _createElementVNode("div", _hoisted_15, [
                                       _createVNode(_component_VIcon, {
                                         icon: "mdi-calendar-blank-outline",
                                         color: "primary",
                                         size: "20"
                                       }),
-                                      _cache[14] || (_cache[14] = _createElementVNode("span", null, "统计日期", -1)),
-                                      _createElementVNode("strong", null, _toDisplayString(siteChart.date || '—'), 1)
+                                      _cache[15] || (_cache[15] = _createElementVNode("span", null, "统计日期", -1)),
+                                      _createElementVNode("strong", null, _toDisplayString(siteDateLabel.value), 1)
                                     ])
                                   ]),
-                                  _createElementVNode("div", _hoisted_15, [
+                                  _createElementVNode("div", _hoisted_16, [
                                     (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(sitePieSegments.value, (site) => {
                                       return (_openBlock(), _createElementBlock("div", {
                                         key: site.name,
@@ -444,23 +481,23 @@ return (_ctx, _cache) => {
                                           class: "site-dot",
                                           style: _normalizeStyle({ background: site.color })
                                         }, null, 4),
-                                        _createElementVNode("strong", _hoisted_16, _toDisplayString(site.name), 1),
-                                        _createElementVNode("span", _hoisted_17, "↑ " + _toDisplayString(formatGB(site.upload)) + " ｜ ↓ " + _toDisplayString(formatGB(site.download)), 1),
-                                        _createElementVNode("span", _hoisted_18, _toDisplayString(sitePercent(site.value)), 1)
+                                        _createElementVNode("strong", _hoisted_17, _toDisplayString(site.name), 1),
+                                        _createElementVNode("span", _hoisted_18, "↑ " + _toDisplayString(formatGB(site.upload)) + " ｜ ↓ " + _toDisplayString(formatGB(site.download)), 1),
+                                        _createElementVNode("span", _hoisted_19, _toDisplayString(sitePercent(site.value)), 1)
                                       ]))
                                     }), 128))
                                   ])
                                 ])
                               ]))
-                            : (_openBlock(), _createElementBlock("div", _hoisted_19, [
+                            : (_openBlock(), _createElementBlock("div", _hoisted_20, [
                                 _createVNode(_component_VIcon, {
                                   icon: "mdi-chart-pie",
                                   size: "24",
                                   color: "primary"
                                 }),
-                                _cache[15] || (_cache[15] = _createElementVNode("div", null, [
-                                  _createElementVNode("div", { class: "font-weight-medium" }, "暂无今日站点增量"),
-                                  _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "可手动刷新查看最新上传/下载增量")
+                                _cache[16] || (_cache[16] = _createElementVNode("div", null, [
+                                  _createElementVNode("div", { class: "font-weight-medium" }, "暂无站点增量"),
+                                  _createElementVNode("div", { class: "text-caption text-medium-emphasis" }, "刷新后显示最近可用快照")
                                 ], -1))
                               ]))
                         ]),
@@ -478,8 +515,8 @@ return (_ctx, _cache) => {
               }, {
                 default: _withCtx(() => [
                   _createVNode(_component_VCard, {
-                    variant: "outlined",
-                    class: "rounded-lg h-100"
+                    elevation: "0",
+                    class: "glass-panel h-100"
                   }, {
                     default: _withCtx(() => [
                       _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
@@ -489,48 +526,57 @@ return (_ctx, _cache) => {
                             color: "primary",
                             class: "me-2"
                           }),
-                          _cache[16] || (_cache[16] = _createTextVNode("手动触发 ", -1))
+                          _cache[17] || (_cache[17] = _createTextVNode("手动触发 ", -1))
                         ]),
                         _: 1
                       }),
-                      _createVNode(_component_VDivider),
                       _createVNode(_component_VCardText, { class: "compact-card-text" }, {
                         default: _withCtx(() => [
-                          (_openBlock(), _createElementBlock(_Fragment, null, _renderList(actionGroups, (grp) => {
-                            return _createElementVNode("div", {
-                              key: grp.group,
-                              class: "action-group"
-                            }, [
-                              _createElementVNode("div", _hoisted_20, [
-                                _createVNode(_component_VIcon, {
-                                  icon: grp.icon,
-                                  size: "16",
-                                  color: "primary"
-                                }, null, 8, ["icon"]),
-                                _createElementVNode("span", null, _toDisplayString(grp.group), 1)
-                              ]),
-                              _createElementVNode("div", _hoisted_21, [
-                                (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(grp.actions, (action) => {
-                                  return (_openBlock(), _createBlock(_component_VBtn, {
-                                    key: action.path,
-                                    size: "small",
-                                    variant: "outlined",
-                                    color: "primary",
-                                    density: "comfortable",
-                                    loading: actionRunning.value === action.path,
-                                    onClick: $event => (runAction(action.path, action.label)),
-                                    class: "action-btn text-none"
-                                  }, {
-                                    default: _withCtx(() => [
-                                      _createElementVNode("span", _hoisted_22, _toDisplayString(action.label), 1),
-                                      _createElementVNode("span", _hoisted_23, _toDisplayString(action.desc), 1)
-                                    ]),
-                                    _: 2
-                                  }, 1032, ["loading", "onClick"]))
-                                }), 128))
+                          _createElementVNode("div", _hoisted_21, [
+                            (_openBlock(), _createElementBlock(_Fragment, null, _renderList(actionGroups, (grp) => {
+                              return _createElementVNode("div", {
+                                key: grp.group,
+                                class: "action-group"
+                              }, [
+                                _createElementVNode("div", _hoisted_22, [
+                                  _createVNode(_component_VIcon, {
+                                    icon: grp.icon,
+                                    size: "17",
+                                    color: "primary"
+                                  }, null, 8, ["icon"]),
+                                  _createElementVNode("span", null, _toDisplayString(grp.group), 1)
+                                ]),
+                                _createElementVNode("div", _hoisted_23, [
+                                  (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(grp.actions, (action) => {
+                                    return (_openBlock(), _createElementBlock("div", {
+                                      key: action.path,
+                                      class: "action-item"
+                                    }, [
+                                      _createVNode(_component_VBtn, {
+                                        block: "",
+                                        size: "small",
+                                        variant: "text",
+                                        density: "comfortable",
+                                        loading: actionRunning.value === action.path,
+                                        onClick: $event => (runAction(action.path, action.label)),
+                                        class: "action-btn text-none"
+                                      }, {
+                                        default: _withCtx(() => [
+                                          _createVNode(_component_VIcon, {
+                                            icon: action.icon,
+                                            size: "18"
+                                          }, null, 8, ["icon"]),
+                                          _createElementVNode("span", _hoisted_24, _toDisplayString(action.label), 1)
+                                        ]),
+                                        _: 2
+                                      }, 1032, ["loading", "onClick"]),
+                                      _createElementVNode("div", _hoisted_25, _toDisplayString(action.desc), 1)
+                                    ]))
+                                  }), 128))
+                                ])
                               ])
-                            ])
-                          }), 64)),
+                            }), 64))
+                          ]),
                           (actionMessage.value)
                             ? (_openBlock(), _createBlock(_component_VAlert, {
                                 key: 0,
@@ -556,8 +602,8 @@ return (_ctx, _cache) => {
           (downloaders.value.length)
             ? (_openBlock(), _createBlock(_component_VCard, {
                 key: 1,
-                variant: "outlined",
-                class: "rounded-lg mt-2"
+                elevation: "0",
+                class: "glass-panel mt-2"
               }, {
                 default: _withCtx(() => [
                   _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
@@ -567,41 +613,36 @@ return (_ctx, _cache) => {
                         color: "primary",
                         class: "me-2"
                       }),
-                      _cache[17] || (_cache[17] = _createTextVNode("下载器活动种子 ", -1))
+                      _cache[18] || (_cache[18] = _createTextVNode("下载器活动种子 ", -1))
                     ]),
                     _: 1
                   }),
-                  _createVNode(_component_VDivider),
                   _createVNode(_component_VList, {
                     class: "bg-transparent py-0",
                     density: "compact"
                   }, {
                     default: _withCtx(() => [
                       (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(downloaders.value, (d, i) => {
-                        return (_openBlock(), _createElementBlock(_Fragment, {
-                          key: d.name
-                        }, [
-                          _createVNode(_component_VListItem, { class: "py-1" }, {
-                            default: _withCtx(() => [
-                              _createVNode(_component_VListItemTitle, { class: "font-weight-medium" }, {
-                                default: _withCtx(() => [
-                                  _createTextVNode(_toDisplayString(d.name), 1)
-                                ]),
-                                _: 2
-                              }, 1024),
-                              _createVNode(_component_VListItemSubtitle, { class: "mt-1" }, {
-                                default: _withCtx(() => [
-                                  _createTextVNode("下载中 " + _toDisplayString(d.count) + " 个｜↓ " + _toDisplayString(formatGB(d.dl_speed)) + "/s　↑ " + _toDisplayString(formatGB(d.up_speed)) + "/s", 1)
-                                ]),
-                                _: 2
-                              }, 1024)
-                            ]),
-                            _: 2
-                          }, 1024),
-                          (i < downloaders.value.length - 1)
-                            ? (_openBlock(), _createBlock(_component_VDivider, { key: 0 }))
-                            : _createCommentVNode("", true)
-                        ], 64))
+                        return (_openBlock(), _createBlock(_component_VListItem, {
+                          key: d.name,
+                          class: "py-1"
+                        }, {
+                          default: _withCtx(() => [
+                            _createVNode(_component_VListItemTitle, { class: "font-weight-medium" }, {
+                              default: _withCtx(() => [
+                                _createTextVNode(_toDisplayString(d.name), 1)
+                              ]),
+                              _: 2
+                            }, 1024),
+                            _createVNode(_component_VListItemSubtitle, { class: "mt-1" }, {
+                              default: _withCtx(() => [
+                                _createTextVNode("下载中 " + _toDisplayString(d.count) + " 个｜↓ " + _toDisplayString(formatGB(d.dl_speed)) + "/s　↑ " + _toDisplayString(formatGB(d.up_speed)) + "/s", 1)
+                              ]),
+                              _: 2
+                            }, 1024)
+                          ]),
+                          _: 2
+                        }, 1024))
                       }), 128))
                     ]),
                     _: 1
@@ -621,98 +662,83 @@ return (_ctx, _cache) => {
               }, {
                 default: _withCtx(() => [
                   _createVNode(_component_VCard, {
-                    variant: "outlined",
-                    class: "rounded-lg h-100"
+                    elevation: "0",
+                    class: "glass-panel h-100"
                   }, {
                     default: _withCtx(() => [
                       _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
                         default: _withCtx(() => [
                           _createVNode(_component_VIcon, {
-                            icon: "mdi-timeline-clock-outline",
+                            icon: "mdi-view-grid-check-outline",
                             color: "primary",
                             class: "me-2"
                           }),
-                          _cache[18] || (_cache[18] = _createTextVNode("模块运行概览 ", -1))
+                          _cache[19] || (_cache[19] = _createTextVNode("组件运行状况 ", -1))
                         ]),
                         _: 1
                       }),
-                      _createVNode(_component_VDivider),
                       (loading.value)
                         ? (_openBlock(), _createBlock(_component_VSkeletonLoader, {
                             key: 0,
                             type: "list-item-avatar-three-line@3"
                           }))
-                        : (_openBlock(), _createBlock(_component_VList, {
+                        : (_openBlock(), _createBlock(_component_VCardText, {
                             key: 1,
-                            class: "bg-transparent py-0 task-list",
-                            density: "compact"
+                            class: "compact-card-text"
                           }, {
                             default: _withCtx(() => [
-                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(data.tasks, (task, i) => {
-                                return (_openBlock(), _createElementBlock(_Fragment, {
-                                  key: task.key
-                                }, [
-                                  _createVNode(_component_VListItem, { class: "py-1" }, {
-                                    prepend: _withCtx(() => [
+                              _createElementVNode("div", _hoisted_26, [
+                                (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(data.tasks, (task) => {
+                                  return (_openBlock(), _createElementBlock("div", {
+                                    key: task.key,
+                                    class: "task-card"
+                                  }, [
+                                    _createElementVNode("div", _hoisted_27, [
                                       _createVNode(_component_VAvatar, {
-                                        size: "30",
+                                        size: "34",
                                         variant: "tonal",
                                         color: task.enabled ? task.color : 'default'
                                       }, {
                                         default: _withCtx(() => [
                                           _createVNode(_component_VIcon, {
                                             icon: task.icon,
-                                            size: "17"
+                                            size: "18"
                                           }, null, 8, ["icon"])
+                                        ]),
+                                        _: 2
+                                      }, 1032, ["color"]),
+                                      _createElementVNode("div", _hoisted_28, [
+                                        _createElementVNode("div", _hoisted_29, _toDisplayString(task.name), 1),
+                                        _createElementVNode("div", _hoisted_30, "下次 " + _toDisplayString(task.next || '—'), 1)
+                                      ]),
+                                      _createVNode(_component_VChip, {
+                                        size: "x-small",
+                                        variant: "tonal",
+                                        color: task.enabled ? 'success' : 'default'
+                                      }, {
+                                        default: _withCtx(() => [
+                                          _createTextVNode(_toDisplayString(task.enabled ? 'ON' : 'OFF'), 1)
                                         ]),
                                         _: 2
                                       }, 1032, ["color"])
                                     ]),
-                                    append: _withCtx(() => [
-                                      _createElementVNode("div", _hoisted_24, [
-                                        _createVNode(_component_VChip, {
-                                          size: "x-small",
-                                          variant: "tonal",
-                                          color: task.enabled ? 'success' : 'default'
-                                        }, {
-                                          default: _withCtx(() => [
-                                            _createTextVNode(_toDisplayString(task.enabled ? 'ON' : 'OFF'), 1)
-                                          ]),
-                                          _: 2
-                                        }, 1032, ["color"]),
-                                        _createVNode(_component_VChip, {
-                                          size: "x-small",
-                                          variant: "tonal",
-                                          color: task.color
-                                        }, {
-                                          default: _withCtx(() => [
-                                            _createTextVNode(_toDisplayString(task.state), 1)
-                                          ]),
-                                          _: 2
-                                        }, 1032, ["color"])
-                                      ])
-                                    ]),
-                                    default: _withCtx(() => [
-                                      _createVNode(_component_VListItemTitle, { class: "font-weight-medium text-body-2" }, {
+                                    _createElementVNode("div", _hoisted_31, [
+                                      _createElementVNode("span", null, "最近 " + _toDisplayString(task.last_time || '—'), 1),
+                                      _createVNode(_component_VChip, {
+                                        size: "x-small",
+                                        variant: "tonal",
+                                        color: task.color
+                                      }, {
                                         default: _withCtx(() => [
-                                          _createTextVNode(_toDisplayString(task.name), 1)
+                                          _createTextVNode(_toDisplayString(task.state), 1)
                                         ]),
                                         _: 2
-                                      }, 1024),
-                                      _createVNode(_component_VListItemSubtitle, { class: "task-subtitle" }, {
-                                        default: _withCtx(() => [
-                                          _createTextVNode(" 最近 " + _toDisplayString(task.last_time || '—') + "｜下次 " + _toDisplayString(task.next) + "｜" + _toDisplayString(task.last_summary), 1)
-                                        ]),
-                                        _: 2
-                                      }, 1024)
+                                      }, 1032, ["color"])
                                     ]),
-                                    _: 2
-                                  }, 1024),
-                                  (i < data.tasks.length - 1)
-                                    ? (_openBlock(), _createBlock(_component_VDivider, { key: 0 }))
-                                    : _createCommentVNode("", true)
-                                ], 64))
-                              }), 128))
+                                    _createElementVNode("div", _hoisted_32, _toDisplayString(task.last_summary), 1)
+                                  ]))
+                                }), 128))
+                              ])
                             ]),
                             _: 1
                           }))
@@ -728,8 +754,8 @@ return (_ctx, _cache) => {
               }, {
                 default: _withCtx(() => [
                   _createVNode(_component_VCard, {
-                    variant: "outlined",
-                    class: "rounded-lg h-100"
+                    elevation: "0",
+                    class: "glass-panel h-100"
                   }, {
                     default: _withCtx(() => [
                       _createVNode(_component_VCardTitle, { class: "compact-card-title" }, {
@@ -739,7 +765,7 @@ return (_ctx, _cache) => {
                             color: "primary",
                             class: "me-2"
                           }),
-                          _cache[19] || (_cache[19] = _createTextVNode("最近健康巡查 ", -1)),
+                          _cache[20] || (_cache[20] = _createTextVNode("健康巡查 ", -1)),
                           _createVNode(_component_VSpacer),
                           _createVNode(_component_VChip, {
                             size: "x-small",
@@ -754,15 +780,41 @@ return (_ctx, _cache) => {
                         ]),
                         _: 1
                       }),
-                      _createVNode(_component_VDivider),
                       _createVNode(_component_VCardText, { class: "compact-card-text" }, {
                         default: _withCtx(() => [
                           (data.health.time)
-                            ? (_openBlock(), _createElementBlock("div", _hoisted_25, "巡查时间：" + _toDisplayString(data.health.time), 1))
+                            ? (_openBlock(), _createElementBlock("div", _hoisted_33, "最近 " + _toDisplayString(data.health.time), 1))
                             : _createCommentVNode("", true),
-                          (data.health.output)
-                            ? (_openBlock(), _createElementBlock("pre", _hoisted_26, _toDisplayString(data.health.output), 1))
-                            : (_openBlock(), _createElementBlock("div", _hoisted_27, "尚无健康巡查记录，可在设置页手动触发或等待每日汇报自动执行"))
+                          (healthItems.value.length)
+                            ? (_openBlock(), _createElementBlock("div", _hoisted_34, [
+                                (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(healthItems.value, (item) => {
+                                  return (_openBlock(), _createElementBlock("div", {
+                                    key: item.name,
+                                    class: "health-card"
+                                  }, [
+                                    _createElementVNode("div", _hoisted_35, [
+                                      _createVNode(_component_VIcon, {
+                                        icon: item.icon,
+                                        color: item.color,
+                                        size: "20"
+                                      }, null, 8, ["icon", "color"]),
+                                      _createElementVNode("strong", null, _toDisplayString(item.name), 1),
+                                      _createVNode(_component_VChip, {
+                                        size: "x-small",
+                                        variant: "tonal",
+                                        color: item.color
+                                      }, {
+                                        default: _withCtx(() => [
+                                          _createTextVNode(_toDisplayString(item.ok ? '正常' : '异常'), 1)
+                                        ]),
+                                        _: 2
+                                      }, 1032, ["color"])
+                                    ]),
+                                    _createElementVNode("div", _hoisted_36, _toDisplayString(item.detail), 1)
+                                  ]))
+                                }), 128))
+                              ]))
+                            : (_openBlock(), _createElementBlock("div", _hoisted_37, "暂无记录"))
                         ]),
                         _: 1
                       })
@@ -784,6 +836,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-105f2ea3"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-724b92f3"]]);
 
 export { Page as default };

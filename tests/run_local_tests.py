@@ -136,7 +136,11 @@ class _StubSubscribeOper:
 class _StubSiteOper:
     def list_active(self): return list(_SUB.get("sites", []))
     def get_userdata_latest(self): return list(_SUB.get("site_latest", []))
-    def get_userdata_by_date(self, day): return list(_SUB.get("site_prev", []))
+    def get_userdata_by_date(self, day):
+        prev = _SUB.get("site_prev", [])
+        if isinstance(prev, dict):
+            return list(prev.get(day, []))
+        return list(prev)
 
 
 def install_stubs():
@@ -586,6 +590,23 @@ def main():
     inc_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
     check("📊 3.405" in inc_text and "⬆" in inc_text and "⬇" in inc_text and "🪙 18,619.5" in inc_text,
           "站点增量使用图标展示分享率/上传/下载/魔力")
+    _latest_day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    _prev_day = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain="m.x")],
+        "site_latest": [
+            types.SimpleNamespace(name="馒头", domain="m.x", err_msg="", updated_day=f"{_latest_day} 23:55:00", upload=120 * 1024 ** 3, download=15 * 1024 ** 3),
+        ],
+        "site_prev": {
+            _prev_day: [types.SimpleNamespace(name="馒头", err_msg="", upload=100 * 1024 ** 3, download=11 * 1024 ** 3)],
+        },
+    })
+    fallback_chart = make_plugin(mod).api_site_stat_chart()
+    fallback_data = fallback_chart.get("data", {})
+    check(fallback_data.get("date") == _latest_day and fallback_data.get("basis") == "latest",
+          "饼图：过零点无今日快照时使用最近有效快照")
+    check(fallback_data.get("upload_total") == 20 * 1024 ** 3 and fallback_data.get("download_total") == 4 * 1024 ** 3,
+          "饼图：最近快照按其前一有效日期计算增量")
 
     print("== 订阅追新：cron 统一 + 独立推送服务 ==")
     p_old = make_plugin(mod, subscribe_reminder_time="9")

@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.6"
+    plugin_version = "1.0.7"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -1494,28 +1494,44 @@ class AgentOpsAssistant(_PluginBase):
         except Exception:
             return str(value)
 
-    def _site_increment_data(self) -> List[Dict[str, Any]]:
-        """今日各站点上传/下载增量（原始字节），供仪表盘饼图。"""
-        out: List[Dict[str, Any]] = []
+    def _site_increment_snapshot(self) -> Dict[str, Any]:
+        """站点上传/下载增量快照，优先今日；今日未生成时回退到最近有效快照。"""
+        result = {"date": self._today_prefix(), "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}
         try:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
             latest_data = site_oper.get_userdata_latest() or []
             active_domains = {s.domain for s in (site_oper.list_active() or []) if getattr(s, "domain", None)}
-            latest_data = [d for d in latest_data if d and getattr(d, "domain", None) in active_domains]
+            latest_data = [
+                d for d in latest_data
+                if d and getattr(d, "domain", None) in active_domains and not str(getattr(d, "err_msg", None) or "").strip()
+            ]
             today = self._today_prefix()
+            days = sorted({self._normalize_day(getattr(d, "updated_day", None)) for d in latest_data if self._normalize_day(getattr(d, "updated_day", None))}, reverse=True)
+            basis_day = today if any(day == today for day in days) else (days[0] if days else today)
+            result["date"] = basis_day
+            result["basis"] = "today" if basis_day == today else "latest"
+            if not latest_data:
+                return result
             previous_cache: Dict[str, List[Any]] = {}
+            out: List[Dict[str, Any]] = []
             for current in latest_data:
                 name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
-                if self._normalize_day(getattr(current, "updated_day", None)) != today or str(getattr(current, "err_msg", None) or "").strip():
+                domain = getattr(current, "domain", None)
+                if self._normalize_day(getattr(current, "updated_day", None)) != basis_day:
                     continue
                 previous = None
+                try:
+                    base_dt = datetime.strptime(basis_day, "%Y-%m-%d")
+                except Exception:
+                    base_dt = datetime.strptime(today, "%Y-%m-%d")
                 for i in range(1, 8):
-                    prev_day = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=i)).strftime("%Y-%m-%d")
+                    prev_day = (base_dt - timedelta(days=i)).strftime("%Y-%m-%d")
                     if prev_day not in previous_cache:
                         previous_cache[prev_day] = site_oper.get_userdata_by_date(prev_day) or []
-                    prev_map = {getattr(r, "name", None): r for r in previous_cache[prev_day] if r and not getattr(r, "err_msg", None)}
-                    previous = prev_map.get(name)
+                    prev_by_name = {getattr(r, "name", None): r for r in previous_cache[prev_day] if r and not getattr(r, "err_msg", None)}
+                    prev_by_domain = {getattr(r, "domain", None): r for r in previous_cache[prev_day] if r and not getattr(r, "err_msg", None)}
+                    previous = prev_by_name.get(name) or (prev_by_domain.get(domain) if domain else None)
                     if previous:
                         break
                 if not previous:
@@ -1525,9 +1541,16 @@ class AgentOpsAssistant(_PluginBase):
                 if up == 0 and dl == 0:
                     continue
                 out.append({"name": name, "upload": up, "download": dl})
+            result["sites"] = out
+            result["upload_total"] = sum(int(d.get("upload", 0)) for d in out)
+            result["download_total"] = sum(int(d.get("download", 0)) for d in out)
         except Exception as err:
             logger.warning(f"AgentOpsAssistant 站点增量数据获取失败：{err}")
-        return out
+        return result
+
+    def _site_increment_data(self) -> List[Dict[str, Any]]:
+        """今日各站点上传/下载增量（原始字节），供旧调用兼容。"""
+        return list((self._site_increment_snapshot().get("sites") or []))
 
     def _get_site_health_locked(self) -> List[str]:
         try:
@@ -1904,16 +1927,10 @@ class AgentOpsAssistant(_PluginBase):
     def api_site_stat_chart(self) -> Dict[str, Any]:
         """今日各站点上传/下载增量，供仪表盘饼图。"""
         try:
-            data = self._site_increment_data()
-            return {"code": 0, "data": {
-                "date": self._today_prefix(),
-                "sites": data,
-                "upload_total": sum(int(d.get("upload", 0)) for d in data),
-                "download_total": sum(int(d.get("download", 0)) for d in data),
-            }}
+            return {"code": 0, "data": self._site_increment_snapshot()}
         except Exception as err:
             logger.error(f"站点统计图数据获取失败：{err}")
-            return {"code": 1, "msg": str(err), "data": {"date": "", "sites": [], "upload_total": 0, "download_total": 0}}
+            return {"code": 1, "msg": str(err), "data": {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}}
 
     def api_run_site_stat(self) -> Dict[str, Any]:
         """刷新站点数据统计：站点快照来自 MoviePilot SiteOper，这里重新汇总并记录一次任务结果。"""
@@ -1923,13 +1940,14 @@ class AgentOpsAssistant(_PluginBase):
             site_count = len(payload.get("sites") or [])
             upload = self._format_bytes(payload.get("upload_total", 0))
             download = self._format_bytes(payload.get("download_total", 0))
-            text = f"已刷新 {site_count} 个站点｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无今日增量。"
+            label = "今日" if payload.get("basis") != "latest" else f"最近快照 {payload.get('date') or ''}".strip()
+            text = f"已刷新 {site_count} 个站点｜{label}｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无可用增量"
             self._save_task_result("站点数据统计", True, 0, text)
             return {"code": 0, "msg": text, "data": payload}
         except Exception as err:
             self._save_task_result("站点数据统计", False, -1, str(err))
             logger.error(f"站点数据统计刷新失败：{err}")
-            return {"code": 1, "msg": f"站点数据统计刷新失败：{err}", "data": {"date": "", "sites": [], "upload_total": 0, "download_total": 0}}
+            return {"code": 1, "msg": f"站点数据统计刷新失败：{err}", "data": {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}}
 
     def api_run_downloader_tag(self) -> Dict[str, Any]:
         return self._api_run_task("种子打标签", self.run_downloader_tag)
