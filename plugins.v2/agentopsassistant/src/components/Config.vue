@@ -453,7 +453,7 @@ onMounted(() => {
               </button>
             </div>
             <div v-if="currentMain.desc" class="aoa-subtab-desc">
-              <VIcon icon="mdi-information-outline" size="18" class="aoa-subtab-desc-icon" />{{ currentMain.desc }}
+              {{ currentMain.desc }}
             </div>
             <VBtn icon="mdi-chevron-down" size="small" variant="tonal" color="primary" class="aoa-scroll-btn aoa-subtab-scroll-btn" @click="scrollDown(subtabScrollRef)" />
           </div>
@@ -656,7 +656,6 @@ onMounted(() => {
                   </VBtn>
                 </div>
                 <div class="aoa-health-note">
-                  <VIcon icon="mdi-information-outline" size="16" />
                   <span>未选择巡查项目时，会默认检查全部项目</span>
                 </div>
               </VForm>
@@ -1103,7 +1102,7 @@ onMounted(() => {
             <!-- 种子治理 · 自动删种 -->
             <div v-show="activeSub === 'seedremove'" class="aoa-pane">
               <VForm class="aoa-compact-form">
-                <VAlert type="warning" variant="tonal" density="compact" class="mb-3"
+                <VAlert type="warning" variant="tonal" density="compact" class="mb-3" :icon="false"
                   text="自动删种有风险，设置不当可能丢数据！建议先用“暂停”动作验证条件命中正确，再改“删除”，未填写任何筛选条件时不会执行" />
                 <div class="aoa-section-title">基础设置</div>
                 <VRow dense>
@@ -1287,7 +1286,7 @@ onMounted(() => {
       <VCardActions class="aoa-actions">
         <VFadeTransition>
           <span v-if="action.message" :class="action.ok ? 'text-success' : 'text-error'" class="text-caption">
-            <VIcon :icon="action.ok ? 'mdi-check-circle-outline' : 'mdi-alert-circle-outline'" size="16" class="mr-1" />{{ action.message }}
+            {{ action.message }}
           </span>
         </VFadeTransition>
         <VSpacer />
@@ -1411,29 +1410,21 @@ onMounted(() => {
   font-weight: 600;
 }
 .aoa-subtab-desc {
-  display: inline-flex;
-  align-items: center;
+  display: block;
+  flex: 1 1 auto;
   justify-content: flex-end;
-  max-width: 46%;
+  max-width: 52%;
   min-height: 36px;
   min-width: 0;
-  padding: 6px 10px;
-  border-radius: 12px;
+  padding-right: 44px;
   font-size: 13px;
-  font-weight: 600;
-  line-height: 1.2;
-  color: rgba(var(--v-theme-on-surface), 0.84);
-  background: rgba(var(--v-theme-primary), 0.08);
+  font-weight: 500;
+  line-height: 36px;
+  color: rgba(var(--v-theme-on-surface), 0.58);
   text-align: right;
-  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-primary), 0.10);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.aoa-subtab-desc-icon {
-  flex: 0 0 auto;
-  margin-right: 6px;
-  color: rgb(var(--v-theme-primary));
 }
 .aoa-window {
   flex: 1 1 auto;
@@ -1727,6 +1718,10 @@ onMounted(() => {
   }
   .aoa-subtab-desc {
     max-width: 100%;
+    width: 100%;
+    min-height: 0;
+    padding-right: 0;
+    line-height: 1.4;
     text-align: left;
   }
   .aoa-subtab-scroll-btn {

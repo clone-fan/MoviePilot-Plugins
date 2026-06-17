@@ -40,28 +40,27 @@ const _hoisted_30 = { class: "aoa-health-check-desc" };
 const _hoisted_31 = { class: "aoa-health-controls" };
 const _hoisted_32 = { class: "aoa-health-control aoa-health-cron" };
 const _hoisted_33 = { class: "aoa-health-control aoa-health-select" };
-const _hoisted_34 = { class: "aoa-health-note" };
-const _hoisted_35 = { class: "aoa-pane" };
-const _hoisted_36 = { class: "aoa-btn-row" };
-const _hoisted_37 = { class: "aoa-pane" };
-const _hoisted_38 = { class: "d-flex align-center justify-space-between mb-1" };
-const _hoisted_39 = { class: "aoa-btn-row" };
+const _hoisted_34 = { class: "aoa-pane" };
+const _hoisted_35 = { class: "aoa-btn-row" };
+const _hoisted_36 = { class: "aoa-pane" };
+const _hoisted_37 = { class: "d-flex align-center justify-space-between mb-1" };
+const _hoisted_38 = { class: "aoa-btn-row" };
+const _hoisted_39 = { class: "aoa-pane" };
 const _hoisted_40 = { class: "aoa-pane" };
-const _hoisted_41 = { class: "aoa-pane" };
-const _hoisted_42 = { class: "aoa-btn-row" };
-const _hoisted_43 = { class: "aoa-pane" };
-const _hoisted_44 = { class: "aoa-btn-row" };
-const _hoisted_45 = { class: "aoa-pane" };
-const _hoisted_46 = { class: "aoa-btn-row" };
-const _hoisted_47 = { class: "aoa-pane" };
-const _hoisted_48 = { class: "aoa-btn-row" };
-const _hoisted_49 = { class: "aoa-pane" };
-const _hoisted_50 = { class: "aoa-seed-options" };
-const _hoisted_51 = { class: "aoa-seed-action-row" };
-const _hoisted_52 = { class: "aoa-seed-action-type" };
+const _hoisted_41 = { class: "aoa-btn-row" };
+const _hoisted_42 = { class: "aoa-pane" };
+const _hoisted_43 = { class: "aoa-btn-row" };
+const _hoisted_44 = { class: "aoa-pane" };
+const _hoisted_45 = { class: "aoa-btn-row" };
+const _hoisted_46 = { class: "aoa-pane" };
+const _hoisted_47 = { class: "aoa-btn-row" };
+const _hoisted_48 = { class: "aoa-pane" };
+const _hoisted_49 = { class: "aoa-seed-options" };
+const _hoisted_50 = { class: "aoa-seed-action-row" };
+const _hoisted_51 = { class: "aoa-seed-action-type" };
+const _hoisted_52 = { class: "aoa-pane" };
 const _hoisted_53 = { class: "aoa-pane" };
-const _hoisted_54 = { class: "aoa-pane" };
-const _hoisted_55 = { class: "aoa-btn-row" };
+const _hoisted_54 = { class: "aoa-btn-row" };
 
 const {reactive,ref,computed,watch,onMounted} = await importShared('vue');
 
@@ -645,14 +644,7 @@ return (_ctx, _cache) => {
                 }), 128))
               ], 512),
               (currentMain.value.desc)
-                ? (_openBlock(), _createElementBlock("div", _hoisted_8, [
-                    _createVNode(_component_VIcon, {
-                      icon: "mdi-information-outline",
-                      size: "18",
-                      class: "aoa-subtab-desc-icon"
-                    }),
-                    _createTextVNode(_toDisplayString(currentMain.value.desc), 1)
-                  ]))
+                ? (_openBlock(), _createElementBlock("div", _hoisted_8, _toDisplayString(currentMain.value.desc), 1))
                 : _createCommentVNode("", true),
               _createVNode(_component_VBtn, {
                 icon: "mdi-chevron-down",
@@ -1126,20 +1118,16 @@ return (_ctx, _cache) => {
                         _: 1
                       }, 8, ["loading"])
                     ]),
-                    _createElementVNode("div", _hoisted_34, [
-                      _createVNode(_component_VIcon, {
-                        icon: "mdi-information-outline",
-                        size: "16"
-                      }),
-                      _cache[139] || (_cache[139] = _createElementVNode("span", null, "未选择巡查项目时，会默认检查全部项目", -1))
-                    ])
+                    _cache[139] || (_cache[139] = _createElementVNode("div", { class: "aoa-health-note" }, [
+                      _createElementVNode("span", null, "未选择巡查项目时，会默认检查全部项目")
+                    ], -1))
                   ]),
                   _: 1
                 })
               ], 512), [
                 [_vShow, activeSub.value === 'hc']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_35, [
+              _withDirectives(_createElementVNode("div", _hoisted_34, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[144] || (_cache[144] = _createElementVNode("div", { class: "aoa-section-title" }, "订阅规则填充", -1)),
@@ -1266,7 +1254,7 @@ return (_ctx, _cache) => {
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
                     _cache[148] || (_cache[148] = _createElementVNode("div", { class: "aoa-section-title" }, "维护", -1)),
-                    _createElementVNode("div", _hoisted_36, [
+                    _createElementVNode("div", _hoisted_35, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
                         variant: "tonal",
@@ -1299,7 +1287,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'subfill']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_37, [
+              _withDirectives(_createElementVNode("div", _hoisted_36, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[154] || (_cache[154] = _createElementVNode("div", { class: "aoa-section-title" }, "本地备份", -1)),
@@ -1361,7 +1349,7 @@ return (_ctx, _cache) => {
                           md: "6"
                         }, {
                           default: _withCtx(() => [
-                            _createElementVNode("div", _hoisted_38, [
+                            _createElementVNode("div", _hoisted_37, [
                               _cache[151] || (_cache[151] = _createElementVNode("span", { class: "text-body-2" }, "本地保留份数", -1)),
                               _createVNode(_component_VChip, {
                                 size: "small",
@@ -1447,7 +1435,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _createElementVNode("div", _hoisted_39, [
+                    _createElementVNode("div", _hoisted_38, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
                         variant: "tonal",
@@ -1467,7 +1455,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'local']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_40, [
+              _withDirectives(_createElementVNode("div", _hoisted_39, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[156] || (_cache[156] = _createElementVNode("div", { class: "aoa-section-title" }, "WebDAV 远端备份", -1)),
@@ -1637,7 +1625,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'webdav']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_41, [
+              _withDirectives(_createElementVNode("div", _hoisted_40, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[160] || (_cache[160] = _createElementVNode("div", { class: "aoa-section-title" }, "插件日志清理", -1)),
@@ -1775,7 +1763,7 @@ return (_ctx, _cache) => {
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
                     _cache[161] || (_cache[161] = _createElementVNode("div", { class: "aoa-section-title" }, "手动触发", -1)),
-                    _createElementVNode("div", _hoisted_42, [
+                    _createElementVNode("div", _hoisted_41, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
                         variant: "tonal",
@@ -1795,7 +1783,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'logs']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_43, [
+              _withDirectives(_createElementVNode("div", _hoisted_42, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[164] || (_cache[164] = _createElementVNode("div", { class: "aoa-section-title" }, "MoviePilot 更新检查", -1)),
@@ -1911,7 +1899,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _createElementVNode("div", _hoisted_44, [
+                    _createElementVNode("div", _hoisted_43, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
                         variant: "tonal",
@@ -1931,7 +1919,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'mp']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_45, [
+              _withDirectives(_createElementVNode("div", _hoisted_44, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[170] || (_cache[170] = _createElementVNode("div", { class: "aoa-section-title" }, "插件库更新检查", -1)),
@@ -2275,7 +2263,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _createElementVNode("div", _hoisted_46, [
+                    _createElementVNode("div", _hoisted_45, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
                         variant: "tonal",
@@ -2295,7 +2283,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'market']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_47, [
+              _withDirectives(_createElementVNode("div", _hoisted_46, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[176] || (_cache[176] = _createElementVNode("div", { class: "aoa-section-title" }, "目标插件", -1)),
@@ -2416,7 +2404,7 @@ return (_ctx, _cache) => {
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
                     _cache[178] || (_cache[178] = _createElementVNode("div", { class: "aoa-section-title" }, "执行", -1)),
-                    _createElementVNode("div", _hoisted_48, [
+                    _createElementVNode("div", _hoisted_47, [
                       _createVNode(_component_VBtn, {
                         color: "error",
                         variant: "tonal",
@@ -2438,7 +2426,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'clean']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_49, [
+              _withDirectives(_createElementVNode("div", _hoisted_48, [
                 _createVNode(_component_VForm, { class: "aoa-compact-form" }, {
                   default: _withCtx(() => [
                     _createVNode(_component_VAlert, {
@@ -2446,6 +2434,7 @@ return (_ctx, _cache) => {
                       variant: "tonal",
                       density: "compact",
                       class: "mb-3",
+                      icon: false,
                       text: "自动删种有风险，设置不当可能丢数据！建议先用“暂停”动作验证条件命中正确，再改“删除”，未填写任何筛选条件时不会执行"
                     }),
                     _cache[182] || (_cache[182] = _createElementVNode("div", { class: "aoa-section-title" }, "基础设置", -1)),
@@ -2725,7 +2714,7 @@ return (_ctx, _cache) => {
                           md: "9"
                         }, {
                           default: _withCtx(() => [
-                            _createElementVNode("div", _hoisted_50, [
+                            _createElementVNode("div", _hoisted_49, [
                               _createVNode(_component_VSwitch, {
                                 modelValue: form.seedclean_samedata,
                                 "onUpdate:modelValue": _cache[102] || (_cache[102] = $event => ((form.seedclean_samedata) = $event)),
@@ -2764,8 +2753,8 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-3" }),
-                    _createElementVNode("div", _hoisted_51, [
-                      _createElementVNode("div", _hoisted_52, [
+                    _createElementVNode("div", _hoisted_50, [
+                      _createElementVNode("div", _hoisted_51, [
                         _createVNode(_component_VSelect, {
                           modelValue: form.seedclean_notify_type,
                           "onUpdate:modelValue": _cache[105] || (_cache[105] = $event => ((form.seedclean_notify_type) = $event)),
@@ -2797,7 +2786,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'seedremove']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_53, [
+              _withDirectives(_createElementVNode("div", _hoisted_52, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[187] || (_cache[187] = _createElementVNode("div", { class: "aoa-section-title" }, "媒体库服务器通知", -1)),
@@ -2883,7 +2872,7 @@ return (_ctx, _cache) => {
               ], 512), [
                 [_vShow, activeSub.value === 'server']
               ]),
-              _withDirectives(_createElementVNode("div", _hoisted_54, [
+              _withDirectives(_createElementVNode("div", _hoisted_53, [
                 _createVNode(_component_VForm, null, {
                   default: _withCtx(() => [
                     _cache[192] || (_cache[192] = _createElementVNode("div", { class: "aoa-section-title" }, "按站点为种子批量补打标签", -1)),
@@ -2984,7 +2973,7 @@ return (_ctx, _cache) => {
                       _: 1
                     }),
                     _createVNode(_component_VDivider, { class: "my-4" }),
-                    _createElementVNode("div", _hoisted_55, [
+                    _createElementVNode("div", _hoisted_54, [
                       _createVNode(_component_VBtn, {
                         color: "primary",
                         variant: "tonal",
@@ -3024,14 +3013,7 @@ return (_ctx, _cache) => {
                   ? (_openBlock(), _createElementBlock("span", {
                       key: 0,
                       class: _normalizeClass([action.ok ? 'text-success' : 'text-error', "text-caption"])
-                    }, [
-                      _createVNode(_component_VIcon, {
-                        icon: action.ok ? 'mdi-check-circle-outline' : 'mdi-alert-circle-outline',
-                        size: "16",
-                        class: "mr-1"
-                      }, null, 8, ["icon"]),
-                      _createTextVNode(_toDisplayString(action.message), 1)
-                    ], 2))
+                    }, _toDisplayString(action.message), 3))
                   : _createCommentVNode("", true)
               ]),
               _: 1
@@ -3068,6 +3050,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-55dcb454"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-310a6eb4"]]);
 
 export { Config as default };

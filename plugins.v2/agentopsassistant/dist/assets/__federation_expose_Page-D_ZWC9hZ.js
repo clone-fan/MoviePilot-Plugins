@@ -345,6 +345,7 @@ return (_ctx, _cache) => {
                 type: "error",
                 variant: "tonal",
                 class: "mb-3",
+                icon: false,
                 text: error.value
               }, null, 8, ["text"]))
             : _createCommentVNode("", true),
@@ -369,7 +370,7 @@ return (_ctx, _cache) => {
             ]),
             _createElementVNode("div", _hoisted_6, [
               _createVNode(_component_VIcon, {
-                icon: data.task_failed > 0 ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline',
+                icon: data.task_failed > 0 ? 'mdi-close-circle-outline' : 'mdi-check-circle-outline',
                 color: data.task_failed > 0 ? 'error' : 'success',
                 size: "22"
               }, null, 8, ["icon", "color"]),
@@ -584,6 +585,7 @@ return (_ctx, _cache) => {
                                 variant: "tonal",
                                 density: "compact",
                                 class: "mt-3",
+                                icon: false,
                                 text: actionMessage.value
                               }, null, 8, ["text"]))
                             : _createCommentVNode("", true)
@@ -836,6 +838,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-724b92f3"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-994453d2"]]);
 
 export { Page as default };

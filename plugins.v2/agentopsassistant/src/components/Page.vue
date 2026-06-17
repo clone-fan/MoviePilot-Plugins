@@ -215,7 +215,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
       <VDivider />
 
       <div class="agentops-body">
-        <VAlert v-if="error" type="error" variant="tonal" class="mb-3" :text="error" />
+        <VAlert v-if="error" type="error" variant="tonal" class="mb-3" :icon="false" :text="error" />
 
       <!-- 状态总览 -->
       <div class="overview-strip">
@@ -230,7 +230,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
           <strong>{{ data.task_on }} / {{ data.task_total }}</strong>
         </div>
         <div class="overview-item">
-          <VIcon :icon="data.task_failed > 0 ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline'" :color="data.task_failed > 0 ? 'error' : 'success'" size="22" />
+          <VIcon :icon="data.task_failed > 0 ? 'mdi-close-circle-outline' : 'mdi-check-circle-outline'" :color="data.task_failed > 0 ? 'error' : 'success'" size="22" />
           <span>异常组件</span>
           <strong>{{ data.task_failed }}</strong>
         </div>
@@ -334,7 +334,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
                   </div>
                 </div>
               </div>
-              <VAlert v-if="actionMessage" type="info" variant="tonal" density="compact" class="mt-3" :text="actionMessage" />
+              <VAlert v-if="actionMessage" type="info" variant="tonal" density="compact" class="mt-3" :icon="false" :text="actionMessage" />
             </VCardText>
           </VCard>
         </VCol>
