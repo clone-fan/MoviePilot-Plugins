@@ -708,9 +708,7 @@ onMounted(() => {
                         </VChip>
                       </template>
                     </VSelect>
-                    <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)" class="aoa-health-field-third"
-                      :disabled="!form.health_check_enabled" />
-                    <VSelect v-model="form.health_check_database_targets" :items="healthDatabaseTargets" class="aoa-health-field-third aoa-health-select"
+                    <VSelect v-model="form.health_check_database_targets" :items="healthDatabaseTargets" class="aoa-health-field-full aoa-health-select"
                       label="数据库" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
                       <template #chip="{ item, props }">
                         <VChip v-bind="props" class="aoa-health-selection-chip" variant="tonal">
@@ -734,6 +732,8 @@ onMounted(() => {
                         </VChip>
                       </template>
                     </VSelect>
+                    <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)" class="aoa-health-field-third"
+                      :disabled="!form.health_check_enabled" />
                     <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number" class="aoa-health-field-third"
                       min="1" max="99" suffix="%" :disabled="!form.health_check_enabled" />
                   </div>
