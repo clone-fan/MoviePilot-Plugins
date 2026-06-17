@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-DGWTz_NE.js';
 
-const {resolveComponent:_resolveComponent,createVNode:_createVNode,withCtx:_withCtx,createTextVNode:_createTextVNode,toDisplayString:_toDisplayString,createElementVNode:_createElementVNode,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock,createElementBlock:_createElementBlock,createBlock:_createBlock,normalizeClass:_normalizeClass,vShow:_vShow,withDirectives:_withDirectives,unref:_unref,createCommentVNode:_createCommentVNode} = await importShared('vue');
+const {resolveComponent:_resolveComponent,createVNode:_createVNode,withCtx:_withCtx,createTextVNode:_createTextVNode,toDisplayString:_toDisplayString,createElementVNode:_createElementVNode,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock,createElementBlock:_createElementBlock,createBlock:_createBlock,normalizeClass:_normalizeClass,createCommentVNode:_createCommentVNode,vShow:_vShow,withDirectives:_withDirectives,unref:_unref} = await importShared('vue');
 
 
 const _hoisted_1 = { class: "aoa-config" };
@@ -152,6 +152,10 @@ const defaults = {
   report_storage: true,
   report_media_stat: true,
   report_summary: true,
+  health_check_enabled: true,
+  health_check_cron: '0 */6 * * *',
+  health_check_items: [],
+  report_health: true,
   subscribe_reminder_enabled: true,
   subscribe_reminder_onlyonce: false,
   subscribe_reminder_time: '9',
@@ -379,6 +383,7 @@ return (_ctx, _cache) => {
   const _component_VListItemTitle = _resolveComponent("VListItemTitle");
   const _component_VListItem = _resolveComponent("VListItem");
   const _component_VList = _resolveComponent("VList");
+  const _component_VAlert = _resolveComponent("VAlert");
   const _component_VCol = _resolveComponent("VCol");
   const _component_VCronField = _resolveComponent("VCronField");
   const _component_VRow = _resolveComponent("VRow");
@@ -392,7 +397,6 @@ return (_ctx, _cache) => {
   const _component_VExpansionPanelText = _resolveComponent("VExpansionPanelText");
   const _component_VExpansionPanel = _resolveComponent("VExpansionPanel");
   const _component_VExpansionPanels = _resolveComponent("VExpansionPanels");
-  const _component_VAlert = _resolveComponent("VAlert");
   const _component_VFadeTransition = _resolveComponent("VFadeTransition");
   const _component_VSpacer = _resolveComponent("VSpacer");
   const _component_VCardActions = _resolveComponent("VCardActions");
@@ -518,6 +522,20 @@ return (_ctx, _cache) => {
               }), 128))
             ]),
             _createVNode(_component_VDivider),
+            (currentMain.value.desc)
+              ? (_openBlock(), _createBlock(_component_VAlert, {
+                  key: 0,
+                  type: "info",
+                  variant: "tonal",
+                  class: "ma-3",
+                  text: currentMain.value.desc
+                }, {
+                  prepend: _withCtx(() => [
+                    _createVNode(_component_VIcon, { icon: "mdi-information-outline" })
+                  ]),
+                  _: 1
+                }, 8, ["text"]))
+              : _createCommentVNode("", true),
             _createElementVNode("div", _hoisted_8, [
               _withDirectives(_createElementVNode("div", _hoisted_9, [
                 _createVNode(_component_VForm, null, {
@@ -2579,6 +2597,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-21056c3d"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-2d115922"]]);
 
 export { Config as default };

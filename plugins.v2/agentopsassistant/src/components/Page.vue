@@ -123,6 +123,44 @@ async function loadDownloaderOverview() {
 
 const hasSiteChart = computed(() => !!(siteChart.sites && siteChart.sites.length))
 
+// 手动触发按钮分组
+const actionGroups = [
+  {
+    group: '汇报中心',
+    icon: 'mdi-newspaper-variant-outline',
+    actions: [
+      { path: 'run_daily_report', label: '立即推送每日汇报', desc: '手动发送一份汇报到通知渠道' },
+    ]
+  },
+  {
+    group: '订阅与站点',
+    icon: 'mdi-bell-ring-outline',
+    actions: [
+      { path: 'run_subscribe_reminder', label: '推送订阅提醒', desc: '手动推送一次订阅追新提醒' },
+      { path: 'run_site_stat', label: '更新站点数据', desc: '重新采集站点上传/下载数据' },
+    ]
+  },
+  {
+    group: '下载与媒体',
+    icon: 'mdi-download-network-outline',
+    actions: [
+      { path: 'run_downloader_tag', label: '刷新活动种子', desc: '重新加载下载器中的活动种子概览' },
+    ]
+  },
+  {
+    group: '系统维护',
+    icon: 'mdi-cog-outline',
+    actions: [
+      { path: 'run_backup', label: '执行备份', desc: '立即执行一次配置备份' },
+      { path: 'run_log_clean', label: '清理日志', desc: '立即清理插件日志（按保留行数）' },
+      { path: 'run_mp_update', label: '检查MP更新', desc: '检查 MoviePilot 后端/前端更新' },
+      { path: 'run_market_update', label: '检查插件库更新', desc: '检查插件库及已安装插件更新' },
+      { path: 'run_health_check', label: '执行健康巡查', desc: '手动执行一次系统健康巡查' },
+      { path: 'run_seed_clean', label: '自动删种', desc: '按规则自动暂停/删除种子' },
+    ]
+  }
+]
+
 onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 </script>
 
@@ -237,43 +275,26 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
             </VCardTitle>
             <VDivider />
             <VCardText>
-              <div class="d-flex flex-wrap ga-2">
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-send-outline" size="small"
-                  :loading="actionRunning === 'run_daily_report'" @click="runAction('run_daily_report', '每日汇报')">
-                  发送每日汇报
-                </VBtn>
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-bell-ring-outline" size="small"
-                  :loading="actionRunning === 'run_subscribe_reminder'" @click="runAction('run_subscribe_reminder', '订阅提醒')">
-                  订阅提醒
-                </VBtn>
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-heart-pulse" size="small"
-                  :loading="actionRunning === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">
-                  健康巡查
-                </VBtn>
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-archive-arrow-up-outline" size="small"
-                  :loading="actionRunning === 'run_backup'" @click="runAction('run_backup', '立即备份')">
-                  立即备份
-                </VBtn>
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-broom" size="small"
-                  :loading="actionRunning === 'run_log_clean'" @click="runAction('run_log_clean', '日志清理')">
-                  清理日志
-                </VBtn>
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-update" size="small"
-                  :loading="actionRunning === 'run_mp_update'" @click="runAction('run_mp_update', '检查更新')">
-                  检查更新
-                </VBtn>
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-puzzle-check-outline" size="small"
-                  :loading="actionRunning === 'run_market_update'" @click="runAction('run_market_update', '插件库更新')">
-                  插件库更新
-                </VBtn>
-                <VBtn color="warning" variant="tonal" prepend-icon="mdi-delete-sweep-outline" size="small"
-                  :loading="actionRunning === 'run_seed_clean'" @click="runAction('run_seed_clean', '自动删种')">
-                  自动删种
-                </VBtn>
-                <VBtn color="primary" variant="tonal" prepend-icon="mdi-tag-multiple-outline" size="small"
-                  :loading="actionRunning === 'run_downloader_tag'" @click="runAction('run_downloader_tag', '种子打标签')">
-                  种子打标签
-                </VBtn>
+              <div v-for="grp in actionGroups" :key="grp.group" class="mb-4">
+                <div class="d-flex align-center mb-2">
+                  <VIcon :icon="grp.icon" size="20" class="mr-2" color="primary" />
+                  <span class="text-subtitle2 font-weight-medium">{{ grp.group }}</span>
+                </div>
+                <div class="ml-4">
+                  <div v-for="action in grp.actions" :key="action.path" class="mb-3">
+                    <VBtn
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      :loading="actionRunning === action.path"
+                      @click="runAction(action.path, action.label)"
+                      class="text-none"
+                    >
+                      {{ action.label }}
+                    </VBtn>
+                    <div class="text-caption text-grey mt-1">{{ action.desc }}</div>
+                  </div>
+                </div>
               </div>
               <VAlert v-if="actionMessage" type="info" variant="tonal" density="compact" class="mt-3" :text="actionMessage" />
             </VCardText>

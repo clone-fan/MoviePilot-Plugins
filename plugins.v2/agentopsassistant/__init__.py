@@ -91,6 +91,10 @@ class AgentOpsAssistant(_PluginBase):
     _report_storage = True
     _report_media_stat = True
     _report_summary = True
+    _health_check_enabled: bool = True
+    _health_check_cron: str = "0 */6 * * *"
+    _health_check_items: List[str] = []
+    _report_health: bool = True
     _log_clean_enabled = False
     _log_clean_cron = "0 3 * * 1"
     _log_clean_rows = 300
@@ -189,6 +193,10 @@ class AgentOpsAssistant(_PluginBase):
         self._report_storage = bool(config.get("report_storage", True))
         self._report_media_stat = bool(config.get("report_media_stat", True))
         self._report_summary = bool(config.get("report_summary", self._health_in_report))
+        self._health_check_enabled = bool(config.get("health_check_enabled", True))
+        self._health_check_cron = config.get("health_check_cron") or "0 */6 * * *"
+        self._health_check_items = self._parse_csv(config.get("health_check_items"))
+        self._report_health = bool(config.get("report_health", True))
         self._subscribe_reminder_onlyonce = bool(config.get("subscribe_reminder_onlyonce", False))
         self._subscribe_reminder_time = str(config.get("subscribe_reminder_time") or "9")
         self._subscribe_reminder_cron = config.get("subscribe_reminder_cron") or ""

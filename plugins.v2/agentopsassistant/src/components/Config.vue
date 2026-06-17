@@ -108,6 +108,10 @@ const defaults = {
   report_storage: true,
   report_media_stat: true,
   report_summary: true,
+  health_check_enabled: true,
+  health_check_cron: '0 */6 * * *',
+  health_check_items: [],
+  report_health: true,
   subscribe_reminder_enabled: true,
   subscribe_reminder_onlyonce: false,
   subscribe_reminder_time: '9',
@@ -383,6 +387,17 @@ onMounted(() => {
             </button>
           </div>
           <VDivider />
+          <VAlert 
+            v-if="currentMain.desc" 
+            type="info" 
+            variant="tonal" 
+            class="ma-3"
+            :text="currentMain.desc"
+          >
+            <template #prepend>
+              <VIcon icon="mdi-information-outline" />
+            </template>
+          </VAlert>
           <div class="aoa-window">
             <!-- 每日汇报 · 基础设置 -->
             <div v-show="activeSub === 'basic'" class="aoa-pane">
