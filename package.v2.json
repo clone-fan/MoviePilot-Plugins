@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅追新,站点统计,日志清理,自动备份,更新检查,插件卸载,本地插件",
-    "version": "1.0.31",
+    "version": "1.0.32",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.32": "仪表盘视觉细化：整体拉高透明度，统一为更克制的雾透玻璃质感；手动触发按钮增加毛玻璃层次并取消内部滚动，通过收敛周边模块留出展示空间；设置页与仪表盘滚动条统一为低对比、高透明、1px 级细线。",
       "v1.0.31": "健康巡查异常可见性增强：发现异常时按配置渠道主动通知，并在通知正文列出具体异常项；仪表盘健康巡查异常卡片置顶跨行展示，详情按条换行，避免长路径和错误原因被截断看不清。",
       "v1.0.30": "健康巡查目录误判修复：识别 MoviePilot 目录配置中的 storage/library_storage，仅对 local/本地目录执行磁盘容量与读写权限检查；CloudDrive/网盘类目录交由存储服务管理，不再被误报为本地路径不存在。",
       "v1.0.29": "健康巡查执行语义修复：区分巡查任务完成与健康结果异常，发现异常时接口仍返回执行完成并保留异常详情，避免按钮被误判为功能失败。",

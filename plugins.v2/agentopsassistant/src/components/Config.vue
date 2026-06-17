@@ -1332,6 +1332,33 @@ onMounted(() => {
   padding: 10px;
   font-size: 14px;
 }
+.aoa-config,
+.aoa-config :deep(*) {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--v-theme-on-surface), 0.18) transparent;
+}
+.aoa-config::-webkit-scrollbar,
+.aoa-config :deep(*)::-webkit-scrollbar {
+  width: 1px;
+  height: 1px;
+}
+.aoa-config::-webkit-scrollbar-track,
+.aoa-config :deep(*)::-webkit-scrollbar-track {
+  background: transparent;
+}
+.aoa-config::-webkit-scrollbar-thumb,
+.aoa-config :deep(*)::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.18);
+}
+.aoa-config::-webkit-scrollbar-thumb:hover,
+.aoa-config :deep(*)::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-on-surface), 0.28);
+}
+.aoa-config::-webkit-scrollbar-corner,
+.aoa-config :deep(*)::-webkit-scrollbar-corner {
+  background: transparent;
+}
 .aoa-card {
   border-radius: 18px;
   overflow: hidden;
