@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.29"
+    plugin_version = "1.0.30"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -3300,21 +3300,41 @@ class AgentOpsAssistant(_PluginBase):
             result.append((label, clean))
         return result
 
-    def _health_directory_targets(self) -> List[Tuple[str, str]]:
+    @staticmethod
+    def _is_local_storage(storage: Any) -> bool:
+        name = str(storage or "").strip().lower()
+        return name in ("", "local", "本地")
+
+    @staticmethod
+    def _dedupe_directory_entries(items: List[Tuple[str, str, Any]]) -> List[Tuple[str, str, Any]]:
+        seen = set()
+        result = []
+        for label, path, storage in items or []:
+            clean = str(path or "").strip()
+            if not clean or clean in seen:
+                continue
+            seen.add(clean)
+            result.append((label, clean, storage))
+        return result
+
+    def _health_directory_entries(self) -> List[Tuple[str, str, Any]]:
         from app.core.config import settings
 
         config_path = str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config"))
-        targets = [("配置目录", config_path), ("插件目录", str(Path(__file__).resolve().parent))]
+        targets = [("配置目录", config_path, "local"), ("插件目录", str(Path(__file__).resolve().parent), "local")]
         try:
             from app.helper.directory import DirectoryHelper
             helper = DirectoryHelper()
             for d in helper.get_download_dirs() or []:
-                targets.append(("下载目录", getattr(d, "download_path", None) or getattr(d, "path", None)))
+                targets.append(("下载目录", getattr(d, "download_path", None) or getattr(d, "path", None), getattr(d, "storage", None)))
             for d in helper.get_library_dirs() or []:
-                targets.append(("媒体库目录", getattr(d, "library_path", None) or getattr(d, "path", None)))
+                targets.append(("媒体库目录", getattr(d, "library_path", None) or getattr(d, "path", None), getattr(d, "library_storage", None) or getattr(d, "storage", None)))
         except Exception:
             pass
-        return self._dedupe_pairs(targets)
+        return self._dedupe_directory_entries(targets)
+
+    def _health_directory_targets(self) -> List[Tuple[str, str]]:
+        return [(label, path) for label, path, _ in self._health_directory_entries()]
 
     def _check_database(self) -> Dict[str, Any]:
         """检查 MoviePilot 当前主库，详情里明确数据库类型与目标。"""
@@ -3368,9 +3388,12 @@ class AgentOpsAssistant(_PluginBase):
             details = []
             ok = True
 
-            def add_usage(label: str, path: str):
+            def add_usage(label: str, path: str, storage: Any = "local"):
                 nonlocal ok
                 if not path:
+                    return
+                if not self._is_local_storage(storage):
+                    details.append(f"{label} {storage} 由存储服务管理")
                     return
                 try:
                     stat = shutil.disk_usage(path)
@@ -3389,14 +3412,11 @@ class AgentOpsAssistant(_PluginBase):
 
             if selected.intersection({"download", "library"}):
                 try:
-                    from app.helper.directory import DirectoryHelper
-                    helper = DirectoryHelper()
-                    if "download" in selected:
-                        for d in helper.get_download_dirs() or []:
-                            add_usage("下载目录", getattr(d, "download_path", None) or getattr(d, "path", None))
-                    if "library" in selected:
-                        for d in helper.get_library_dirs() or []:
-                            add_usage("媒体库目录", getattr(d, "library_path", None) or getattr(d, "path", None))
+                    for label, path, storage in self._health_directory_entries():
+                        if label.startswith("下载目录") and "download" in selected:
+                            add_usage(label, path, storage)
+                        if label.startswith("媒体库目录") and "library" in selected:
+                            add_usage(label, path, storage)
                 except Exception as err:
                     ok = False
                     details.append(f"目录配置异常 {str(err)[:50]}")
@@ -3442,8 +3462,11 @@ class AgentOpsAssistant(_PluginBase):
             }
             details = []
             ok = True
-            for label, path in self._health_directory_targets():
+            for label, path, storage in self._health_directory_entries():
                 if not any(label.startswith(wanted[key]) for key in selected if key in wanted):
+                    continue
+                if not self._is_local_storage(storage):
+                    details.append(f"{label} {storage} 由存储服务管理")
                     continue
                 if not os.path.exists(path):
                     ok = False

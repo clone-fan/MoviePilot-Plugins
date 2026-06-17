@@ -803,6 +803,38 @@ def main():
     finally:
         _real_shutil.disk_usage = original_disk_usage
 
+    original_directory_helper = sys.modules["app.helper.directory"].DirectoryHelper
+    original_disk_usage = _real_shutil.disk_usage
+    try:
+        class _MixedStorageDirectoryHelper:
+            def get_download_dirs(self):
+                return [
+                    types.SimpleNamespace(download_path=str(ROOT), storage="local"),
+                    types.SimpleNamespace(download_path="/115open/待整理", storage="CloudDrive储存"),
+                ]
+            def get_library_dirs(self):
+                return [
+                    types.SimpleNamespace(library_path="/115open/NAS/影视库/", library_storage="CloudDrive储存"),
+                    types.SimpleNamespace(library_path=str(ROOT), library_storage="local"),
+                ]
+
+        sys.modules["app.helper.directory"].DirectoryHelper = _MixedStorageDirectoryHelper
+
+        def _mixed_disk_usage(path):
+            if str(path).startswith("/115open"):
+                raise FileNotFoundError(path)
+            return types.SimpleNamespace(total=100 * 1024 ** 3, used=20 * 1024 ** 3, free=80 * 1024 ** 3)
+
+        _real_shutil.disk_usage = _mixed_disk_usage
+        hc_cloud = make_plugin(mod, health_check_storage_targets=["download", "library"], health_check_directory_targets=["download", "library"])
+        cloud_storage = hc_cloud._check_storage()
+        cloud_directory = hc_cloud._check_directory()
+        check(cloud_storage["ok"] is True and "/115open/待整理" not in cloud_storage["detail"], "非本地下载/媒体库目录不按本地磁盘容量判定异常")
+        check(cloud_directory["ok"] is True and "/115open/待整理" not in cloud_directory["detail"], "非本地下载/媒体库目录不按本地权限判定异常")
+    finally:
+        sys.modules["app.helper.directory"].DirectoryHelper = original_directory_helper
+        _real_shutil.disk_usage = original_disk_usage
+
     svcs = pa.get_service() or []
     check(all(callable(s.get("func")) for s in svcs), f"get_service 全部 func 可调用（{len(svcs)} 个）")
     cmds = mod.AgentOpsAssistant.get_command() or []
