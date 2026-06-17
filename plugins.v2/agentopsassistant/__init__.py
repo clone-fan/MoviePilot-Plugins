@@ -2916,6 +2916,49 @@ class AgentOpsAssistant(_PluginBase):
         except Exception:
             return set()
 
+    def _check_database(self) -> Dict[str, Any]:
+        """检查数据库连接"""
+        try:
+            from app.core.config import settings
+            from sqlalchemy import create_engine, text
+            db_url = settings.db_url or "sqlite:////config/db/moviepilot.db"
+            engine = create_engine(db_url, echo=False, pool_pre_ping=True)
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            return {"name": "database", "ok": True, "detail": "数据库连接正常"}
+        except Exception as err:
+            return {"name": "database", "ok": False, "detail": f"数据库异常：{str(err)[:80]}"}
+
+    def _check_storage(self) -> Dict[str, Any]:
+        """检查存储空间"""
+        try:
+            import shutil
+            from app.core.config import settings
+            config_path = settings.config_path or "/config"
+            stat = shutil.disk_usage(config_path)
+            free_gb = stat.free / (1024 ** 3)
+            total_gb = stat.total / (1024 ** 3)
+            usage_percent = int((stat.used / stat.total * 100)) if stat.total else 0
+            if free_gb < 1:
+                return {"name": "storage", "ok": False, "detail": f"存储即将满：{free_gb:.2f} GB 剩余"}
+            return {"name": "storage", "ok": True, "detail": f"存储正常：{total_gb:.1f} GB（已用 {usage_percent}%，剩余 {free_gb:.1f} GB）"}
+        except Exception as err:
+            return {"name": "storage", "ok": False, "detail": f"存储检查异常：{str(err)[:80]}"}
+
+    def _check_directory(self) -> Dict[str, Any]:
+        """检查配置目录权限"""
+        try:
+            import os
+            from app.core.config import settings
+            config_path = settings.config_path or "/config"
+            if not os.path.exists(config_path):
+                return {"name": "directory", "ok": False, "detail": f"配置目录不存在：{config_path}"}
+            if not os.access(config_path, os.R_OK | os.W_X):
+                return {"name": "directory", "ok": False, "detail": f"配置目录权限不足：{config_path}"}
+            return {"name": "directory", "ok": True, "detail": f"配置目录正常：{config_path}"}
+        except Exception as err:
+            return {"name": "directory", "ok": False, "detail": f"目录检查异常：{str(err)[:80]}"}
+
     def _build_health_summary(self) -> Dict[str, Any]:
         checks = []
         try:
@@ -2943,6 +2986,12 @@ class AgentOpsAssistant(_PluginBase):
             checks.append({"name": "agentops_services", "ok": True, "detail": f"已调度 {len(services)} 个"})
         except Exception as err:
             checks.append({"name": "agentops_services", "ok": False, "detail": str(err)[:120]})
+        if "数据库" in self._health_check_items:
+            checks.append(self._check_database())
+        if "存储空间" in self._health_check_items:
+            checks.append(self._check_storage())
+        if "目录权限" in self._health_check_items:
+            checks.append(self._check_directory())
         success = all(x["ok"] for x in checks)
         result = {"success": success, "checks": checks, "total": len(checks), "pass": len([x for x in checks if x["ok"]]), "fail": len([x for x in checks if not x["ok"]])}
         # 保存健康巡查结果
@@ -2955,7 +3004,7 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _format_health_summary(data: Dict[str, Any]) -> str:
-        name_map = {"subscribe": "订阅", "sites": "站点", "downloaders": "下载器", "agentops_services": "本插件任务"}
+        name_map = {"subscribe": "订阅", "sites": "站点", "downloaders": "下载器", "agentops_services": "本插件任务", "database": "数据库", "storage": "存储空间", "directory": "目录权限"}
         total = data.get("total", 0)
         passed = data.get("pass", 0)
         failed = data.get("fail", 0)
