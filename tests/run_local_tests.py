@@ -11,7 +11,10 @@ AgentOpsAssistant 本地单元测试（无需运行中的 MoviePilot）。
 仅用标准库，不依赖 pytest。失败时退出码非 0。
 """
 import importlib.util
+import json
+import os
 import sys
+import tempfile
 import types
 from datetime import datetime, timedelta
 from enum import Enum
@@ -138,6 +141,15 @@ class _StubSystemConfigOper:
         return True
 
 
+class _StubDirectoryHelper:
+    def get_library_dirs(self):
+        return [types.SimpleNamespace(library_path="/media", library_storage="local")]
+    def get_download_dirs(self):
+        return [types.SimpleNamespace(download_path="/downloads", storage="local")]
+    def get_dirs(self):
+        return self.get_library_dirs() + self.get_download_dirs()
+
+
 # 订阅规则填充桩：_SUB 配置下载历史/订阅列表，并记录 update 调用
 _SUB = {"history": None, "subs": [], "updates": [], "sub_get": None, "sites": [], "site_latest": []}
 
@@ -201,6 +213,8 @@ def install_stubs():
     schd.Scheduler = _StubScheduler
     sysoper = _mod("app.db.systemconfig_oper")
     sysoper.SystemConfigOper = _StubSystemConfigOper
+    helper_dir = _mod("app.helper.directory")
+    helper_dir.DirectoryHelper = _StubDirectoryHelper
     dho = _mod("app.db.downloadhistory_oper")
     dho.DownloadHistoryOper = _StubDownloadHistoryOper
     subo = _mod("app.db.subscribe_oper")
@@ -714,6 +728,60 @@ def main():
     pr_health.save_data("last_health_check", {"time": "2026-06-18 08:00:00", "success": True, "output": "⦁ 状态：全部正常"})
     msg_health = pr_health._build_heartbeat_message()
     check("🩺 健康巡查" in msg_health and "状态：全部正常" in msg_health, "report_health=True -> 日报包含健康巡查结果")
+
+    print("== 健康巡查范围与兜底 ==")
+    hc_all = make_plugin(mod, health_check_items=[])
+    hc_all._check_database = lambda: {"name": "database", "ok": True, "detail": "db"}
+    hc_all._check_storage = lambda: {"name": "storage", "ok": True, "detail": "storage"}
+    hc_all._check_directory = lambda: {"name": "directory", "ok": True, "detail": "dir"}
+    all_summary = hc_all._build_health_summary()
+    all_names = {item.get("name") for item in all_summary.get("checks", [])}
+    check({"database", "storage", "directory"} <= all_names, "health_check_items 为空时等价检查全部可选项")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg_settings = sys.modules["app.core.config"].settings
+        cfg_settings.CONFIG_PATH = tmpdir
+        if hasattr(cfg_settings, "config_path"):
+            delattr(cfg_settings, "config_path")
+        hc_dir = make_plugin(mod, health_check_directory_targets=["config"])
+        dir_result = hc_dir._check_directory()
+        check(dir_result["ok"] is True and "目录" in dir_result["detail"], "目录权限使用 CONFIG_PATH 且不会因 os.W_X 报错")
+
+    sqlalchemy_mod = types.ModuleType("sqlalchemy")
+    class _FakeConn:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def execute(self, *a, **k): return 1
+    class _FakeEngine:
+        def connect(self): return _FakeConn()
+    sqlalchemy_mod.create_engine = lambda *a, **k: _FakeEngine()
+    sqlalchemy_mod.text = lambda sql: sql
+    sys.modules["sqlalchemy"] = sqlalchemy_mod
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg_settings = sys.modules["app.core.config"].settings
+        cfg_settings.CONFIG_PATH = tmpdir
+        cfg_settings.DB_TYPE = "sqlite"
+        hc_db = make_plugin(mod)
+        db_result = hc_db._check_database()
+        check(db_result["ok"] is True and "SQLite" in db_result["detail"] and "user.db" in db_result["detail"], "数据库巡查说明实际检查的 SQLite 主库")
+
+    import shutil as _real_shutil
+    original_disk_usage = _real_shutil.disk_usage
+    try:
+        cfg_settings = sys.modules["app.core.config"].settings
+        cfg_settings.CONFIG_PATH = str(ROOT)
+        cfg_settings.config_path = str(ROOT)
+        _real_shutil.disk_usage = lambda path: types.SimpleNamespace(
+            total=100 * 1024 ** 3,
+            used=90 * 1024 ** 3,
+            free=10 * 1024 ** 3,
+        )
+        hc_storage = make_plugin(mod, health_check_storage_threshold=85)
+        storage_result = hc_storage._check_storage()
+        check(storage_result["ok"] is False and "90%" in storage_result["detail"], "存储巡查按已用阈值识别高风险")
+    finally:
+        _real_shutil.disk_usage = original_disk_usage
+
     svcs = pa.get_service() or []
     check(all(callable(s.get("func")) for s in svcs), f"get_service 全部 func 可调用（{len(svcs)} 个）")
     cmds = mod.AgentOpsAssistant.get_command() or []

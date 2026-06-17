@@ -112,6 +112,10 @@ const defaults = {
   health_check_enabled: true,
   health_check_cron: '0 */6 * * *',
   health_check_items: [],
+  health_check_database_targets: ['current'],
+  health_check_storage_targets: ['storages', 'config', 'download', 'library'],
+  health_check_directory_targets: ['config', 'plugin', 'download', 'library'],
+  health_check_storage_threshold: 85,
   report_health: true,
   subscribe_reminder_enabled: true,
   subscribe_reminder_onlyonce: false,
@@ -313,6 +317,23 @@ const healthCheckItems = [
   { title: '存储空间', value: '存储空间', icon: 'mdi-harddisk', desc: '下载与媒体库容量余量' },
   { title: '目录权限', value: '目录权限', icon: 'mdi-folder-key-outline', desc: '关键路径可访问性' },
 ]
+const healthDatabaseTargets = [
+  { title: '当前主库', value: 'current' },
+  { title: 'SQLite 配置库', value: 'sqlite' },
+  { title: 'PostgreSQL 主库', value: 'postgresql' },
+]
+const healthStorageTargets = [
+  { title: 'MoviePilot 存储配置', value: 'storages' },
+  { title: '配置目录', value: 'config' },
+  { title: '下载目录', value: 'download' },
+  { title: '媒体库目录', value: 'library' },
+]
+const healthDirectoryTargets = [
+  { title: '配置目录', value: 'config' },
+  { title: '插件目录', value: 'plugin' },
+  { title: '下载目录', value: 'download' },
+  { title: '媒体库目录', value: 'library' },
+]
 const reportSections = [
   { key: 'report_version', label: 'MoviePilot 版本', component: '每日汇报', requires: null, note: '基础版本信息' },
   { key: 'report_site_status', label: '站点状态', component: '站点数据统计', requires: null, note: '逐站状态' },
@@ -354,6 +375,9 @@ watch(() => props.initialConfig, value => {
   form.msgnotify_servers = toArr(form.msgnotify_servers)
   form.dltag_downloaders = toArr(form.dltag_downloaders)
   form.health_check_items = toArr(form.health_check_items)
+  form.health_check_database_targets = toArr(form.health_check_database_targets)
+  form.health_check_storage_targets = toArr(form.health_check_storage_targets)
+  form.health_check_directory_targets = toArr(form.health_check_directory_targets)
 }, { immediate: true, deep: true })
 
 function saveConfig() {
@@ -614,27 +638,50 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <div class="aoa-health-grid">
-                  <div v-for="item in healthCheckItems" :key="item.value"
-                    class="aoa-health-check" :class="{ 'aoa-health-check--active': healthItemActive(item.value) }">
-                    <VIcon :icon="item.icon" size="24" class="aoa-health-check-icon" />
-                    <div class="aoa-health-check-text">
-                      <div class="aoa-health-check-title">{{ item.title }}</div>
-                      <div class="aoa-health-check-desc">{{ item.desc }}</div>
+                <div class="aoa-health-section">
+                  <div class="aoa-health-section-head">
+                    <div>
+                      <div class="aoa-health-section-title">巡查项目</div>
+                      <div class="aoa-health-section-note">留空时默认检查全部项目</div>
+                    </div>
+                    <VSelect v-model="form.health_check_items" :items="healthCheckItems"
+                      label="选择项目" multiple chips closable-chips clearable
+                      class="aoa-health-project-select" :disabled="!form.health_check_enabled" />
+                  </div>
+                  <div class="aoa-health-grid">
+                    <div v-for="item in healthCheckItems" :key="item.value"
+                      class="aoa-health-check" :class="{ 'aoa-health-check--active': healthItemActive(item.value) }">
+                      <VIcon :icon="item.icon" size="26" class="aoa-health-check-icon" />
+                      <div class="aoa-health-check-text">
+                        <div class="aoa-health-check-title">{{ item.title }}</div>
+                        <div class="aoa-health-check-desc">{{ item.desc }}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div class="aoa-health-controls">
-                  <div class="aoa-health-control aoa-health-cron">
+                <div class="aoa-health-section">
+                  <div class="aoa-health-section-head">
+                    <div>
+                      <div class="aoa-health-section-title">巡查范围</div>
+                      <div class="aoa-health-section-note">数据库、容量阈值、存储与目录都可单独控制</div>
+                    </div>
+                  </div>
+                  <div class="aoa-health-scope-grid">
                     <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)"
                       :disabled="!form.health_check_enabled" />
+                    <VSelect v-model="form.health_check_database_targets" :items="healthDatabaseTargets"
+                      label="数据库" multiple chips closable-chips clearable :disabled="!form.health_check_enabled" />
+                    <VSelect v-model="form.health_check_storage_targets" :items="healthStorageTargets"
+                      label="存储空间" multiple chips closable-chips clearable :disabled="!form.health_check_enabled" />
+                    <VSelect v-model="form.health_check_directory_targets" :items="healthDirectoryTargets"
+                      label="目录权限" multiple chips closable-chips clearable :disabled="!form.health_check_enabled" />
+                    <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number"
+                      min="1" max="99" suffix="%" :disabled="!form.health_check_enabled" />
                   </div>
-                  <div class="aoa-health-control aoa-health-select">
-                    <VSelect v-model="form.health_check_items" :items="healthCheckItems"
-                      label="巡查项目" multiple chips closable-chips clearable
-                      :disabled="!form.health_check_enabled" />
-                  </div>
+                </div>
+
+                <div class="aoa-health-action-row">
                   <VBtn color="primary" variant="flat" prepend-icon="mdi-heart-pulse" class="aoa-health-run"
                     :loading="action.running === 'run_health_check'" @click="runAction('run_health_check', '健康巡查')">
                     立即巡查
@@ -1520,20 +1567,22 @@ onMounted(() => {
 }
 .aoa-health-form {
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 .aoa-health-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px;
-  border-radius: 14px;
+  gap: 20px;
+  padding: 20px;
+  border-radius: 20px;
   color: rgba(var(--v-theme-on-surface), 0.92);
   background:
-    linear-gradient(135deg, rgba(var(--v-theme-success), 0.14), rgba(var(--v-theme-primary), 0.08)),
-    rgba(var(--v-theme-surface), 0.78);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-success), 0.18);
+    linear-gradient(135deg, rgba(var(--v-theme-success), 0.18), rgba(var(--v-theme-primary), 0.08)),
+    rgba(var(--v-theme-surface), 0.86);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--v-theme-success), 0.16),
+    0 18px 46px rgba(var(--v-theme-on-surface), 0.06);
 }
 .aoa-health-hero--off {
   background:
@@ -1545,15 +1594,15 @@ onMounted(() => {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 .aoa-health-emblem {
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 16px;
   color: rgb(var(--v-theme-success));
   background: rgba(var(--v-theme-surface), 0.8);
   box-shadow: inset 0 0 0 1px rgba(var(--v-theme-success), 0.22);
@@ -1567,15 +1616,15 @@ onMounted(() => {
   color: rgba(var(--v-theme-on-surface), 0.58);
 }
 .aoa-health-title {
-  margin-top: 2px;
-  font-size: 18px;
+  margin-top: 3px;
+  font-size: 20px;
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: 0;
 }
 .aoa-health-desc {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: 6px;
+  font-size: 13px;
   line-height: 1.45;
   color: rgba(var(--v-theme-on-surface), 0.66);
 }
@@ -1587,27 +1636,58 @@ onMounted(() => {
   gap: 8px;
   white-space: nowrap;
 }
+.aoa-health-section {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.9), rgba(var(--v-theme-surface), 0.72)),
+    rgba(var(--v-theme-on-surface), 0.02);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.14);
+}
+.aoa-health-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.aoa-health-section-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: rgba(var(--v-theme-on-surface), 0.9);
+}
+.aoa-health-section-note {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.aoa-health-project-select {
+  width: min(360px, 48%);
+  min-width: 260px;
+}
 .aoa-health-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 14px;
 }
 .aoa-health-check {
-  min-height: 74px;
+  min-height: 92px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
   color: rgba(var(--v-theme-on-surface), 0.68);
-  background: rgba(var(--v-theme-on-surface), 0.025);
-  transition: border-color 0.18s, background 0.18s, color 0.18s;
+  background: rgba(var(--v-theme-on-surface), 0.035);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.12);
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
 }
 .aoa-health-check--active {
   color: rgba(var(--v-theme-on-surface), 0.92);
-  border-color: rgba(var(--v-theme-primary), 0.28);
-  background: rgba(var(--v-theme-primary), 0.07);
+  background: rgba(var(--v-theme-primary), 0.08);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-primary), 0.24);
 }
 .aoa-health-check-icon {
   flex: 0 0 auto;
@@ -1617,28 +1697,31 @@ onMounted(() => {
   min-width: 0;
 }
 .aoa-health-check-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
 }
 .aoa-health-check-desc {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 12px;
-  line-height: 1.35;
+  line-height: 1.45;
   color: rgba(var(--v-theme-on-surface), 0.58);
 }
-.aoa-health-controls {
+.aoa-health-scope-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1.2fr) auto;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
   align-items: start;
 }
-.aoa-health-control {
-  min-width: 0;
+.aoa-health-action-row {
+  display: flex;
+  justify-content: flex-end;
 }
 .aoa-health-run {
-  min-height: 48px;
-  align-self: start;
+  min-width: 132px;
+  min-height: 44px;
+  border-radius: 999px;
+  font-weight: 700;
 }
 .aoa-table-wrap {
   position: relative;
@@ -1743,7 +1826,7 @@ onMounted(() => {
   }
   .aoa-health-hero,
   .aoa-health-state,
-  .aoa-health-controls {
+  .aoa-health-section-head {
     align-items: stretch;
     flex-direction: column;
   }
@@ -1751,9 +1834,16 @@ onMounted(() => {
     justify-content: flex-start;
     white-space: normal;
   }
+  .aoa-health-project-select {
+    width: 100%;
+    min-width: 0;
+  }
   .aoa-health-grid,
-  .aoa-health-controls {
+  .aoa-health-scope-grid {
     grid-template-columns: 1fr;
+  }
+  .aoa-health-action-row {
+    justify-content: stretch;
   }
   .aoa-health-run {
     width: 100%;

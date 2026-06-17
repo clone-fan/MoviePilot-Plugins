@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.14"
+    plugin_version = "1.0.15"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -95,6 +95,10 @@ class AgentOpsAssistant(_PluginBase):
     _health_check_enabled: bool = True
     _health_check_cron: str = "0 */6 * * *"
     _health_check_items: List[str] = []
+    _health_check_database_targets: List[str] = []
+    _health_check_storage_targets: List[str] = []
+    _health_check_directory_targets: List[str] = []
+    _health_check_storage_threshold: int = 85
     _report_health: bool = True
     _log_clean_enabled = False
     _log_clean_cron = "0 3 * * 1"
@@ -212,6 +216,12 @@ class AgentOpsAssistant(_PluginBase):
         self._health_check_enabled = bool(config.get("health_check_enabled", True))
         self._health_check_cron = config.get("health_check_cron") or "0 */6 * * *"
         self._health_check_items = self._parse_csv(config.get("health_check_items"))
+        self._health_check_database_targets = self._parse_csv(config.get("health_check_database_targets"))
+        self._health_check_storage_targets = self._parse_csv(config.get("health_check_storage_targets"))
+        self._health_check_directory_targets = self._parse_csv(config.get("health_check_directory_targets"))
+        self._health_check_storage_threshold = self._safe_int(config.get("health_check_storage_threshold"), 85, 1)
+        if self._health_check_storage_threshold > 99:
+            self._health_check_storage_threshold = 99
         self._report_health = bool(config.get("report_health", True))
         self._subscribe_reminder_onlyonce = bool(config.get("subscribe_reminder_onlyonce", False))
         self._subscribe_reminder_time = str(config.get("subscribe_reminder_time") or "9")
@@ -3255,48 +3265,183 @@ class AgentOpsAssistant(_PluginBase):
         except Exception:
             return set()
 
+    @staticmethod
+    def _settings_value(settings_obj: Any, *names: str, default: Any = "") -> Any:
+        for name in names:
+            value = getattr(settings_obj, name, None)
+            if value not in (None, ""):
+                return value
+        return default
+
+    @staticmethod
+    def _dedupe_pairs(items: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
+        seen = set()
+        result = []
+        for label, path in items or []:
+            clean = str(path or "").strip()
+            if not clean or clean in seen:
+                continue
+            seen.add(clean)
+            result.append((label, clean))
+        return result
+
+    def _health_directory_targets(self) -> List[Tuple[str, str]]:
+        from app.core.config import settings
+
+        config_path = str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config"))
+        targets = [("配置目录", config_path), ("插件目录", str(Path(__file__).resolve().parent))]
+        try:
+            from app.helper.directory import DirectoryHelper
+            helper = DirectoryHelper()
+            for d in helper.get_download_dirs() or []:
+                targets.append(("下载目录", getattr(d, "download_path", None) or getattr(d, "path", None)))
+            for d in helper.get_library_dirs() or []:
+                targets.append(("媒体库目录", getattr(d, "library_path", None) or getattr(d, "path", None)))
+        except Exception:
+            pass
+        return self._dedupe_pairs(targets)
+
     def _check_database(self) -> Dict[str, Any]:
-        """检查数据库连接"""
+        """检查 MoviePilot 当前主库，详情里明确数据库类型与目标。"""
         try:
             from app.core.config import settings
             from sqlalchemy import create_engine, text
-            db_url = settings.db_url or "sqlite:////config/db/moviepilot.db"
-            engine = create_engine(db_url, echo=False, pool_pre_ping=True)
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            return {"name": "database", "ok": True, "detail": "数据库连接正常"}
+
+            db_type = str(self._settings_value(settings, "DB_TYPE", "db_type", default="sqlite")).lower()
+            targets = self._health_check_database_targets or ["current"]
+            details = []
+            for target in targets:
+                target = str(target or "current").lower()
+                use_type = db_type if target in ("current", "main", "moviepilot") else target
+                if use_type in ("postgres", "postgresql"):
+                    url_getter = getattr(settings, "DB_POSTGRESQL_URL", None)
+                    db_url = url_getter() if callable(url_getter) else self._settings_value(settings, "DB_URL", "db_url")
+                    if not db_url:
+                        raise RuntimeError("PostgreSQL 连接地址为空")
+                    engine = create_engine(db_url, echo=False, pool_pre_ping=True)
+                    label = "PostgreSQL 主库"
+                else:
+                    config_path = Path(str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config")))
+                    db_file = config_path / "user.db"
+                    db_url = f"sqlite:///{db_file.as_posix()}"
+                    engine = create_engine(db_url, echo=False, pool_pre_ping=True)
+                    label = f"SQLite 主库 {db_file}"
+                with engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                details.append(f"{label} 连接正常")
+            return {"name": "database", "ok": True, "detail": "；".join(details)}
         except Exception as err:
-            return {"name": "database", "ok": False, "detail": f"数据库异常：{str(err)[:80]}"}
+            return {"name": "database", "ok": False, "detail": f"数据库异常：{str(err)[:100]}"}
+
+    def _storage_usage_detail(self, label: str, total: Any, used: Any, free: Any) -> Tuple[bool, str]:
+        total = int(total or 0)
+        if total <= 0:
+            return True, f"{label} 未取到容量"
+        if used is None and free is not None:
+            used = total - int(free or 0)
+        used = int(used or 0)
+        pct = used / total * 100 if total else 0
+        ok = pct < self._health_check_storage_threshold
+        risk = "" if ok else f" 超过阈值 {self._health_check_storage_threshold}%"
+        return ok, f"{label} {pct:.0f}% 已用｜{self._format_bytes(used)}/{self._format_bytes(total)}{risk}"
 
     def _check_storage(self) -> Dict[str, Any]:
-        """检查存储空间"""
+        """按 MoviePilot 配置的存储、下载目录与媒体库目录检查容量。"""
         try:
-            import shutil
             from app.core.config import settings
-            config_path = settings.config_path or "/config"
-            stat = shutil.disk_usage(config_path)
-            free_gb = stat.free / (1024 ** 3)
-            total_gb = stat.total / (1024 ** 3)
-            usage_percent = int((stat.used / stat.total * 100)) if stat.total else 0
-            if free_gb < 1:
-                return {"name": "storage", "ok": False, "detail": f"存储即将满：{free_gb:.2f} GB 剩余"}
-            return {"name": "storage", "ok": True, "detail": f"存储正常：{total_gb:.1f} GB（已用 {usage_percent}%，剩余 {free_gb:.1f} GB）"}
+            selected = set(self._health_check_storage_targets or ["storages", "config", "download", "library"])
+            details = []
+            ok = True
+
+            def add_usage(label: str, path: str):
+                nonlocal ok
+                if not path:
+                    return
+                try:
+                    stat = shutil.disk_usage(path)
+                    item_ok, detail = self._storage_usage_detail(label, stat.total, stat.used, stat.free)
+                    ok = ok and item_ok
+                    details.append(detail)
+                except FileNotFoundError:
+                    ok = False
+                    details.append(f"{label} 不存在 {path}")
+                except PermissionError:
+                    ok = False
+                    details.append(f"{label} 无权限 {path}")
+
+            if "config" in selected:
+                add_usage("配置目录", str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config")))
+
+            if selected.intersection({"download", "library"}):
+                try:
+                    from app.helper.directory import DirectoryHelper
+                    helper = DirectoryHelper()
+                    if "download" in selected:
+                        for d in helper.get_download_dirs() or []:
+                            add_usage("下载目录", getattr(d, "download_path", None) or getattr(d, "path", None))
+                    if "library" in selected:
+                        for d in helper.get_library_dirs() or []:
+                            add_usage("媒体库目录", getattr(d, "library_path", None) or getattr(d, "path", None))
+                except Exception as err:
+                    ok = False
+                    details.append(f"目录配置异常 {str(err)[:50]}")
+
+            if "storages" in selected:
+                try:
+                    from app.db.systemconfig_oper import SystemConfigOper
+                    from app.schemas.types import SystemConfigKey
+                    from app.chain.storage import StorageChain
+                    storages = SystemConfigOper().get(SystemConfigKey.Storages) or []
+                    sc = StorageChain()
+                    for s in storages:
+                        name = s.get("name") or s.get("type") or "存储"
+                        usage = sc.storage_usage(s.get("type") or "local")
+                        if not usage:
+                            continue
+                        total = usage.get("total") if isinstance(usage, dict) else getattr(usage, "total", None)
+                        used = usage.get("used") if isinstance(usage, dict) else getattr(usage, "used", None)
+                        free = (usage.get("available") or usage.get("free")) if isinstance(usage, dict) else (getattr(usage, "available", None) or getattr(usage, "free", None))
+                        item_ok, detail = self._storage_usage_detail(name, total, used, free)
+                        ok = ok and item_ok
+                        details.append(detail)
+                except Exception:
+                    pass
+
+            if not details:
+                add_usage("配置目录", str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config")))
+            return {"name": "storage", "ok": ok, "detail": "；".join(details[:6]) if details else "未检测到可检查的存储"}
         except Exception as err:
-            return {"name": "storage", "ok": False, "detail": f"存储检查异常：{str(err)[:80]}"}
+            return {"name": "storage", "ok": False, "detail": f"存储检查异常：{str(err)[:100]}"}
 
     def _check_directory(self) -> Dict[str, Any]:
-        """检查配置目录权限"""
+        """按选择范围检查关键目录是否存在且可读写进入。"""
         try:
             import os
-            from app.core.config import settings
-            config_path = settings.config_path or "/config"
-            if not os.path.exists(config_path):
-                return {"name": "directory", "ok": False, "detail": f"配置目录不存在：{config_path}"}
-            if not os.access(config_path, os.R_OK | os.W_X):
-                return {"name": "directory", "ok": False, "detail": f"配置目录权限不足：{config_path}"}
-            return {"name": "directory", "ok": True, "detail": f"配置目录正常：{config_path}"}
+
+            selected = set(self._health_check_directory_targets or ["config", "plugin", "download", "library"])
+            wanted = {
+                "config": "配置目录",
+                "plugin": "插件目录",
+                "download": "下载目录",
+                "library": "媒体库目录",
+            }
+            details = []
+            ok = True
+            for label, path in self._health_directory_targets():
+                if not any(label.startswith(wanted[key]) for key in selected if key in wanted):
+                    continue
+                if not os.path.exists(path):
+                    ok = False
+                    details.append(f"{label} 不存在 {path}")
+                    continue
+                if not os.access(path, os.R_OK | os.W_OK | os.X_OK):
+                    ok = False
+                    details.append(f"{label} 权限不足 {path}")
+                    continue
+                details.append(f"{label} 正常")
+            return {"name": "directory", "ok": ok, "detail": "；".join(details[:8]) if details else "未选择目录"}
         except Exception as err:
-            return {"name": "directory", "ok": False, "detail": f"目录检查异常：{str(err)[:80]}"}
+            return {"name": "directory", "ok": False, "detail": f"目录检查异常：{str(err)[:100]}"}
 
     def _build_health_summary(self) -> Dict[str, Any]:
         checks = []
@@ -3325,11 +3470,12 @@ class AgentOpsAssistant(_PluginBase):
             checks.append({"name": "agentops_services", "ok": True, "detail": f"已调度 {len(services)} 个"})
         except Exception as err:
             checks.append({"name": "agentops_services", "ok": False, "detail": str(err)[:120]})
-        if "数据库" in self._health_check_items:
+        selected_items = set(self._health_check_items or ["数据库", "存储空间", "目录权限"])
+        if "数据库" in selected_items:
             checks.append(self._check_database())
-        if "存储空间" in self._health_check_items:
+        if "存储空间" in selected_items:
             checks.append(self._check_storage())
-        if "目录权限" in self._health_check_items:
+        if "目录权限" in selected_items:
             checks.append(self._check_directory())
         success = all(x["ok"] for x in checks)
         result = {"success": success, "checks": checks, "total": len(checks), "pass": len([x for x in checks if x["ok"]]), "fail": len([x for x in checks if not x["ok"]])}
@@ -3610,4 +3756,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_msgtype": "Plugin", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_remove_plugin": True, "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}
+        return {"enabled": False, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_msgtype": "Plugin", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "health_check_database_targets": ["current"], "health_check_storage_targets": ["storages", "config", "download", "library"], "health_check_directory_targets": ["config", "plugin", "download", "library"], "health_check_storage_threshold": 85, "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": "", "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": "", "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_remove_plugin": True, "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}
