@@ -182,7 +182,7 @@ const actionGroups = [
     icon: 'mdi-download-network-outline',
     actions: [
       { path: 'run_downloader_tag', label: '种子标签', icon: 'mdi-tag-plus-outline', desc: '按站点补标签' },
-      { path: 'run_seed_clean', label: '种子治理', icon: 'mdi-delete-sweep-outline', desc: '执行删种规则' },
+      { path: 'run_seed_clean', label: '自动删种', icon: 'mdi-delete-sweep-outline', desc: '执行删种规则' },
     ]
   },
   {

@@ -266,7 +266,7 @@ const subTabs = {
     { key: 'clean', title: '残留清理', icon: 'mdi-broom' },
   ],
   seedclean: [
-    { key: 'seedremove', title: '种子治理', icon: 'mdi-delete-sweep-outline' },
+    { key: 'seedremove', title: '自动删种', icon: 'mdi-delete-sweep-outline' },
     { key: 'dltagmain', title: '批量打标签', icon: 'mdi-tag-multiple-outline' },
   ],
   msgnotify: [
@@ -1078,100 +1078,96 @@ onMounted(() => {
               </VForm>
             </div>
 
-            <!-- 种子治理 · 自动删种 -->
+            <!-- 下载器管理 · 自动删种 -->
             <div v-show="activeSub === 'seedremove'" class="aoa-pane">
-              <VForm class="aoa-compact-form">
-                <VAlert type="warning" variant="tonal" density="compact" class="mb-3" :icon="false"
+              <VForm class="aoa-seed-form">
+                <VAlert type="warning" variant="tonal" density="comfortable" class="mb-4" :icon="false"
                   text="自动删种有风险，设置不当可能丢数据！建议先用“暂停”动作验证条件命中正确，再改“删除”，未填写任何筛选条件时不会执行" />
                 <div class="aoa-section-title">基础设置</div>
-                <VRow dense>
-                  <VCol cols="12" md="3">
+                <VRow class="aoa-seed-basic-row">
+                  <VCol cols="12" md="4">
                     <VSwitch v-model="form.seedclean_enabled" color="primary" inset hide-details
                       label="启用定时自动删种" />
                   </VCol>
-                  <VCol cols="12" md="3">
+                  <VCol cols="12" md="4">
                     <VCronField v-model="form.seedclean_cron" label="执行周期 (Cron)"
                       :disabled="!form.seedclean_enabled" />
                   </VCol>
-                  <VCol cols="12" md="2">
-                    <VSelect v-model="form.seedclean_action" :items="seedActionItems"
-                      density="compact" hide-details label="动作" :disabled="!form.seedclean_enabled" />
-                  </VCol>
                   <VCol cols="12" md="4">
+                    <VSelect v-model="form.seedclean_action" :items="seedActionItems"
+                      hide-details label="动作" :disabled="!form.seedclean_enabled" />
+                  </VCol>
+                  <VCol cols="12" md="7">
                     <VSelect v-model="form.seedclean_downloaders" :items="downloaderOptions"
                       :loading="downloadersLoading" label="下载器（必选）"
                       multiple chips closable-chips clearable
-                      density="compact" hide-details
+                      hide-details
                       prepend-inner-icon="mdi-download-network-outline"
                       no-data-text="未配置下载器" :disabled="!form.seedclean_enabled" />
                   </VCol>
                 </VRow>
 
-                <VDivider class="my-3" />
+                <VDivider class="my-5" />
                 <div class="aoa-section-title">筛选条件</div>
-                <div class="aoa-hint mb-2">仅处理“同时满足所有已填条件”的种子，留空的条件不参与，全部留空则跳过不处理</div>
-                <VRow dense>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_size" label="种子大小（GB）" density="compact" hide-details
+                <div class="aoa-hint mb-3">仅处理“同时满足所有已填条件”的种子，留空的条件不参与，全部留空则跳过不处理</div>
+                <VRow class="aoa-seed-filter-grid">
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_size" label="种子大小（GB）" hide-details
                       placeholder="1-10" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_ratio" label="分享率不小于" density="compact" hide-details
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_ratio" label="分享率不小于" hide-details
                       placeholder="2" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_time" label="做种不少于（小时）" density="compact" hide-details
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_time" label="做种不少于（小时）" hide-details
                       placeholder="240" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_upspeed" label="均速上限（KB/s）" density="compact" hide-details
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_upspeed" label="均速上限（KB/s）" hide-details
                       placeholder="低于才处理" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                </VRow>
-                <VRow dense>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_labels" label="标签" density="compact" hide-details
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_labels" label="标签" hide-details
                       placeholder="逗号分隔" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_torrentcategorys" label="任务分类" density="compact" hide-details
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_torrentcategorys" label="任务分类" hide-details
                       placeholder="逗号分隔" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_pathkeywords" label="保存路径关键词" density="compact" hide-details
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_pathkeywords" label="保存路径关键词" hide-details
                       placeholder="支持正则" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_trackerkeywords" label="Tracker 关键词" density="compact" hide-details
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_trackerkeywords" label="Tracker 关键词" hide-details
                       placeholder="支持正则" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                </VRow>
-                <VRow dense>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_torrentstates" label="任务状态（仅 QB）" density="compact" hide-details
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_torrentstates" label="任务状态（仅 QB）" hide-details
                       placeholder="pausedUP,stalledUP" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                  <VCol cols="12" sm="6" md="3">
-                    <VTextField v-model="form.seedclean_errorkeywords" label="错误信息（仅 TR）" density="compact" hide-details
+                  <VCol cols="12" sm="6" md="4">
+                    <VTextField v-model="form.seedclean_errorkeywords" label="错误信息（仅 TR）" hide-details
                       placeholder="支持正则" :disabled="!form.seedclean_enabled" />
                   </VCol>
-                  <VCol cols="12" md="9">
+                  <VCol cols="12" md="8">
                     <div class="aoa-seed-options">
-                      <VSwitch v-model="form.seedclean_samedata" color="primary" inset hide-details density="compact"
+                      <VSwitch v-model="form.seedclean_samedata" color="primary" inset hide-details
                         label="处理辅种" :disabled="!form.seedclean_enabled" />
-                      <VSwitch v-model="form.seedclean_mponly" color="primary" inset hide-details density="compact"
+                      <VSwitch v-model="form.seedclean_mponly" color="primary" inset hide-details
                         label="仅 MoviePilot 任务" :disabled="!form.seedclean_enabled" />
-                      <VSwitch v-model="form.seedclean_notify" color="primary" inset hide-details density="compact"
+                      <VSwitch v-model="form.seedclean_notify" color="primary" inset hide-details
                         label="处理结果通知" :disabled="!form.seedclean_enabled" />
                     </div>
                   </VCol>
                 </VRow>
 
-                <VDivider class="my-3" />
+                <VDivider class="my-5" />
                 <div class="aoa-seed-action-row">
                   <div class="aoa-seed-action-type">
                     <VSelect v-model="form.seedclean_notify_type" :items="notificationTypeItems"
-                      density="compact" hide-details label="消息类型" :disabled="!form.seedclean_enabled || !form.seedclean_notify" />
+                      hide-details label="消息类型" :disabled="!form.seedclean_enabled || !form.seedclean_notify" />
                   </div>
                   <VBtn color="error" variant="tonal" prepend-icon="mdi-delete-sweep-outline"
                     :disabled="!form.seedclean_downloaders || !form.seedclean_downloaders.length"
@@ -1216,31 +1212,33 @@ onMounted(() => {
             </div>
             <!-- 下载器助手 · 批量打标签 -->
             <div v-show="activeSub === 'dltagmain'" class="aoa-pane">
-              <VForm>
+              <VForm class="aoa-dltag-form">
                 <div class="aoa-section-title">按站点为种子批量补打标签</div>
-                <VRow>
+                <VRow class="aoa-dltag-enable-row">
                   <VCol cols="12" md="6">
                     <VSwitch v-model="form.dltag_enabled" color="primary" inset hide-details
                       label="启用下载器助手(批量打标签)" />
                     <div class="aoa-hint">遍历下载器中的种子，按其 tracker 所属站点补打标签(已打的跳过，幂等安全)</div>
                   </VCol>
                 </VRow>
-                <VRow>
-                  <VCol cols="12" md="5">
+                <VRow class="aoa-dltag-field-row">
+                  <VCol cols="12" md="7">
                     <VSelect v-model="form.dltag_downloaders" :items="downloaderOptions"
                       :loading="downloadersLoading" label="下载器（留空＝全部已配置）"
                       multiple chips closable-chips clearable prepend-inner-icon="mdi-download-network-outline"
                       :disabled="!form.dltag_enabled" />
                   </VCol>
-                  <VCol cols="12" md="3">
+                  <VCol cols="12" md="5">
                     <VTextField v-model="form.dltag_prefix" label="标签前缀（可选）" placeholder="如 站点-" clearable
                       :disabled="!form.dltag_enabled" />
                   </VCol>
-                  <VCol cols="12" md="2">
+                </VRow>
+                <VRow class="aoa-dltag-notify-row">
+                  <VCol cols="12" md="4">
                     <VSwitch v-model="form.dltag_notify" color="primary" inset hide-details label="完成后通知"
                       :disabled="!form.dltag_enabled" />
                   </VCol>
-                  <VCol cols="12" md="2">
+                  <VCol cols="12" md="4">
                     <VSelect v-model="form.dltag_notify_type" :items="notificationTypeItems"
                       label="消息类型" :disabled="!form.dltag_enabled || !form.dltag_notify" />
                   </VCol>
@@ -1476,33 +1474,44 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 12px;
 }
-.aoa-compact-form :deep(.v-row) {
-  margin-top: -6px;
-  margin-bottom: -6px;
+.aoa-seed-form,
+.aoa-dltag-form {
+  display: grid;
+  gap: 4px;
 }
-.aoa-compact-form :deep(.v-col) {
-  padding-top: 6px;
-  padding-bottom: 6px;
+.aoa-seed-basic-row,
+.aoa-seed-filter-grid,
+.aoa-dltag-enable-row,
+.aoa-dltag-field-row,
+.aoa-dltag-notify-row {
+  margin-top: 0;
+}
+.aoa-seed-basic-row :deep(.v-col),
+.aoa-seed-filter-grid :deep(.v-col),
+.aoa-dltag-field-row :deep(.v-col),
+.aoa-dltag-notify-row :deep(.v-col) {
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 .aoa-seed-options {
-  min-height: 40px;
+  min-height: 48px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 14px;
   align-items: center;
 }
 .aoa-seed-options :deep(.v-selection-control) {
-  min-height: 36px;
+  min-height: 42px;
 }
 .aoa-seed-action-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 .aoa-seed-action-type {
-  flex: 0 1 220px;
-  min-width: 180px;
+  flex: 0 1 260px;
+  min-width: 220px;
 }
 .aoa-health-form {
   display: grid;

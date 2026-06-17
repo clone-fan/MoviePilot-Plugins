@@ -340,7 +340,7 @@ const subTabs = {
     { key: 'clean', title: '残留清理', icon: 'mdi-broom' },
   ],
   seedclean: [
-    { key: 'seedremove', title: '种子治理', icon: 'mdi-delete-sweep-outline' },
+    { key: 'seedremove', title: '自动删种', icon: 'mdi-delete-sweep-outline' },
     { key: 'dltagmain', title: '批量打标签', icon: 'mdi-tag-multiple-outline' },
   ],
   msgnotify: [
@@ -2375,22 +2375,22 @@ return (_ctx, _cache) => {
                 [_vShow, activeSub.value === 'clean']
               ]),
               _withDirectives(_createElementVNode("div", _hoisted_52, [
-                _createVNode(_component_VForm, { class: "aoa-compact-form" }, {
+                _createVNode(_component_VForm, { class: "aoa-seed-form" }, {
                   default: _withCtx(() => [
                     _createVNode(_component_VAlert, {
                       type: "warning",
                       variant: "tonal",
-                      density: "compact",
-                      class: "mb-3",
+                      density: "comfortable",
+                      class: "mb-4",
                       icon: false,
                       text: "自动删种有风险，设置不当可能丢数据！建议先用“暂停”动作验证条件命中正确，再改“删除”，未填写任何筛选条件时不会执行"
                     }),
                     _cache[175] || (_cache[175] = _createElementVNode("div", { class: "aoa-section-title" }, "基础设置", -1)),
-                    _createVNode(_component_VRow, { dense: "" }, {
+                    _createVNode(_component_VRow, { class: "aoa-seed-basic-row" }, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
                           cols: "12",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VSwitch, {
@@ -2406,7 +2406,7 @@ return (_ctx, _cache) => {
                         }),
                         _createVNode(_component_VCol, {
                           cols: "12",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCronField, {
@@ -2420,14 +2420,13 @@ return (_ctx, _cache) => {
                         }),
                         _createVNode(_component_VCol, {
                           cols: "12",
-                          md: "2"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VSelect, {
                               modelValue: form.seedclean_action,
                               "onUpdate:modelValue": _cache[87] || (_cache[87] = $event => ((form.seedclean_action) = $event)),
                               items: seedActionItems,
-                              density: "compact",
                               "hide-details": "",
                               label: "动作",
                               disabled: !form.seedclean_enabled
@@ -2437,7 +2436,7 @@ return (_ctx, _cache) => {
                         }),
                         _createVNode(_component_VCol, {
                           cols: "12",
-                          md: "4"
+                          md: "7"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VSelect, {
@@ -2450,7 +2449,6 @@ return (_ctx, _cache) => {
                               chips: "",
                               "closable-chips": "",
                               clearable: "",
-                              density: "compact",
                               "hide-details": "",
                               "prepend-inner-icon": "mdi-download-network-outline",
                               "no-data-text": "未配置下载器",
@@ -2462,22 +2460,21 @@ return (_ctx, _cache) => {
                       ]),
                       _: 1
                     }),
-                    _createVNode(_component_VDivider, { class: "my-3" }),
+                    _createVNode(_component_VDivider, { class: "my-5" }),
                     _cache[176] || (_cache[176] = _createElementVNode("div", { class: "aoa-section-title" }, "筛选条件", -1)),
-                    _cache[177] || (_cache[177] = _createElementVNode("div", { class: "aoa-hint mb-2" }, "仅处理“同时满足所有已填条件”的种子，留空的条件不参与，全部留空则跳过不处理", -1)),
-                    _createVNode(_component_VRow, { dense: "" }, {
+                    _cache[177] || (_cache[177] = _createElementVNode("div", { class: "aoa-hint mb-3" }, "仅处理“同时满足所有已填条件”的种子，留空的条件不参与，全部留空则跳过不处理", -1)),
+                    _createVNode(_component_VRow, { class: "aoa-seed-filter-grid" }, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_size,
                               "onUpdate:modelValue": _cache[89] || (_cache[89] = $event => ((form.seedclean_size) = $event)),
                               label: "种子大小（GB）",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "1-10",
                               disabled: !form.seedclean_enabled
@@ -2488,14 +2485,13 @@ return (_ctx, _cache) => {
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_ratio,
                               "onUpdate:modelValue": _cache[90] || (_cache[90] = $event => ((form.seedclean_ratio) = $event)),
                               label: "分享率不小于",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "2",
                               disabled: !form.seedclean_enabled
@@ -2506,14 +2502,13 @@ return (_ctx, _cache) => {
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_time,
                               "onUpdate:modelValue": _cache[91] || (_cache[91] = $event => ((form.seedclean_time) = $event)),
                               label: "做种不少于（小时）",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "240",
                               disabled: !form.seedclean_enabled
@@ -2524,37 +2519,30 @@ return (_ctx, _cache) => {
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_upspeed,
                               "onUpdate:modelValue": _cache[92] || (_cache[92] = $event => ((form.seedclean_upspeed) = $event)),
                               label: "均速上限（KB/s）",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "低于才处理",
                               disabled: !form.seedclean_enabled
                             }, null, 8, ["modelValue", "disabled"])
                           ]),
                           _: 1
-                        })
-                      ]),
-                      _: 1
-                    }),
-                    _createVNode(_component_VRow, { dense: "" }, {
-                      default: _withCtx(() => [
+                        }),
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_labels,
                               "onUpdate:modelValue": _cache[93] || (_cache[93] = $event => ((form.seedclean_labels) = $event)),
                               label: "标签",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "逗号分隔",
                               disabled: !form.seedclean_enabled
@@ -2565,14 +2553,13 @@ return (_ctx, _cache) => {
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_torrentcategorys,
                               "onUpdate:modelValue": _cache[94] || (_cache[94] = $event => ((form.seedclean_torrentcategorys) = $event)),
                               label: "任务分类",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "逗号分隔",
                               disabled: !form.seedclean_enabled
@@ -2583,14 +2570,13 @@ return (_ctx, _cache) => {
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_pathkeywords,
                               "onUpdate:modelValue": _cache[95] || (_cache[95] = $event => ((form.seedclean_pathkeywords) = $event)),
                               label: "保存路径关键词",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "支持正则",
                               disabled: !form.seedclean_enabled
@@ -2601,37 +2587,30 @@ return (_ctx, _cache) => {
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_trackerkeywords,
                               "onUpdate:modelValue": _cache[96] || (_cache[96] = $event => ((form.seedclean_trackerkeywords) = $event)),
                               label: "Tracker 关键词",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "支持正则",
                               disabled: !form.seedclean_enabled
                             }, null, 8, ["modelValue", "disabled"])
                           ]),
                           _: 1
-                        })
-                      ]),
-                      _: 1
-                    }),
-                    _createVNode(_component_VRow, { dense: "" }, {
-                      default: _withCtx(() => [
+                        }),
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_torrentstates,
                               "onUpdate:modelValue": _cache[97] || (_cache[97] = $event => ((form.seedclean_torrentstates) = $event)),
                               label: "任务状态（仅 QB）",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "pausedUP,stalledUP",
                               disabled: !form.seedclean_enabled
@@ -2642,14 +2621,13 @@ return (_ctx, _cache) => {
                         _createVNode(_component_VCol, {
                           cols: "12",
                           sm: "6",
-                          md: "3"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
                               modelValue: form.seedclean_errorkeywords,
                               "onUpdate:modelValue": _cache[98] || (_cache[98] = $event => ((form.seedclean_errorkeywords) = $event)),
                               label: "错误信息（仅 TR）",
-                              density: "compact",
                               "hide-details": "",
                               placeholder: "支持正则",
                               disabled: !form.seedclean_enabled
@@ -2659,7 +2637,7 @@ return (_ctx, _cache) => {
                         }),
                         _createVNode(_component_VCol, {
                           cols: "12",
-                          md: "9"
+                          md: "8"
                         }, {
                           default: _withCtx(() => [
                             _createElementVNode("div", _hoisted_53, [
@@ -2669,7 +2647,6 @@ return (_ctx, _cache) => {
                                 color: "primary",
                                 inset: "",
                                 "hide-details": "",
-                                density: "compact",
                                 label: "处理辅种",
                                 disabled: !form.seedclean_enabled
                               }, null, 8, ["modelValue", "disabled"]),
@@ -2679,7 +2656,6 @@ return (_ctx, _cache) => {
                                 color: "primary",
                                 inset: "",
                                 "hide-details": "",
-                                density: "compact",
                                 label: "仅 MoviePilot 任务",
                                 disabled: !form.seedclean_enabled
                               }, null, 8, ["modelValue", "disabled"]),
@@ -2689,7 +2665,6 @@ return (_ctx, _cache) => {
                                 color: "primary",
                                 inset: "",
                                 "hide-details": "",
-                                density: "compact",
                                 label: "处理结果通知",
                                 disabled: !form.seedclean_enabled
                               }, null, 8, ["modelValue", "disabled"])
@@ -2700,14 +2675,13 @@ return (_ctx, _cache) => {
                       ]),
                       _: 1
                     }),
-                    _createVNode(_component_VDivider, { class: "my-3" }),
+                    _createVNode(_component_VDivider, { class: "my-5" }),
                     _createElementVNode("div", _hoisted_54, [
                       _createElementVNode("div", _hoisted_55, [
                         _createVNode(_component_VSelect, {
                           modelValue: form.seedclean_notify_type,
                           "onUpdate:modelValue": _cache[102] || (_cache[102] = $event => ((form.seedclean_notify_type) = $event)),
                           items: notificationTypeItems,
-                          density: "compact",
                           "hide-details": "",
                           label: "消息类型",
                           disabled: !form.seedclean_enabled || !form.seedclean_notify
@@ -2814,10 +2788,10 @@ return (_ctx, _cache) => {
                 [_vShow, activeSub.value === 'server']
               ]),
               _withDirectives(_createElementVNode("div", _hoisted_58, [
-                _createVNode(_component_VForm, null, {
+                _createVNode(_component_VForm, { class: "aoa-dltag-form" }, {
                   default: _withCtx(() => [
                     _cache[183] || (_cache[183] = _createElementVNode("div", { class: "aoa-section-title" }, "按站点为种子批量补打标签", -1)),
-                    _createVNode(_component_VRow, null, {
+                    _createVNode(_component_VRow, { class: "aoa-dltag-enable-row" }, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
                           cols: "12",
@@ -2839,11 +2813,11 @@ return (_ctx, _cache) => {
                       ]),
                       _: 1
                     }),
-                    _createVNode(_component_VRow, null, {
+                    _createVNode(_component_VRow, { class: "aoa-dltag-field-row" }, {
                       default: _withCtx(() => [
                         _createVNode(_component_VCol, {
                           cols: "12",
-                          md: "5"
+                          md: "7"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VSelect, {
@@ -2864,7 +2838,7 @@ return (_ctx, _cache) => {
                         }),
                         _createVNode(_component_VCol, {
                           cols: "12",
-                          md: "3"
+                          md: "5"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VTextField, {
@@ -2877,10 +2851,15 @@ return (_ctx, _cache) => {
                             }, null, 8, ["modelValue", "disabled"])
                           ]),
                           _: 1
-                        }),
+                        })
+                      ]),
+                      _: 1
+                    }),
+                    _createVNode(_component_VRow, { class: "aoa-dltag-notify-row" }, {
+                      default: _withCtx(() => [
                         _createVNode(_component_VCol, {
                           cols: "12",
-                          md: "2"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VSwitch, {
@@ -2897,7 +2876,7 @@ return (_ctx, _cache) => {
                         }),
                         _createVNode(_component_VCol, {
                           cols: "12",
-                          md: "2"
+                          md: "4"
                         }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VSelect, {
@@ -2983,6 +2962,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-21896469"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-1b229c52"]]);
 
 export { Config as default };
