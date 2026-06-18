@@ -680,6 +680,22 @@ def main():
     inc_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
     check("📊 3.405" in inc_text and "⬆" in inc_text and "⬇" in inc_text and "🪙 18,619.5" in inc_text,
           "站点增量使用图标展示分享率/上传/下载/魔力")
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain="real.x")],
+        "site_latest": [
+            types.SimpleNamespace(name="同名站", domain="real.x", err_msg="", updated_day=_today, upload=100 * 1024 ** 3, download=50 * 1024 ** 3),
+        ],
+        "site_prev": [
+            types.SimpleNamespace(name="同名站", domain="real.x", err_msg="", upload=80 * 1024 ** 3, download=45 * 1024 ** 3),
+            types.SimpleNamespace(name="同名站", domain="other.x", err_msg="", upload=99 * 1024 ** 3, download=49 * 1024 ** 3),
+        ],
+    })
+    same_name_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
+    same_name_chart = make_plugin(mod).api_site_stat_chart().get("data", {})
+    check("同名站：⬆ 20.00 GB ｜ ⬇ 5.00 GB" in same_name_text,
+          "日报站点增量优先按 domain 匹配昨日快照，避免同名站点拿错基准")
+    check(same_name_chart.get("upload_total") == 20 * 1024 ** 3 and same_name_chart.get("download_total") == 5 * 1024 ** 3,
+          "仪表盘站点增量同样优先按 domain 匹配昨日快照")
     _latest_day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     _prev_day = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
     _SUB.update({

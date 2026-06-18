@@ -7,7 +7,7 @@ import re
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.38"
+    plugin_version = "1.0.39"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -1579,6 +1579,24 @@ class AgentOpsAssistant(_PluginBase):
             items.append(f"⦁ 失败：{title} - {errmsg[:36]}" if errmsg else f"⦁ 失败：{title}")
         return items
 
+    @staticmethod
+    def _find_site_userdata_snapshot(rows: List[Any], name: str, domain: Optional[str] = None) -> Optional[Any]:
+        valid_rows = [row for row in (rows or []) if row and not str(getattr(row, "err_msg", None) or "").strip()]
+        domain = str(domain or "").strip()
+        if domain:
+            for row in valid_rows:
+                if str(getattr(row, "domain", None) or "").strip() == domain:
+                    return row
+            for row in valid_rows:
+                if not str(getattr(row, "domain", None) or "").strip() and getattr(row, "name", None) == name:
+                    return row
+            return None
+        if name:
+            for row in valid_rows:
+                if getattr(row, "name", None) == name:
+                    return row
+        return None
+
     def _get_site_increment_locked(self) -> List[str]:
         try:
             from app.db.site_oper import SiteOper
@@ -1593,6 +1611,7 @@ class AgentOpsAssistant(_PluginBase):
             previous_cache: Dict[str, List[Any]] = {}
             for current in sorted(latest_data, key=lambda row: (getattr(row, "name", None) or getattr(row, "domain", None) or "").lower()):
                 site_name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
+                site_domain = getattr(current, "domain", None)
                 current_day = self._normalize_day(getattr(current, "updated_day", None))
                 err_msg = str(getattr(current, "err_msg", None) or "").strip()
                 if current_day != today:
@@ -1605,8 +1624,7 @@ class AgentOpsAssistant(_PluginBase):
                     prev_day = (datetime.strptime(current_day, "%Y-%m-%d") - timedelta(days=i)).strftime("%Y-%m-%d")
                     if prev_day not in previous_cache:
                         previous_cache[prev_day] = site_oper.get_userdata_by_date(prev_day) or []
-                    prev_map = {getattr(row, "name", None): row for row in previous_cache[prev_day] if row and not getattr(row, "err_msg", None)}
-                    previous = prev_map.get(site_name)
+                    previous = self._find_site_userdata_snapshot(previous_cache[prev_day], site_name, site_domain)
                     if previous:
                         break
                 if not previous:
@@ -1673,9 +1691,7 @@ class AgentOpsAssistant(_PluginBase):
                     prev_day = (base_dt - timedelta(days=i)).strftime("%Y-%m-%d")
                     if prev_day not in previous_cache:
                         previous_cache[prev_day] = site_oper.get_userdata_by_date(prev_day) or []
-                    prev_by_name = {getattr(r, "name", None): r for r in previous_cache[prev_day] if r and not getattr(r, "err_msg", None)}
-                    prev_by_domain = {getattr(r, "domain", None): r for r in previous_cache[prev_day] if r and not getattr(r, "err_msg", None)}
-                    previous = prev_by_name.get(name) or (prev_by_domain.get(domain) if domain else None)
+                    previous = self._find_site_userdata_snapshot(previous_cache[prev_day], name, domain)
                     if previous:
                         break
                 if not previous:
