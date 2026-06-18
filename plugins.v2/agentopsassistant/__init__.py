@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.37"
+    plugin_version = "1.0.38"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -1280,8 +1280,17 @@ class AgentOpsAssistant(_PluginBase):
         section(self._report_media_stat, "🎬 媒体统计", media_stats)
         section(self._report_health and self._health_check_enabled, "🩺 健康巡查", self._get_health_report_locked(persist_missing=not preview))
         if self._report_summary:
-            lines.extend([""])
-            lines.extend(self._report_body_lines(self._get_summary_locked(site_health, transfer_health, downloader_health, storage_health)))
+            summary = self._get_summary_locked(site_health, transfer_health, downloader_health, storage_health)
+            if summary:
+                header = "🧾 今日摘要"
+                first = str(summary[0] or "").strip()
+                if first.startswith("⚠"):
+                    header = "⚠️ 今日提醒"
+                    summary = summary[1:]
+                elif "今日摘要" in first:
+                    summary = summary[1:]
+                lines.extend(["", header, ""])
+                lines.extend(self._report_body_lines(summary or ["⦁ 系统正常"]))
         return "\n".join(lines)
 
     @staticmethod
@@ -1376,6 +1385,10 @@ class AgentOpsAssistant(_PluginBase):
                 title, reason = detail.split(" - ", 1)
                 return f"• ❌ {title.strip()} ｜ {reason.strip()}"
             return f"• ❌ {detail.strip()}"
+
+        if body.startswith("异常："):
+            detail = body.replace("异常：", "", 1).strip()
+            return f"• ⚠ {detail}"
 
         if body.startswith("今日下载："):
             value = body.replace("今日下载：", "", 1).strip()
@@ -1693,19 +1706,22 @@ class AgentOpsAssistant(_PluginBase):
             if not latest:
                 return ["⦁ 未取到站点快照"]
             today = self._today_prefix()
-            items = []
+            normal_count = 0
+            warnings = []
             for row in latest:
                 name = getattr(row, "name", None) or getattr(row, "domain", None) or "未知站点"
                 err = str(getattr(row, "err_msg", None) or "").strip()
                 day = self._normalize_day(getattr(row, "updated_day", None))
                 if err:
-                    status = f"异常（{err[:30]}）"
+                    warnings.append(f"⦁ {name} | 异常（{err[:30]}）")
                 elif day == today:
-                    status = "正常"
+                    normal_count += 1
                 else:
-                    status = "数据过期"
-                items.append(f"⦁ {name} | {status}")
-            return items
+                    warnings.append(f"⦁ {name} | 数据过期")
+            if warnings:
+                prefix = [f"⦁ 正常 {normal_count} 个站点"] if normal_count else []
+                return prefix + warnings
+            return [f"⦁ 全部 {normal_count} 个站点正常"]
         except Exception as e:
             return [f"⦁ 未取到 - {e}"]
 
@@ -3654,6 +3670,10 @@ class AgentOpsAssistant(_PluginBase):
             self.save_data("last_health_check", {
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "success": success,
+                "checks": checks,
+                "total": result["total"],
+                "pass": result["pass"],
+                "fail": result["fail"],
                 "output": self._format_health_summary(result),
             })
         return result
@@ -3695,16 +3715,96 @@ class AgentOpsAssistant(_PluginBase):
             lines.append(f"⦁ {mark} {label}：{item.get('detail')}")
         return "\n".join(lines)
 
+    @classmethod
+    def _format_health_report_lines(cls, data: Dict[str, Any]) -> List[str]:
+        """日报专用健康摘要：正常项只列名称，异常项才展开关键原因。"""
+        name_map = cls._health_name_map()
+        checks = data.get("checks") or []
+        total = data.get("total", len(checks))
+        passed = data.get("pass", len([item for item in checks if item.get("ok")]))
+        failed = data.get("fail", len([item for item in checks if not item.get("ok")]))
+        lines = [
+            "⦁ 状态：全部正常" if not failed else f"⦁ 状态：发现 {failed} 项异常",
+            f"⦁ 巡查项：共 {total} 项，通过 {passed} 项，异常 {failed} 项",
+        ]
+        ok_labels = []
+        failure_lines = []
+        for item in checks:
+            label = name_map.get(item.get("name"), item.get("name") or "巡查项")
+            if item.get("ok"):
+                ok_labels.append(label)
+                continue
+            detail = cls._compact_health_detail(item.get("detail"))
+            failure_lines.append(f"⦁ 异常：{label} - {detail}" if detail else f"⦁ 异常：{label}")
+        if ok_labels:
+            lines.append(f"⦁ 正常项：{'、'.join(ok_labels)}")
+        lines.extend(failure_lines)
+        return lines
+
+    @staticmethod
+    def _compact_health_detail(detail: Any, limit: int = 2) -> str:
+        text = str(detail or "").strip()
+        if not text:
+            return ""
+        parts = [part.strip() for part in re.split(r"[；;\n]+", text) if part and part.strip()]
+        if not parts:
+            return text[:120]
+        important_keys = ("异常", "失败", "错误", "超时", "不存在", "权限不足", "超过", "偏紧", "未检测", "未取到", "无法", "不可", "未连接", "无响应")
+        noise_keys = (" 正常", "连接正常", "由存储服务管理")
+        important = [part for part in parts if any(key in part for key in important_keys)]
+        useful = important or [part for part in parts if not any(key in part for key in noise_keys)]
+        chosen = (useful or parts)[:limit]
+        return "；".join(chosen)[:120]
+
+    @classmethod
+    def _compact_health_output_lines(cls, output: str) -> List[str]:
+        lines = [line.strip() for line in str(output or "").splitlines() if line.strip()]
+        if not lines:
+            return []
+        name_map = cls._health_name_map()
+        known_labels = set(name_map.values())
+        head = []
+        ok_labels = []
+        failures = []
+        passthrough = []
+        for line in lines:
+            body = line.replace("⦁ ", "", 1).replace("• ", "", 1).strip()
+            if body.startswith("状态：") or body.startswith("巡查项："):
+                head.append(f"⦁ {body}")
+                continue
+            match = re.match(r"(✅|⚠️|⚠)\s*(.+?)：(.+)$", body)
+            if not match:
+                passthrough.append(line)
+                continue
+            mark, label, detail = match.group(1), match.group(2).strip(), match.group(3).strip()
+            if mark == "✅" and label in known_labels:
+                ok_labels.append(label)
+            elif label in known_labels:
+                compact = cls._compact_health_detail(detail)
+                failures.append(f"⦁ 异常：{label} - {compact}" if compact else f"⦁ 异常：{label}")
+            else:
+                passthrough.append(line)
+        if ok_labels or failures:
+            out = head or (["⦁ 状态：全部正常"] if not failures else [f"⦁ 状态：发现 {len(failures)} 项异常"])
+            if ok_labels:
+                out.append(f"⦁ 正常项：{'、'.join(ok_labels)}")
+            out.extend(failures)
+            return out
+        return head + passthrough
+
     def _get_health_report_locked(self, persist_missing: bool = True) -> List[str]:
         """日报中的健康巡查栏目：优先使用最近巡查结果，没有记录时现场生成一次。"""
         data = self.get_data("last_health_check") or {}
+        if data.get("checks"):
+            return self._format_health_report_lines(data)
         output = str(data.get("output") or "").strip()
         if not output and self._health_check_enabled:
             try:
-                output = self._format_health_summary(self._build_health_summary(persist=persist_missing))
+                summary = self._build_health_summary(persist=persist_missing)
+                return self._format_health_report_lines(summary)
             except Exception as err:
                 output = f"⦁ 状态：巡查失败\n⦁ 异常：{str(err)[:120]}"
-        return [line for line in output.splitlines() if line.strip()] or ["⦁ 尚无健康巡查记录"]
+        return self._compact_health_output_lines(output) or ["⦁ 尚无健康巡查记录"]
 
     def _run_named_task(self, name: str, cmd: List[str], expect: str = "") -> bool:
         result = self._run_command_capture(cmd, timeout=600)
