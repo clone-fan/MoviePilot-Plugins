@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, computed, watch, onMounted } from 'vue'
+import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, defineComponent, h, resolveComponent } from 'vue'
 import { postPluginApi, getPluginApi } from './api'
 
 const props = defineProps({
@@ -11,6 +11,80 @@ const emit = defineEmits(['save', 'close', 'switch'])
 const form = reactive({})
 const activeMain = ref('report')
 const activeSub = ref('overview')
+const configRoot = ref(null)
+let dialogScrollHost = null
+
+const ModuleHero = defineComponent({
+  name: 'ModuleHero',
+  props: {
+    enabled: { type: Boolean, default: false },
+    icon: { type: String, required: true },
+    kicker: { type: String, required: true },
+    onTitle: { type: String, required: true },
+    offTitle: { type: String, default: '' },
+    desc: { type: String, required: true },
+    countLabel: { type: String, default: '' },
+    stateOn: { type: String, default: '运行中' },
+    stateOff: { type: String, default: '待启用' },
+    switchLabel: { type: String, default: '启用' },
+    toggle: { type: Boolean, default: true },
+  },
+  emits: ['update:enabled'],
+  setup(props, { emit }) {
+    return () => {
+      const VIcon = resolveComponent('VIcon')
+      const VChip = resolveComponent('VChip')
+      const VSwitch = resolveComponent('VSwitch')
+      const descLines = String(props.desc || '').split(/\n|\|/)
+      const descChildren = []
+      descLines.forEach((line, index) => {
+        if (index) descChildren.push(h('br'))
+        descChildren.push(line)
+      })
+      return h('div', { class: ['aoa-module-hero', { 'aoa-module-hero--off': !props.enabled }] }, [
+        h('div', { class: 'aoa-module-heading' }, [
+          h('div', { class: 'aoa-module-emblem' }, [h(VIcon, { icon: props.icon, size: 28 })]),
+          h('div', { class: 'aoa-module-heading-text' }, [
+            h('div', { class: 'aoa-module-kicker' }, props.kicker),
+            h('div', { class: 'aoa-module-title' }, props.enabled ? props.onTitle : (props.offTitle || props.onTitle)),
+            h('div', { class: 'aoa-module-desc' }, descChildren),
+          ]),
+        ]),
+        h('div', { class: 'aoa-module-state' }, [
+          h(VChip, { size: 'small', color: props.enabled ? 'success' : 'warning', variant: 'flat' }, () => props.enabled ? props.stateOn : props.stateOff),
+          props.countLabel ? h(VChip, { size: 'small', color: 'primary', variant: 'tonal' }, () => props.countLabel) : null,
+          props.toggle ? h(VSwitch, {
+            modelValue: props.enabled,
+            'onUpdate:modelValue': value => emit('update:enabled', value),
+            color: 'primary',
+            inset: true,
+            hideDetails: true,
+            label: props.switchLabel,
+          }) : null,
+        ]),
+      ])
+    }
+  },
+})
+
+const SettingSection = defineComponent({
+  name: 'SettingSection',
+  props: {
+    title: { type: String, required: true },
+    note: { type: String, default: '' },
+  },
+  setup(props, { slots }) {
+    return () => h('section', { class: 'aoa-setting-section' }, [
+      h('div', { class: 'aoa-setting-section-head' }, [
+        h('div', [
+          h('div', { class: 'aoa-setting-section-title' }, props.title),
+          props.note ? h('div', { class: 'aoa-setting-section-note' }, props.note) : null,
+        ]),
+      ]),
+      h('div', { class: 'aoa-setting-section-body' }, slots.default?.()),
+    ])
+  },
+})
 
 // 手动触发动作状态
 const action = reactive({ running: '', message: '', ok: true })
@@ -211,6 +285,7 @@ const defaults = {
   msgnotify_enabled: false,
   msgnotify_types: [],
   msgnotify_servers: [],
+  msgnotify_notify_type: 'MediaServer',
   dltag_enabled: false,
   dltag_downloaders: [],
   dltag_prefix: '',
@@ -424,6 +499,19 @@ const healthSelectedCount = computed(() => {
   const selected = Array.isArray(form.health_check_items) ? form.health_check_items : []
   return selected.length || healthCheckItems.length
 })
+const reportEnabledCount = computed(() => reportSections.filter(item => form[item.key]).length)
+const seedFilterCount = computed(() => [
+  form.seedclean_size,
+  form.seedclean_ratio,
+  form.seedclean_time,
+  form.seedclean_upspeed,
+  form.seedclean_labels,
+  form.seedclean_torrentcategorys,
+  form.seedclean_pathkeywords,
+  form.seedclean_trackerkeywords,
+  form.seedclean_torrentstates,
+  form.seedclean_errorkeywords,
+].filter(Boolean).length)
 
 function selectionValue(item) {
   return item?.raw?.value ?? item?.value ?? item?.props?.value ?? item
@@ -467,15 +555,29 @@ function selectMain(key) {
   activeSub.value = subTabs[key]?.[0]?.key || ''
 }
 
+function bindDialogScrollHost() {
+  const host = configRoot.value?.closest?.('.v-card-text.pa-0')
+  if (!host || host === dialogScrollHost) return
+  dialogScrollHost?.classList.remove('aoa-config-scroll-host')
+  dialogScrollHost = host
+  dialogScrollHost.classList.add('aoa-config-scroll-host')
+}
+
 onMounted(() => {
+  bindDialogScrollHost()
   loadInstalledPlugins()
   loadPluginMarkets()
   loadDownloaders()
   loadMediaservers()
 })
+
+onBeforeUnmount(() => {
+  dialogScrollHost?.classList.remove('aoa-config-scroll-host')
+  dialogScrollHost = null
+})
 </script>
 <template>
-  <div class="aoa-config">
+  <div ref="configRoot" class="aoa-config">
     <VCard flat class="aoa-card">
       <VCardItem class="aoa-header">
         <template #prepend>
@@ -483,8 +585,8 @@ onMounted(() => {
             <VIcon icon="mdi-shield-sync-outline" size="24" />
           </VAvatar>
         </template>
-        <VCardTitle class="text-h6">MP 运维助手</VCardTitle>
-        <VCardSubtitle class="text-caption">配置中心</VCardSubtitle>
+        <VCardTitle class="text-h6 aoa-header-title">MP 运维助手</VCardTitle>
+        <VCardSubtitle class="text-caption aoa-header-subtitle">配置中心</VCardSubtitle>
         <template #append>
           <div class="d-flex align-center ga-2">
             <VSwitch
@@ -501,7 +603,7 @@ onMounted(() => {
           </div>
         </template>
       </VCardItem>
-      <VDivider />
+      <VDivider class="aoa-hairline" />
       <div class="aoa-body">
         <nav class="aoa-nav">
           <div class="aoa-nav-scroll">
@@ -544,162 +646,168 @@ onMounted(() => {
               {{ currentMain.desc }}
             </div>
           </div>
-          <VDivider />
+          <VDivider class="aoa-hairline" />
           <div class="aoa-window">
             <!-- 每日汇报 · 汇报总览 -->
             <div v-show="activeSub === 'overview'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">汇报开关</div>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.daily_report_enabled" color="primary" inset hide-details
-                      label="启用定时每日汇报" />
-                    <div class="aoa-hint">关闭后将不再按计划自动发送汇报，仍可在底部动作区手动触发</div>
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VCronField v-model="form.daily_report_cron" label="汇报时间 (Cron)"
-                      :disabled="!form.daily_report_enabled" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VTextField v-model="form.daily_report_greeting" label="汇报称呼"
-                      placeholder="少爷" prepend-inner-icon="mdi-account-heart-outline"
-                      persistent-hint hint="汇报开头与提醒中对你的称呼，留空默认“少爷”" clearable />
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.daily_report_msgtype" :items="notificationTypeItems"
-                      label="消息类型" :disabled="!form.daily_report_enabled" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.daily_report_enabled"
+                  icon="mdi-newspaper-variant-outline"
+                  kicker="MP 每日汇报"
+                  on-title="定时汇报已启用"
+                  off-title="定时汇报未启用"
+                  desc="按计划聚合站点、订阅与入库|同步整理存储与健康信息"
+                  :count-label="`${reportEnabledCount} 个栏目`"
+                />
+                <SettingSection title="汇报设置" note="发送时间、消息渠道与称呼集中配置">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="6">
+                      <VCronField v-model="form.daily_report_cron" label="汇报时间 (Cron)"
+                        :disabled="!form.daily_report_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VSelect v-model="form.daily_report_msgtype" :items="notificationTypeItems"
+                        label="消息类型" :disabled="!form.daily_report_enabled" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VTextField v-model="form.daily_report_greeting" label="汇报称呼"
+                        placeholder="少爷" prepend-inner-icon="mdi-account-heart-outline"
+                        persistent-hint hint="汇报开头与提醒中对你的称呼，留空默认“少爷”" clearable
+                        :disabled="!form.daily_report_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 每日汇报 · 汇报栏目 -->
             <div v-show="activeSub === 'columns'" class="aoa-pane aoa-columns-pane">
               <VForm class="aoa-columns-form">
-                <div class="aoa-section-title">汇报栏目</div>
-                <div class="aoa-hint mb-3">所有并入日报的栏目都在这里统一勾选，组件负责能力，栏目负责出现在日报里的内容</div>
-                <div class="aoa-table-wrap">
-                  <div class="aoa-report-table-scroll">
-                    <VTable class="aoa-report-table">
-                      <thead>
-                        <tr>
-                          <th scope="col" class="aoa-col-enable">启用</th>
-                          <th scope="col">组件</th>
-                          <th scope="col">日报栏目</th>
-                          <th scope="col">备注</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="s in reportSections" :key="s.key">
-                          <td class="aoa-col-enable">
-                            <VCheckbox
-                              v-model="form[s.key]"
-                              color="primary"
-                              hide-details
-                              density="compact"
-                              :disabled="s.requires && !form[`${s.requires}_enabled`]"
-                            />
-                          </td>
-                          <td>
-                            <VChip size="small" variant="tonal" color="primary">{{ s.component }}</VChip>
-                          </td>
-                          <td class="aoa-table-strong">{{ s.label }}</td>
-                          <td class="aoa-table-note">
-                            <span v-if="s.requires && !form[`${s.requires}_enabled`]">需启用对应组件</span>
-                            <span v-else>{{ s.note }}</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </VTable>
+                <ModuleHero
+                  :enabled="reportEnabledCount > 0"
+                  icon="mdi-view-column-outline"
+                  kicker="MP 每日汇报"
+                  on-title="日报栏目已编排"
+                  off-title="日报栏目未启用"
+                  desc="统一控制并入日报的内容|组件状态会同步提示"
+                  :count-label="`${reportEnabledCount} / ${reportSections.length} 个栏目`"
+                  state-on="已配置"
+                  state-off="待配置"
+                  :toggle="false"
+                />
+                <SettingSection title="汇报栏目" note="勾选决定日报展示的完整栏目，对应组件未启用时自动提示">
+                  <div class="aoa-table-wrap">
+                    <div class="aoa-report-table-scroll">
+                      <VTable class="aoa-report-table">
+                        <thead>
+                          <tr>
+                            <th scope="col" class="aoa-col-enable">启用</th>
+                            <th scope="col">组件</th>
+                            <th scope="col">日报栏目</th>
+                            <th scope="col">备注</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="s in reportSections" :key="s.key">
+                            <td class="aoa-col-enable" data-label="启用">
+                              <VCheckbox
+                                v-model="form[s.key]"
+                                color="primary"
+                                hide-details
+                                density="compact"
+                                :disabled="s.requires && !form[`${s.requires}_enabled`]"
+                              />
+                            </td>
+                            <td data-label="组件">
+                              <VChip size="small" variant="tonal" color="primary">{{ s.component }}</VChip>
+                            </td>
+                            <td class="aoa-table-strong" data-label="栏目">{{ s.label }}</td>
+                            <td class="aoa-table-note" data-label="备注">
+                              <span v-if="s.requires && !form[`${s.requires}_enabled`]">需启用对应组件</span>
+                              <span v-else>{{ s.note }}</span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </VTable>
+                    </div>
                   </div>
-                </div>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 订阅与站点 · 订阅追新 -->
             <div v-show="activeSub === 'subscribe'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">订阅追新</div>
-                <VRow>
-                  <VCol cols="12">
-                    <VSwitch v-model="form.subscribe_reminder_enabled" color="primary" inset hide-details
-                      label="启用独立订阅追新推送" />
-                    <div class="aoa-hint">在指定时间单独推送订阅追新，是否并入每日汇报见「汇报栏目」</div>
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VCronField v-model="form.subscribe_reminder_cron" label="推送时间 (Cron)"
-                      :disabled="!form.subscribe_reminder_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.subscribe_reminder_subtype" :items="subscribeSubtypeItems"
-                      label="提醒类型" multiple chips closable-chips :disabled="!form.subscribe_reminder_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.subscribe_reminder_msgtype" :items="messageTypeItems"
-                      label="消息类型" :disabled="!form.subscribe_reminder_enabled" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.subscribe_reminder_enabled"
+                  icon="mdi-bell-ring-outline"
+                  kicker="MP 订阅管理"
+                  on-title="订阅追新已启用"
+                  off-title="订阅追新未启用"
+                  desc="按计划推送今日订阅追新|日报展示由汇报栏目控制"
+                  :count-label="`${form.subscribe_reminder_subtype?.length || 0} 类提醒`"
+                />
+                <SettingSection title="追新设置" note="推送时间、订阅类型与消息渠道集中配置">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <VCronField v-model="form.subscribe_reminder_cron" label="推送时间 (Cron)"
+                        :disabled="!form.subscribe_reminder_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="5">
+                      <VSelect v-model="form.subscribe_reminder_subtype" :items="subscribeSubtypeItems"
+                        label="提醒类型" multiple chips closable-chips :disabled="!form.subscribe_reminder_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="3">
+                      <VSelect v-model="form.subscribe_reminder_msgtype" :items="messageTypeItems"
+                        label="消息类型" :disabled="!form.subscribe_reminder_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 每日汇报 · 站点数据统计 -->
             <div v-show="activeSub === 'sites'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">站点数据统计</div>
-                <VRow>
-                  <VCol cols="12">
-                    <VSwitch v-model="form.site_stat_enabled" color="primary" inset hide-details
-                      label="启用站点数据统计采集" />
-                    <div class="aoa-hint">关闭后不再统计站点数据（是否并入每日汇报见基础设置）</div>
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.site_stat_dashboard_type" :items="siteStatRangeItems"
-                      label="统计数据范围" :disabled="!form.site_stat_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.site_stat_notify_type" :items="siteNotifyItems"
-                      label="通知方式" :disabled="!form.site_stat_enabled" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.site_stat_enabled"
+                  icon="mdi-chart-line"
+                  kicker="MP 站点统计"
+                  on-title="站点数据采集已启用"
+                  off-title="站点数据采集未启用"
+                  desc="为仪表盘和日报提供站点状态|统计上传下载增量与趋势"
+                  :count-label="form.site_stat_dashboard_type === 'today' ? '今日数据' : '统计数据'"
+                />
+                <SettingSection title="统计设置" note="控制仪表盘站点数据口径与通知方式">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="6">
+                      <VSelect v-model="form.site_stat_dashboard_type" :items="siteStatRangeItems"
+                        label="统计数据范围" :disabled="!form.site_stat_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VSelect v-model="form.site_stat_notify_type" :items="siteNotifyItems"
+                        label="通知方式" :disabled="!form.site_stat_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 系统维护 · 健康巡查 -->
             <div v-show="activeSub === 'hc'" class="aoa-pane">
               <VForm class="aoa-health-form">
-                <div class="aoa-health-hero" :class="{ 'aoa-health-hero--off': !form.health_check_enabled }">
-                  <div class="aoa-health-heading">
-                    <div class="aoa-health-emblem">
-                      <VIcon icon="mdi-heart-pulse" size="28" />
-                    </div>
-                    <div class="aoa-health-heading-text">
-                      <div class="aoa-health-kicker">MP 健康巡查</div>
-                      <div class="aoa-health-title">{{ form.health_check_enabled ? '自动巡查已启用' : '自动巡查未启用' }}</div>
-                      <div class="aoa-health-desc">数据库、存储空间、目录权限按计划检查，异常时进入通知链路</div>
-                    </div>
-                  </div>
-                  <div class="aoa-health-state">
-                    <VChip size="small" :color="form.health_check_enabled ? 'success' : 'warning'" variant="flat">
-                      {{ form.health_check_enabled ? '运行中' : '待启用' }}
-                    </VChip>
-                    <VChip size="small" color="primary" variant="tonal">{{ healthSelectedCount }} 项巡查</VChip>
-                    <VSwitch v-model="form.health_check_enabled" color="primary" inset hide-details label="启用" />
-                  </div>
-                </div>
+                <ModuleHero
+                  v-model:enabled="form.health_check_enabled"
+                  icon="mdi-heart-pulse"
+                  kicker="MP 健康巡查"
+                  on-title="自动巡查已启用"
+                  off-title="自动巡查未启用"
+                  desc="数据库、存储空间、目录权限|按计划检查，异常进入通知链路"
+                  :count-label="`${healthSelectedCount} 项巡查`"
+                />
 
-                <div class="aoa-health-section">
-                  <div class="aoa-health-section-head">
-                    <div>
-                      <div class="aoa-health-section-title">巡查设置</div>
-                      <div class="aoa-health-section-note">项目、时间、数据库、存储、目录和容量阈值集中配置</div>
-                    </div>
-                  </div>
+                <SettingSection title="巡查设置" note="项目、时间、数据库、存储、目录和容量阈值集中配置">
                   <div class="aoa-health-scope-grid">
                     <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)" class="aoa-health-field-third"
                       :disabled="!form.health_check_enabled" />
@@ -740,555 +848,589 @@ onMounted(() => {
                       </template>
                     </VSelect>
                   </div>
-                </div>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 每日汇报 · 订阅规则填充 -->
             <div v-show="activeSub === 'subfill'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">订阅规则填充</div>
-                <div class="aoa-hint mb-2">电视剧订阅下载到资源后，用实际规格自动回填订阅中“尚为空”的规则，锁定后续剧集追同款版本，已设置的字段不会被覆盖</div>
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.subfill_enabled" color="primary" inset hide-details
-                      label="启用订阅规则填充" />
-                    <div class="aoa-hint">监听下载添加事件（仅电视剧），每个剧集 tmdbid 只填充一次</div>
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.subfill_notify" color="primary" inset hide-details
-                      label="填充后发送通知" :disabled="!form.subfill_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.subfill_notify_type" :items="notificationTypeItems"
-                      label="消息类型" :disabled="!form.subfill_enabled || !form.subfill_notify" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12">
-                    <VSelect v-model="form.subfill_details" :items="subfillDetailItems"
-                      label="自动填充哪些规则" multiple chips closable-chips clearable
-                      prepend-inner-icon="mdi-auto-fix"
-                      :disabled="!form.subfill_enabled" />
-                    <div class="aoa-hint">从下载资源中提取并回填：分辨率 / 资源质量 / 特效 / 制作组 / 站点，留空则不填充</div>
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.subfill_enabled"
+                  icon="mdi-auto-fix"
+                  kicker="MP 订阅管理"
+                  on-title="订阅规则填充已启用"
+                  off-title="订阅规则填充未启用"
+                  desc="用已下载资源规格回填订阅规则|锁定后续剧集追同款版本"
+                  :count-label="`${form.subfill_details?.length || 0} 项填充`"
+                />
+                <SettingSection title="规则填充" note="选择自动填充范围，并配置完成后的通知渠道">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="6">
+                      <VSwitch v-model="form.subfill_notify" color="primary" inset hide-details
+                        label="填充后发送通知" :disabled="!form.subfill_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VSelect v-model="form.subfill_notify_type" :items="notificationTypeItems"
+                        label="消息类型" :disabled="!form.subfill_enabled || !form.subfill_notify" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VSelect v-model="form.subfill_details" :items="subfillDetailItems"
+                        label="自动填充哪些规则" multiple chips closable-chips clearable
+                        prepend-inner-icon="mdi-auto-fix"
+                        :disabled="!form.subfill_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
 
-                <VDivider class="my-4" />
-                <div class="aoa-section-title">二级分类自定义填充</div>
-                <div class="aoa-hint mb-2">新增订阅时，按媒体的二级分类自动套用预设规则，每行一个分类，用 # 分隔字段，可用键：category、resolution、quality、effect、include、exclude、sites（站点名,逗号分隔）、savepath（支持 {name}）、filter_groups</div>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.subfill_category_enabled" color="primary" inset hide-details
-                      label="启用二级分类自定义填充" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12">
-                    <VTextarea v-model="form.subfill_category_confs"
-                      label="二级分类规则（每行一个分类）" auto-grow rows="3"
-                      placeholder="category:国漫,日番#resolution:1080p#quality:WEB-DL#include:简体#sites:馒头,青蛙#savepath:/media/动漫/{name}"
-                      :disabled="!form.subfill_category_enabled" />
-                  </VCol>
-                </VRow>
+                <SettingSection title="二级分类自定义填充" note="每行一个分类，用 # 分隔字段">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="6">
+                      <VSwitch v-model="form.subfill_category_enabled" color="primary" inset hide-details
+                        label="启用二级分类自定义填充" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VTextarea v-model="form.subfill_category_confs"
+                        label="二级分类规则（每行一个分类）" auto-grow rows="3"
+                        placeholder="category:国漫,日番#resolution:1080p#quality:WEB-DL#include:简体#sites:馒头,青蛙#savepath:/media/动漫/{name}"
+                        :disabled="!form.subfill_category_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
             <!-- 自动备份 · 本地备份 -->
             <div v-show="activeSub === 'local'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">本地备份</div>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.backup_enabled" color="primary" inset hide-details
-                      label="启用定时本地备份" />
-                    <div class="aoa-hint">按计划打包配置目录到本地备份路径</div>
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VCronField v-model="form.backup_cron" label="备份时间 (Cron)"
-                      :disabled="!form.backup_enabled" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VTextField v-model="form.backup_path" label="本地备份路径"
-                      prepend-inner-icon="mdi-folder-outline" :disabled="!form.backup_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <div class="d-flex align-center justify-space-between mb-1">
-                      <span class="text-body-2">本地保留份数</span>
-                      <VChip size="small" color="primary" variant="tonal">{{ form.backup_keep_count }} 份</VChip>
-                    </div>
-                    <VSlider v-model="form.backup_keep_count" :min="1" :max="30" :step="1"
-                      color="primary" thumb-label hide-details :disabled="!form.backup_enabled" />
-                    <div class="aoa-hint">超出份数时自动删除最旧的备份，范围 1-30 份</div>
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.backup_notify" color="primary" inset hide-details
-                      label="备份结果通知" :disabled="!form.backup_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.backup_notify_type" :items="notificationTypeItems"
-                      label="消息类型" :disabled="!form.backup_enabled || !form.backup_notify" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.backup_onlyonce" color="warning" inset hide-details
-                      label="保存后立即备份一次" :disabled="!form.backup_enabled" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.backup_enabled"
+                  icon="mdi-folder-arrow-up-outline"
+                  kicker="MP 自动备份"
+                  on-title="本地备份已启用"
+                  off-title="本地备份未启用"
+                  desc="按计划打包配置和关键数据|保留最近备份版本"
+                  :count-label="`${form.backup_keep_count} 份保留`"
+                />
+                <SettingSection title="本地策略" note="备份时间、路径和保留份数集中配置">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="6">
+                      <VCronField v-model="form.backup_cron" label="备份时间 (Cron)"
+                        :disabled="!form.backup_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VTextField v-model="form.backup_path" label="本地备份路径"
+                        prepend-inner-icon="mdi-folder-outline" :disabled="!form.backup_enabled" />
+                    </VCol>
+                    <VCol cols="12">
+                      <div class="d-flex align-center justify-space-between mb-1">
+                        <span class="text-body-2">本地保留份数</span>
+                        <VChip size="small" color="primary" variant="tonal">{{ form.backup_keep_count }} 份</VChip>
+                      </div>
+                      <VSlider v-model="form.backup_keep_count" :min="1" :max="30" :step="1"
+                        color="primary" thumb-label hide-details :disabled="!form.backup_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
+                <SettingSection title="通知与触发" note="备份完成通知和手动触发开关">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.backup_notify" color="primary" inset hide-details
+                        label="备份结果通知" :disabled="!form.backup_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.backup_notify_type" :items="notificationTypeItems"
+                        label="消息类型" :disabled="!form.backup_enabled || !form.backup_notify" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.backup_onlyonce" color="warning" inset hide-details
+                        label="保存后立即备份一次" :disabled="!form.backup_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 自动备份 · WebDAV -->
             <div v-show="activeSub === 'webdav'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">WebDAV 远端备份</div>
-                <VRow>
-                  <VCol cols="12">
-                    <VSwitch v-model="form.backup_webdav_enabled" color="primary" inset hide-details
-                      label="启用 WebDAV 远端备份" />
-                    <div class="aoa-hint">本地备份完成后同步上传到 WebDAV</div>
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VTextField v-model="form.backup_webdav_hostname" label="WebDAV 地址"
-                      placeholder="https://dav.example.com/backup" prepend-inner-icon="mdi-web"
-                      :disabled="!form.backup_webdav_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="3">
-                    <VTextField v-model="form.backup_webdav_login" label="账号"
-                      :disabled="!form.backup_webdav_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="3">
-                    <VTextField v-model="form.backup_webdav_password" label="密码"
-                      type="password" :disabled="!form.backup_webdav_enabled" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.backup_webdav_max_count" :items="keepCountPresets"
-                      label="远端保留份数" :disabled="!form.backup_webdav_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.backup_webdav_notify" color="primary" inset hide-details
-                      label="远端备份结果通知" :disabled="!form.backup_webdav_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.backup_webdav_notify_type" :items="notificationTypeItems"
-                      label="消息类型" :disabled="!form.backup_webdav_enabled || !form.backup_webdav_notify" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.backup_webdav_digest_auth" color="primary" inset hide-details
-                      label="使用 Digest 认证" :disabled="!form.backup_webdav_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="8">
-                    <VSwitch v-model="form.backup_webdav_disable_check" color="warning" inset hide-details
-                      label="跳过证书校验（自签名时启用）" :disabled="!form.backup_webdav_enabled" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.backup_webdav_enabled"
+                  icon="mdi-cloud-upload-outline"
+                  kicker="MP 自动备份"
+                  on-title="WebDAV 远端备份已启用"
+                  off-title="WebDAV 远端备份未启用"
+                  desc="本地备份完成后同步上传远端|按策略保留历史版本"
+                  :count-label="`${form.backup_webdav_max_count} 份保留`"
+                />
+                <SettingSection title="远端连接" note="WebDAV 地址、账号和密码">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="6">
+                      <VTextField v-model="form.backup_webdav_hostname" label="WebDAV 地址"
+                        placeholder="https://dav.example.com/backup" prepend-inner-icon="mdi-web"
+                        :disabled="!form.backup_webdav_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="3">
+                      <VTextField v-model="form.backup_webdav_login" label="账号"
+                        :disabled="!form.backup_webdav_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="3">
+                      <VTextField v-model="form.backup_webdav_password" label="密码"
+                        type="password" :disabled="!form.backup_webdav_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
+                <SettingSection title="远端策略" note="保留份数、通知渠道和连接校验">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.backup_webdav_max_count" :items="keepCountPresets"
+                        label="远端保留份数" :disabled="!form.backup_webdav_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.backup_webdav_notify" color="primary" inset hide-details
+                        label="远端备份结果通知" :disabled="!form.backup_webdav_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.backup_webdav_notify_type" :items="notificationTypeItems"
+                        label="消息类型" :disabled="!form.backup_webdav_enabled || !form.backup_webdav_notify" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.backup_webdav_digest_auth" color="primary" inset hide-details
+                        label="使用 Digest 认证" :disabled="!form.backup_webdav_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="8">
+                      <VSwitch v-model="form.backup_webdav_disable_check" color="warning" inset hide-details
+                        label="跳过证书校验（自签名时启用）" :disabled="!form.backup_webdav_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
             <!-- 日志清理 · 插件日志 -->
             <div v-show="activeSub === 'logs'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">插件日志清理</div>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.log_clean_enabled" color="primary" inset hide-details
-                      label="启用定时日志清理" />
-                    <div class="aoa-hint">按计划裁剪插件日志文件，仅保留指定行数</div>
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VCronField v-model="form.log_clean_cron" label="清理时间 (Cron)"
-                      :disabled="!form.log_clean_enabled" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.log_clean_rows" :items="logRowsPresets"
-                      label="保留行数" :disabled="!form.log_clean_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.log_clean_selected_ids" :items="installedPlugins"
-                      :loading="installedLoading" label="限定插件（留空＝全部插件）"
-                      multiple chips closable-chips clearable
-                      prepend-inner-icon="mdi-puzzle-outline"
-                      :disabled="!form.log_clean_enabled" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.log_clean_notify" color="primary" inset hide-details
-                      label="清理结果通知" :disabled="!form.log_clean_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.log_clean_notify_type" :items="notificationTypeItems"
-                      label="消息类型" :disabled="!form.log_clean_enabled || !form.log_clean_notify" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.log_clean_onlyonce" color="warning" inset hide-details
-                      label="保存后立即清理一次" :disabled="!form.log_clean_enabled" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.log_clean_enabled"
+                  icon="mdi-file-document-remove-outline"
+                  kicker="MP 日志清理"
+                  on-title="插件日志清理已启用"
+                  off-title="插件日志清理未启用"
+                  desc="按计划裁剪插件日志|保留排查信息和最近记录"
+                  :count-label="`保留 ${form.log_clean_rows} 行`"
+                />
+                <SettingSection title="清理策略" note="清理时间、保留行数和限定插件">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <VCronField v-model="form.log_clean_cron" label="清理时间 (Cron)"
+                        :disabled="!form.log_clean_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.log_clean_rows" :items="logRowsPresets"
+                        label="保留行数" :disabled="!form.log_clean_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.log_clean_selected_ids" :items="installedPlugins"
+                        :loading="installedLoading" label="限定插件"
+                        persistent-hint hint="留空＝全部插件"
+                        multiple chips closable-chips clearable
+                        prepend-inner-icon="mdi-puzzle-outline"
+                        :disabled="!form.log_clean_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
+                <SettingSection title="通知与触发" note="清理完成通知和手动触发开关">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.log_clean_notify" color="primary" inset hide-details
+                        label="清理结果通知" :disabled="!form.log_clean_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.log_clean_notify_type" :items="notificationTypeItems"
+                        label="消息类型" :disabled="!form.log_clean_enabled || !form.log_clean_notify" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.log_clean_onlyonce" color="warning" inset hide-details
+                        label="保存后立即清理一次" :disabled="!form.log_clean_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 更新检查 · 主程序 -->
             <div v-show="activeSub === 'mp'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">MoviePilot 更新检查</div>
-                <div class="aoa-hint mb-2">仅检查并通知是否有新版本，不会在这里直接升级</div>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.mp_update_enabled" color="primary" inset hide-details
-                      label="启用定时更新检查" />
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VCronField v-model="form.mp_update_cron" label="检查时间 (Cron)"
-                      :disabled="!form.mp_update_enabled" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.mp_update_types" :items="mpUpdateTypes"
-                      label="检查范围" multiple chips closable-chips :disabled="!form.mp_update_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.mp_update_notify" color="primary" inset hide-details
-                      label="发现新版本时通知" :disabled="!form.mp_update_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.mp_update_notify_type" :items="notificationTypeItems"
-                      label="消息类型" :disabled="!form.mp_update_enabled || !form.mp_update_notify" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12">
-                    <VSwitch v-model="form.mp_update_restart_confirm" color="warning" inset hide-details
-                      label="允许自动重启以应用更新（高风险，谨慎开启）" :disabled="!form.mp_update_enabled" />
-                    <div class="aoa-hint">默认仅提醒，开启后将在更新后尝试重启 MoviePilot</div>
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.mp_update_enabled"
+                  icon="mdi-movie-open-cog-outline"
+                  kicker="MP 更新检查"
+                  on-title="主程序更新检查已启用"
+                  off-title="主程序更新检查未启用"
+                  desc="定时检查后端和前端版本|默认提醒，不直接升级"
+                  :count-label="`${form.mp_update_types?.length || 0} 个范围`"
+                />
+                <SettingSection title="检查策略" note="检查时间、范围和通知渠道">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <VCronField v-model="form.mp_update_cron" label="检查时间 (Cron)"
+                        :disabled="!form.mp_update_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.mp_update_types" :items="mpUpdateTypes"
+                        label="检查范围" multiple chips closable-chips :disabled="!form.mp_update_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.mp_update_notify_type" :items="notificationTypeItems"
+                        label="消息类型" :disabled="!form.mp_update_enabled || !form.mp_update_notify" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VSwitch v-model="form.mp_update_notify" color="primary" inset hide-details
+                        label="发现新版本时通知" :disabled="!form.mp_update_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VSwitch v-model="form.mp_update_restart_confirm" color="warning" inset hide-details
+                        label="允许自动重启以应用更新（高风险，谨慎开启）" :disabled="!form.mp_update_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 更新检查 · 插件库 -->
             <div v-show="activeSub === 'market'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">插件库更新检查</div>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.market_update_enabled" color="primary" inset hide-details
-                      label="启用插件库更新检查" />
-                    <div class="aoa-hint">按间隔检查已安装插件是否有新版本</div>
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.market_update_interval" :items="intervalPresets"
-                      label="检查间隔" :disabled="!form.market_update_enabled" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.market_update_notify" color="primary" inset hide-details
-                      label="发现更新时通知" :disabled="!form.market_update_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.market_update_notify_type" :items="marketNotifyItems"
-                      label="通知消息类型" :disabled="!form.market_update_enabled" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.market_update_proxy" color="primary" inset hide-details
-                      label="使用代理访问插件库" :disabled="!form.market_update_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.market_update_auto_get" color="primary" inset hide-details
-                      label="自动抓取 Wiki 更新说明" :disabled="!form.market_update_enabled" />
-                  </VCol>
-                </VRow>
-                <VExpansionPanels class="mt-2" variant="accordion">
-                  <VExpansionPanel title="高级选项（写回设置 / 黑名单 / Wiki 源）">
-                    <VExpansionPanelText>
-                      <VRow>
-                        <VCol cols="12" md="6">
-                          <VSwitch v-model="form.market_update_write_settings" color="warning" inset hide-details
-                            label="写回插件设置" :disabled="!form.market_update_enabled" />
-                        </VCol>
-                        <VCol cols="12" md="6">
-                          <VSwitch v-model="form.market_update_write_env" color="warning" inset hide-details
-                            label="写回环境变量" :disabled="!form.market_update_enabled" />
-                        </VCol>
-                      </VRow>
-                      <VRow>
-                        <VCol cols="12" md="6">
-                          <VSwitch v-model="form.market_update_blacklist_enabled" color="primary" inset hide-details
-                            label="启用更新黑名单" :disabled="!form.market_update_enabled" />
-                        </VCol>
-                        <VCol cols="12" md="6">
-                          <VTextField v-model="form.market_update_timeout" label="请求超时（秒）"
-                            type="number" min="1" :disabled="!form.market_update_enabled" />
-                        </VCol>
-                      </VRow>
-                      <VRow>
-                        <VCol cols="12">
-                          <VSelect v-model="form.market_update_blacklist" :items="pluginMarkets"
-                            :loading="marketsLoading" label="黑名单插件库（不参与更新检查）"
-                            multiple chips closable-chips clearable
-                            prepend-inner-icon="mdi-block-helper"
-                            no-data-text="未配置任何插件库"
-                            :disabled="!form.market_update_enabled || !form.market_update_blacklist_enabled" />
-                        </VCol>
-                      </VRow>
-                      <VRow>
-                        <VCol cols="12">
-                          <VTextField v-model="form.market_update_wiki_url" label="Wiki 地址"
-                            :disabled="!form.market_update_enabled" />
-                        </VCol>
-                      </VRow>
-                    </VExpansionPanelText>
-                  </VExpansionPanel>
-                </VExpansionPanels>
-                <VDivider class="my-4" />
-                <div class="aoa-section-title">自动更新已安装插件</div>
-                <div class="aoa-hint mb-2">检测到已安装插件有新版时自动下载安装并重载，不开启则仅在检查时提醒有新版</div>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.market_update_auto_install" color="warning" inset hide-details
-                      label="自动安装插件新版" :disabled="!form.market_update_enabled" />
-                    <div class="aoa-hint">高风险：会自动替换插件代码并重载，默认关闭，仅提醒，当前插件不会自动更新</div>
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.market_update_skip_running" color="primary" inset hide-details
-                      label="跳过正在运行的插件" :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
-                    <div class="aoa-hint">插件正在执行任务时不升级，避免中断</div>
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.market_update_install_ids" :items="installedPlugins"
-                      :loading="installedLoading" label="仅自动更新这些插件（留空＝全部已安装）"
-                      multiple chips closable-chips clearable prepend-inner-icon="mdi-puzzle-check-outline"
-                      :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.market_update_exclude_ids" :items="installedPlugins"
-                      :loading="installedLoading" label="排除（这些插件不自动更新）"
-                      multiple chips closable-chips clearable prepend-inner-icon="mdi-block-helper"
-                      :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.market_update_enabled"
+                  icon="mdi-puzzle-plus-outline"
+                  kicker="MP 插件库"
+                  on-title="插件库更新检查已启用"
+                  off-title="插件库更新检查未启用"
+                  desc="检查已安装插件新版本|按策略提醒或自动处理"
+                  :count-label="form.market_update_auto_install ? '自动安装' : '仅提醒'"
+                />
+                <SettingSection title="检查策略" note="检查间隔、通知方式和插件库访问方式">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.market_update_interval" :items="intervalPresets"
+                        label="检查间隔" :disabled="!form.market_update_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.market_update_notify_type" :items="marketNotifyItems"
+                        label="通知消息类型" :disabled="!form.market_update_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VTextField v-model="form.market_update_timeout" label="请求超时（秒）"
+                        type="number" min="1" :disabled="!form.market_update_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.market_update_notify" color="primary" inset hide-details
+                        label="发现更新时通知" :disabled="!form.market_update_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.market_update_proxy" color="primary" inset hide-details
+                        label="使用代理访问插件库" :disabled="!form.market_update_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.market_update_auto_get" color="primary" inset hide-details
+                        label="自动抓取 Wiki 更新说明" :disabled="!form.market_update_enabled" />
+                    </VCol>
+                  </VRow>
+                  <VExpansionPanels class="mt-2" variant="accordion">
+                    <VExpansionPanel title="高级选项">
+                      <VExpansionPanelText>
+                        <VRow class="aoa-setting-grid">
+                          <VCol cols="12" md="6">
+                            <VSwitch v-model="form.market_update_write_settings" color="warning" inset hide-details
+                              label="写回插件设置" :disabled="!form.market_update_enabled" />
+                          </VCol>
+                          <VCol cols="12" md="6">
+                            <VSwitch v-model="form.market_update_write_env" color="warning" inset hide-details
+                              label="写回环境变量" :disabled="!form.market_update_enabled" />
+                          </VCol>
+                          <VCol cols="12" md="6">
+                            <VSwitch v-model="form.market_update_blacklist_enabled" color="primary" inset hide-details
+                              label="启用更新黑名单" :disabled="!form.market_update_enabled" />
+                          </VCol>
+                          <VCol cols="12" md="6">
+                            <VTextField v-model="form.market_update_wiki_url" label="Wiki 地址"
+                              :disabled="!form.market_update_enabled" />
+                          </VCol>
+                          <VCol cols="12">
+                            <VSelect v-model="form.market_update_blacklist" :items="pluginMarkets"
+                              :loading="marketsLoading" label="黑名单插件库（不参与更新检查）"
+                              multiple chips closable-chips clearable
+                              prepend-inner-icon="mdi-block-helper"
+                              no-data-text="未配置任何插件库"
+                              :disabled="!form.market_update_enabled || !form.market_update_blacklist_enabled" />
+                          </VCol>
+                        </VRow>
+                      </VExpansionPanelText>
+                    </VExpansionPanel>
+                  </VExpansionPanels>
+                </SettingSection>
+                <SettingSection title="自动更新已安装插件" note="控制自动安装范围和排除范围">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="6">
+                      <VSwitch v-model="form.market_update_auto_install" color="warning" inset hide-details
+                        label="自动安装插件新版" :disabled="!form.market_update_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VSwitch v-model="form.market_update_skip_running" color="primary" inset hide-details
+                        label="跳过正在运行的插件" :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VSelect v-model="form.market_update_install_ids" :items="installedPlugins"
+                        :loading="installedLoading" label="自动更新范围"
+                        persistent-hint hint="留空＝全部已安装"
+                        multiple chips closable-chips clearable prepend-inner-icon="mdi-puzzle-check-outline"
+                        :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VSelect v-model="form.market_update_exclude_ids" :items="installedPlugins"
+                        :loading="installedLoading" label="排除插件"
+                        persistent-hint hint="这些插件不自动更新"
+                        multiple chips closable-chips clearable prepend-inner-icon="mdi-block-helper"
+                        :disabled="!form.market_update_enabled || !form.market_update_auto_install" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 插件卸载 · 卸载清理（合并单页） -->
             <div v-show="activeSub === 'clean'" class="aoa-pane">
               <VForm>
-                <div class="aoa-section-title">选择插件</div>
-                <VRow>
-                  <VCol cols="12">
-                    <VSelect v-model="form.plugin_uninstall_ids" :items="installedPlugins"
-                      :loading="installedLoading" label="选择要卸载的已安装插件"
-                      multiple chips closable-chips clearable
-                      prepend-inner-icon="mdi-puzzle-remove-outline" />
-                  </VCol>
-                </VRow>
-                <VDivider class="my-4" />
-                <div class="aoa-section-title">卸载与清理</div>
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.plugin_uninstall_remove_plugin" color="error" inset hide-details
-                      label="卸载插件" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.plugin_uninstall_clear_config" color="primary" inset hide-details
-                      label="清除插件配置" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.plugin_uninstall_clear_data" color="primary" inset hide-details
-                      label="清除插件数据" />
-                  </VCol>
-                </VRow>
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.plugin_uninstall_notify" color="primary" inset hide-details
-                      label="清理结果通知" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.plugin_uninstall_notify_type" :items="notificationTypeItems"
-                      label="消息类型" :disabled="!form.plugin_uninstall_notify" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.plugin_uninstall_delete_source" color="error" inset hide-details
-                      label="删除本地源码（高风险，不可恢复）" />
-                    <div class="aoa-hint">仅对本地源码插件生效，删除后需重新安装</div>
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  :enabled="!!(form.plugin_uninstall_ids && form.plugin_uninstall_ids.length)"
+                  icon="mdi-puzzle-remove-outline"
+                  kicker="MP 插件卸载"
+                  on-title="已选择卸载目标"
+                  off-title="尚未选择卸载目标"
+                  desc="统一处理插件卸载与配置清理|数据清理与本地源码残留"
+                  :count-label="`${form.plugin_uninstall_ids?.length || 0} 个插件`"
+                  state-on="待执行"
+                  state-off="待选择"
+                  :toggle="false"
+                />
+                <SettingSection title="目标插件" note="选择需要卸载或清理残留的已安装插件">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12">
+                      <VSelect v-model="form.plugin_uninstall_ids" :items="installedPlugins"
+                        :loading="installedLoading" label="选择要卸载的已安装插件"
+                        multiple chips closable-chips clearable
+                        prepend-inner-icon="mdi-puzzle-remove-outline" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
+                <SettingSection title="清理范围" note="卸载插件、清除配置和清除数据可独立选择">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.plugin_uninstall_remove_plugin" color="error" inset hide-details
+                        label="卸载插件" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.plugin_uninstall_clear_config" color="primary" inset hide-details
+                        label="清除插件配置" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.plugin_uninstall_clear_data" color="primary" inset hide-details
+                        label="清除插件数据" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
+                <SettingSection title="通知与残留" note="清理结果通知和本地源码残留处理">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.plugin_uninstall_notify" color="primary" inset hide-details
+                        label="清理结果通知" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.plugin_uninstall_notify_type" :items="notificationTypeItems"
+                        label="消息类型" :disabled="!form.plugin_uninstall_notify" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.plugin_uninstall_delete_source" color="error" inset hide-details
+                        label="删除本地源码" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
 
             <!-- 下载器管理 · 自动删种 -->
             <div v-show="activeSub === 'seedremove'" class="aoa-pane">
               <VForm class="aoa-seed-form">
-                <VAlert type="warning" variant="tonal" density="comfortable" class="mb-4" :icon="false"
-                  text="自动删种有风险，设置不当可能丢数据！建议先用“暂停”动作验证条件命中正确，再改“删除”，未填写任何筛选条件时不会执行" />
-                <div class="aoa-section-title">基础设置</div>
-                <VRow class="aoa-seed-basic-row">
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.seedclean_enabled" color="primary" inset hide-details
-                      label="启用定时自动删种" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VCronField v-model="form.seedclean_cron" label="执行周期 (Cron)"
-                      :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.seedclean_action" :items="seedActionItems"
-                      hide-details label="动作" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="7">
-                    <VSelect v-model="form.seedclean_downloaders" :items="downloaderOptions"
-                      :loading="downloadersLoading" label="下载器（必选）"
-                      multiple chips closable-chips clearable
-                      hide-details
-                      prepend-inner-icon="mdi-download-network-outline"
-                      no-data-text="未配置下载器" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.seedclean_enabled"
+                  icon="mdi-delete-sweep-outline"
+                  kicker="MP 下载器管理"
+                  on-title="自动删种已启用"
+                  off-title="自动删种未启用"
+                  desc="按下载器、动作和筛选条件治理种子|未填写筛选条件时不会处理"
+                  :count-label="`${seedFilterCount} 个条件`"
+                />
+                <SettingSection title="执行策略" note="执行周期、动作和下载器范围">
+                  <VRow class="aoa-setting-grid aoa-seed-basic-row">
+                    <VCol cols="12" md="6">
+                      <VCronField v-model="form.seedclean_cron" label="执行周期 (Cron)"
+                        :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VSelect v-model="form.seedclean_action" :items="seedActionItems"
+                        hide-details label="动作" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VSelect v-model="form.seedclean_downloaders" :items="downloaderOptions"
+                        :loading="downloadersLoading" label="下载器（必选）"
+                        multiple chips closable-chips clearable
+                        hide-details
+                        prepend-inner-icon="mdi-download-network-outline"
+                        no-data-text="未配置下载器" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
 
-                <VDivider class="my-5" />
-                <div class="aoa-section-title">筛选条件</div>
-                <div class="aoa-hint mb-3">仅处理“同时满足所有已填条件”的种子，留空的条件不参与，全部留空则跳过不处理</div>
-                <VRow class="aoa-seed-filter-grid">
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_size" label="种子大小（GB）" hide-details
-                      placeholder="1-10" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_ratio" label="分享率不小于" hide-details
-                      placeholder="2" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_time" label="做种不少于（小时）" hide-details
-                      placeholder="240" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_upspeed" label="均速上限（KB/s）" hide-details
-                      placeholder="低于才处理" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_labels" label="标签" hide-details
-                      placeholder="逗号分隔" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_torrentcategorys" label="任务分类" hide-details
-                      placeholder="逗号分隔" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_pathkeywords" label="保存路径关键词" hide-details
-                      placeholder="支持正则" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_trackerkeywords" label="Tracker 关键词" hide-details
-                      placeholder="支持正则" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_torrentstates" label="任务状态（仅 QB）" hide-details
-                      placeholder="pausedUP,stalledUP" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" sm="6" md="4">
-                    <VTextField v-model="form.seedclean_errorkeywords" label="错误信息（仅 TR）" hide-details
-                      placeholder="支持正则" :disabled="!form.seedclean_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="8">
-                    <div class="aoa-seed-options">
-                      <VSwitch v-model="form.seedclean_samedata" color="primary" inset hide-details
-                        label="处理辅种" :disabled="!form.seedclean_enabled" />
-                      <VSwitch v-model="form.seedclean_mponly" color="primary" inset hide-details
-                        label="仅 MoviePilot 任务" :disabled="!form.seedclean_enabled" />
-                      <VSwitch v-model="form.seedclean_notify" color="primary" inset hide-details
-                        label="处理结果通知" :disabled="!form.seedclean_enabled" />
-                    </div>
-                  </VCol>
-                </VRow>
+                <SettingSection title="筛选条件" note="任一条件命中后按动作处理，未填写条件时跳过">
+                  <VRow class="aoa-setting-grid aoa-seed-filter-grid">
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_size" label="种子大小（GB）" hide-details
+                        placeholder="1-10" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_ratio" label="分享率不小于" hide-details
+                        placeholder="2" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_time" label="做种不少于（小时）" hide-details
+                        placeholder="240" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_upspeed" label="均速上限（KB/s）" hide-details
+                        placeholder="低于才处理" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_labels" label="标签" hide-details
+                        placeholder="逗号分隔" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_torrentcategorys" label="任务分类" hide-details
+                        placeholder="逗号分隔" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_pathkeywords" label="保存路径关键词" hide-details
+                        placeholder="支持正则" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_trackerkeywords" label="Tracker 关键词" hide-details
+                        placeholder="支持正则" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_torrentstates" label="任务状态（仅 QB）" hide-details
+                        placeholder="pausedUP,stalledUP" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                    <VCol cols="12" sm="6" md="4">
+                      <VTextField v-model="form.seedclean_errorkeywords" label="错误信息（仅 TR）" hide-details
+                        placeholder="支持正则" :disabled="!form.seedclean_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
 
-                <VRow>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.seedclean_notify_type" :items="notificationTypeItems"
-                      hide-details label="消息类型" :disabled="!form.seedclean_enabled || !form.seedclean_notify" />
-                  </VCol>
-                </VRow>
+                <SettingSection title="保护与通知" note="辅种保护、MoviePilot 任务限制和通知渠道">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="8">
+                      <div class="aoa-seed-options">
+                        <VSwitch v-model="form.seedclean_samedata" color="primary" inset hide-details
+                          label="处理辅种" :disabled="!form.seedclean_enabled" />
+                        <VSwitch v-model="form.seedclean_mponly" color="primary" inset hide-details
+                          label="仅 MoviePilot 任务" :disabled="!form.seedclean_enabled" />
+                        <VSwitch v-model="form.seedclean_notify" color="primary" inset hide-details
+                          label="处理结果通知" :disabled="!form.seedclean_enabled" />
+                      </div>
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.seedclean_notify_type" :items="notificationTypeItems"
+                        hide-details label="消息类型" :disabled="!form.seedclean_enabled || !form.seedclean_notify" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
             <!-- 媒体通知 · 服务器通知 -->
             <div v-show="activeSub === 'server'" class="aoa-pane aoa-media-pane">
               <VForm class="aoa-media-form">
-                <div class="aoa-section-title">媒体库服务器通知</div>
-                <div class="aoa-hint aoa-line-hint mb-4">需先在 MoviePilot 把媒体服务器 webhook 指向 MP</div>
-                <VRow class="aoa-media-enable-row">
-                  <VCol cols="12">
-                    <div class="aoa-inline-switch">
-                      <VSwitch v-model="form.msgnotify_enabled" color="primary" inset hide-details
-                        label="启用媒体库服务器通知" />
-                      <span class="aoa-hint aoa-inline-hint">监听 Emby/Jellyfin/Plex 的 webhook 事件，按筛选规则推送通知</span>
-                    </div>
-                  </VCol>
-                </VRow>
-                <VRow class="aoa-media-field-row">
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.msgnotify_types" :items="msgGroupItems"
-                      label="通知哪些事件" multiple chips closable-chips clearable
-                      prepend-inner-icon="mdi-bell-cog-outline"
-                      :disabled="!form.msgnotify_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="6">
-                    <VSelect v-model="form.msgnotify_servers" :items="mediaserverOptions"
-                      :loading="mediaserversLoading" label="仅这些媒体服务器（留空＝全部）"
-                      multiple chips closable-chips clearable
-                      prepend-inner-icon="mdi-server-network"
-                      no-data-text="未获取到媒体服务器"
-                      :disabled="!form.msgnotify_enabled" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.msgnotify_enabled"
+                  icon="mdi-television-play"
+                  kicker="MP 媒体通知"
+                  on-title="媒体服务器通知已启用"
+                  off-title="媒体服务器通知未启用"
+                  desc="监听 Emby、Jellyfin、Plex 事件|按媒体服务器规则推送"
+                  :count-label="`${form.msgnotify_types?.length || 0} 类事件`"
+                />
+                <SettingSection title="通知范围" note="选择事件类型和媒体服务器范围">
+                  <VRow class="aoa-setting-grid aoa-media-field-row">
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.msgnotify_notify_type" :items="notificationTypeItems"
+                        label="消息类型" prepend-inner-icon="mdi-message-badge-outline"
+                        :disabled="!form.msgnotify_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="8">
+                      <VSelect v-model="form.msgnotify_types" :items="msgGroupItems"
+                        label="通知哪些事件" multiple chips closable-chips clearable
+                        prepend-inner-icon="mdi-bell-cog-outline"
+                        :disabled="!form.msgnotify_enabled" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VSelect v-model="form.msgnotify_servers" :items="mediaserverOptions"
+                        :loading="mediaserversLoading" label="媒体服务器范围"
+                        persistent-hint hint="留空＝全部媒体服务器"
+                        multiple chips closable-chips clearable
+                        prepend-inner-icon="mdi-server-network"
+                        no-data-text="未获取到媒体服务器"
+                        :disabled="!form.msgnotify_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
             <!-- 下载器助手 · 批量打标签 -->
             <div v-show="activeSub === 'dltagmain'" class="aoa-pane">
               <VForm class="aoa-dltag-form">
-                <div class="aoa-section-title">按站点为种子批量补打标签</div>
-                <VRow class="aoa-dltag-enable-row">
-                  <VCol cols="12" md="6">
-                    <VSwitch v-model="form.dltag_enabled" color="primary" inset hide-details
-                      label="启用下载器助手(批量打标签)" />
-                    <div class="aoa-hint">遍历下载器中的种子，按其 tracker 所属站点补打标签(已打的跳过，幂等安全)</div>
-                  </VCol>
-                </VRow>
-                <VRow class="aoa-dltag-field-row">
-                  <VCol cols="12" md="7">
-                    <VSelect v-model="form.dltag_downloaders" :items="downloaderOptions"
-                      :loading="downloadersLoading" label="下载器（留空＝全部已配置）"
-                      multiple chips closable-chips clearable prepend-inner-icon="mdi-download-network-outline"
-                      :disabled="!form.dltag_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="5">
-                    <VTextField v-model="form.dltag_prefix" label="标签前缀（可选）" placeholder="如 站点-" clearable
-                      :disabled="!form.dltag_enabled" />
-                  </VCol>
-                </VRow>
-                <VRow class="aoa-dltag-notify-row">
-                  <VCol cols="12" md="4">
-                    <VSwitch v-model="form.dltag_notify" color="primary" inset hide-details label="完成后通知"
-                      :disabled="!form.dltag_enabled" />
-                  </VCol>
-                  <VCol cols="12" md="4">
-                    <VSelect v-model="form.dltag_notify_type" :items="notificationTypeItems"
-                      label="消息类型" :disabled="!form.dltag_enabled || !form.dltag_notify" />
-                  </VCol>
-                </VRow>
+                <ModuleHero
+                  v-model:enabled="form.dltag_enabled"
+                  icon="mdi-tag-multiple-outline"
+                  kicker="MP 下载器管理"
+                  on-title="批量打标签已启用"
+                  off-title="批量打标签未启用"
+                  desc="遍历下载器种子并识别站点|按 tracker 所属站点补标签"
+                  :count-label="`${form.dltag_downloaders?.length || 0} 个下载器`"
+                />
+                <SettingSection title="打标设置" note="选择下载器范围并配置标签前缀">
+                  <VRow class="aoa-setting-grid aoa-dltag-field-row">
+                    <VCol cols="12" md="7">
+                      <VSelect v-model="form.dltag_downloaders" :items="downloaderOptions"
+                        :loading="downloadersLoading" label="下载器范围"
+                        persistent-hint hint="留空＝全部已配置"
+                        multiple chips closable-chips clearable prepend-inner-icon="mdi-download-network-outline"
+                        :disabled="!form.dltag_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="5">
+                      <VTextField v-model="form.dltag_prefix" label="标签前缀（可选）" placeholder="如 站点-" clearable
+                        :disabled="!form.dltag_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
+                <SettingSection title="通知设置" note="打标完成后按选择渠道通知">
+                  <VRow class="aoa-setting-grid aoa-dltag-notify-row">
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.dltag_notify" color="primary" inset hide-details label="完成后通知"
+                        :disabled="!form.dltag_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VSelect v-model="form.dltag_notify_type" :items="notificationTypeItems"
+                        label="消息类型" :disabled="!form.dltag_enabled || !form.dltag_notify" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
           </div>
@@ -1313,7 +1455,7 @@ onMounted(() => {
           </div>
         </section>
       </div>
-      <VDivider />
+      <VDivider class="aoa-hairline" />
       <VCardActions class="aoa-actions">
         <VFadeTransition>
           <span v-if="action.message" :class="action.ok ? 'text-success' : 'text-error'" class="text-caption">
@@ -1327,52 +1469,212 @@ onMounted(() => {
     </VCard>
   </div>
 </template>
+<style>
+.aoa-config-scroll-host {
+  -ms-overflow-style: auto;
+}
+.aoa-config-scroll-host::-webkit-scrollbar {
+  width: 1px !important;
+  height: 1px !important;
+  background: transparent !important;
+}
+.aoa-config-scroll-host::-webkit-scrollbar-track,
+.aoa-config-scroll-host::-webkit-scrollbar-track-piece {
+  background: transparent !important;
+}
+.aoa-config-scroll-host::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  border: 0 !important;
+  background: rgba(var(--v-theme-on-surface), 0.14) !important;
+}
+.aoa-config-scroll-host::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-on-surface), 0.22) !important;
+}
+.aoa-config-scroll-host::-webkit-scrollbar-button,
+.aoa-config-scroll-host::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  appearance: none !important;
+  background: transparent !important;
+  opacity: 0 !important;
+}
+@supports (-moz-appearance: none) {
+  .aoa-config-scroll-host {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--v-theme-on-surface), 0.14) transparent;
+  }
+}
+</style>
+
 <style scoped>
 .aoa-config {
+  --aoa-pane-x: 24px;
+  --aoa-pane-y: 22px;
+  --aoa-pane-bottom: 20px;
+  --aoa-block-gap: 18px;
+  --aoa-section-pad: 18px;
+  --aoa-section-gap: 14px;
+  --aoa-grid-gutter-x: 18px;
+  --aoa-grid-gutter-y: 14px;
+  --aoa-control-radius: 14px;
+  --aoa-hairline-alpha: 0.045;
+  --aoa-scrollbar-size: 1px;
+  --aoa-scrollbar-alpha: 0.14;
+  --aoa-scrollbar-hover-alpha: 0.22;
   padding: 10px;
   font-size: 14px;
 }
-.aoa-config,
-.aoa-config :deep(*) {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(var(--v-theme-on-surface), 0.10) transparent;
-}
 .aoa-config::-webkit-scrollbar,
 .aoa-config :deep(*)::-webkit-scrollbar {
-  width: 1px;
-  height: 1px;
+  width: var(--aoa-scrollbar-size) !important;
+  height: var(--aoa-scrollbar-size) !important;
+  background: transparent !important;
 }
 .aoa-config::-webkit-scrollbar-track,
 .aoa-config :deep(*)::-webkit-scrollbar-track {
-  background: transparent;
+  background: transparent !important;
 }
 .aoa-config::-webkit-scrollbar-thumb,
 .aoa-config :deep(*)::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(var(--v-theme-on-surface), 0.10);
+  border: 0 !important;
+  background: rgba(var(--v-theme-on-surface), var(--aoa-scrollbar-alpha)) !important;
 }
 .aoa-config::-webkit-scrollbar-thumb:hover,
 .aoa-config :deep(*)::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--v-theme-on-surface), 0.16);
+  background: rgba(var(--v-theme-on-surface), var(--aoa-scrollbar-hover-alpha)) !important;
 }
 .aoa-config::-webkit-scrollbar-corner,
 .aoa-config :deep(*)::-webkit-scrollbar-corner {
-  background: transparent;
+  background: transparent !important;
 }
+.aoa-config::-webkit-scrollbar-button,
 .aoa-config :deep(*)::-webkit-scrollbar-button {
-  appearance: none;
-  width: 0;
-  height: 0;
-  display: none;
-  opacity: 0;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  appearance: none !important;
+  background: transparent !important;
+  opacity: 0 !important;
 }
+.aoa-config::-webkit-scrollbar-track-piece,
 .aoa-config :deep(*)::-webkit-scrollbar-track-piece {
-  background: transparent;
+  background: transparent !important;
+}
+.aoa-window,
+.aoa-report-table-scroll,
+.aoa-nav-scroll,
+.aoa-subtab-list {
+  -ms-overflow-style: auto;
+}
+.aoa-window::-webkit-scrollbar,
+.aoa-report-table-scroll::-webkit-scrollbar,
+.aoa-nav-scroll::-webkit-scrollbar,
+.aoa-subtab-list::-webkit-scrollbar {
+  width: var(--aoa-scrollbar-size) !important;
+  height: var(--aoa-scrollbar-size) !important;
+  background: transparent !important;
+}
+.aoa-window::-webkit-scrollbar-track,
+.aoa-report-table-scroll::-webkit-scrollbar-track,
+.aoa-nav-scroll::-webkit-scrollbar-track,
+.aoa-subtab-list::-webkit-scrollbar-track,
+.aoa-window::-webkit-scrollbar-track-piece,
+.aoa-report-table-scroll::-webkit-scrollbar-track-piece,
+.aoa-nav-scroll::-webkit-scrollbar-track-piece,
+.aoa-subtab-list::-webkit-scrollbar-track-piece {
+  background: transparent !important;
+}
+.aoa-window::-webkit-scrollbar-thumb,
+.aoa-report-table-scroll::-webkit-scrollbar-thumb,
+.aoa-nav-scroll::-webkit-scrollbar-thumb,
+.aoa-subtab-list::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  border: 0 !important;
+  background: rgba(var(--v-theme-on-surface), var(--aoa-scrollbar-alpha)) !important;
+}
+.aoa-window::-webkit-scrollbar-thumb:hover,
+.aoa-report-table-scroll::-webkit-scrollbar-thumb:hover,
+.aoa-nav-scroll::-webkit-scrollbar-thumb:hover,
+.aoa-subtab-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-on-surface), var(--aoa-scrollbar-hover-alpha)) !important;
+}
+.aoa-window::-webkit-scrollbar-button,
+.aoa-report-table-scroll::-webkit-scrollbar-button,
+.aoa-nav-scroll::-webkit-scrollbar-button,
+.aoa-subtab-list::-webkit-scrollbar-button,
+.aoa-window::-webkit-scrollbar-corner,
+.aoa-report-table-scroll::-webkit-scrollbar-corner,
+.aoa-nav-scroll::-webkit-scrollbar-corner,
+.aoa-subtab-list::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  appearance: none !important;
+  background: transparent !important;
+  opacity: 0 !important;
+}
+@supports (-moz-appearance: none) {
+  .aoa-config,
+  .aoa-config :deep(*),
+  .aoa-window,
+  .aoa-report-table-scroll,
+  .aoa-nav-scroll,
+  .aoa-nav-scroll :deep(*),
+  .aoa-subtab-list,
+  .aoa-subtab-list :deep(*) {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--v-theme-on-surface), var(--aoa-scrollbar-alpha)) transparent;
+  }
 }
 .aoa-card {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 20px);
   border-radius: 18px;
   overflow: hidden;
-  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border: 1px solid rgba(var(--v-border-color), 0.075);
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.72), rgba(var(--v-theme-surface), 0.54)),
+    rgba(var(--v-theme-on-surface), 0.016);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.aoa-hairline {
+  display: block;
+  flex: 0 0 1px;
+  height: 1px;
+  min-height: 1px;
+  margin: 0;
+  opacity: 1 !important;
+  border: 0 !important;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(var(--v-border-color), var(--aoa-hairline-alpha)) 14%,
+      rgba(var(--v-border-color), var(--aoa-hairline-alpha)) 86%,
+      transparent 100%
+    );
+}
+.aoa-hairline.v-divider--horizontal {
+  height: 1px;
+  min-height: 1px;
+  border: 0 !important;
+}
+.aoa-hairline.v-divider--vertical {
+  width: 1px;
+  min-width: 1px;
+  border: 0 !important;
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(var(--v-border-color), var(--aoa-hairline-alpha)) 14%,
+      rgba(var(--v-border-color), var(--aoa-hairline-alpha)) 86%,
+      transparent 100%
+    );
 }
 .aoa-header {
   padding: 16px 20px;
@@ -1396,66 +1698,63 @@ onMounted(() => {
 }
 .aoa-body {
   display: flex;
-  height: min(72vh, 650px);
-  min-height: 520px;
+  flex: 1 1 auto;
+  height: min(76vh, 690px);
+  min-height: 540px;
+  overflow: hidden;
 }
 .aoa-nav {
   position: relative;
   width: 208px;
   flex: 0 0 208px;
-  border-right: 1px solid rgba(var(--v-border-color), 0.06);
-  background: rgba(var(--v-theme-on-surface), 0.02);
+  border-right: 1px solid rgba(var(--v-border-color), var(--aoa-hairline-alpha));
+  background: rgba(var(--v-theme-on-surface), 0.012);
 }
 .aoa-nav-scroll {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 44px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  -ms-overflow-style: auto;
 }
 .aoa-nav-scroll,
 .aoa-nav-scroll :deep(*) {
-  scrollbar-width: none !important;
-  scrollbar-color: transparent transparent !important;
-  -ms-overflow-style: none;
+  -ms-overflow-style: auto;
 }
 .aoa-nav-scroll::-webkit-scrollbar {
-  width: 0 !important;
-  height: 0 !important;
-  display: none;
-  background: transparent;
+  width: var(--aoa-scrollbar-size) !important;
+  height: var(--aoa-scrollbar-size) !important;
+  background: transparent !important;
 }
 .aoa-nav-scroll::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: transparent;
+  background: rgba(var(--v-theme-on-surface), var(--aoa-scrollbar-alpha)) !important;
 }
 .aoa-nav-scroll::-webkit-scrollbar-track,
 .aoa-nav-scroll::-webkit-scrollbar-corner,
 .aoa-nav-scroll::-webkit-scrollbar-button {
-  appearance: none;
-  width: 0;
-  height: 0;
-  background: transparent;
-  display: none;
-  opacity: 0;
-}
-.aoa-nav-scroll :deep(*)::-webkit-scrollbar {
+  appearance: none !important;
   width: 0 !important;
   height: 0 !important;
-  display: none;
-  background: transparent;
+  background: transparent !important;
+  display: none !important;
+  opacity: 0 !important;
+}
+.aoa-nav-scroll :deep(*)::-webkit-scrollbar {
+  width: var(--aoa-scrollbar-size) !important;
+  height: var(--aoa-scrollbar-size) !important;
+  background: transparent !important;
 }
 .aoa-nav-scroll :deep(*)::-webkit-scrollbar-thumb,
 .aoa-nav-scroll :deep(*)::-webkit-scrollbar-track,
 .aoa-nav-scroll :deep(*)::-webkit-scrollbar-corner,
 .aoa-nav-scroll :deep(*)::-webkit-scrollbar-button {
-  appearance: none;
-  width: 0;
-  height: 0;
-  background: transparent;
-  display: none;
-  opacity: 0;
+  appearance: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  display: none !important;
+  opacity: 0 !important;
 }
 .aoa-nav-item {
   margin: 3px 10px;
@@ -1490,6 +1789,7 @@ onMounted(() => {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1513,51 +1813,46 @@ onMounted(() => {
   overflow-x: hidden;
   overflow-y: auto;
   padding-bottom: 2px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  -ms-overflow-style: auto;
 }
 .aoa-subtab-list,
 .aoa-subtab-list :deep(*) {
-  scrollbar-width: none !important;
-  scrollbar-color: transparent transparent !important;
-  -ms-overflow-style: none;
+  -ms-overflow-style: auto;
 }
 .aoa-subtab-list::-webkit-scrollbar {
-  width: 0 !important;
-  height: 0 !important;
-  display: none;
-  background: transparent;
+  width: var(--aoa-scrollbar-size) !important;
+  height: var(--aoa-scrollbar-size) !important;
+  background: transparent !important;
 }
 .aoa-subtab-list::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: transparent;
+  background: rgba(var(--v-theme-on-surface), var(--aoa-scrollbar-alpha)) !important;
 }
 .aoa-subtab-list::-webkit-scrollbar-track,
 .aoa-subtab-list::-webkit-scrollbar-corner,
 .aoa-subtab-list::-webkit-scrollbar-button {
-  appearance: none;
-  width: 0;
-  height: 0;
-  background: transparent;
-  display: none;
-  opacity: 0;
-}
-.aoa-subtab-list :deep(*)::-webkit-scrollbar {
+  appearance: none !important;
   width: 0 !important;
   height: 0 !important;
-  display: none;
-  background: transparent;
+  background: transparent !important;
+  display: none !important;
+  opacity: 0 !important;
+}
+.aoa-subtab-list :deep(*)::-webkit-scrollbar {
+  width: var(--aoa-scrollbar-size) !important;
+  height: var(--aoa-scrollbar-size) !important;
+  background: transparent !important;
 }
 .aoa-subtab-list :deep(*)::-webkit-scrollbar-thumb,
 .aoa-subtab-list :deep(*)::-webkit-scrollbar-track,
 .aoa-subtab-list :deep(*)::-webkit-scrollbar-corner,
 .aoa-subtab-list :deep(*)::-webkit-scrollbar-button {
-  appearance: none;
-  width: 0;
-  height: 0;
-  background: transparent;
-  display: none;
-  opacity: 0;
+  appearance: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  display: none !important;
+  opacity: 0 !important;
 }
 .aoa-subtab {
   display: inline-flex;
@@ -1606,63 +1901,104 @@ onMounted(() => {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: 4px;
-  scrollbar-width: thin;
+  padding-bottom: calc(var(--aoa-pane-bottom) + 14px);
 }
 .aoa-pane {
-  padding: 22px 24px 14px;
+  padding: var(--aoa-pane-y) var(--aoa-pane-x) var(--aoa-pane-bottom);
 }
-.aoa-pane :deep(.v-form) {
+.aoa-pane > form,
+.aoa-columns-form,
+.aoa-health-form,
+.aoa-seed-form,
+.aoa-media-form,
+.aoa-dltag-form {
   display: grid;
-  gap: 16px;
+  gap: var(--aoa-block-gap);
+  width: 100%;
 }
-.aoa-section-title {
+.aoa-setting-section {
+  display: grid;
+  gap: var(--aoa-section-gap);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--aoa-section-pad);
+  border-radius: 18px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.48), rgba(var(--v-theme-surface), 0.30)),
+    rgba(var(--v-theme-on-surface), 0.018);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--v-border-color), 0.11),
+    0 10px 26px rgba(var(--v-theme-on-surface), 0.022);
+}
+.aoa-setting-section-head {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  margin: 2px 0 -2px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   padding: 0 2px;
-  font-size: 15px;
+}
+.aoa-setting-section-title {
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.35;
-  letter-spacing: 0;
-  color: rgba(var(--v-theme-on-surface), 0.9);
+  color: rgba(var(--v-theme-on-surface), 0.88);
 }
-.aoa-section-title::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: rgb(var(--v-theme-primary));
-  box-shadow: 0 0 0 5px rgba(var(--v-theme-primary), 0.09);
+.aoa-setting-section-note {
+  margin-top: 3px;
+  max-width: 560px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(var(--v-theme-on-surface), 0.48);
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-wrap: balance;
+}
+.aoa-setting-section-body {
+  min-width: 0;
+}
+.aoa-setting-grid {
+  --aoa-row-x: var(--aoa-grid-gutter-x);
+  --aoa-row-y: var(--aoa-grid-gutter-y);
+  margin: calc(var(--aoa-row-y) / -2) calc(var(--aoa-row-x) / -2);
+}
+.aoa-setting-grid :deep(.v-col),
+.aoa-pane :deep(.v-col) {
+  padding:
+    calc(var(--aoa-row-y, var(--aoa-grid-gutter-y)) / 2)
+    calc(var(--aoa-row-x, var(--aoa-grid-gutter-x)) / 2);
 }
 .aoa-hint {
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.45;
   color: rgba(var(--v-theme-on-surface), 0.52);
   margin-top: 2px;
-}
-.aoa-pane :deep(.v-form > .v-row),
-.aoa-pane :deep(.v-expansion-panel-text .v-row) {
-  margin: 0;
-  padding: 12px;
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.9), rgba(var(--v-theme-surface), 0.72)),
-    rgba(var(--v-theme-on-surface), 0.018);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.13);
-}
-.aoa-pane :deep(.v-form > .v-row + .v-row),
-.aoa-pane :deep(.v-expansion-panel-text .v-row + .v-row) {
-  margin-top: 2px;
-}
-.aoa-pane :deep(.v-col) {
-  padding-top: 8px;
-  padding-bottom: 8px;
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-wrap: balance;
 }
 .aoa-pane :deep(.v-field) {
-  border-radius: 14px;
+  border-radius: var(--aoa-control-radius);
+  background: rgba(var(--v-theme-surface), 0.34);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.06);
+}
+.aoa-pane :deep(.v-field__input) {
+  row-gap: 6px;
+}
+.aoa-pane :deep(.v-select .v-field__input) {
+  min-width: 0;
+  align-content: center;
+}
+.aoa-pane :deep(.v-select .v-chip) {
+  max-width: 100%;
+  margin: 2px 4px 2px 0;
 }
 .aoa-pane :deep(.v-selection-control) {
   min-height: 44px;
@@ -1682,54 +2018,42 @@ onMounted(() => {
 .aoa-pane :deep(.v-expansion-panel) {
   border-radius: 18px !important;
   background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.92), rgba(var(--v-theme-surface), 0.76)),
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.42), rgba(var(--v-theme-surface), 0.25)),
     rgba(var(--v-theme-on-surface), 0.018) !important;
-  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.13) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.09) !important;
 }
 .aoa-pane :deep(.v-expansion-panel-title) {
-  min-height: 54px;
+  min-height: 48px;
   font-size: 14px;
   font-weight: 750;
 }
-.aoa-line-hint,
-.aoa-inline-hint {
+.aoa-line-hint {
   min-width: 0;
+  display: -webkit-box;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.aoa-media-form {
-  padding-top: 2px;
-}
-.aoa-media-enable-row {
-  margin-bottom: 12px;
-}
-.aoa-media-field-row :deep(.v-col) {
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
-.aoa-inline-switch {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-height: 48px;
-  min-width: 0;
-}
-.aoa-inline-switch :deep(.v-selection-control) {
-  flex: 0 0 auto;
-}
-.aoa-inline-hint {
-  margin-top: 0;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-wrap: balance;
 }
 .aoa-action-dock {
   flex: 0 0 auto;
-  padding: 10px 24px 16px;
+  padding: 12px var(--aoa-pane-x) 16px;
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.16), rgba(var(--v-theme-surface), 0.26)),
+    rgba(var(--v-theme-on-surface), 0.006);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(var(--v-border-color), 0.035);
 }
 .aoa-action-dock-list {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px 18px;
+  gap: calc(var(--aoa-grid-gutter-y) - 4px) var(--aoa-grid-gutter-x);
 }
 .aoa-action-dock-item {
   min-width: 0;
@@ -1741,147 +2065,148 @@ onMounted(() => {
   min-height: 38px;
   border-radius: 999px;
   font-weight: 750;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: rgba(var(--v-theme-surface), 0.46) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--v-border-color), 0.12),
+    0 8px 22px rgba(var(--v-theme-on-surface), 0.04);
+  transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+.aoa-action-btn:hover {
+  background: rgba(var(--v-theme-primary), 0.12) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--v-theme-primary), 0.20),
+    0 10px 24px rgba(var(--v-theme-primary), 0.10);
 }
 .aoa-action-note {
-  max-width: 360px;
+  max-width: 240px;
+  min-width: 150px;
+  display: -webkit-box;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   color: rgba(var(--v-theme-on-surface), 0.52);
   font-size: 12px;
-  line-height: 1.3;
-}
-.aoa-seed-form,
-.aoa-dltag-form {
-  display: grid;
-  gap: 16px;
-}
-.aoa-seed-basic-row,
-.aoa-seed-filter-grid,
-.aoa-dltag-enable-row,
-.aoa-dltag-field-row,
-.aoa-dltag-notify-row {
-  margin-top: 0;
-}
-.aoa-seed-basic-row :deep(.v-col),
-.aoa-seed-filter-grid :deep(.v-col),
-.aoa-dltag-field-row :deep(.v-col),
-.aoa-dltag-notify-row :deep(.v-col) {
-  padding-top: 10px;
-  padding-bottom: 10px;
+  line-height: 1.38;
+  text-wrap: balance;
 }
 .aoa-seed-options {
   min-height: 48px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: var(--aoa-grid-gutter-x);
   align-items: center;
 }
 .aoa-seed-options :deep(.v-selection-control) {
   min-height: 42px;
 }
-.aoa-health-form {
-  display: grid;
-  gap: 18px;
-}
-.aoa-health-hero {
+.aoa-pane :deep(.aoa-module-hero) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 20px;
-  border-radius: 20px;
+  gap: var(--aoa-block-gap);
+  width: 100%;
+  min-height: 116px;
+  box-sizing: border-box;
+  padding: 17px var(--aoa-section-pad);
+  border-radius: 22px;
   color: rgba(var(--v-theme-on-surface), 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   background:
-    linear-gradient(135deg, rgba(var(--v-theme-success), 0.18), rgba(var(--v-theme-primary), 0.08)),
-    rgba(var(--v-theme-surface), 0.86);
+    radial-gradient(circle at 16% 0%, rgba(var(--v-theme-primary), 0.13), transparent 36%),
+    linear-gradient(135deg, rgba(var(--v-theme-surface), 0.50), rgba(var(--v-theme-surface), 0.30)),
+    rgba(var(--v-theme-on-surface), 0.018);
   box-shadow:
-    inset 0 0 0 1px rgba(var(--v-theme-success), 0.16),
-    0 18px 46px rgba(var(--v-theme-on-surface), 0.06);
+    inset 0 0 0 1px rgba(var(--v-border-color), 0.11),
+    0 12px 30px rgba(var(--v-theme-on-surface), 0.028);
 }
-.aoa-health-hero--off {
+.aoa-pane :deep(.aoa-module-hero--off) {
   background:
-    linear-gradient(135deg, rgba(var(--v-theme-warning), 0.13), rgba(var(--v-theme-on-surface), 0.04)),
-    rgba(var(--v-theme-surface), 0.78);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-warning), 0.18);
+    radial-gradient(circle at 16% 0%, rgba(var(--v-theme-warning), 0.11), transparent 36%),
+    linear-gradient(135deg, rgba(var(--v-theme-surface), 0.46), rgba(var(--v-theme-surface), 0.28)),
+    rgba(var(--v-theme-on-surface), 0.014);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--v-border-color), 0.10),
+    0 10px 28px rgba(var(--v-theme-on-surface), 0.025);
 }
-.aoa-health-heading {
+.aoa-pane :deep(.aoa-module-heading) {
   min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 14px;
 }
-.aoa-health-emblem {
-  width: 54px;
-  height: 54px;
-  flex: 0 0 54px;
+.aoa-pane :deep(.aoa-module-emblem) {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
   display: grid;
   place-items: center;
-  border-radius: 16px;
-  color: rgb(var(--v-theme-success));
-  background: rgba(var(--v-theme-surface), 0.8);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-success), 0.22);
+  border-radius: 17px;
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-surface), 0.44);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-primary), 0.16);
 }
-.aoa-health-heading-text {
+.aoa-pane :deep(.aoa-module-heading-text) {
   min-width: 0;
+  width: min(382px, 100%);
+  display: grid;
+  align-content: center;
 }
-.aoa-health-kicker {
+.aoa-pane :deep(.aoa-module-kicker) {
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.18;
   color: rgba(var(--v-theme-on-surface), 0.58);
 }
-.aoa-health-title {
-  margin-top: 3px;
-  font-size: 20px;
+.aoa-pane :deep(.aoa-module-title) {
+  margin-top: 4px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: 0;
 }
-.aoa-health-desc {
+.aoa-pane :deep(.aoa-module-desc) {
   margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.45;
+  max-width: 360px;
+  min-height: 35px;
+  font-size: 12.5px;
+  line-height: 1.42;
   color: rgba(var(--v-theme-on-surface), 0.66);
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-wrap: balance;
+  word-break: break-word;
 }
-.aoa-health-state {
+.aoa-pane :deep(.aoa-module-state) {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  margin-left: auto;
   white-space: nowrap;
 }
-.aoa-health-section {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.9), rgba(var(--v-theme-surface), 0.72)),
-    rgba(var(--v-theme-on-surface), 0.02);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.14);
+.aoa-pane :deep(.aoa-module-state .v-selection-control) {
+  min-height: 34px;
 }
-.aoa-health-section-head {
+.aoa-field-note {
+  height: 100%;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-.aoa-health-section-title {
-  font-size: 15px;
-  font-weight: 800;
-  color: rgba(var(--v-theme-on-surface), 0.9);
-}
-.aoa-health-section-note {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.35;
-  color: rgba(var(--v-theme-on-surface), 0.5);
+  align-items: center;
+  margin-top: 0;
 }
 .aoa-health-scope-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 16px 14px;
+  gap: var(--aoa-grid-gutter-y) var(--aoa-grid-gutter-x);
   align-items: stretch;
 }
 .aoa-health-field-third {
@@ -1902,37 +2227,53 @@ onMounted(() => {
 .aoa-table-wrap {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  border-radius: 14px;
-  background: rgba(var(--v-theme-on-surface), 0.018);
+  border: 1px solid rgba(var(--v-border-color), 0.10);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.22), rgba(var(--v-theme-surface), 0.14)),
+    rgba(var(--v-theme-on-surface), 0.014);
 }
 .aoa-columns-pane {
-  display: flex;
-  min-height: 100%;
+  display: block;
+  min-height: auto;
   box-sizing: border-box;
 }
 .aoa-columns-form {
-  flex: 1 1 auto;
-  min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
+  min-height: auto;
+  grid-template-rows: none;
+}
+.aoa-columns-pane :deep(.aoa-module-hero),
+.aoa-columns-pane .aoa-setting-section {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .aoa-columns-pane .aoa-table-wrap {
-  display: flex;
-  min-height: 0;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: auto;
 }
 .aoa-report-table-scroll {
   flex: 1 1 auto;
   min-height: 0;
   max-height: 430px;
   overflow: auto;
-  scrollbar-width: thin;
 }
 .aoa-columns-pane .aoa-report-table-scroll {
   max-height: none;
+  overflow: visible;
 }
 .aoa-report-table {
-  min-width: 680px;
+  width: 100%;
+  min-width: 0;
   font-size: 13px;
+}
+.aoa-report-table :deep(table) {
+  width: 100%;
+  min-width: 620px;
 }
 .aoa-report-table :deep(th) {
   position: sticky;
@@ -1971,19 +2312,86 @@ onMounted(() => {
 .aoa-actions {
   padding: 12px 20px;
 }
+@media (max-width: 960px) {
+  .aoa-report-table :deep(table) {
+    min-width: 0;
+    table-layout: fixed;
+  }
+  .aoa-report-table :deep(th),
+  .aoa-report-table :deep(td) {
+    padding-inline: 10px;
+  }
+  .aoa-report-table :deep(th:nth-child(1)),
+  .aoa-report-table :deep(td:nth-child(1)) {
+    width: 58px;
+  }
+  .aoa-report-table :deep(th:nth-child(2)),
+  .aoa-report-table :deep(td:nth-child(2)) {
+    width: 128px;
+  }
+  .aoa-report-table :deep(th:nth-child(3)),
+  .aoa-report-table :deep(td:nth-child(3)) {
+    width: 128px;
+  }
+  .aoa-report-table :deep(td) {
+    white-space: normal;
+    word-break: break-word;
+  }
+}
 @media (max-width: 760px) {
+  .aoa-config {
+    --aoa-pane-x: 16px;
+    --aoa-pane-y: 18px;
+    --aoa-pane-bottom: 18px;
+    --aoa-block-gap: 16px;
+    --aoa-section-pad: 16px;
+    --aoa-grid-gutter-x: 14px;
+    --aoa-grid-gutter-y: 12px;
+  }
+  .aoa-header {
+    padding: 12px 14px;
+  }
+  .aoa-header-title,
+  .aoa-header-subtitle {
+    display: none;
+  }
+  .aoa-header :deep(.v-card-item__append) {
+    margin-inline-start: auto;
+    padding-inline-start: 0;
+  }
+  .aoa-header :deep(.v-switch .v-label) {
+    font-size: 13px;
+    opacity: 0.78;
+  }
+  .aoa-header-link {
+    height: 30px;
+    padding: 0 8px;
+  }
+  .aoa-card {
+    height: calc(100vh - 20px);
+    max-height: calc(100vh - 20px);
+  }
   .aoa-body {
-    height: min(76vh, 680px);
+    height: auto;
+    min-height: 0;
     flex-direction: column;
   }
   .aoa-nav {
     width: 100%;
     flex: 0 0 180px;
+    height: 180px;
+    min-height: 0;
+    overflow: hidden;
     border-right: none;
-    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+    border-bottom: 1px solid rgba(var(--v-border-color), var(--aoa-hairline-alpha));
   }
   .aoa-nav-scroll {
+    height: 100%;
     padding-bottom: 40px;
+  }
+  .aoa-content {
+    flex: 1 1 auto;
+    min-height: 0;
   }
   .aoa-subtabs {
     align-items: flex-start;
@@ -2003,7 +2411,7 @@ onMounted(() => {
     text-align: left;
   }
   .aoa-action-dock {
-    padding: 8px 16px 14px;
+    padding: 8px var(--aoa-pane-x) 14px;
   }
   .aoa-action-dock-list {
     align-items: flex-start;
@@ -2020,21 +2428,102 @@ onMounted(() => {
     max-width: 100%;
   }
   .aoa-pane {
-    padding: 18px 16px;
+    padding: var(--aoa-pane-y) var(--aoa-pane-x) var(--aoa-pane-bottom);
   }
-  .aoa-report-table {
-    min-width: 620px;
+  .aoa-report-table :deep(table),
+  .aoa-report-table :deep(tbody) {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .aoa-report-table :deep(thead) {
+    display: none;
+  }
+  .aoa-report-table :deep(tbody) {
+    display: grid;
+    gap: 10px;
+  }
+  .aoa-report-table :deep(tr) {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    grid-auto-rows: min-content;
+    align-items: start;
+    gap: 5px 10px;
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgba(var(--v-theme-surface), 0.34), rgba(var(--v-theme-surface), 0.20)),
+      rgba(var(--v-theme-on-surface), 0.010);
+    box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.09);
+  }
+  .aoa-report-table :deep(td) {
+    display: flex;
+    align-items: center;
+    width: auto !important;
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
+    padding: 0;
+    border-bottom: 0 !important;
+  }
+  .aoa-report-table :deep(td)::before {
+    display: none;
+  }
+  .aoa-report-table :deep(td.aoa-col-enable) {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    width: 36px !important;
+    align-self: stretch;
+    justify-content: center;
+  }
+  .aoa-report-table :deep(td.aoa-col-enable)::before {
+    display: none;
+  }
+  .aoa-report-table :deep(td:not(.aoa-col-enable)) {
+    grid-column: 2;
+  }
+  .aoa-report-table :deep(td[data-label="组件"]) {
+    grid-row: 1;
+    align-items: flex-start;
+  }
+  .aoa-report-table :deep(td[data-label="栏目"]) {
+    grid-row: 2;
+    align-items: flex-start;
+    color: rgba(var(--v-theme-on-surface), 0.86) !important;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .aoa-report-table :deep(td[data-label="备注"]) {
+    grid-row: 3;
+    align-items: flex-start;
+    color: rgba(var(--v-theme-on-surface), 0.52) !important;
+    line-height: 1.35;
+  }
+  .aoa-report-table :deep(td[data-label="备注"] span) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .aoa-report-table :deep(.v-chip) {
+    max-width: 100%;
+    height: 24px;
+  }
+  .aoa-report-table :deep(.v-chip__content) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .aoa-seed-options {
     grid-template-columns: 1fr;
   }
-  .aoa-health-hero,
-  .aoa-health-state,
-  .aoa-health-section-head {
+  .aoa-pane :deep(.aoa-module-hero),
+  .aoa-pane :deep(.aoa-module-state),
+  .aoa-setting-section-head {
     align-items: stretch;
     flex-direction: column;
   }
-  .aoa-health-state {
+  .aoa-pane :deep(.aoa-module-state) {
     justify-content: flex-start;
     white-space: normal;
   }

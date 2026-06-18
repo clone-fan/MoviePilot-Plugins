@@ -7,7 +7,7 @@ function unwrapResponse(response) {
 async function postPluginApi(api, path, payload = {}) {
   if (!api?.post) throw new Error('MoviePilot 插件 API 未就绪')
   const response = await api.post(`plugin/AgentOpsAssistant/${path}`, payload);
-  return unwrapResponse(response)
+  return response?.data ?? response
 }
 
 async function getPluginApi(api, path) {

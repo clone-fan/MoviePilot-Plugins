@@ -7,7 +7,7 @@ export function unwrapResponse(response) {
 export async function postPluginApi(api, path, payload = {}) {
   if (!api?.post) throw new Error('MoviePilot 插件 API 未就绪')
   const response = await api.post(`plugin/AgentOpsAssistant/${path}`, payload)
-  return unwrapResponse(response)
+  return response?.data ?? response
 }
 
 // 返回完整响应信封 {code, msg, data, text}，用于需要 text 预览正文的场景

@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import types
 from datetime import datetime, timedelta
 from enum import Enum
@@ -331,6 +332,7 @@ def main():
 
     g = make_plugin(mod, seedclean_downloaders=[])
     check(g.run_seed_clean() is False, "无下载器 -> 不执行返回 False")
+    check(g._stub_messages and "选择下载器" in g._stub_messages[-1].get("text", ""), "无下载器时按通知配置提醒用户")
     g2 = make_plugin(mod, seedclean_downloaders=["qb1"])  # 无任何条件
     check(g2.run_seed_clean() is False, "有下载器但无条件 -> 跳过返回 False")
 
@@ -433,6 +435,9 @@ def main():
           "多选列表被识别（不再因单 ID 为空而 blocked）")
     r2 = make_plugin(mod, plugin_uninstall_ids=[])._build_plugin_uninstall_status(clean=False)
     check(bool(r2.get("blocked")) and r2.get("success") is False, "空目标 -> blocked，不误删")
+    api_uninstall_empty = make_plugin(mod, plugin_uninstall_ids=[]).api_preview_plugin_uninstall()
+    check(api_uninstall_empty.get("code") == 1 and "选择目标插件" in api_uninstall_empty.get("msg", ""),
+          "插件卸载预览无目标时提示用户先选择插件")
     r3 = make_plugin(mod, plugin_uninstall_ids=["moviepilot"])._build_plugin_uninstall_status(clean=True)
     check(r3.get("success") is False and any("moviepilot" in e.lower() for e in r3.get("errors", [])),
           "禁止治理 MoviePilot/本体（保护）")
@@ -451,6 +456,23 @@ def main():
     r6 = make_plugin(mod, plugin_uninstall_ids=["AutoBackup"], plugin_uninstall_remove_plugin=False)._build_plugin_uninstall_status(clean=True)
     check(r6.get("success") is True and not _PU["removed_plugins"] and _PU["installed"] == ["AutoBackup"],
           "关闭卸载插件时只做残留清理，不移除已安装插件")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outside = Path(tmpdir) / "outside-residue.txt"
+        outside.write_text("keep me", encoding="utf-8")
+        p_uninstall_guard = make_plugin(mod, plugin_uninstall_ids=["UnsafePlugin"], plugin_uninstall_remove_plugin=False)
+        p_uninstall_guard._plugin_uninstall_candidates = lambda pid: [{
+            "plugin_id": pid,
+            "kind": "local_source",
+            "path": str(outside),
+            "type": "file",
+            "size": 7,
+            "size_text": "7 B",
+            "mtime": "2026-06-18 00:00:00",
+        }]
+        p_uninstall_guard._backup_plugin_uninstall_candidates = lambda pid, candidates: ""
+        guarded = p_uninstall_guard._build_plugin_uninstall_status(clean=True)
+        check(outside.exists() and guarded.get("success") is False and any("越界" in e or "不在允许范围" in e for e in guarded.get("errors", [])),
+              "插件卸载删除前校验候选路径必须在允许根目录内")
 
     print("== 插件库更新增强：自动更新已安装插件 ==")
     def _reset_pu(**kw):
@@ -526,6 +548,11 @@ def main():
     pm.on_webhook_message(types.SimpleNamespace(event_data=info))
     check(len(pm._stub_messages) == 1 and "开始播放剧集 剧A" in pm._stub_messages[0]["title"], "开始播放 -> 发通知，标题正确")
     check("用户：张三" in pm._stub_messages[0]["text"], "正文含用户")
+    check(getattr(pm._stub_messages[0].get("mtype"), "name", "") == "MediaServer", "媒体通知默认走媒体服务器消息类型")
+    pm_other = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="开始播放", msgnotify_notify_type="Other")
+    pm_other.on_webhook_message(types.SimpleNamespace(event_data=info))
+    check(pm_other._stub_messages and pm_other._stub_messages[0].get("mtype") == mod.NotificationType.Other,
+          "媒体通知消息类型支持 其他")
     pm.on_webhook_message(types.SimpleNamespace(event_data=info))
     check(len(pm._stub_messages) == 1, "同 item 重复事件 30s 内去重")
     pm2 = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="新入库")
@@ -577,6 +604,11 @@ def main():
     check("🎬 媒体统计" not in msg, "report_media_stat=False -> 日报不含媒体统计")
     check("📥 今日下载" in msg and "📡 站点状态" in msg, "默认栏目仍在")
     check("⬇️ 下载器" not in msg and "正在下载" not in msg, "下载器段已与今日下载去重移除")
+    pr_preview_api = make_plugin(mod)
+    pr_preview_api._build_daily_report_message = lambda *a, **k: "日报预览正文"
+    pr_preview_result = pr_preview_api.api_preview_daily_report()
+    check(pr_preview_result.get("code") == 0 and pr_preview_result.get("text") == "日报预览正文", "每日汇报 API 预览直接返回完整正文")
+    check(not pr_preview_api._stub_messages and "last_daily_report" not in pr_preview_api._stub_data, "每日汇报 API 预览不发消息也不写执行状态")
     pr_pack = make_plugin(mod)
     packed = pr_pack._report_body_lines(["⦁ A", "⦁ B", "⦁ 这是一条比较长的内容，用来确认长信息不会被强行横向挤压而影响阅读"])
     check(packed[0] == "• A ｜ • B" and packed[1].startswith("• 这是一条比较长"), "短信息横向并排，长信息独占一行")
@@ -653,6 +685,11 @@ def main():
           "饼图：过零点无今日快照时使用最近有效快照")
     check(fallback_data.get("upload_total") == 20 * 1024 ** 3 and fallback_data.get("download_total") == 4 * 1024 ** 3,
           "饼图：最近快照按其前一有效日期计算增量")
+    p_site_fail = make_plugin(mod)
+    p_site_fail.api_site_stat_chart = lambda: {"code": 1, "msg": "站点接口异常", "data": {"sites": [], "upload_total": 0, "download_total": 0}}
+    site_fail = p_site_fail.api_run_site_stat()
+    check(site_fail.get("code") == 1 and "站点接口异常" in site_fail.get("msg", ""), "站点统计刷新透传图表接口失败，不误报成功")
+    check((p_site_fail.get_data("last_site_stat") or {}).get("success") is False, "站点统计刷新失败时记录失败任务状态")
 
     print("== 订阅追新：cron 统一 + 独立推送服务 ==")
     p_old = make_plugin(mod, subscribe_reminder_time="9")
@@ -685,6 +722,105 @@ def main():
     p_market.post_message = lambda **kw: market_sent.update(kw)
     p_market.run_market_update()
     check(getattr(market_sent.get("mtype"), "name", "") == "Other", "插件库更新通知使用所选消息类型")
+    p_market_preview_error = make_plugin(mod)
+    p_market_preview_error._build_market_update_status = lambda apply=False: (_ for _ in ()).throw(RuntimeError("插件库记录页面获取失败：no_response"))
+    market_preview_error = p_market_preview_error.api_preview_market_update()
+    check(market_preview_error.get("code") == 1 and "no_response" in market_preview_error.get("msg", ""), "插件库更新预览失败时返回可读错误而不是抛异常")
+    check(not p_market_preview_error._stub_messages and not p_market_preview_error._stub_data, "插件库更新预览失败不发消息也不写状态")
+    p_update_preview_error = make_plugin(mod)
+    p_update_preview_error._build_update_status = lambda: (_ for _ in ()).throw(RuntimeError("release api timeout"))
+    update_preview_error = p_update_preview_error.api_preview_updates()
+    check(update_preview_error.get("code") == 1 and "release api timeout" in update_preview_error.get("msg", ""), "MP 更新预览失败时返回可读错误而不是抛异常")
+    p_log_preview_error = make_plugin(mod)
+    p_log_preview_error._build_log_preview = lambda: (_ for _ in ()).throw(RuntimeError("log path denied"))
+    log_preview_error = p_log_preview_error.api_preview_log_clean()
+    check(log_preview_error.get("code") == 1 and "log path denied" in log_preview_error.get("msg", ""), "日志清理预览失败时返回可读错误而不是抛异常")
+    p_plugin_preview_error = make_plugin(mod)
+    p_plugin_preview_error._build_plugin_uninstall_status = lambda clean=False: (_ for _ in ()).throw(RuntimeError("plugin list broken"))
+    plugin_preview_error = p_plugin_preview_error.api_preview_plugin_uninstall()
+    check(plugin_preview_error.get("code") == 1 and "plugin list broken" in plugin_preview_error.get("msg", ""), "插件卸载预览失败时返回可读错误而不是抛异常")
+    p_api_task_error = make_plugin(mod)
+    p_api_task_error.run_subfill_clear_history = lambda: (_ for _ in ()).throw(RuntimeError("save_data failed"))
+    api_task_error = p_api_task_error.api_subfill_clear_history()
+    check(api_task_error.get("code") == 1 and "save_data failed" in api_task_error.get("msg", ""), "通用手动任务异常时返回失败信封而不是硬抛")
+
+    print("== 更新检查：通知去重 ==")
+    p_update = make_plugin(mod, enabled=True, mp_update_enabled=True, mp_update_notify=True, mp_update_notify_type="Other")
+    p_update._get_local_versions = lambda: {"backend_version": "v2.13.10", "frontend_version": "v2.13.10"}
+    p_update._check_one_release = lambda label, url, local: {
+        "type": label,
+        "local_version": local,
+        "latest_version": "v2.13.10" if label == "后端" else "v2.13.11",
+        "has_update": label == "前端",
+        "error": "",
+    }
+    p_update._build_market_status = lambda: {"note": "本插件直接检查插件库记录"}
+    mp_update_service = next(s for s in p_update.get_service() if s.get("id") == "AgentOpsAssistant.MPUpdate")
+    check(mp_update_service["func"]() is True, "MP 更新定时服务执行成功")
+    update_titles = [m.get("title") for m in p_update._stub_messages]
+    check(len(p_update._stub_messages) == 1, "MP 更新有新版时只发送一条通知")
+    check(update_titles == ["MP 运维助手 - MoviePilot更新检查"], "MP 更新通知标题不是预览标题")
+    check(getattr(p_update._stub_messages[0].get("mtype"), "name", "") == "Other", "MP 更新通知使用所选消息类型")
+
+    p_update_preview = make_plugin(mod, enabled=True, mp_update_notify=True)
+    p_update_preview._get_local_versions = p_update._get_local_versions
+    p_update_preview._check_one_release = p_update._check_one_release
+    p_update_preview._build_market_status = p_update._build_market_status
+    preview_result = p_update_preview.api_preview_updates()
+    check(preview_result.get("code") == 0 and not p_update_preview._stub_messages, "MP 更新预览接口不发送通知")
+    p_update_restart_preview = make_plugin(mod, enabled=True, mp_update_notify=True, mp_update_restart_confirm=True)
+    p_update_restart_preview._get_local_versions = p_update._get_local_versions
+    p_update_restart_preview._check_one_release = p_update._check_one_release
+    p_update_restart_preview._build_market_status = p_update._build_market_status
+    restart_preview_result = p_update_restart_preview.api_preview_updates()
+    restart_mp = (restart_preview_result.get("data") or {}).get("moviepilot") or {}
+    check("restart_dispatched" not in restart_mp and "restart_error" not in restart_mp, "MP 更新预览接口不触发重启副作用")
+    p_update_error = make_plugin(mod, enabled=True, mp_update_enabled=True)
+    p_update_error._get_local_versions = lambda: {"backend_version": "v2.13.10", "frontend_version": "v2.13.10"}
+    p_update_error._check_one_release = lambda label, url, local: {
+        "type": label,
+        "local_version": local,
+        "latest_version": "",
+        "has_update": False,
+        "error": "release api timeout",
+    }
+    p_update_error._build_market_status = p_update._build_market_status
+    check(p_update_error.run_mp_update_check() is False, "MP 更新检查 release 查询异常时不误报执行成功")
+    update_error_task = p_update_error.get_data("last_update_preview") or {}
+    check(update_error_task.get("success") is False, "MP 更新检查异常时记录失败任务状态")
+    p_update_error_api = make_plugin(mod, enabled=True, mp_update_enabled=True)
+    p_update_error_api._get_local_versions = p_update_error._get_local_versions
+    p_update_error_api._check_one_release = p_update_error._check_one_release
+    p_update_error_api._build_market_status = p_update._build_market_status
+    update_error_api = p_update_error_api.api_run_mp_update()
+    check(update_error_api.get("code") == 1, "MP 更新检查 API 遇到 release 异常时返回失败信封")
+
+    print("== 命令入口：通知去重 ==")
+    p_cmd_notify = make_plugin(mod, subscribe_reminder_msgtype="Plugin")
+    p_cmd_notify._get_today_subscribe_updates_locked = lambda: ["凡人修仙传 S01E52"]
+    p_cmd_notify.handle_command(types.SimpleNamespace(event_data={"action": "mpops_subscribe"}))
+    cmd_titles = [m.get("title") for m in p_cmd_notify._stub_messages]
+    check(cmd_titles == ["MP 运维助手 - 订阅追新"], "命令触发的任务已发送业务通知时，不再补发命令执行结果")
+
+    p_cmd_feedback = make_plugin(mod)
+    p_cmd_feedback._build_health_summary = lambda: {
+        "success": True,
+        "checks": [{"name": "database", "ok": True, "detail": "连接正常"}],
+        "total": 1,
+        "pass": 1,
+        "fail": 0,
+    }
+    p_cmd_feedback.handle_command(types.SimpleNamespace(event_data={"action": "mpops_health"}))
+    feedback_titles = [m.get("title") for m in p_cmd_feedback._stub_messages]
+    check(feedback_titles == ["MP 运维助手命令执行结果"], "命令触发的任务未发送业务通知时，仍保留命令反馈")
+
+    p_cmd_failure = make_plugin(mod)
+    p_cmd_failure.run_daily_report = lambda: p_cmd_failure.post_message(mtype=mod.NotificationType.Plugin, title="业务通知", text="日报已发送") or True
+    p_cmd_failure.run_health_check = lambda: False
+    p_cmd_failure.handle_command(types.SimpleNamespace(event_data={"action": "mpops_run_all"}))
+    failure_titles = [m.get("title") for m in p_cmd_failure._stub_messages]
+    check(failure_titles == ["业务通知", "MP 运维助手命令执行结果"] and "健康巡查：失败" in p_cmd_failure._stub_messages[-1].get("text", ""),
+          "组合命令已有业务通知但存在失败任务时，仍补发失败汇总")
 
     print("== onlyonce 保存后立即运行一次（修复死开关）==")
     p_once = make_plugin(mod, enabled=True)
@@ -693,10 +829,23 @@ def main():
     p_once.run_log_clean = lambda: once_calls.append("log") or True
     p_once.run_market_update = lambda: once_calls.append("market") or True
     p_once.run_subscribe_reminder = lambda: once_calls.append("sub") or True
-    cfg_once = {"backup_onlyonce": True, "log_clean_onlyonce": True}
+    p_once.api_run_site_stat = lambda: once_calls.append("site") or {"code": 0}
+    cfg_once = {
+        "backup_onlyonce": True,
+        "log_clean_onlyonce": True,
+        "market_update_onlyonce": True,
+        "subscribe_reminder_onlyonce": True,
+        "site_stat_onlyonce": True,
+    }
     fired = p_once._fire_onlyonce(cfg_once)
-    check(set(fired) == {"backup_onlyonce", "log_clean_onlyonce"}, "onlyonce 命中置位的两个开关")
-    check(cfg_once["backup_onlyonce"] is False and cfg_once["log_clean_onlyonce"] is False, "onlyonce 命中后清零（防重载重复触发）")
+    expected_once_keys = {"backup_onlyonce", "log_clean_onlyonce", "market_update_onlyonce", "subscribe_reminder_onlyonce", "site_stat_onlyonce"}
+    expected_once_calls = {"backup", "log", "market", "sub", "site"}
+    deadline = time.monotonic() + 3
+    while set(once_calls) != expected_once_calls and time.monotonic() < deadline:
+        time.sleep(0.05)
+    check(set(fired) == expected_once_keys, "onlyonce 命中置位的全部开关")
+    check(all(cfg_once[key] is False for key in expected_once_keys), "onlyonce 命中后清零（防重载重复触发）")
+    check(set(once_calls) == expected_once_calls, "onlyonce 全部映射到实际任务")
     check(p_once._fire_onlyonce({}) == [], "无 onlyonce 置位 -> 不触发")
 
     print("== 发版自检：接口/服务/命令/生命周期完整性 ==")
@@ -712,6 +861,7 @@ def main():
         "run_daily_report", "run_subscribe_reminder", "run_site_stat",
         "run_downloader_tag", "run_backup", "run_log_clean", "run_mp_update",
         "run_market_update", "run_health_check", "run_seed_clean",
+        "preview_updates",
         "installed_plugins", "plugin_markets", "downloaders", "mediaservers",
         "subfill_clear_history", "subfill_clear_handled", "run_plugin_uninstall",
     }
@@ -730,6 +880,30 @@ def main():
     check("🩺 健康巡查" in msg_health and "状态：全部正常" in msg_health, "report_health=True -> 日报包含健康巡查结果")
 
     print("== 健康巡查范围与兜底 ==")
+    hc_service = make_plugin(mod, enabled=True, health_check_enabled=True, health_check_cron="0 */6 * * *")
+    hc_service_ids = {s.get("id") for s in (hc_service.get_service() or [])}
+    check("AgentOpsAssistant.HealthCheck" in hc_service_ids, "启用健康巡查后注册独立定时服务")
+    task_keys = {t.get("key") for t in hc_service._task_definitions()}
+    check("health_check" in task_keys, "组件运行状况包含健康巡查")
+    check("site_stat" in task_keys, "组件运行状况包含站点数据统计")
+    check("downloader_tag" in task_keys, "组件运行状况包含种子标签")
+    hc_service_off = make_plugin(mod, enabled=True, health_check_enabled=False)
+    hc_service_off_ids = {s.get("id") for s in (hc_service_off.get_service() or [])}
+    check("AgentOpsAssistant.HealthCheck" not in hc_service_off_ids, "关闭健康巡查后不注册定时服务")
+    bad_cron = make_plugin(mod, enabled=True, daily_report_enabled=True, daily_report_cron="bad cron",
+                           health_check_enabled=True, health_check_cron="bad cron",
+                           seedclean_enabled=True, seedclean_downloaders=["qb1"], seedclean_cron="bad cron")
+    try:
+        bad_cron_ids = {s.get("id") for s in (bad_cron.get_service() or [])}
+        bad_cron_raised = False
+    except Exception:
+        bad_cron_ids = set()
+        bad_cron_raised = True
+    check(not bad_cron_raised and "AgentOpsAssistant.DailyReport" not in bad_cron_ids
+          and "AgentOpsAssistant.HealthCheck" not in bad_cron_ids
+          and "AgentOpsAssistant.SeedClean" not in bad_cron_ids,
+          "cron 配置错误时跳过对应定时服务，不拖垮插件调度加载")
+
     hc_all = make_plugin(mod, health_check_items=[])
     hc_all._check_database = lambda: {"name": "database", "ok": True, "detail": "db"}
     hc_all._check_storage = lambda: {"name": "storage", "ok": True, "detail": "storage"}
@@ -748,6 +922,11 @@ def main():
     }
     check(hc_run.run_health_check() is True, "健康巡查发现异常时接口仍表示巡查任务已完成")
     check((hc_run.get_data("last_health_check") or {}).get("success") is False, "健康巡查异常状态仍保存在健康结果中")
+    hc_dashboard = make_plugin(mod)
+    long_health_output = "⦁ 状态：发现 2 项异常\n" + ("⦁ 存储空间：/downloads/library/very/long/path 已用 93%，超过阈值 85%\n" * 12) + "⦁ 目录权限：/config/plugins/AgentOpsAssistant/Backup 无写入权限"
+    hc_dashboard.save_data("last_health_check", {"time": "2026-06-18 20:00:00", "success": False, "output": long_health_output})
+    hc_dashboard_data = (hc_dashboard.api_dashboard().get("data") or {}).get("health") or {}
+    check(hc_dashboard_data.get("output") == long_health_output, "仪表盘健康巡查异常详情不截断")
     hc_api = make_plugin(mod)
     hc_api._build_health_summary = lambda: {
         "success": False,
@@ -870,6 +1049,11 @@ def main():
     check(pa.get_render_mode()[0] == "vue", "渲染模式 = vue")
     form_schema, form_default = pa.get_form()
     check(form_schema == [] and isinstance(form_default, dict) and form_default, "get_form Vue 模式返回 ([], 默认配置dict)")
+    multiselect_defaults = ["log_clean_selected_ids", "market_update_blacklist", "market_update_install_ids",
+                            "market_update_exclude_ids", "plugin_uninstall_ids", "seedclean_downloaders",
+                            "subfill_details", "msgnotify_types", "msgnotify_servers", "dltag_downloaders"]
+    check(all(isinstance(form_default.get(key), list) for key in multiselect_defaults),
+          "get_form 多选字段默认值保持数组类型")
     check(pa.get_page() == [], "get_page Vue 模式返回 []")
 
     print()
