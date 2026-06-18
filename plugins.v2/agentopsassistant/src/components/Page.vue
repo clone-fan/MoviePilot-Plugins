@@ -1303,7 +1303,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 .cmd-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(118px, 1fr));
   gap: 9px;
 }
 .cmd-btn {
@@ -1320,6 +1320,9 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   font-weight: 840;
   white-space: nowrap;
 }
+.cmd-btn.v-btn {
+  padding-inline: 10px;
+}
 .cmd-btn:hover {
   border-color: rgba(var(--line), 0.16);
   background:
@@ -1328,15 +1331,25 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 .cmd-btn :deep(.v-btn__content) {
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 5px;
+  overflow: visible;
+  line-height: 1.18;
+}
+.cmd-btn :deep(.v-icon) {
+  flex: 0 0 auto;
 }
 .action-btn-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
+  min-width: max-content;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.18;
+  white-space: nowrap;
 }
 .action-message {
   margin-top: 14px;

@@ -160,6 +160,18 @@ async function auditVisibleDashboard(page, scope) {
       .flatMap(sel => [...document.querySelectorAll(sel)].filter(isVisible).map(info))
       .filter(item => item.deltaX > 3 || item.deltaY > 4)
 
+    const clippedCommandLabelStyles = [...document.querySelectorAll('.action-btn-label')]
+      .filter(isVisible)
+      .map(el => {
+        const cs = getComputedStyle(el)
+        return {
+          ...info(el),
+          overflow: cs.overflow,
+          textOverflow: cs.textOverflow,
+        }
+      })
+      .filter(item => item.overflow !== 'visible' || item.textOverflow === 'ellipsis')
+
     const actionScroll = document.querySelector('.action-scroll')
     const actionTotal = document.querySelectorAll('.action-item').length
     const actionVisible = actionScroll ? [...actionScroll.querySelectorAll('.action-item')].filter(isVisible).length : 0
@@ -177,11 +189,12 @@ async function auditVisibleDashboard(page, scope) {
       .map(el => ({ ...info(el), width: getComputedStyle(el, '::-webkit-scrollbar').width, height: getComputedStyle(el, '::-webkit-scrollbar').height }))
       .filter(item => item.width !== '1px' || item.height !== '1px')
 
-    return { scope, horizontalOverflow, clippedImportantText, actionTotal, actionVisible, actionBox, scrollbarIssues }
+    return { scope, horizontalOverflow, clippedImportantText, clippedCommandLabelStyles, actionTotal, actionVisible, actionBox, scrollbarIssues }
   }, scope)
 
   assert.deepEqual(result.horizontalOverflow, [], `${scope} dashboard should not have plugin-internal horizontal overflow`)
   assert.deepEqual(result.clippedImportantText, [], `${scope} dashboard should not clip important text`)
+  assert.deepEqual(result.clippedCommandLabelStyles, [], `${scope} command button labels should never rely on hidden overflow or ellipsis`)
   assert.equal(result.actionVisible, result.actionTotal, `${scope} dashboard should render every manual action button`)
   assert.equal(result.actionBox?.overflowY, 'visible', `${scope} dashboard action buttons should not rely on an internal scroller`)
   assert.deepEqual(result.scrollbarIssues, [], `${scope} dashboard scrollbars should stay at 1px`)
