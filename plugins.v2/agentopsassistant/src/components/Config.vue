@@ -171,7 +171,9 @@ const defaults = {
   daily_report_enabled: true,
   daily_report_cron: '0 22 * * *',
   daily_report_greeting: '少爷',
-  daily_report_msgtype: 'Plugin',
+  daily_report_telegram_rich_enabled: true,
+  daily_report_telegram_bot_token: '',
+  daily_report_telegram_chat_id: '',
   health_in_report: true,
   subscribe_in_report: true,
   site_stat_in_report: true,
@@ -672,21 +674,33 @@ onBeforeUnmount(() => {
                   desc="按计划聚合站点、订阅与入库|同步整理存储与健康信息"
                   :count-label="`${reportEnabledCount} 个栏目`"
                 />
-                <SettingSection title="汇报设置" note="发送时间、消息渠道与称呼集中配置">
+                <SettingSection title="汇报设置" note="发送时间、Telegram 富消息与称呼集中配置">
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="6">
                       <VCronField v-model="form.daily_report_cron" label="汇报时间 (Cron)"
                         :disabled="!form.daily_report_enabled" />
                     </VCol>
                     <VCol cols="12" md="6">
-                      <VSelect v-model="form.daily_report_msgtype" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.daily_report_enabled" />
-                    </VCol>
-                    <VCol cols="12">
                       <VTextField v-model="form.daily_report_greeting" label="汇报称呼"
                         placeholder="少爷" prepend-inner-icon="mdi-account-heart-outline"
                         persistent-hint hint="汇报开头与提醒中对你的称呼，留空默认“少爷”" clearable
                         :disabled="!form.daily_report_enabled" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VSwitch v-model="form.daily_report_telegram_rich_enabled"
+                        label="Telegram RichMessage"
+                        color="primary" inset hide-details
+                        :disabled="!form.daily_report_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VTextField v-model="form.daily_report_telegram_bot_token" label="Bot Token"
+                        type="password" autocomplete="off" prepend-inner-icon="mdi-robot-outline"
+                        :disabled="!form.daily_report_enabled || !form.daily_report_telegram_rich_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VTextField v-model="form.daily_report_telegram_chat_id" label="Chat ID"
+                        prepend-inner-icon="mdi-chat-outline"
+                        :disabled="!form.daily_report_enabled || !form.daily_report_telegram_rich_enabled" />
                     </VCol>
                   </VRow>
                 </SettingSection>

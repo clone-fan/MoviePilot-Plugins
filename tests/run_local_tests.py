@@ -609,10 +609,12 @@ def main():
     pr_preview_result = pr_preview_api.api_preview_daily_report()
     check(pr_preview_result.get("code") == 0 and pr_preview_result.get("text") == "日报预览正文", "每日汇报 API 预览直接返回完整正文")
     check(not pr_preview_api._stub_messages and "last_daily_report" not in pr_preview_api._stub_data, "每日汇报 API 预览不发消息也不写执行状态")
-    check((pr_preview_result.get("data") or {}).get("feishu_card", {}).get("schema") == "2.0",
-          "每日汇报 API 预览同时返回飞书卡片 JSON，便于通知重建验收")
-    check("<h2>" in ((pr_preview_result.get("data") or {}).get("telegram_rich_message", {}).get("html") or ""),
-          "每日汇报 API 预览同时返回 Telegram RichMessage HTML，便于 TG Bot 通知重建验收")
+    preview_data = pr_preview_result.get("data") or {}
+    check("feishu_card" not in preview_data and "feishu_streaming_card" not in preview_data,
+          "每日汇报 API 预览不返回飞书载荷，飞书流式卡片只作为 TG 富消息呈现参考")
+    preview_rich = preview_data.get("telegram_rich_message") or {}
+    check("<h2>" in (preview_rich.get("html") or "") and preview_rich.get("skip_entity_detection") is True and "markdown" not in preview_rich,
+          "每日汇报 API 预览只返回 Telegram RichMessage HTML 载荷")
     pr_pack = make_plugin(mod)
     packed = pr_pack._report_body_lines(["⦁ A", "⦁ B", "⦁ 这是一条比较长的内容，用来确认长信息不会被强行横向挤压而影响阅读"])
     check(packed[0] == "• A ｜ • B" and packed[1].startswith("• 这是一条比较长"), "短信息横向并排，长信息独占一行")
@@ -661,24 +663,90 @@ def main():
                       ("_version_report_lines", ["⦁ 当前版本：前端 1.0 / 后端 2.0"])]:
         setattr(p_card, name, (lambda v=val: v))
     p_card._get_health_report_locked = lambda *a, **k: ["⦁ 状态：全部正常", "⦁ 巡查项：共 7 项，通过 7 项，异常 0 项"]
-    feishu_card = p_card._build_daily_report_feishu_card(preview=True)
-    check(feishu_card.get("schema") == "2.0" and feishu_card.get("config", {}).get("update_multi") is True,
-          "飞书日报卡片使用 JSON 2.0 且开启 update_multi，保留后续升级为流式卡片的基础")
-    check(feishu_card.get("config", {}).get("streaming_mode") is False,
-          "固定每日汇报不启用流式模式，避免聊天摘要停留在生成中")
-    feishu_content = json.dumps(feishu_card, ensure_ascii=False)
-    check("📈 站点增量" in feishu_content and "馒头" in feishu_content and "10.00 GB" in feishu_content,
-          "飞书日报卡片承载重建后的站点增量分区")
     tg_rich = p_card._build_daily_report_telegram_rich_message(preview=True)
     tg_html = tg_rich.get("html", "")
     check(tg_rich.get("skip_entity_detection") is True and "markdown" not in tg_rich,
           "Telegram RichMessage 使用 html 且关闭实体猜测，不同时设置 markdown")
-    check("<table>" in tg_html and "📈 站点增量" in tg_html and "<details>" in tg_html and "<blockquote>" in tg_html,
-          "Telegram RichMessage 用 table/details/blockquote 重建日报观感")
+    check("📌 今日结论" in tg_html and "<th>看板</th>" not in tg_html and "站点：1 个，全部正常" in tg_html and "增量：↑ 10.00 GB / ↓ 2.00 GB" in tg_html,
+          "Telegram RichMessage 首屏使用结论摘要，不再把总览做成后台表格")
+    check("<details><summary>📈 站点增量</summary>" in tg_html and "<th>流量</th>" in tg_html and "<h3>📈 站点增量</h3>" not in tg_html and "<details><summary>📡 站点状态</summary>" in tg_html and "<details><summary>📥 今日下载</summary>" in tg_html,
+          "Telegram RichMessage 站点增量也进入折叠明细，不把单个表格裸露在首屏")
+    p_risk = make_plugin(mod, report_site_increment=False, report_today_download=False,
+                         report_transfer=False, report_subscribe=False, report_storage=False,
+                         report_media_stat=False, report_health=False, report_summary=False)
+    p_risk._get_site_health_locked = lambda: ["⦁ 馒头 | 正常", "⦁ 红叶 | 异常（Cookie 失效）"]
+    p_risk._version_report_lines = lambda: []
+    risk_html = p_risk._build_daily_report_telegram_html(preview=True)
+    check("🚨 站点风险</b>" in risk_html and "红叶：异常（Cookie 失效）" in risk_html and "<details><summary>📡 站点状态</summary>" in risk_html,
+          "Telegram RichMessage 关键异常前置展示，同时保留完整折叠明细")
+    p_cols_off = make_plugin(mod, report_version=False, report_site_status=False, report_site_increment=False,
+                             report_today_download=False, report_transfer=False, report_subscribe=False,
+                             report_storage=False, report_media_stat=False, report_health=False, report_summary=False)
+    for name, val in [("_get_site_increment_locked", ["⦁ 馒头：⬆ 10.00 GB ｜ ⬇ 2.00 GB｜📊 3.405"]),
+                      ("_get_site_health_locked", ["⦁ 馒头 | 正常"]),
+                      ("_get_transfer_health_locked", ["⦁ 失败片 ｜ 硬链接失败"]),
+                      ("_get_today_subscribe_updates_locked", ["今日新增订阅：2"]),
+                      ("_get_downloader_health_locked", ["⦁ 在线 2 个"]),
+                      ("_get_storage_health_locked", ["⦁ 本地：💽 76.34 GB/283.75 GB ｜ 🟢 已用 27%"]),
+                      ("_get_today_downloads_locked", ["⦁ 星际穿越"]),
+                      ("_get_media_stats_locked", ["⦁ 电影 120 ｜ 电视剧 46 ｜ 剧集 2300 ｜ 用户 3"]),
+                      ("_version_report_lines", ["⦁ 当前版本：前端 1.0 / 后端 2.0"])]:
+        setattr(p_cols_off, name, (lambda v=val: v))
+    p_cols_off._get_health_report_locked = lambda *a, **k: ["⦁ 状态：发现 1 项异常"]
+    cols_off_html = p_cols_off._build_daily_report_telegram_html(preview=True)
+    check("📌 今日结论" not in cols_off_html and "📈 站点增量" not in cols_off_html and "📥 今日下载" not in cols_off_html and "🩺 健康巡查" not in cols_off_html,
+          "Telegram RichMessage 必须尊重每日汇报栏目开关，关闭的栏目不能在总览或明细里残留")
+    p_site_only = make_plugin(mod, report_version=False, report_site_status=True, report_site_increment=False,
+                              report_today_download=False, report_transfer=False, report_subscribe=False,
+                              report_storage=False, report_media_stat=False, report_health=False, report_summary=False)
+    p_site_only._get_site_health_locked = lambda: ["⦁ 馒头 | 正常"]
+    p_site_only._get_site_increment_locked = lambda: ["⦁ 馒头：⬆ 10.00 GB ｜ ⬇ 2.00 GB｜📊 3.405"]
+    p_site_only._get_today_downloads_locked = lambda: ["⦁ 星际穿越"]
+    site_only_html = p_site_only._build_daily_report_telegram_html(preview=True)
+    check("📌 今日结论" in site_only_html and "站点：" in site_only_html and "增量：" not in site_only_html and "下载：" not in site_only_html and "健康：" not in site_only_html,
+          "Telegram RichMessage 总览只汇总已开启栏目，不用关闭栏目凑版面")
+    p_tg_http = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                            daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="12345")
+    tg_calls = []
+    old_requests = sys.modules.get("requests")
+    sys.modules["requests"] = types.SimpleNamespace(
+        post=lambda url, json=None, timeout=None: tg_calls.append((url, json, timeout))
+        or types.SimpleNamespace(ok=True, status_code=200, text='{"ok":true}', json=lambda: {"ok": True})
+    )
+    try:
+        tg_http_ok = p_tg_http._post_telegram_rich_message({"html": "<h2>终态</h2>", "skip_entity_detection": True})
+    finally:
+        if old_requests is None:
+            sys.modules.pop("requests", None)
+        else:
+            sys.modules["requests"] = old_requests
+    check(tg_http_ok and len(tg_calls) == 2 and tg_calls[0][0].endswith("/sendRichMessageDraft") and tg_calls[1][0].endswith("/sendRichMessage"),
+          "Telegram 新机制先发送 30 秒 RichMessage 草稿预览，再发送终态 sendRichMessage")
+    check(tg_calls[0][1].get("draft_id") and "<tg-thinking>" in tg_calls[0][1].get("rich_message", {}).get("html", ""),
+          "Telegram RichMessageDraft 使用非零 draft_id 和 tg-thinking 占位")
     p_card._get_site_health_locked = lambda: ["⦁ A&B站 | 异常（<token>）"]
     escaped_tg_html = p_card._build_daily_report_telegram_html(preview=True)
     check("A&amp;B站" in escaped_tg_html and "&lt;token&gt;" in escaped_tg_html and "<token>" not in escaped_tg_html,
           "Telegram RichMessage 动态内容必须 HTML escape，避免站点名/错误详情破坏结构")
+    long_cell = "VeryLongStorageNameWithoutNaturalBreakpoints1234567890ABCDEFGHIJK"
+    long_table_html = p_card._telegram_table_html("", ["存储", "容量", "状态"], [[long_cell, "/config/plugins/AgentOpsAssistant/Backup/weekly/archive/2026/06/20", "🟢 已用 26% <safe>"]])
+    check("\u200b" in long_table_html and long_cell not in long_table_html and "&lt;safe&gt;" in long_table_html,
+          "Telegram RichMessage 表格长文本注入软换行点，同时保留 HTML escape")
+    p_tg_send = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                            daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    sent_rich_payloads = []
+    p_tg_send._post_telegram_rich_message = lambda rich: sent_rich_payloads.append(rich) or True
+    check(p_tg_send.run_daily_report() is True and sent_rich_payloads and not p_tg_send._stub_messages,
+          "每日汇报只发送 Telegram RichMessage，不再发飞书或 MP 纯文本通知")
+    check((p_tg_send._stub_data.get("last_daily_report") or {}).get("message") == "OK telegram_rich_message",
+          "每日汇报成功状态明确记录 telegram_rich_message")
+    p_tg_fallback = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                                daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_tg_fallback._post_telegram_rich_message = lambda rich: False
+    check(p_tg_fallback.run_daily_report() is False and not p_tg_fallback._stub_messages,
+          "Telegram RichMessage 发送失败时日报任务失败，不回退 MP post_message 纯文本")
+    check((p_tg_fallback._stub_data.get("last_daily_report") or {}).get("success") is False,
+          "Telegram RichMessage 失败会保存失败状态供仪表盘展示")
 
     print("== 日报下载与入库展示口径 ==")
     p_report = make_plugin(mod)

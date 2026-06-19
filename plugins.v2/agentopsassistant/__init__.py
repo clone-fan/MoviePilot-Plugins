@@ -32,7 +32,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.44"
+    plugin_version = "1.0.46"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -80,7 +80,9 @@ class AgentOpsAssistant(_PluginBase):
     _daily_report_enabled = True
     _daily_report_cron = "0 22 * * *"
     _daily_report_greeting = "少爷"
-    _daily_report_msgtype = "Plugin"
+    _daily_report_telegram_rich_enabled = True
+    _daily_report_telegram_bot_token = ""
+    _daily_report_telegram_chat_id = ""
     _health_in_report = True
     _subscribe_in_report = True
     _site_stat_in_report = True
@@ -218,7 +220,9 @@ class AgentOpsAssistant(_PluginBase):
         self._daily_report_enabled = bool(config.get("daily_report_enabled", True))
         self._daily_report_cron = config.get("daily_report_cron") or "0 22 * * *"
         self._daily_report_greeting = str(config.get("daily_report_greeting") or "少爷").strip() or "少爷"
-        self._daily_report_msgtype = config.get("daily_report_msgtype") or "Plugin"
+        self._daily_report_telegram_rich_enabled = bool(config.get("daily_report_telegram_rich_enabled", True))
+        self._daily_report_telegram_bot_token = str(config.get("daily_report_telegram_bot_token") or "").strip()
+        self._daily_report_telegram_chat_id = str(config.get("daily_report_telegram_chat_id") or "").strip()
         self._health_in_report = bool(config.get("health_in_report", True))
         self._subscribe_reminder_enabled = bool(config.get("subscribe_reminder_enabled", config.get("subscribe_in_report", True)))
         self._site_stat_enabled = bool(config.get("site_stat_enabled", config.get("site_stat_in_report", True)))
@@ -960,13 +964,17 @@ class AgentOpsAssistant(_PluginBase):
         name = "MP运维每日汇报"
         try:
             text = self._build_daily_report_message()
-            self.post_message(mtype=self._notification_type(self._daily_report_msgtype), title="MP 运维每日汇报", text=text)
-            self._save_daily_report_result(sent=True, success=True, text=text, error="")
-            self._save_task_result(name, True, 0, "OK plugin_notification_channel")
-            return True
+            if self._send_daily_report_telegram_rich(text):
+                self._save_task_result(name, True, 0, "OK telegram_rich_message")
+                self._save_daily_report_result(sent=True, success=True, text=text, error="", message="OK telegram_rich_message", returncode=0)
+                return True
+            error = "Telegram RichMessage 发送失败或未配置"
+            self._save_task_result(name, False, 1, error)
+            self._save_daily_report_result(sent=True, success=False, text=text, error=error, message=error, returncode=1)
+            return False
         except Exception as err:
-            self._save_daily_report_result(sent=True, success=False, text="", error=str(err))
             self._save_task_result(name, False, -1, str(err))
+            self._save_daily_report_result(sent=True, success=False, text="", error=str(err), message=str(err), returncode=-1)
             logger.error(f"AgentOpsAssistant MP运维每日汇报 执行失败：{err}")
             return False
 
@@ -985,15 +993,17 @@ class AgentOpsAssistant(_PluginBase):
             logger.error(f"AgentOpsAssistant 预览每日汇报 执行失败：{err}")
             return False
 
-    def _save_daily_report_result(self, sent: bool, success: bool, text: str = "", error: str = ""):
+    def _save_daily_report_result(self, sent: bool, success: bool, text: str = "", error: str = "", message: str = "", returncode: int = 0):
         self.save_data("last_daily_report", {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "template": "2026-06-20.card-v2-baseline-guard",
             "sent": bool(sent),
             "success": bool(success),
+            "returncode": int(returncode),
             "chars": len(text or ""),
             "sections": self._count_report_sections(text or ""),
             "preview": (text or "")[:2000],
+            "message": (message or "")[:1000],
             "error": (error or "")[:1000],
         })
 
@@ -1013,7 +1023,6 @@ class AgentOpsAssistant(_PluginBase):
                 "chars": len(text or ""),
                 "sections": self._count_report_sections(text or ""),
                 "preview": text,
-                "feishu_card": self._build_daily_report_feishu_card(preview=True, text=text),
                 "telegram_rich_message": self._build_daily_report_telegram_rich_message(preview=True, text=text),
                 "error": "",
             }
@@ -1305,49 +1314,76 @@ class AgentOpsAssistant(_PluginBase):
         """复刻 locked-heartbeat-report fixed-v1 模板。"""
         return self._build_heartbeat_message(preview=preview)
 
-    def _build_daily_report_feishu_card(self, preview: bool = False, text: Optional[str] = None) -> Dict[str, Any]:
-        """生成飞书/Lark 一次性 interactive 卡片 JSON 2.0；固定日报不启用流式模式。"""
-        report_text = text if text is not None else self._build_daily_report_message(preview=preview)
-        parts = self._split_daily_report_text(report_text)
-        title = parts.get("title") or "MP 运维日报"
-        intro = parts.get("intro") or []
-        elements: List[Dict[str, Any]] = []
-        if intro:
-            elements.append({
-                "tag": "markdown",
-                "element_id": "mp_daily_intro",
-                "content": self._clip_card_markdown("\n".join(intro), 1200),
-            })
-        for idx, section in enumerate(parts.get("sections") or [], start=1):
-            body = "\n".join(section.get("lines") or ["• 无"])
-            content = f"**{section.get('title') or '分区'}**\n{body}".strip()
-            elements.append({
-                "tag": "markdown",
-                "element_id": f"mp_daily_section_{idx}",
-                "content": self._clip_card_markdown(content, 2200),
-            })
-        if not elements:
-            elements.append({"tag": "markdown", "element_id": "mp_daily_empty", "content": "暂无日报内容"})
-        return {
-            "schema": "2.0",
-            "config": {
-                "update_multi": True,
-                "streaming_mode": False,
-                "summary": {"content": title[:120]},
-            },
-            "header": {
-                "template": "blue",
-                "title": {"tag": "plain_text", "content": title[:120]},
-            },
-            "body": {"elements": elements[:12]},
-        }
-
     def _build_daily_report_telegram_rich_message(self, preview: bool = False, text: Optional[str] = None) -> Dict[str, Any]:
         """生成 Telegram Bot API 10.1 sendRichMessage 的 rich_message 载荷。"""
         return {
             "html": self._build_daily_report_telegram_html(preview=preview, text=text),
             "skip_entity_detection": True,
         }
+
+    def _send_daily_report_telegram_rich(self, text: str) -> bool:
+        if not self._daily_report_telegram_rich_enabled:
+            logger.warning("AgentOpsAssistant 每日汇报未发送：Telegram RichMessage 未启用")
+            return False
+        if not self._daily_report_telegram_bot_token or not self._daily_report_telegram_chat_id:
+            logger.warning("AgentOpsAssistant 每日汇报未发送：Telegram RichMessage token/chat_id 未配置")
+            return False
+        try:
+            return bool(self._post_telegram_rich_message(self._build_daily_report_telegram_rich_message(text=text)))
+        except Exception as err:
+            logger.warning(f"AgentOpsAssistant Telegram RichMessage 发送失败：{err}")
+            return False
+
+    def _post_telegram_rich_message(self, rich_message: Dict[str, Any]) -> bool:
+        try:
+            import requests
+        except ImportError:
+            logger.warning("AgentOpsAssistant Telegram RichMessage 需要 requests，当前环境缺失")
+            return False
+
+        base_url = f"https://api.telegram.org/bot{self._daily_report_telegram_bot_token}"
+        try:
+            chat_id_int = int(str(self._daily_report_telegram_chat_id).strip())
+        except Exception:
+            chat_id_int = 0
+        if chat_id_int:
+            draft_id = int(datetime.now().timestamp() * 1000) % 2147483647 or 1
+            draft_payload = {
+                "chat_id": chat_id_int,
+                "draft_id": draft_id,
+                "rich_message": {
+                    "html": "<tg-thinking>生成日报中...</tg-thinking>",
+                    "skip_entity_detection": True,
+                },
+            }
+            try:
+                draft_res = requests.post(f"{base_url}/sendRichMessageDraft", json=draft_payload, timeout=15)
+                if not self._telegram_response_ok(draft_res, "RichMessageDraft"):
+                    logger.warning("AgentOpsAssistant Telegram RichMessage 草稿发送失败，继续发送终态")
+            except Exception as err:
+                logger.warning(f"AgentOpsAssistant Telegram RichMessage 草稿发送异常，继续发送终态：{err}")
+
+        payload = {
+            "chat_id": self._daily_report_telegram_chat_id,
+            "rich_message": rich_message,
+        }
+        res = requests.post(f"{base_url}/sendRichMessage", json=payload, timeout=15)
+        return self._telegram_response_ok(res, "RichMessage")
+
+    @staticmethod
+    def _telegram_response_ok(response: Any, action: str) -> bool:
+        if not getattr(response, "ok", False):
+            logger.warning(f"AgentOpsAssistant Telegram {action} HTTP {getattr(response, 'status_code', '')}：{str(getattr(response, 'text', ''))[:200]}")
+            return False
+        try:
+            data = response.json()
+        except Exception:
+            logger.warning(f"AgentOpsAssistant Telegram {action} 返回非 JSON：{str(getattr(response, 'text', ''))[:200]}")
+            return False
+        if isinstance(data, dict) and data.get("ok") is True:
+            return True
+        logger.warning(f"AgentOpsAssistant Telegram {action} 返回失败：{(data or {}).get('description') if isinstance(data, dict) else data}")
+        return False
 
     def _build_daily_report_telegram_html(self, preview: bool = False, text: Optional[str] = None) -> str:
         report_text = text if text is not None else self._build_daily_report_message(preview=preview)
@@ -1357,20 +1393,28 @@ class AgentOpsAssistant(_PluginBase):
         intro = [self._html_escape(line) for line in (parts.get("intro") or []) if str(line or "").strip()]
         if intro:
             chunks.append("<p>" + "<br>".join(intro) + "</p>")
+        overview = self._telegram_overview_table(parts)
+        if overview:
+            chunks.append(overview)
         for section in parts.get("sections") or []:
             header = str(section.get("title") or "").strip()
             lines = section.get("lines") or []
-            if header.startswith("📡"):
-                chunks.append(self._telegram_status_table(header, lines))
+            if header.startswith("🤖"):
+                chunks.append(self._telegram_quote_html(header, self._telegram_section_items(lines), max_items=3))
+            elif header.startswith("📡"):
+                chunks.append(self._telegram_status_summary(header, lines))
             elif header.startswith("📈"):
-                chunks.append(self._telegram_increment_table(header, lines))
+                chunks.append(self._telegram_details_html(header, self._telegram_increment_table("", lines)))
+            elif header.startswith("📥") or header.startswith("📦") or header.startswith("📺"):
+                body = self._telegram_list_html(self._telegram_section_items(lines))
+                chunks.append(self._telegram_details_html(header, body))
             elif header.startswith("💾"):
-                chunks.append(self._telegram_storage_table(header, lines))
+                chunks.append(self._telegram_details_html(header, self._telegram_storage_table("", lines)))
             elif header.startswith("🎬"):
-                chunks.append(self._telegram_media_table(header, lines))
+                chunks.append(self._telegram_details_html(header, self._telegram_media_table("", lines)))
             elif header.startswith("🩺"):
                 body = self._telegram_list_html(self._telegram_section_items(lines))
-                chunks.append(f"<details><summary>{self._html_escape(header)}</summary>{body}</details>")
+                chunks.append(self._telegram_details_html(header, body))
             elif header.startswith("🧾") or header.startswith("⚠️"):
                 body = "<br>".join(self._html_escape(item) for item in self._telegram_section_items(lines))
                 chunks.append(f"<blockquote><b>{self._html_escape(header)}</b><br>{body or '无'}</blockquote>")
@@ -1383,6 +1427,29 @@ class AgentOpsAssistant(_PluginBase):
         return html.escape(str(value or ""), quote=True)
 
     @classmethod
+    def _telegram_text_html(cls, value: Any) -> str:
+        escaped = cls._html_escape(value)
+        if len(escaped) <= 16:
+            return escaped
+        parts = re.split(r"(&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);)", escaped)
+        return "".join(cls._telegram_soft_breaks(part) for part in parts)
+
+    @staticmethod
+    def _telegram_soft_breaks(text: str, chunk_size: int = 12) -> str:
+        if not text:
+            return text
+        if text.startswith("&") and text.endswith(";"):
+            return text
+        marker = "\u200b"
+        text = re.sub(r"([/_.:@|\-])(?=\S)", lambda match: f"{match.group(1)}{marker}", text)
+
+        def chunk_token(match: re.Match) -> str:
+            token = match.group(0)
+            return marker.join(token[i:i + chunk_size] for i in range(0, len(token), chunk_size))
+
+        return re.sub(r"[A-Za-z0-9]{13,}", chunk_token, text)
+
+    @classmethod
     def _telegram_section_items(cls, lines: List[str]) -> List[str]:
         items: List[str] = []
         for line in lines or []:
@@ -1390,28 +1457,105 @@ class AgentOpsAssistant(_PluginBase):
             if not text:
                 continue
             for part in re.split(r"\s*｜\s*(?=•\s*)", text):
-                item = re.sub(r"^[•⦁]\s*", "", part.strip())
+                item = re.sub(r"^(?:[•⦁]\s*)+", "", part.strip())
                 if item:
                     items.append(item)
         return items
 
     @classmethod
+    def _telegram_overview_table(cls, parts: Dict[str, Any]) -> str:
+        sections = {str(s.get("title") or ""): cls._telegram_section_items(s.get("lines") or []) for s in parts.get("sections") or []}
+        rows: List[str] = []
+
+        site_items = sections.get("📡 站点状态") or []
+        site_total = len([x for x in site_items if x and "未取到" not in x and x != "无"])
+        site_bad = len([x for x in site_items if "异常" in x or "失效" in x or "过期" in x])
+        if site_items:
+            site_state = f"异常 {site_bad}" if site_bad else "全部正常"
+            rows.append(f"站点：{site_total or len(site_items)} 个，{site_state}")
+
+        inc_items = sections.get("📈 站点增量") or []
+        if "📈 站点增量" in sections:
+            inc_metrics = cls._telegram_increment_metrics(inc_items)
+            if inc_metrics["count"]:
+                upload_label = str(inc_metrics["upload"])
+                download_label = str(inc_metrics["download"])
+                rows.append(f"增量：↑ {upload_label} / ↓ {download_label}（{inc_metrics['count']} 站点）")
+            else:
+                rows.append("增量：无新增")
+
+        download_items = sections.get("📥 今日下载") or []
+        if "📥 今日下载" in sections:
+            download_count = len([x for x in download_items if x and x != "无"])
+            rows.append(f"下载：{download_count} 个完成" if download_count else "下载：无完成")
+
+        health_items = sections.get("🩺 健康巡查") or []
+        if "🩺 健康巡查" in sections:
+            health_line = next((x for x in health_items if "状态" in x), "")
+            health_state = "异常" if ("异常" in health_line and "0 项异常" not in health_line) else ("正常" if health_items else "无记录")
+            health_summary = health_line.split("：", 1)[-1] if "：" in health_line else health_state
+            rows.append(f"健康：{health_summary}")
+
+        return cls._telegram_quote_html("📌 今日结论", rows, max_items=8) if rows else ""
+
+    @classmethod
+    def _telegram_quote_html(cls, title: str, items: List[str], max_items: int = 5) -> str:
+        visible = [str(x or "").strip() for x in (items or []) if str(x or "").strip()][:max_items]
+        body = "<br>".join(cls._html_escape(item) for item in visible)
+        if len(items or []) > max_items:
+            body = (body + "<br>" if body else "") + cls._html_escape(f"…另 {len(items) - max_items} 项")
+        return f"<blockquote><b>{cls._html_escape(title)}</b><br>{body or '无'}</blockquote>"
+
+    @classmethod
+    def _telegram_status_summary(cls, title: str, lines: List[str]) -> str:
+        all_items: List[str] = []
+        risk_items: List[str] = []
+        ok_count = 0
+        for item in cls._telegram_section_items(lines):
+            clean = cls._telegram_status_label(item)
+            all_items.append(clean)
+            if any(key in item for key in ("异常", "失效", "过期")):
+                risk_items.append(clean)
+            else:
+                ok_count += 1
+
+        if risk_items:
+            alert_items = risk_items[:3]
+            if len(risk_items) > 3:
+                alert_items.append(f"另 {len(risk_items) - 3} 项异常在明细中")
+            headline = cls._telegram_quote_html("🚨 站点风险", alert_items, max_items=4)
+        else:
+            headline = cls._telegram_quote_html(title, [f"全部 {ok_count or len(all_items)} 个站点正常"], max_items=1)
+        return headline + cls._telegram_details_html(title, cls._telegram_list_html(all_items))
+
+    @staticmethod
+    def _telegram_status_label(item: str) -> str:
+        clean = re.sub(r"^\s*[✅⚠️⚠]\s*", "", str(item or "").strip())
+        clean = re.sub(r"：\s*[✅⚠️⚠]\s*", "：", clean)
+        return clean.replace(" | ", "：", 1)
+
+    @classmethod
+    def _telegram_details_html(cls, title: str, body: str) -> str:
+        return f"<details><summary>{cls._html_escape(title)}</summary>{body or '<p>无</p>'}</details>"
+
+    @classmethod
     def _telegram_list_html(cls, items: List[str]) -> str:
         if not items:
             return "<p>无</p>"
-        return "<ul>" + "".join(f"<li>{cls._html_escape(item)}</li>" for item in items) + "</ul>"
+        return "<ul>" + "".join(f"<li>{cls._telegram_text_html(item)}</li>" for item in items) + "</ul>"
 
     @classmethod
     def _telegram_table_html(cls, title: str, headers: List[str], rows: List[List[Any]]) -> str:
+        heading = f"<h3>{cls._html_escape(title)}</h3>" if str(title or "").strip() else ""
         if not rows:
-            return f"<h3>{cls._html_escape(title)}</h3><p>无</p>"
+            return f"{heading}<p>无</p>"
         head = "".join(f"<th>{cls._html_escape(h)}</th>" for h in headers)
         body = []
         for row in rows:
             cells = list(row)[:len(headers)]
             cells.extend([""] * max(0, len(headers) - len(cells)))
-            body.append("<tr>" + "".join(f"<td>{cls._html_escape(cell)}</td>" for cell in cells) + "</tr>")
-        return f"<h3>{cls._html_escape(title)}</h3><table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table>"
+            body.append("<tr>" + "".join(f"<td>{cls._telegram_text_html(cell)}</td>" for cell in cells) + "</tr>")
+        return f"{heading}<table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table>"
 
     @classmethod
     def _telegram_status_table(cls, title: str, lines: List[str]) -> str:
@@ -1434,11 +1578,48 @@ class AgentOpsAssistant(_PluginBase):
             download = cls._match_text(r"⬇\s*([^｜]+)", rest)
             ratio = cls._match_text(r"📊\s*([^｜]+)", rest)
             bonus = cls._match_text(r"🪙\s*([^｜]+)", rest)
-            rows.append([name.strip(), upload, download, ratio, bonus])
-        table = cls._telegram_table_html(title, ["站点", "上传", "下载", "分享率", "魔力"], rows)
+            metric = f"分享 {ratio}" if ratio else "分享 -"
+            if bonus:
+                metric = f"{metric} / 魔力 {bonus}"
+            rows.append([name.strip(), f"↑ {upload or '-'} / ↓ {download or '-'}", metric])
+        table = cls._telegram_table_html(title, ["站点", "流量", "指标"], rows)
         if notes and not rows:
-            return f"<h3>{cls._html_escape(title)}</h3>{cls._telegram_list_html(notes)}"
+            heading = f"<h3>{cls._html_escape(title)}</h3>" if str(title or "").strip() else ""
+            return f"{heading}{cls._telegram_list_html(notes)}"
+        if notes:
+            return table + cls._telegram_list_html(notes)
         return table
+
+    @classmethod
+    def _telegram_increment_metrics(cls, items: List[str]) -> Dict[str, Any]:
+        count = 0
+        upload_total = 0
+        download_total = 0
+        for item in items or []:
+            if "基线不足" in item or item in {"无", "暂无增量"}:
+                continue
+            rest = item.split("：", 1)[1] if "：" in item else item
+            upload = cls._match_text(r"⬆\s*([^｜]+)", rest)
+            download = cls._match_text(r"⬇\s*([^｜]+)", rest)
+            upload_total += cls._telegram_size_to_bytes(upload)
+            download_total += cls._telegram_size_to_bytes(download)
+            count += 1
+        return {
+            "count": count,
+            "upload": cls._format_bytes(upload_total) if upload_total else "0 B",
+            "download": cls._format_bytes(download_total) if download_total else "0 B",
+        }
+
+    @staticmethod
+    def _telegram_size_to_bytes(value: Any) -> int:
+        match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*([KMGTPE]?B)", str(value or ""), re.I)
+        if not match:
+            return 0
+        number = float(match.group(1))
+        units = ["B", "KB", "MB", "GB", "TB", "PB", "EB"]
+        unit = match.group(2).upper()
+        power = units.index(unit) if unit in units else 0
+        return int(number * (1024 ** power))
 
     @classmethod
     def _telegram_storage_table(cls, title: str, lines: List[str]) -> str:
@@ -1475,13 +1656,6 @@ class AgentOpsAssistant(_PluginBase):
         encoded = text.encode("utf-8")[: max(0, limit - 64)]
         clipped = encoded.decode("utf-8", errors="ignore").rstrip()
         return f"{clipped}\n<p>…（已截断）</p>"
-
-    @staticmethod
-    def _clip_card_markdown(text: Any, limit: int = 2200) -> str:
-        value = str(text or "").strip()
-        if len(value) <= limit:
-            return value
-        return value[: max(0, limit - 18)].rstrip() + "\n\n…（已截断）"
 
     @staticmethod
     def _split_daily_report_text(text: str) -> Dict[str, Any]:
@@ -4375,4 +4549,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "sidebar_nav_enabled": True, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_msgtype": "Plugin", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "health_check_database_targets": ["current"], "health_check_storage_targets": ["storages", "config", "download", "library"], "health_check_directory_targets": ["config", "plugin", "download", "library"], "health_check_storage_threshold": 85, "health_check_notify_type": "Plugin", "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": [], "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": [], "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_remove_plugin": True, "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "msgnotify_notify_type": "MediaServer", "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}
+        return {"enabled": False, "sidebar_nav_enabled": True, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_telegram_rich_enabled": True, "daily_report_telegram_bot_token": "", "daily_report_telegram_chat_id": "", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "health_check_database_targets": ["current"], "health_check_storage_targets": ["storages", "config", "download", "library"], "health_check_directory_targets": ["config", "plugin", "download", "library"], "health_check_storage_threshold": 85, "health_check_notify_type": "Plugin", "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": [], "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": [], "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_remove_plugin": True, "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "msgnotify_notify_type": "MediaServer", "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}

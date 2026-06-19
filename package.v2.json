@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅追新,站点统计,日志清理,自动备份,更新检查,插件卸载,本地插件",
-    "version": "1.0.44",
+    "version": "1.0.46",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,8 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.46": "每日汇报通知收敛为 Telegram RichMessage 唯一通道：参考流式卡片的先草稿后终态体验，发送时调用 sendRichMessageDraft + sendRichMessage；预览只返回 telegram_rich_message；失败或未配置时记录失败状态，不再回退 MoviePilot 纯文本通知。",
+      "v1.0.45": "修复每日汇报富格式只落在预览、真实发送仍为纯文本的问题：新增 Telegram RichMessage 直连发送配置，启用且配置 Bot Token/Chat ID 后优先调用 sendRichMessage；发送失败或未配置时自动回退 MoviePilot 原有 post_message 纯文本通道。",
       "v1.0.44": "补齐 Telegram Bot API RichMessage 落地：每日汇报预览新增 telegram_rich_message.html 载荷，使用 heading/table/details/blockquote 重建 TG 观感，强制 HTML escape 动态内容并设置 skip_entity_detection=true；保留纯文本作为非 TG 通道兜底。",
       "v1.0.43": "重建每日汇报通知：新增飞书/Lark interactive 卡片 JSON 2.0 预览输出，固定日报默认不启用流式模式；站点增量补强历史基线守卫，没有有效基线时明确提示「基线不足」且图表合计保持 0，避免把累计上传/下载误报成每日增量。",
       "v1.0.42": "修复 MP 运维助手仪表盘外层圆角不跟随 MoviePilot 主题定制的问题：外层容器改为读取 MP/Vuetify 主题圆角变量，侧边栏模式继续保持无额外外框。",

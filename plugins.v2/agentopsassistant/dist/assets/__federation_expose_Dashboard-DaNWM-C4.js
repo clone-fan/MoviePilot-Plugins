@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-xrenItmB.js';
+import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-Dc5i-DQA.js';
 
 const {resolveComponent:_resolveComponent$1,createVNode:_createVNode$1,createElementVNode:_createElementVNode$1,toDisplayString:_toDisplayString$1,openBlock:_openBlock$2,createBlock:_createBlock$2,createCommentVNode:_createCommentVNode$1,normalizeClass:_normalizeClass$1,normalizeStyle:_normalizeStyle,renderList:_renderList$1,Fragment:_Fragment$1,createElementBlock:_createElementBlock$2} = await importShared('vue');
 
@@ -167,7 +167,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-c6ae3cda"]]);
+const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-ed67cf85"]]);
 
 const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,toDisplayString:_toDisplayString,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1,normalizeClass:_normalizeClass,withCtx:_withCtx,createBlock:_createBlock$1,createCommentVNode:_createCommentVNode} = await importShared('vue');
 
@@ -261,7 +261,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-36dc479a"]]);
+const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-077079bb"]]);
 
 const {resolveDynamicComponent:_resolveDynamicComponent,openBlock:_openBlock,createBlock:_createBlock,createElementBlock:_createElementBlock} = await importShared('vue');
 
@@ -457,6 +457,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-c35aaeb8"]]);
+const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-9ebdbad3"]]);
 
 export { Dashboard as default };
