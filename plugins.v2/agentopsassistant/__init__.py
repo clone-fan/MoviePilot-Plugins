@@ -32,7 +32,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.46"
+    plugin_version = "1.0.47"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -83,6 +83,7 @@ class AgentOpsAssistant(_PluginBase):
     _daily_report_telegram_rich_enabled = True
     _daily_report_telegram_bot_token = ""
     _daily_report_telegram_chat_id = ""
+    _daily_report_telegram_last_error = ""
     _health_in_report = True
     _subscribe_in_report = True
     _site_stat_in_report = True
@@ -968,7 +969,7 @@ class AgentOpsAssistant(_PluginBase):
                 self._save_task_result(name, True, 0, "OK telegram_rich_message")
                 self._save_daily_report_result(sent=True, success=True, text=text, error="", message="OK telegram_rich_message", returncode=0)
                 return True
-            error = "Telegram RichMessage 发送失败或未配置"
+            error = self._daily_report_telegram_last_error or "Telegram RichMessage 发送失败"
             self._save_task_result(name, False, 1, error)
             self._save_daily_report_result(sent=True, success=False, text=text, error=error, message=error, returncode=1)
             return False
@@ -1322,28 +1323,95 @@ class AgentOpsAssistant(_PluginBase):
         }
 
     def _send_daily_report_telegram_rich(self, text: str) -> bool:
+        self._daily_report_telegram_last_error = ""
         if not self._daily_report_telegram_rich_enabled:
-            logger.warning("AgentOpsAssistant 每日汇报未发送：Telegram RichMessage 未启用")
+            self._daily_report_telegram_last_error = "Telegram RichMessage 未启用"
+            logger.warning(f"AgentOpsAssistant 每日汇报未发送：{self._daily_report_telegram_last_error}")
             return False
-        if not self._daily_report_telegram_bot_token or not self._daily_report_telegram_chat_id:
-            logger.warning("AgentOpsAssistant 每日汇报未发送：Telegram RichMessage token/chat_id 未配置")
+        token, chat_id, source = self._resolve_daily_report_telegram_config()
+        if not token or not chat_id:
+            self._daily_report_telegram_last_error = "Telegram RichMessage Bot Token/Chat ID 未配置，且未找到可用的 MoviePilot 全局 Telegram 通知配置"
+            logger.warning(f"AgentOpsAssistant 每日汇报未发送：{self._daily_report_telegram_last_error}")
             return False
         try:
-            return bool(self._post_telegram_rich_message(self._build_daily_report_telegram_rich_message(text=text)))
+            ok = bool(self._post_telegram_rich_message(
+                self._build_daily_report_telegram_rich_message(text=text),
+                token=token,
+                chat_id=chat_id,
+            ))
+            if not ok and not self._daily_report_telegram_last_error:
+                self._daily_report_telegram_last_error = f"Telegram RichMessage 发送失败（配置来源：{source or '未知'}）"
+            return ok
         except Exception as err:
-            logger.warning(f"AgentOpsAssistant Telegram RichMessage 发送失败：{err}")
+            self._daily_report_telegram_last_error = f"Telegram RichMessage 发送异常：{self._telegram_safe_error(err, limit=500)}"
+            logger.warning(f"AgentOpsAssistant {self._daily_report_telegram_last_error}")
             return False
 
-    def _post_telegram_rich_message(self, rich_message: Dict[str, Any]) -> bool:
+    def _resolve_daily_report_telegram_config(self) -> Tuple[str, str, str]:
+        token = str(self._daily_report_telegram_bot_token or "").strip()
+        chat_id = str(self._daily_report_telegram_chat_id or "").strip()
+        if token and chat_id:
+            return token, chat_id, "插件配置"
+
+        global_token, global_chat_id, name = self._find_moviepilot_telegram_config()
+        if global_token and global_chat_id:
+            return global_token, global_chat_id, f"MoviePilot 通知配置：{name or 'Telegram'}"
+        return token, chat_id, ""
+
+    @staticmethod
+    def _dict_or_attr(value: Any, key: str, default: Any = None) -> Any:
+        if isinstance(value, dict):
+            return value.get(key, default)
+        return getattr(value, key, default)
+
+    def _find_moviepilot_telegram_config(self) -> Tuple[str, str, str]:
         try:
-            import requests
-        except ImportError:
-            logger.warning("AgentOpsAssistant Telegram RichMessage 需要 requests，当前环境缺失")
+            from app.db.systemconfig_oper import SystemConfigOper
+            from app.schemas.types import SystemConfigKey
+            notifications = SystemConfigOper().get(SystemConfigKey.Notifications) or []
+        except Exception as err:
+            logger.warning(f"AgentOpsAssistant 读取 MoviePilot Telegram 通知配置失败：{err}")
+            return "", "", ""
+
+        candidates: List[Tuple[int, str, str, str]] = []
+        for item in notifications or []:
+            ntype = str(self._dict_or_attr(item, "type", "") or "").strip().lower()
+            if ntype != "telegram":
+                continue
+            enabled = self._dict_or_attr(item, "enabled", True)
+            if enabled is False or str(enabled).strip().lower() in {"false", "0", "no", "off"}:
+                continue
+            config = self._dict_or_attr(item, "config", {}) or {}
+            token = str(self._dict_or_attr(config, "TELEGRAM_TOKEN", "") or "").strip()
+            chat_id = str(self._dict_or_attr(config, "TELEGRAM_CHAT_ID", "") or "").strip()
+            if not token or not chat_id:
+                continue
+            switches = self._parse_csv(self._dict_or_attr(item, "switchs", []) or [])
+            score = 1
+            if any(x in switches for x in ("插件", "Plugin")):
+                score += 20
+            if any(x in switches for x in ("其它", "其他", "Other")):
+                score += 5
+            name = str(self._dict_or_attr(item, "name", "") or "Telegram").strip()
+            candidates.append((score, token, chat_id, name))
+
+        if not candidates:
+            return "", "", ""
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        _, token, chat_id, name = candidates[0]
+        return token, chat_id, name
+
+    def _post_telegram_rich_message(self, rich_message: Dict[str, Any], token: Optional[str] = None, chat_id: Optional[str] = None) -> bool:
+        bot_token = str(token or self._daily_report_telegram_bot_token or "").strip()
+        target_chat_id = str(chat_id or self._daily_report_telegram_chat_id or "").strip()
+        if not bot_token or not target_chat_id:
+            self._daily_report_telegram_last_error = "Telegram RichMessage Bot Token/Chat ID 未配置"
+            logger.warning(f"AgentOpsAssistant {self._daily_report_telegram_last_error}")
             return False
 
-        base_url = f"https://api.telegram.org/bot{self._daily_report_telegram_bot_token}"
+        base_url = f"https://api.telegram.org/bot{bot_token}"
         try:
-            chat_id_int = int(str(self._daily_report_telegram_chat_id).strip())
+            chat_id_int = int(target_chat_id)
         except Exception:
             chat_id_int = 0
         if chat_id_int:
@@ -1357,32 +1425,80 @@ class AgentOpsAssistant(_PluginBase):
                 },
             }
             try:
-                draft_res = requests.post(f"{base_url}/sendRichMessageDraft", json=draft_payload, timeout=15)
+                draft_res = self._telegram_http_post_json(f"{base_url}/sendRichMessageDraft", draft_payload, timeout=15)
                 if not self._telegram_response_ok(draft_res, "RichMessageDraft"):
                     logger.warning("AgentOpsAssistant Telegram RichMessage 草稿发送失败，继续发送终态")
             except Exception as err:
-                logger.warning(f"AgentOpsAssistant Telegram RichMessage 草稿发送异常，继续发送终态：{err}")
+                logger.warning(f"AgentOpsAssistant Telegram RichMessage 草稿发送异常，继续发送终态：{self._telegram_safe_error(err, limit=500)}")
 
         payload = {
-            "chat_id": self._daily_report_telegram_chat_id,
+            "chat_id": target_chat_id,
             "rich_message": rich_message,
         }
-        res = requests.post(f"{base_url}/sendRichMessage", json=payload, timeout=15)
+        res = self._telegram_http_post_json(f"{base_url}/sendRichMessage", payload, timeout=15)
         return self._telegram_response_ok(res, "RichMessage")
 
     @staticmethod
-    def _telegram_response_ok(response: Any, action: str) -> bool:
+    def _telegram_http_post_json(url: str, payload: Dict[str, Any], timeout: int = 15) -> Any:
+        proxies = getattr(settings, "PROXY", None) or None
+        try:
+            import requests
+            return requests.post(url, json=payload, timeout=timeout, proxies=proxies)
+        except ImportError:
+            import urllib.error
+            import urllib.request
+
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json"})
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies)) if proxies else None
+            try:
+                if opener:
+                    resp_ctx = opener.open(req, timeout=timeout)
+                else:
+                    resp_ctx = urllib.request.urlopen(req, timeout=timeout)
+                with resp_ctx as resp:
+                    status = resp.status
+                    text = resp.read().decode("utf-8", errors="replace")
+            except urllib.error.HTTPError as err:
+                status = err.code
+                text = err.read().decode("utf-8", errors="replace")
+
+            class _Response:
+                def __init__(self, status_code: int, response_text: str):
+                    self.ok = 200 <= status_code < 300
+                    self.status_code = status_code
+                    self.text = response_text
+
+                def json(self):
+                    return json.loads(self.text)
+
+            return _Response(status, text)
+
+    @staticmethod
+    def _telegram_safe_error(value: Any, limit: int = 200) -> str:
+        text = str(value or "")
+        text = re.sub(r"bot\d{5,}:[A-Za-z0-9_-]+", "bot***", text)
+        text = re.sub(r"\d{5,}:[A-Za-z0-9_-]{20,}", "***TOKEN***", text)
+        if limit and len(text) > limit:
+            return text[:limit]
+        return text
+
+    def _telegram_response_ok(self, response: Any, action: str) -> bool:
         if not getattr(response, "ok", False):
-            logger.warning(f"AgentOpsAssistant Telegram {action} HTTP {getattr(response, 'status_code', '')}：{str(getattr(response, 'text', ''))[:200]}")
+            self._daily_report_telegram_last_error = f"Telegram {action} HTTP {getattr(response, 'status_code', '')}：{self._telegram_safe_error(getattr(response, 'text', ''), limit=200)}"
+            logger.warning(f"AgentOpsAssistant {self._daily_report_telegram_last_error}")
             return False
         try:
             data = response.json()
         except Exception:
-            logger.warning(f"AgentOpsAssistant Telegram {action} 返回非 JSON：{str(getattr(response, 'text', ''))[:200]}")
+            self._daily_report_telegram_last_error = f"Telegram {action} 返回非 JSON：{self._telegram_safe_error(getattr(response, 'text', ''), limit=200)}"
+            logger.warning(f"AgentOpsAssistant {self._daily_report_telegram_last_error}")
             return False
         if isinstance(data, dict) and data.get("ok") is True:
             return True
-        logger.warning(f"AgentOpsAssistant Telegram {action} 返回失败：{(data or {}).get('description') if isinstance(data, dict) else data}")
+        description = (data or {}).get("description") if isinstance(data, dict) else data
+        self._daily_report_telegram_last_error = f"Telegram {action} 返回失败：{self._telegram_safe_error(description, limit=200)}"
+        logger.warning(f"AgentOpsAssistant {self._daily_report_telegram_last_error}")
         return False
 
     def _build_daily_report_telegram_html(self, preview: bool = False, text: Optional[str] = None) -> str:

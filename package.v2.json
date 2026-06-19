@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅追新,站点统计,日志清理,自动备份,更新检查,插件卸载,本地插件",
-    "version": "1.0.46",
+    "version": "1.0.47",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.47": "修复 Telegram RichMessage 日报升级后旧配置断链：插件未单独填写 Bot Token/Chat ID 时自动复用 MoviePilot 全局 Telegram 通知配置；HTTP 发送复用 MoviePilot 全局代理并增加 urllib 兜底；失败状态记录 Telegram API 真实错误且脱敏 Bot Token。",
       "v1.0.46": "每日汇报通知收敛为 Telegram RichMessage 唯一通道：参考流式卡片的先草稿后终态体验，发送时调用 sendRichMessageDraft + sendRichMessage；预览只返回 telegram_rich_message；失败或未配置时记录失败状态，不再回退 MoviePilot 纯文本通知。",
       "v1.0.45": "修复每日汇报富格式只落在预览、真实发送仍为纯文本的问题：新增 Telegram RichMessage 直连发送配置，启用且配置 Bot Token/Chat ID 后优先调用 sendRichMessage；发送失败或未配置时自动回退 MoviePilot 原有 post_message 纯文本通道。",
       "v1.0.44": "补齐 Telegram Bot API RichMessage 落地：每日汇报预览新增 telegram_rich_message.html 载荷，使用 heading/table/details/blockquote 重建 TG 观感，强制 HTML escape 动态内容并设置 skip_entity_detection=true；保留纯文本作为非 TG 通道兜底。",

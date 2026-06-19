@@ -98,7 +98,7 @@ class _StubNotificationType(Enum):
 _PU = {"online": [], "local": [], "installed": [], "running": [], "folders": {},
        "install_result": (True, "ok"), "install_calls": [], "reloaded": [],
        "removed_plugins": [], "removed_jobs": [], "config_deleted": [], "data_deleted": [],
-       "system_deleted": []}
+       "system_deleted": [], "notifications": []}
 
 
 class _StubPluginManager:
@@ -130,6 +130,8 @@ class _StubSystemConfigOper:
             return list(_PU["installed"])
         if key == "PluginFolders":
             return json.loads(json.dumps(_PU["folders"]))
+        if key == "Notifications":
+            return json.loads(json.dumps(_PU["notifications"]))
         return None
     def set(self, key, value):
         if key == "UserInstalledPlugins":
@@ -200,7 +202,7 @@ def install_stubs():
         PluginAction="PluginAction", WebhookMessage="WebhookMessage",
         SubscribeAdded="SubscribeAdded", DownloadAdded="DownloadAdded",
     )
-    scht.SystemConfigKey = types.SimpleNamespace(Storages="Storages", UserInstalledPlugins="UserInstalledPlugins", RssSites="RssSites")
+    scht.SystemConfigKey = types.SimpleNamespace(Storages="Storages", UserInstalledPlugins="UserInstalledPlugins", RssSites="RssSites", Notifications="Notifications")
     http = _mod("app.utils.http")
     http.RequestUtils = _StubRequestUtils
     stru = _mod("app.utils.string")
@@ -708,20 +710,28 @@ def main():
     p_tg_http = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                             daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="12345")
     tg_calls = []
+    cfg_settings = sys.modules["app.core.config"].settings
+    proxy_conf = {"http": "http://127.0.0.1:7890", "https": "http://127.0.0.1:7890"}
+    cfg_settings.PROXY = proxy_conf
     old_requests = sys.modules.get("requests")
+    def _tg_post(url, json=None, timeout=None, proxies=None):
+        tg_calls.append((url, json, timeout, proxies))
+        return types.SimpleNamespace(ok=True, status_code=200, text='{"ok":true}', json=lambda: {"ok": True})
     sys.modules["requests"] = types.SimpleNamespace(
-        post=lambda url, json=None, timeout=None: tg_calls.append((url, json, timeout))
-        or types.SimpleNamespace(ok=True, status_code=200, text='{"ok":true}', json=lambda: {"ok": True})
+        post=_tg_post
     )
     try:
         tg_http_ok = p_tg_http._post_telegram_rich_message({"html": "<h2>终态</h2>", "skip_entity_detection": True})
     finally:
+        cfg_settings.PROXY = None
         if old_requests is None:
             sys.modules.pop("requests", None)
         else:
             sys.modules["requests"] = old_requests
     check(tg_http_ok and len(tg_calls) == 2 and tg_calls[0][0].endswith("/sendRichMessageDraft") and tg_calls[1][0].endswith("/sendRichMessage"),
           "Telegram 新机制先发送 30 秒 RichMessage 草稿预览，再发送终态 sendRichMessage")
+    check(all(call[3] == proxy_conf for call in tg_calls),
+          "Telegram RichMessage HTTP 请求必须复用 MoviePilot 全局代理 settings.PROXY")
     check(tg_calls[0][1].get("draft_id") and "<tg-thinking>" in tg_calls[0][1].get("rich_message", {}).get("html", ""),
           "Telegram RichMessageDraft 使用非零 draft_id 和 tg-thinking 占位")
     p_card._get_site_health_locked = lambda: ["⦁ A&B站 | 异常（<token>）"]
@@ -735,18 +745,89 @@ def main():
     p_tg_send = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                             daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
     sent_rich_payloads = []
-    p_tg_send._post_telegram_rich_message = lambda rich: sent_rich_payloads.append(rich) or True
+    p_tg_send._post_telegram_rich_message = lambda rich, token=None, chat_id=None: sent_rich_payloads.append(rich) or True
     check(p_tg_send.run_daily_report() is True and sent_rich_payloads and not p_tg_send._stub_messages,
           "每日汇报只发送 Telegram RichMessage，不再发飞书或 MP 纯文本通知")
     check((p_tg_send._stub_data.get("last_daily_report") or {}).get("message") == "OK telegram_rich_message",
           "每日汇报成功状态明确记录 telegram_rich_message")
     p_tg_fallback = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                                 daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
-    p_tg_fallback._post_telegram_rich_message = lambda rich: False
+    p_tg_fallback._post_telegram_rich_message = lambda rich, token=None, chat_id=None: False
     check(p_tg_fallback.run_daily_report() is False and not p_tg_fallback._stub_messages,
           "Telegram RichMessage 发送失败时日报任务失败，不回退 MP post_message 纯文本")
     check((p_tg_fallback._stub_data.get("last_daily_report") or {}).get("success") is False,
           "Telegram RichMessage 失败会保存失败状态供仪表盘展示")
+    _PU["notifications"] = [{
+        "name": "主 Telegram",
+        "type": "telegram",
+        "enabled": True,
+        "config": {"TELEGRAM_TOKEN": "global-token", "TELEGRAM_CHAT_ID": "-100123"},
+        "switchs": ["插件", "其它"],
+    }]
+    p_tg_global = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                              daily_report_telegram_bot_token="", daily_report_telegram_chat_id="")
+    global_send = {}
+    p_tg_global._post_telegram_rich_message = (
+        lambda rich, token=None, chat_id=None: global_send.update(token=token, chat_id=chat_id) or True
+    )
+    check(p_tg_global.run_daily_report() is True
+          and global_send == {"token": "global-token", "chat_id": "-100123"},
+          "旧配置未填写 TG 字段时，日报复用 MoviePilot 全局 Telegram 通知配置")
+    p_tg_explicit = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                                daily_report_telegram_bot_token="plugin-token", daily_report_telegram_chat_id="67890")
+    explicit_send = {}
+    p_tg_explicit._post_telegram_rich_message = (
+        lambda rich, token=None, chat_id=None: explicit_send.update(token=token, chat_id=chat_id) or True
+    )
+    check(p_tg_explicit.run_daily_report() is True
+          and explicit_send == {"token": "plugin-token", "chat_id": "67890"},
+          "插件内显式 TG 配置优先于 MoviePilot 全局 Telegram")
+    _PU["notifications"] = []
+    p_tg_missing = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                               daily_report_telegram_bot_token="", daily_report_telegram_chat_id="")
+    check(p_tg_missing.run_daily_report() is False
+          and "Telegram" in ((p_tg_missing._stub_data.get("last_daily_report") or {}).get("error") or "")
+          and "未配置" in ((p_tg_missing._stub_data.get("last_daily_report") or {}).get("error") or ""),
+          "缺少插件 TG 且无全局 Telegram 时，日报失败原因要明确落盘")
+    p_tg_detail = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                              daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_tg_detail._post_telegram_rich_message = (
+        lambda rich, token=None, chat_id=None:
+        setattr(p_tg_detail, "_daily_report_telegram_last_error", "Telegram RichMessage 返回失败：Bad Request") or False
+    )
+    check(p_tg_detail.run_daily_report() is False
+          and "Bad Request" in ((p_tg_detail._stub_data.get("last_daily_report") or {}).get("error") or ""),
+          "Telegram API 返回的具体错误要写入 last_daily_report")
+    leak_token = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi"
+    p_tg_leak = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                            daily_report_telegram_bot_token=leak_token, daily_report_telegram_chat_id="12345")
+    old_requests = sys.modules.get("requests")
+    def _raise_leaky_error(url, **kwargs):
+        raise RuntimeError(f"boom https://api.telegram.org/bot{leak_token}/sendRichMessage")
+    sys.modules["requests"] = types.SimpleNamespace(post=_raise_leaky_error)
+    try:
+        check(p_tg_leak.run_daily_report() is False, "Telegram 请求异常时日报任务失败")
+    finally:
+        if old_requests is None:
+            sys.modules.pop("requests", None)
+        else:
+            sys.modules["requests"] = old_requests
+    leak_error = ((p_tg_leak._stub_data.get("last_daily_report") or {}).get("error") or "")
+    check(leak_token not in leak_error and f"bot{leak_token}" not in leak_error and "bot***" in leak_error,
+          "Telegram 请求异常写入 last_daily_report 前必须脱敏 Bot Token")
+    p_tg_http_error = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                                  daily_report_telegram_bot_token=leak_token, daily_report_telegram_chat_id="12345")
+    leaky_response = types.SimpleNamespace(
+        ok=False,
+        status_code=400,
+        text=f'{{"ok":false,"description":"Bad /bot{leak_token}/sendRichMessage"}}',
+        json=lambda: {"ok": False, "description": f"Bad /bot{leak_token}/sendRichMessage"},
+    )
+    check(p_tg_http_error._telegram_response_ok(leaky_response, "RichMessage") is False
+          and leak_token not in p_tg_http_error._daily_report_telegram_last_error
+          and "bot***" in p_tg_http_error._daily_report_telegram_last_error,
+          "Telegram API 错误详情写入 last_daily_report 前必须脱敏 Bot Token")
+    _PU["notifications"] = []
 
     print("== 日报下载与入库展示口径 ==")
     p_report = make_plugin(mod)
