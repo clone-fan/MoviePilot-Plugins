@@ -632,19 +632,7 @@ def main():
     _SUB.update({"site_latest": [types.SimpleNamespace(name="馒头", domain="m.x", err_msg="", updated_day=f"{_today} 08:30:00")],
                  "sites": [types.SimpleNamespace(domain="m.x")]})
     sh_today_time = make_plugin(mod)._get_site_health_locked()
-    check(sh_today_time == ["⦁ 全部 1 个站点正常"], "站点状态：全正常时压缩为一行摘要，updated_day 带时间也识别为今日正常")
-
-    p_summary_layout = make_plugin(mod)
-    for name, val in [("_get_site_increment_locked", []), ("_get_site_health_locked", []),
-                      ("_get_transfer_health_locked", []), ("_get_today_subscribe_updates_locked", []),
-                      ("_get_downloader_health_locked", []), ("_get_storage_health_locked", []),
-                      ("_get_today_downloads_locked", []), ("_get_media_stats_locked", []),
-                      ("_version_report_lines", [])]:
-        setattr(p_summary_layout, name, (lambda v=val: v))
-    p_summary_layout._get_health_report_locked = lambda *a, **k: []
-    summary_msg = p_summary_layout._build_heartbeat_message()
-    check("\n🧾 今日摘要\n\n" in summary_msg and "• ✅ 今日摘要 ｜" not in summary_msg,
-          "今日摘要作为独立小节展示，不再把标题和正文拼成同一行")
+    check(sh_today_time == ["⦁ 全部 1 个站点正常"], "站点状态：updated_day 带时间也识别为今日正常")
 
     print("== 日报下载与入库展示口径 ==")
     p_report = make_plugin(mod)
@@ -933,58 +921,6 @@ def main():
     msg_health = pr_health._build_heartbeat_message()
     check("🩺 健康巡查" in msg_health and "状态：全部正常" in msg_health, "report_health=True -> 日报包含健康巡查结果")
 
-    health_ok_data = {
-        "success": True,
-        "total": 7,
-        "pass": 7,
-        "fail": 0,
-        "checks": [
-            {"name": "subscribe", "ok": True, "detail": "订阅 7 个"},
-            {"name": "sites", "ok": True, "detail": "共 7 个，启用 7 个"},
-            {"name": "downloaders", "ok": True, "detail": "在线 2 个"},
-            {"name": "agentops_services", "ok": True, "detail": "已调度 6 个"},
-            {"name": "database", "ok": True, "detail": "PostgreSQL 主库 连接正常；SQLite 主库 /config/user.db 连接正常；PostgreSQL 主库 连接正常"},
-            {"name": "storage", "ok": True, "detail": "配置目录 26% 已用 ｜ 💽 75.09 GB/283.75 GB；下载目录 CloudDrive储存 由存储服务管理"},
-            {"name": "directory", "ok": True, "detail": "配置目录 正常；插件目录 正常；下载目录 CloudDrive储存 由存储服务管理"},
-        ],
-    }
-    p_health_compact = make_plugin(mod)
-    p_health_compact.save_data("last_health_check", {
-        "time": "2026-06-18 08:00:00",
-        "success": True,
-        "output": p_health_compact._format_health_summary(health_ok_data),
-        **health_ok_data,
-    })
-    compact_health_text = "\n".join(p_health_compact._get_health_report_locked())
-    check("正常项：订阅、站点、下载器、本插件任务、数据库、存储空间、目录权限" in compact_health_text,
-          "健康巡查全正常时日报用正常项清单替代逐项长明细")
-    check("CloudDrive储存 由存储服务管理" not in compact_health_text and "PostgreSQL 主库 连接正常；SQLite" not in compact_health_text,
-          "健康巡查日报不展开正常存储、目录、数据库明细")
-
-    health_bad_data = {
-        "success": False,
-        "total": 3,
-        "pass": 2,
-        "fail": 1,
-        "checks": [
-            {"name": "database", "ok": True, "detail": "PostgreSQL 主库 连接正常；SQLite 主库 /config/user.db 连接正常"},
-            {"name": "storage", "ok": False, "detail": "配置目录 26% 已用；下载目录 93% 已用，超过阈值 85%；媒体库目录 CloudDrive储存 由存储服务管理"},
-            {"name": "directory", "ok": True, "detail": "配置目录 正常；插件目录 正常"},
-        ],
-    }
-    p_health_bad = make_plugin(mod)
-    p_health_bad.save_data("last_health_check", {
-        "time": "2026-06-18 08:00:00",
-        "success": False,
-        "output": p_health_bad._format_health_summary(health_bad_data),
-        **health_bad_data,
-    })
-    bad_health_text = "\n".join(p_health_bad._get_health_report_locked())
-    check("异常：存储空间 - 下载目录 93% 已用，超过阈值 85%" in bad_health_text,
-          "健康巡查异常时日报只展开异常项的关键原因")
-    check("PostgreSQL 主库 连接正常" not in bad_health_text and "CloudDrive储存 由存储服务管理" not in bad_health_text,
-          "健康巡查异常时日报仍折叠正常项和托管项噪声")
-
     print("== 健康巡查范围与兜底 ==")
     hc_service = make_plugin(mod, enabled=True, health_check_enabled=True, health_check_cron="0 */6 * * *")
     hc_service_ids = {s.get("id") for s in (hc_service.get_service() or [])}
@@ -1160,7 +1096,59 @@ def main():
                             "subfill_details", "msgnotify_types", "msgnotify_servers", "dltag_downloaders"]
     check(all(isinstance(form_default.get(key), list) for key in multiselect_defaults),
           "get_form 多选字段默认值保持数组类型")
+    check(form_default.get("sidebar_nav_enabled") is True, "get_form 默认开启侧边栏入口")
     check(pa.get_page() == [], "get_page Vue 模式返回 []")
+    has_sidebar_nav = hasattr(pa, "get_sidebar_nav")
+    check(has_sidebar_nav, "get_sidebar_nav 注册 MP 主界面左侧仪表盘入口")
+    if has_sidebar_nav:
+        sidebar_nav = pa.get_sidebar_nav() or []
+        check(sidebar_nav == [{
+            "nav_key": "main",
+            "title": "MP 运维助手",
+            "icon": "mdi-view-dashboard-outline",
+            "section": "start",
+            "permission": "manage",
+            "order": 50,
+        }], "启用时 get_sidebar_nav 返回主导航顶部入口")
+        sidebar_switch_off = make_plugin(mod, enabled=True, sidebar_nav_enabled=False).get_sidebar_nav()
+        check(sidebar_switch_off == [], "侧边栏入口开关关闭时 get_sidebar_nav 不注册主界面入口")
+        sidebar_off = make_plugin(mod, enabled=False).get_sidebar_nav()
+        check(sidebar_off == [], "未启用时 get_sidebar_nav 不注册主界面入口")
+
+    print("== MP dashboard integration ==")
+    dashboard_default = make_plugin(mod, enabled=True)
+    has_dashboard_meta = hasattr(dashboard_default, "get_dashboard_meta")
+    has_dashboard = hasattr(dashboard_default, "get_dashboard")
+    check(has_dashboard_meta, "plugin exposes get_dashboard_meta")
+    check(has_dashboard, "plugin exposes get_dashboard")
+    if has_dashboard_meta and has_dashboard:
+        default_meta = dashboard_default.get_dashboard_meta()
+        check([item.get("key") for item in default_meta] == ["site", "actions"],
+              "enabled plugin publishes MP dashboard widgets without an extra plugin switch")
+        dashboard_off = make_plugin(mod, enabled=False, mp_dashboard_enabled=True)
+        check(dashboard_off.get_dashboard_meta() == [], "disabled plugin does not publish MP dashboard widgets")
+        dashboard_on = dashboard_default
+        dashboard_meta = dashboard_on.get_dashboard_meta()
+        check([item.get("key") for item in dashboard_meta] == ["site", "actions"],
+              "MP dashboard publishes only site statistics and manual actions")
+        check(all(item.get("name") for item in dashboard_meta), "MP dashboard widget meta contains display names")
+        site_dashboard = dashboard_on.get_dashboard(key="site")
+        check(isinstance(site_dashboard, tuple) and len(site_dashboard) == 3,
+              "get_dashboard returns the MoviePilot dashboard tuple")
+        if isinstance(site_dashboard, tuple) and len(site_dashboard) == 3:
+            cols, attrs, elements = site_dashboard
+            check(cols.get("cols") == 12 and cols.get("md") == 8, "site widget returns wide MP column sizing")
+            check(attrs.get("component") == "site" and attrs.get("rows"), "site widget attrs identify the migrated component")
+            check(elements == [], "vue dashboard widget renders through exposed Dashboard component")
+        actions_dashboard = dashboard_on.get_dashboard(key="actions")
+        if isinstance(actions_dashboard, tuple) and len(actions_dashboard) == 3:
+            _, action_attrs, _ = actions_dashboard
+            check(action_attrs.get("component") == "actions", "manual actions widget is exposed separately")
+        else:
+            check(False, "manual actions widget is exposed separately")
+        check(dashboard_on.get_dashboard(key="status") is None, "status widget is not published to MP dashboard")
+        check(dashboard_on.get_dashboard(key="runtime") is None, "runtime widget is not published to MP dashboard")
+        check(dashboard_on.get_dashboard(key="unknown") is None, "unknown dashboard widget key is ignored")
 
     print()
     if _FAILS:

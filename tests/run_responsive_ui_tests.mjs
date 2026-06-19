@@ -8,7 +8,7 @@ const { chromium } = require('playwright')
 const BASE_URL = process.env.MP_WEB_URL || 'http://localhost:3000'
 const USERNAME = process.env.MP_USER || 'admin'
 const PASSWORD = process.env.MP_PASSWORD || 'codex-mp-2026'
-const CHROME_PATH = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+const CHROME_PATH = process.env.CHROME_PATH || ''
 const PLUGIN_NAME = 'MP 运维助手'
 const GB = 1024 ** 3
 
@@ -66,16 +66,44 @@ const downloaderFixture = {
   ],
 }
 
-async function loginIfNeeded(page) {
-  await page.goto(`${BASE_URL}/#/plugins`, { waitUntil: 'domcontentloaded' })
-  await page.waitForTimeout(1000)
-  if (!page.url().includes('/login')) return
+function isLoginUrl(url) {
+  return url.includes('#/login') || url.includes('/login')
+}
 
-  await page.locator('input').nth(0).fill(USERNAME)
-  await page.locator('input').nth(1).fill(PASSWORD)
-  await page.keyboard.press('Enter')
-  await page.waitForTimeout(2500)
+async function waitForLoginDecision(page) {
+  await page.waitForFunction(() => {
+    const onLogin = location.hash.startsWith('#/login') || location.pathname.includes('/login')
+    return !onLogin || document.querySelectorAll('input').length >= 2
+  }, { timeout: 8000 }).catch(() => {})
+}
+
+async function gotoPlugins(page) {
   await page.goto(`${BASE_URL}/#/plugins`, { waitUntil: 'domcontentloaded' })
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
+  await waitForLoginDecision(page)
+}
+
+async function loginIfNeeded(page) {
+  await gotoPlugins(page)
+  if (isLoginUrl(page.url())) {
+    const inputs = page.locator('input')
+    const inputCount = await inputs.count()
+    if (inputCount < 2) {
+      throw new Error(`Login page did not render credential inputs: url=${page.url()} inputs=${inputCount}`)
+    }
+
+    await inputs.nth(0).fill(USERNAME)
+    await inputs.nth(1).fill(PASSWORD)
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => {
+      return !(location.hash.startsWith('#/login') || location.pathname.includes('/login'))
+    }, { timeout: 15000 })
+  }
+
+  await gotoPlugins(page)
+  if (isLoginUrl(page.url())) {
+    throw new Error(`Still on login page after authentication flow: ${page.url()}`)
+  }
   await page.waitForTimeout(1500)
 }
 
@@ -102,10 +130,211 @@ async function openPluginDashboard(page) {
   await page.waitForTimeout(800)
 }
 
+async function openSidebarDashboard(page) {
+  await page.goto(`${BASE_URL}/#/plugin-app/AgentOpsAssistant/main`, { waitUntil: 'domcontentloaded' })
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector('.dashboard-shell--sidebar .dashboard-canvas', { timeout: 15000 })
+  await page.waitForTimeout(800)
+}
+
 async function openPluginConfig(page) {
   await page.locator('.agentops-dashboard').getByRole('button', { name: /设置/ }).click()
   await page.waitForSelector('.aoa-config', { timeout: 15000 })
   await page.waitForTimeout(600)
+}
+
+async function auditVisibleSidebarDashboard(page, scope) {
+  await auditVisibleDashboard(page, scope)
+  const shellResult = await page.evaluate((scope) => {
+    const shell = document.querySelector('.dashboard-shell--sidebar')
+    const canvas = document.querySelector('.dashboard-shell--sidebar .dashboard-canvas')
+    const hiddenCompact = [...document.querySelectorAll('.sidebar-dashboard')].filter(el => {
+      const r = el.getBoundingClientRect()
+      const cs = getComputedStyle(el)
+      return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden'
+    }).length
+    const shellBox = shell?.getBoundingClientRect()
+    const canvasBox = canvas?.getBoundingClientRect()
+    const clipped = [...document.querySelectorAll('.dashboard-shell--sidebar .metric-copy strong, .dashboard-shell--sidebar .action-btn-label')]
+      .filter(el => {
+        const r = el.getBoundingClientRect()
+        return r.width > 0 && r.height > 0
+      })
+      .filter(el => el.scrollWidth > el.clientWidth + 3 || el.scrollHeight > el.clientHeight + 3)
+      .map(el => ({
+        text: (el.innerText || '').trim(),
+        width: Math.round(el.getBoundingClientRect().width),
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+      }))
+    const horizontalOverflow = [
+      '.dashboard-shell--sidebar',
+      '.dashboard-shell--sidebar .agentops-frame',
+      '.dashboard-shell--sidebar .dashboard-canvas',
+      '.dashboard-shell--sidebar .metrics-panel',
+      '.dashboard-shell--sidebar .site-panel',
+      '.dashboard-shell--sidebar .command-panel',
+      '.dashboard-shell--sidebar .download-panel',
+      '.dashboard-shell--sidebar .runtime-panel',
+    ]
+      .flatMap(sel => [...document.querySelectorAll(sel)]
+        .filter(el => {
+          const r = el.getBoundingClientRect()
+          const cs = getComputedStyle(el)
+          return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden'
+        })
+        .map(el => ({
+          selector: sel,
+          deltaX: el.scrollWidth - el.clientWidth,
+          width: Math.round(el.getBoundingClientRect().width),
+        })))
+      .filter(item => item.deltaX > 3)
+    const outerFrameChrome = [
+      '.dashboard-shell--sidebar',
+      '.dashboard-shell--sidebar .agentops-frame',
+    ]
+      .flatMap(sel => [...document.querySelectorAll(sel)]
+        .filter(el => {
+          const r = el.getBoundingClientRect()
+          const cs = getComputedStyle(el)
+          return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden'
+        })
+        .map(el => {
+          const cs = getComputedStyle(el)
+          return {
+            selector: sel,
+            borderTopWidth: Number.parseFloat(cs.borderTopWidth) || 0,
+            borderRadius: Number.parseFloat(cs.borderTopLeftRadius) || 0,
+            backgroundImage: cs.backgroundImage,
+            backgroundColor: cs.backgroundColor,
+            boxShadow: cs.boxShadow,
+          }
+        }))
+      .filter(item => {
+        const transparent = item.backgroundColor === 'rgba(0, 0, 0, 0)' || item.backgroundColor === 'transparent'
+        return item.borderTopWidth > 0 || item.borderRadius > 0 || item.backgroundImage !== 'none' || !transparent || item.boxShadow !== 'none'
+      })
+    return {
+      scope,
+      shellWidth: shellBox ? Math.round(shellBox.width) : 0,
+      viewportWidth: window.innerWidth,
+      canvasWidth: canvasBox ? Math.round(canvasBox.width) : 0,
+      hiddenCompact,
+      clipped,
+      horizontalOverflow,
+      outerFrameChrome,
+    }
+  }, scope)
+  assert.equal(shellResult.hiddenCompact, 0, `${scope} should render the full dashboard shell instead of the compact sidebar draft`)
+  assert.ok(shellResult.shellWidth >= shellResult.viewportWidth * 0.68, `${scope} sidebar dashboard should occupy the MP content area with native breathing room`)
+  assert.ok(shellResult.canvasWidth >= shellResult.shellWidth - 60, `${scope} dashboard canvas should fill the padded shell`)
+  assert.deepEqual(shellResult.clipped, [], `${scope} sidebar-adapted dashboard should not clip key values or action labels`)
+  assert.deepEqual(shellResult.horizontalOverflow, [], `${scope} sidebar-adapted dashboard should not keep hidden horizontal overflow`)
+  assert.deepEqual(shellResult.outerFrameChrome, [], `${scope} sidebar dashboard should not render an extra outer card frame`)
+  return
+
+  const result = await page.evaluate((scope) => {
+    const isVisible = (el) => {
+      const r = el.getBoundingClientRect()
+      const cs = getComputedStyle(el)
+      return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden'
+    }
+    const info = (el) => {
+      const r = el.getBoundingClientRect()
+      const cs = getComputedStyle(el)
+      return {
+        tag: el.tagName,
+        cls: String(el.className || ''),
+        text: (el.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+        left: Math.round(r.left),
+        right: Math.round(r.right),
+        width: Math.round(r.width),
+        height: Math.round(r.height),
+        deltaX: el.scrollWidth - el.clientWidth,
+        deltaY: el.scrollHeight - el.clientHeight,
+        overflowX: cs.overflowX,
+        overflowY: cs.overflowY,
+      }
+    }
+    const requiredSelectors = [
+      '.sidebar-dashboard',
+      '.sidebar-flow',
+      '.sidebar-hero',
+      '.sidebar-quick-grid',
+      '.sidebar-section--site',
+      '.sidebar-section--actions',
+      '.sidebar-section--runtime',
+    ]
+    const missing = requiredSelectors.filter(sel => !document.querySelector(sel) || !isVisible(document.querySelector(sel)))
+
+    const overflowSelectors = [
+      '.sidebar-dashboard',
+      '.sidebar-flow',
+      '.sidebar-top',
+      '.sidebar-hero',
+      '.sidebar-quick-grid',
+      '.sidebar-section',
+      '.sidebar-site-summary',
+      '.sidebar-site-list',
+      '.sidebar-site-row',
+      '.sidebar-action-groups',
+      '.sidebar-action-group',
+      '.sidebar-actions',
+      '.sidebar-action',
+      '.sidebar-download-list',
+      '.sidebar-download-row',
+      '.sidebar-runtime-list',
+      '.sidebar-task',
+    ]
+    const horizontalOverflow = overflowSelectors
+      .flatMap(sel => [...document.querySelectorAll(sel)].filter(isVisible).map(info))
+      .filter(item => item.deltaX > 3)
+
+    const offscreen = ['.sidebar-flow', '.sidebar-top', '.sidebar-section', '.sidebar-hero', '.sidebar-metric']
+      .flatMap(sel => [...document.querySelectorAll(sel)].filter(isVisible).map(info))
+      .filter(item => item.left < -2 || item.right > window.innerWidth + 2)
+
+    const clippedActionLabels = [...document.querySelectorAll('.sidebar-action .action-btn-label')]
+      .filter(isVisible)
+      .filter(el => el.scrollWidth > el.clientWidth + 3 || el.scrollHeight > el.clientHeight + 3)
+      .map(info)
+    const clippedCompactValues = [...document.querySelectorAll('.sidebar-metric strong, .sidebar-site-summary strong')]
+      .filter(isVisible)
+      .filter(el => el.scrollWidth > el.clientWidth + 3 || el.scrollHeight > el.clientHeight + 3)
+      .map(info)
+
+    const actionGroups = [...document.querySelectorAll('.sidebar-action-group')].filter(isVisible).length
+    const actionTotal = [...document.querySelectorAll('.sidebar-action')].filter(isVisible).length
+    const actionBox = document.querySelector('.sidebar-action-groups')
+    const actionBoxInfo = actionBox ? info(actionBox) : null
+    const siteRows = [...document.querySelectorAll('.sidebar-site-row')].filter(isVisible).length
+    const taskRows = [...document.querySelectorAll('.sidebar-task')].filter(isVisible).length
+
+    return {
+      scope,
+      missing,
+      horizontalOverflow,
+      offscreen,
+      clippedActionLabels,
+      clippedCompactValues,
+      actionGroups,
+      actionTotal,
+      actionBox: actionBoxInfo,
+      siteRows,
+      taskRows,
+    }
+  }, scope)
+
+  assert.deepEqual(result.missing, [], `${scope} sidebar dashboard should render all primary sections`)
+  assert.deepEqual(result.horizontalOverflow, [], `${scope} sidebar dashboard should not have internal horizontal overflow`)
+  assert.deepEqual(result.offscreen, [], `${scope} sidebar dashboard sections should stay inside the viewport`)
+  assert.deepEqual(result.clippedActionLabels, [], `${scope} sidebar manual action labels should fit their buttons`)
+  assert.deepEqual(result.clippedCompactValues, [], `${scope} sidebar compact metrics should not clip key values`)
+  assert.equal(result.actionGroups, 4, `${scope} sidebar dashboard should group manual actions`)
+  assert.ok(result.actionTotal >= 10, `${scope} sidebar dashboard should expose all manual action buttons`)
+  assert.equal(result.actionBox?.overflowY, 'visible', `${scope} sidebar action panel should not depend on an internal scroller`)
+  assert.ok(result.siteRows >= 4, `${scope} sidebar site panel should keep useful rows visible`)
+  assert.ok(result.taskRows >= 6, `${scope} sidebar runtime panel should keep useful rows visible`)
 }
 
 async function auditVisibleDashboard(page, scope) {
@@ -305,7 +534,9 @@ async function walkConfigTabs(page, viewportName) {
 }
 
 async function main() {
-  const browser = await chromium.launch({ headless: true, executablePath: CHROME_PATH })
+  const launchOptions = { headless: true }
+  if (CHROME_PATH) launchOptions.executablePath = CHROME_PATH
+  const browser = await chromium.launch(launchOptions)
   try {
     for (const viewport of viewports) {
       const page = await browser.newPage({
@@ -315,6 +546,9 @@ async function main() {
       })
       await loginIfNeeded(page)
       await mockDashboardApis(page)
+      await openSidebarDashboard(page)
+      await auditVisibleSidebarDashboard(page, `${viewport.name}: sidebar dashboard`)
+      await gotoPlugins(page)
       await openPluginDashboard(page)
       await auditVisibleDashboard(page, `${viewport.name}: dashboard stress`)
       await auditDashboardActionFailure(page, `${viewport.name}: dashboard action failure`)

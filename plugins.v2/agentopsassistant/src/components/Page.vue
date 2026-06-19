@@ -1,9 +1,12 @@
-<script setup>
+﻿<script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useTheme } from 'vuetify'
 import { getPluginApi, postPluginApi } from './api'
 
-const props = defineProps({ api: { type: [Object, Function], default: null } })
+const props = defineProps({
+  api: { type: [Object, Function], default: null },
+  surface: { type: String, default: 'dialog' },
+})
 const emit = defineEmits(['close', 'switch'])
 
 const loading = ref(true)
@@ -30,6 +33,7 @@ const dashboardThemeClass = computed(() => {
   if (name.includes('light')) return 'agentops-theme--light'
   return ''
 })
+const isSidebarSurface = computed(() => props.surface === 'sidebar')
 
 const overallColor = computed(() => {
   if (!data.enabled) return 'muted'
@@ -283,7 +287,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 </script>
 
 <template>
-  <div class="agentops-dashboard dashboard-shell" :class="dashboardThemeClass">
+  <div class="agentops-dashboard dashboard-shell" :class="[dashboardThemeClass, { 'dashboard-shell--sidebar': isSidebarSurface }]">
     <VCard class="agentops-frame" elevation="0">
       <header class="agentops-toolbar">
         <div class="brand">
@@ -295,8 +299,8 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
         <VBtn size="small" variant="text" class="top-button top-button--primary text-none" :loading="loading" @click="loadDashboard">
           刷新
         </VBtn>
-        <VBtn size="small" variant="text" class="top-button text-none" @click="emit('switch')">设置</VBtn>
-        <VBtn size="small" icon="mdi-close" variant="text" class="top-button top-button--icon" @click="emit('close')" />
+        <VBtn v-if="!isSidebarSurface" size="small" variant="text" class="top-button text-none" @click="emit('switch')">设置</VBtn>
+        <VBtn v-if="!isSidebarSurface" size="small" icon="mdi-close" variant="text" class="top-button top-button--icon" @click="emit('close')" />
       </header>
 
       <section class="dashboard-canvas">
@@ -702,6 +706,73 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
     0 18px 48px rgba(0, 0, 0, 0.10),
     0 5px 16px rgba(0, 0, 0, 0.060);
   backdrop-filter: blur(26px) saturate(145%);
+}
+
+.dashboard-shell--sidebar {
+  min-height: calc(100dvh - 72px);
+  padding: 28px 22px 30px;
+  border: 0;
+  border-radius: 0 !important;
+  background: transparent;
+  background-color: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.dashboard-shell--sidebar .agentops-frame {
+  width: 100%;
+  min-height: calc(100dvh - 96px);
+  margin: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0 !important;
+  background: transparent;
+  background-color: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.dashboard-shell--sidebar .dashboard-canvas {
+  box-sizing: border-box;
+  height: calc(100dvh - 180px);
+  min-height: 730px;
+  padding: 16px 0 0;
+  gap: 16px;
+  grid-template-columns: minmax(316px, 1.05fr) minmax(316px, 1.02fr) minmax(246px, 0.88fr);
+}
+
+.dashboard-shell--sidebar .metric-card {
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 8px;
+  padding: 14px 12px;
+}
+
+.dashboard-shell--sidebar .metric-symbol {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+}
+
+.dashboard-shell--sidebar .metric-copy strong {
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.dashboard-shell--sidebar .command-panel {
+  padding: 22px;
+}
+
+.dashboard-shell--sidebar .command-body {
+  gap: 14px;
+  grid-template-rows: 110px 142px 142px 110px;
+}
+
+.dashboard-shell--sidebar .command-group {
+  padding: 15px 12px;
+}
+
+.dashboard-shell--sidebar .cmd-grid {
+  gap: 8px;
 }
 
 .agentops-frame {
@@ -1346,10 +1417,14 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .action-btn-label {
   flex: 0 0 auto;
   min-width: max-content;
-  overflow: visible;
-  text-overflow: clip;
+  overflow: visible !important;
+  text-overflow: clip !important;
   line-height: 1.18;
   white-space: nowrap;
+}
+.cmd-btn .action-btn-label {
+  overflow: visible !important;
+  text-overflow: clip !important;
 }
 .action-message {
   margin-top: 14px;
@@ -1561,6 +1636,15 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
     0 4px 12px rgba(0, 0, 0, 0.016);
 }
 
+.agentops-dashboard.agentops-theme--transparent.dashboard-shell--sidebar,
+.agentops-dashboard.agentops-theme--transparent.dashboard-shell--sidebar .agentops-frame {
+  border: 0;
+  background: transparent;
+  background-color: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .agentops-dashboard.agentops-theme--transparent .agentops-toolbar {
   border-bottom-color: rgba(var(--line), 0.050);
   background:
@@ -1716,11 +1800,22 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   .dashboard-shell {
     padding: 18px;
   }
+  .dashboard-shell--sidebar {
+    padding: 22px 18px 26px;
+  }
   .agentops-frame {
     min-height: 0;
   }
   .dashboard-canvas {
     min-height: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto;
+  }
+  .dashboard-shell--sidebar .dashboard-canvas {
+    height: auto;
+    min-height: 0;
+    padding: 14px 0 0;
+    gap: 16px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto;
   }
@@ -1740,6 +1835,9 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   .command-panel {
     min-height: 420px;
   }
+  .dashboard-shell--sidebar .metric-copy strong {
+    font-size: 15px;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1749,6 +1847,14 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   .dashboard-shell {
     padding: 10px;
     border-radius: 22px;
+  }
+  .dashboard-shell--sidebar {
+    padding: 16px 10px calc(116px + env(safe-area-inset-bottom));
+    border-radius: 0 !important;
+  }
+  .dashboard-shell--sidebar,
+  .dashboard-shell--sidebar .agentops-frame {
+    min-height: 0;
   }
   .agentops-toolbar {
     height: auto;
@@ -1772,6 +1878,36 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   }
   .dashboard-canvas {
     padding: 10px;
+  }
+  .dashboard-shell--sidebar .dashboard-canvas {
+    height: auto;
+    min-height: 0;
+    padding: 12px 0 0;
+    gap: 14px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  .dashboard-shell--sidebar .metrics-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dashboard-shell--sidebar .metric-card {
+    min-height: 64px;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 7px;
+    padding: 11px 9px;
+    border-radius: 15px;
+  }
+  .dashboard-shell--sidebar .metric-symbol {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+  }
+  .dashboard-shell--sidebar .metric-copy p {
+    font-size: 11px;
+  }
+  .dashboard-shell--sidebar .metric-copy strong {
+    font-size: 14px;
   }
   .site-panel,
   .command-panel {
@@ -1801,4 +1937,5 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
     display: none;
   }
 }
+
 </style>

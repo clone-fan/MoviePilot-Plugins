@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-Dc5i-DQA.js';
+import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-xrenItmB.js';
 
 // Utilities
 const {getCurrentInstance:_getCurrentInstance} = await importShared('vue');
@@ -21,7 +21,7 @@ function useTheme() {
   return theme;
 }
 
-const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,toDisplayString:_toDisplayString,createTextVNode:_createTextVNode,withCtx:_withCtx,normalizeClass:_normalizeClass,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock,createElementBlock:_createElementBlock,normalizeStyle:_normalizeStyle,createCommentVNode:_createCommentVNode,createBlock:_createBlock} = await importShared('vue');
+const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,toDisplayString:_toDisplayString,createTextVNode:_createTextVNode,withCtx:_withCtx,openBlock:_openBlock,createBlock:_createBlock,createCommentVNode:_createCommentVNode,normalizeClass:_normalizeClass,renderList:_renderList,Fragment:_Fragment,createElementBlock:_createElementBlock,normalizeStyle:_normalizeStyle} = await importShared('vue');
 
 
 const _hoisted_1 = { class: "agentops-toolbar" };
@@ -102,7 +102,10 @@ const {ref,reactive,computed,onMounted} = await importShared('vue');
 
 const _sfc_main = {
   __name: 'Page',
-  props: { api: { type: [Object, Function], default: null } },
+  props: {
+  api: { type: [Object, Function], default: null },
+  surface: { type: String, default: 'dialog' },
+},
   emits: ['close', 'switch'],
   setup(__props, { emit: __emit }) {
 
@@ -133,6 +136,7 @@ const dashboardThemeClass = computed(() => {
   if (name.includes('light')) return 'agentops-theme--light'
   return ''
 });
+const isSidebarSurface = computed(() => props.surface === 'sidebar');
 
 const overallColor = computed(() => {
   if (!data.enabled) return 'muted'
@@ -392,7 +396,7 @@ return (_ctx, _cache) => {
   const _component_VCard = _resolveComponent("VCard");
 
   return (_openBlock(), _createElementBlock("div", {
-    class: _normalizeClass(["agentops-dashboard dashboard-shell", dashboardThemeClass.value])
+    class: _normalizeClass(["agentops-dashboard dashboard-shell", [dashboardThemeClass.value, { 'dashboard-shell--sidebar': isSidebarSurface.value }]])
   }, [
     _createVNode(_component_VCard, {
       class: "agentops-frame",
@@ -423,24 +427,30 @@ return (_ctx, _cache) => {
             ]))]),
             _: 1
           }, 8, ["loading"]),
-          _createVNode(_component_VBtn, {
-            size: "small",
-            variant: "text",
-            class: "top-button text-none",
-            onClick: _cache[0] || (_cache[0] = $event => (emit('switch')))
-          }, {
-            default: _withCtx(() => [...(_cache[4] || (_cache[4] = [
-              _createTextVNode("设置", -1)
-            ]))]),
-            _: 1
-          }),
-          _createVNode(_component_VBtn, {
-            size: "small",
-            icon: "mdi-close",
-            variant: "text",
-            class: "top-button top-button--icon",
-            onClick: _cache[1] || (_cache[1] = $event => (emit('close')))
-          })
+          (!isSidebarSurface.value)
+            ? (_openBlock(), _createBlock(_component_VBtn, {
+                key: 0,
+                size: "small",
+                variant: "text",
+                class: "top-button text-none",
+                onClick: _cache[0] || (_cache[0] = $event => (emit('switch')))
+              }, {
+                default: _withCtx(() => [...(_cache[4] || (_cache[4] = [
+                  _createTextVNode("设置", -1)
+                ]))]),
+                _: 1
+              }))
+            : _createCommentVNode("", true),
+          (!isSidebarSurface.value)
+            ? (_openBlock(), _createBlock(_component_VBtn, {
+                key: 1,
+                size: "small",
+                icon: "mdi-close",
+                variant: "text",
+                class: "top-button top-button--icon",
+                onClick: _cache[1] || (_cache[1] = $event => (emit('close')))
+              }))
+            : _createCommentVNode("", true)
         ]),
         _createElementVNode("section", _hoisted_4, [
           _createElementVNode("article", {
@@ -749,6 +759,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-903c81ef"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-4c352bad"]]);
 
 export { Page as default };

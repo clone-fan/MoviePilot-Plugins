@@ -3,6 +3,10 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 
 const page = fs.readFileSync('plugins.v2/agentopsassistant/src/components/Page.vue', 'utf8')
+const appPagePath = 'plugins.v2/agentopsassistant/src/components/AppPage.vue'
+const dashboardPath = 'plugins.v2/agentopsassistant/src/components/Dashboard.vue'
+const configPath = 'plugins.v2/agentopsassistant/src/components/Config.vue'
+const vite = fs.readFileSync('plugins.v2/agentopsassistant/vite.config.js', 'utf8')
 
 const requiredFragments = [
   'dashboard-shell',
@@ -37,3 +41,56 @@ assert.ok(
   /const metricCards = computed\(\(\) => \[/m.test(page),
   'Page.vue should expose the four metric cards as computed real data',
 )
+
+assert.ok(fs.existsSync(appPagePath), 'sidebar AppPage.vue should exist')
+const appPage = fs.readFileSync(appPagePath, 'utf8')
+const config = fs.readFileSync(configPath, 'utf8')
+
+assert.ok(
+  !config.includes('接入 MP 首页仪表盘') && !config.includes('mp_dashboard_enabled'),
+  'Config.vue should not show the MP dashboard switch inside site statistic settings',
+)
+
+assert.ok(
+  config.includes('sidebar_nav_enabled') && config.includes('侧边栏入口'),
+  'Config.vue should expose a top-level sidebar entry switch',
+)
+
+assert.ok(
+  vite.includes("'./AppPage': './src/components/AppPage.vue'"),
+  'vite federation should expose AppPage for MP sidebar routes',
+)
+
+assert.ok(fs.existsSync(dashboardPath), 'MP dashboard Dashboard.vue should exist')
+const dashboard = fs.readFileSync(dashboardPath, 'utf8')
+
+assert.ok(
+  vite.includes("'./Dashboard': './src/components/Dashboard.vue'"),
+  'vite federation should expose Dashboard for MP dashboard widgets',
+)
+
+for (const fragment of ['SiteStatsWidget', 'ActionsWidget']) {
+  assert.ok(dashboard.includes(fragment), `Dashboard.vue should route to ${fragment}`)
+}
+
+for (const fragment of ['StatusWidget', 'RuntimeWidget']) {
+  assert.ok(!dashboard.includes(fragment), `Dashboard.vue should not route unnecessary ${fragment}`)
+}
+
+assert.ok(
+  dashboard.includes('run_site_stat') && dashboard.includes('run_health_check'),
+  'Dashboard.vue should expose redesigned manual action buttons',
+)
+
+assert.ok(
+  appPage.includes('surface="sidebar"'),
+  'AppPage.vue should render Page in sidebar surface mode',
+)
+
+for (const fragment of ['dashboard-shell--sidebar', ':class="[dashboardThemeClass, { \'dashboard-shell--sidebar\': isSidebarSurface }]"']) {
+  assert.ok(page.includes(fragment), `Page.vue should adapt the existing dashboard shell for MP sidebar: ${fragment}`)
+}
+
+for (const fragment of ['.dashboard-shell--sidebar .dashboard-canvas', '.dashboard-shell--sidebar .metric-card', '.dashboard-shell--sidebar .command-panel']) {
+  assert.ok(page.includes(fragment), `Page.vue should keep the full dashboard layout adapted to sidebar space: ${fragment}`)
+}

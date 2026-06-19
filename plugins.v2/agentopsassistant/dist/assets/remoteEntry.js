@@ -2,11 +2,17 @@ const currentImports = {};
       const exportSet = new Set(['Module', '__esModule', 'default', '_export_sfc']);
       let moduleMap = {
 "./Config":()=>{
-      dynamicLoadingCss(["__federation_expose_Config-pbHqD5to.css"], false, './Config');
-      return __federation_import('./__federation_expose_Config-C963ZXWM.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
+      dynamicLoadingCss(["__federation_expose_Config-BkfZ8pDK.css"], false, './Config');
+      return __federation_import('./__federation_expose_Config-CK92Rc0V.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
 "./Page":()=>{
-      dynamicLoadingCss(["__federation_expose_Page-DlT4GKNZ.css"], false, './Page');
-      return __federation_import('./__federation_expose_Page-BOn2J8og.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},};
+      dynamicLoadingCss(["__federation_expose_Page-CSU-iGXu.css"], false, './Page');
+      return __federation_import('./__federation_expose_Page-B7OYnCfy.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
+"./AppPage":()=>{
+      dynamicLoadingCss(["__federation_expose_Page-CSU-iGXu.css"], false, './AppPage');
+      return __federation_import('./__federation_expose_AppPage-d_5-F83c.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
+"./Dashboard":()=>{
+      dynamicLoadingCss(["__federation_expose_Dashboard-DNKCYIrB.css"], false, './Dashboard');
+      return __federation_import('./__federation_expose_Dashboard-BnUqkQiE.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},};
       const seen = {};
       const dynamicLoadingCss = (cssFilePaths, dontAppendStylesToHead, exposeItemName) => {
         const metaUrl = import.meta.url;

@@ -167,6 +167,7 @@ async function loadMediaservers() {
 
 const defaults = {
   enabled: false,
+  sidebar_nav_enabled: true,
   daily_report_enabled: true,
   daily_report_cron: '0 22 * * *',
   daily_report_greeting: '少爷',
@@ -588,13 +589,24 @@ onBeforeUnmount(() => {
         <VCardTitle class="text-h6 aoa-header-title">MP 运维助手</VCardTitle>
         <VCardSubtitle class="text-caption aoa-header-subtitle">配置中心</VCardSubtitle>
         <template #append>
-          <div class="d-flex align-center ga-2">
+          <div class="d-flex align-center ga-2 aoa-header-controls">
             <VSwitch
               v-model="form.enabled"
               color="primary"
+              class="aoa-header-switch"
+              density="compact"
               hide-details
               inset
               :label="form.enabled ? '已启用' : '已停用'"
+            />
+            <VSwitch
+              v-model="form.sidebar_nav_enabled"
+              color="primary"
+              class="aoa-header-switch"
+              density="compact"
+              hide-details
+              inset
+              label="侧边栏入口"
             />
             <VBtn size="small" variant="text" color="primary" prepend-icon="mdi-view-dashboard-outline" class="text-none aoa-header-link" @click="emit('switch')">
               仪表盘
@@ -1679,6 +1691,18 @@ onBeforeUnmount(() => {
 .aoa-header {
   padding: 16px 20px;
 }
+.aoa-header-controls {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.aoa-header-switch {
+  flex: 0 0 auto;
+}
+.aoa-header-switch :deep(.v-label) {
+  font-size: 13px;
+  opacity: 0.78;
+}
 .aoa-header-link {
   min-width: 0;
   height: 32px;
@@ -2362,6 +2386,9 @@ onBeforeUnmount(() => {
   .aoa-header :deep(.v-switch .v-label) {
     font-size: 13px;
     opacity: 0.78;
+  }
+  .aoa-header-controls {
+    gap: 4px !important;
   }
   .aoa-header-link {
     height: 30px;
