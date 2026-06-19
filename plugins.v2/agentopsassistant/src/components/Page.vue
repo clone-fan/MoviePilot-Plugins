@@ -507,6 +507,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 
 <style scoped>
 .agentops-dashboard {
+  --aoa-dashboard-radius: var(--v-card-border-radius, var(--v-border-radius-root, 8px));
   --ink: var(--v-theme-on-surface, 240, 247, 255);
   --muted: var(--v-theme-on-surface, 151, 171, 201);
   --faint: var(--v-theme-on-surface, 111, 131, 163);
@@ -692,7 +693,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 
 .dashboard-shell {
-  border-radius: 30px;
+  border-radius: var(--aoa-dashboard-radius);
   padding: 28px;
   border: 1px solid rgba(var(--line), 0.075);
   background:
@@ -780,7 +781,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   min-height: 790px;
   margin: 0 auto;
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: var(--aoa-dashboard-radius);
   border: 1px solid rgba(var(--line), 0.105);
   background:
     radial-gradient(circle at 82% 0%, rgba(var(--cyan), var(--frame-cyan-alpha)), transparent 34%),
@@ -1846,7 +1847,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   }
   .dashboard-shell {
     padding: 10px;
-    border-radius: 22px;
+    border-radius: var(--aoa-dashboard-radius);
   }
   .dashboard-shell--sidebar {
     padding: 16px 10px calc(116px + env(safe-area-inset-bottom));

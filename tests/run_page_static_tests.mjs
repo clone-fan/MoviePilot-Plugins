@@ -94,3 +94,22 @@ for (const fragment of ['dashboard-shell--sidebar', ':class="[dashboardThemeClas
 for (const fragment of ['.dashboard-shell--sidebar .dashboard-canvas', '.dashboard-shell--sidebar .metric-card', '.dashboard-shell--sidebar .command-panel']) {
   assert.ok(page.includes(fragment), `Page.vue should keep the full dashboard layout adapted to sidebar space: ${fragment}`)
 }
+
+assert.ok(
+  page.includes('--aoa-dashboard-radius: var(--v-card-border-radius'),
+  'Page.vue outer dashboard radius should be controlled by MP/Vuetify theme variables',
+)
+
+assert.ok(
+  /\.dashboard-shell\s*\{[\s\S]*border-radius:\s*var\(--aoa-dashboard-radius\)/m.test(page),
+  'Page.vue dashboard shell should not hard-code its outer radius',
+)
+
+assert.ok(
+  /\.agentops-frame\s*\{[\s\S]*border-radius:\s*var\(--aoa-dashboard-radius\)/m.test(page),
+  'Page.vue dashboard frame should not hard-code its outer radius',
+)
+
+for (const fragment of ['border-radius: 30px', 'border-radius: 22px']) {
+  assert.ok(!page.includes(fragment), `Page.vue should not hard-code MP-controlled outer radius: ${fragment}`)
+}

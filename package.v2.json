@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅追新,站点统计,日志清理,自动备份,更新检查,插件卸载,本地插件",
-    "version": "1.0.41",
+    "version": "1.0.42",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.42": "修复 MP 运维助手仪表盘外层圆角不跟随 MoviePilot 主题定制的问题：外层容器改为读取 MP/Vuetify 主题圆角变量，侧边栏模式继续保持无额外外框。",
       "v1.0.41": "新增 MP 主界面侧边栏入口和 MP 首页仪表盘组件：侧边栏入口可在设置页顶部独立开关；MP 首页仪表盘接入站点数据统计与手动操作两个组件，保持默认随插件启用并沿用现有仪表盘设计。",
       "v1.0.40": "修复站点每日增量误报全量：昨日快照缺少累计字段或上传/下载基准为 0 时不再用当前累计值直接相减，避免把站点总上传/总下载显示成每日增量；日报和仪表盘共用同一套安全差值口径。",
       "v1.0.39": "修复站点增量历史快照匹配：优先按 domain 对齐昨日数据，避免同名不同域名站点互相覆盖，导致日报和仪表盘上传/下载增量取错基准。",
