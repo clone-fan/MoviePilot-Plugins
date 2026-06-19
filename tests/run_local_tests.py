@@ -611,6 +611,8 @@ def main():
     check(not pr_preview_api._stub_messages and "last_daily_report" not in pr_preview_api._stub_data, "每日汇报 API 预览不发消息也不写执行状态")
     check((pr_preview_result.get("data") or {}).get("feishu_card", {}).get("schema") == "2.0",
           "每日汇报 API 预览同时返回飞书卡片 JSON，便于通知重建验收")
+    check("<h2>" in ((pr_preview_result.get("data") or {}).get("telegram_rich_message", {}).get("html") or ""),
+          "每日汇报 API 预览同时返回 Telegram RichMessage HTML，便于 TG Bot 通知重建验收")
     pr_pack = make_plugin(mod)
     packed = pr_pack._report_body_lines(["⦁ A", "⦁ B", "⦁ 这是一条比较长的内容，用来确认长信息不会被强行横向挤压而影响阅读"])
     check(packed[0] == "• A ｜ • B" and packed[1].startswith("• 这是一条比较长"), "短信息横向并排，长信息独占一行")
@@ -667,6 +669,16 @@ def main():
     feishu_content = json.dumps(feishu_card, ensure_ascii=False)
     check("📈 站点增量" in feishu_content and "馒头" in feishu_content and "10.00 GB" in feishu_content,
           "飞书日报卡片承载重建后的站点增量分区")
+    tg_rich = p_card._build_daily_report_telegram_rich_message(preview=True)
+    tg_html = tg_rich.get("html", "")
+    check(tg_rich.get("skip_entity_detection") is True and "markdown" not in tg_rich,
+          "Telegram RichMessage 使用 html 且关闭实体猜测，不同时设置 markdown")
+    check("<table>" in tg_html and "📈 站点增量" in tg_html and "<details>" in tg_html and "<blockquote>" in tg_html,
+          "Telegram RichMessage 用 table/details/blockquote 重建日报观感")
+    p_card._get_site_health_locked = lambda: ["⦁ A&B站 | 异常（<token>）"]
+    escaped_tg_html = p_card._build_daily_report_telegram_html(preview=True)
+    check("A&amp;B站" in escaped_tg_html and "&lt;token&gt;" in escaped_tg_html and "<token>" not in escaped_tg_html,
+          "Telegram RichMessage 动态内容必须 HTML escape，避免站点名/错误详情破坏结构")
 
     print("== 日报下载与入库展示口径 ==")
     p_report = make_plugin(mod)

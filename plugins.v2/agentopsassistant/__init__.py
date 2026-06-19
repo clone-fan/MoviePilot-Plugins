@@ -1,4 +1,5 @@
 import json
+import html
 import os
 import shutil
 import subprocess
@@ -31,7 +32,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.43"
+    plugin_version = "1.0.44"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -1013,6 +1014,7 @@ class AgentOpsAssistant(_PluginBase):
                 "sections": self._count_report_sections(text or ""),
                 "preview": text,
                 "feishu_card": self._build_daily_report_feishu_card(preview=True, text=text),
+                "telegram_rich_message": self._build_daily_report_telegram_rich_message(preview=True, text=text),
                 "error": "",
             }
             return {"code": 0, "msg": "每日汇报预览已生成", "data": data, "text": text}
@@ -1339,6 +1341,140 @@ class AgentOpsAssistant(_PluginBase):
             },
             "body": {"elements": elements[:12]},
         }
+
+    def _build_daily_report_telegram_rich_message(self, preview: bool = False, text: Optional[str] = None) -> Dict[str, Any]:
+        """生成 Telegram Bot API 10.1 sendRichMessage 的 rich_message 载荷。"""
+        return {
+            "html": self._build_daily_report_telegram_html(preview=preview, text=text),
+            "skip_entity_detection": True,
+        }
+
+    def _build_daily_report_telegram_html(self, preview: bool = False, text: Optional[str] = None) -> str:
+        report_text = text if text is not None else self._build_daily_report_message(preview=preview)
+        parts = self._split_daily_report_text(report_text)
+        title = self._html_escape(parts.get("title") or "MP 运维日报")
+        chunks = [f"<h2>{title}</h2>"]
+        intro = [self._html_escape(line) for line in (parts.get("intro") or []) if str(line or "").strip()]
+        if intro:
+            chunks.append("<p>" + "<br>".join(intro) + "</p>")
+        for section in parts.get("sections") or []:
+            header = str(section.get("title") or "").strip()
+            lines = section.get("lines") or []
+            if header.startswith("📡"):
+                chunks.append(self._telegram_status_table(header, lines))
+            elif header.startswith("📈"):
+                chunks.append(self._telegram_increment_table(header, lines))
+            elif header.startswith("💾"):
+                chunks.append(self._telegram_storage_table(header, lines))
+            elif header.startswith("🎬"):
+                chunks.append(self._telegram_media_table(header, lines))
+            elif header.startswith("🩺"):
+                body = self._telegram_list_html(self._telegram_section_items(lines))
+                chunks.append(f"<details><summary>{self._html_escape(header)}</summary>{body}</details>")
+            elif header.startswith("🧾") or header.startswith("⚠️"):
+                body = "<br>".join(self._html_escape(item) for item in self._telegram_section_items(lines))
+                chunks.append(f"<blockquote><b>{self._html_escape(header)}</b><br>{body or '无'}</blockquote>")
+            else:
+                chunks.append(f"<h3>{self._html_escape(header)}</h3>{self._telegram_list_html(self._telegram_section_items(lines))}")
+        return self._clip_telegram_html("\n".join(chunks))
+
+    @staticmethod
+    def _html_escape(value: Any) -> str:
+        return html.escape(str(value or ""), quote=True)
+
+    @classmethod
+    def _telegram_section_items(cls, lines: List[str]) -> List[str]:
+        items: List[str] = []
+        for line in lines or []:
+            text = str(line or "").strip()
+            if not text:
+                continue
+            for part in re.split(r"\s*｜\s*(?=•\s*)", text):
+                item = re.sub(r"^[•⦁]\s*", "", part.strip())
+                if item:
+                    items.append(item)
+        return items
+
+    @classmethod
+    def _telegram_list_html(cls, items: List[str]) -> str:
+        if not items:
+            return "<p>无</p>"
+        return "<ul>" + "".join(f"<li>{cls._html_escape(item)}</li>" for item in items) + "</ul>"
+
+    @classmethod
+    def _telegram_table_html(cls, title: str, headers: List[str], rows: List[List[Any]]) -> str:
+        if not rows:
+            return f"<h3>{cls._html_escape(title)}</h3><p>无</p>"
+        head = "".join(f"<th>{cls._html_escape(h)}</th>" for h in headers)
+        body = []
+        for row in rows:
+            cells = list(row)[:len(headers)]
+            cells.extend([""] * max(0, len(headers) - len(cells)))
+            body.append("<tr>" + "".join(f"<td>{cls._html_escape(cell)}</td>" for cell in cells) + "</tr>")
+        return f"<h3>{cls._html_escape(title)}</h3><table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table>"
+
+    @classmethod
+    def _telegram_status_table(cls, title: str, lines: List[str]) -> str:
+        rows = []
+        for item in cls._telegram_section_items(lines):
+            match = re.match(r"(.+?)：(.+)$", item)
+            rows.append([match.group(1).strip(), match.group(2).strip()] if match else [item, ""])
+        return cls._telegram_table_html(title, ["站点", "状态"], rows)
+
+    @classmethod
+    def _telegram_increment_table(cls, title: str, lines: List[str]) -> str:
+        rows = []
+        notes = []
+        for item in cls._telegram_section_items(lines):
+            if "基线不足" in item or item in {"无", "暂无增量"}:
+                notes.append(item)
+                continue
+            name, rest = (item.split("：", 1) + [""])[:2] if "：" in item else (item, "")
+            upload = cls._match_text(r"⬆\s*([^｜]+)", rest)
+            download = cls._match_text(r"⬇\s*([^｜]+)", rest)
+            ratio = cls._match_text(r"📊\s*([^｜]+)", rest)
+            bonus = cls._match_text(r"🪙\s*([^｜]+)", rest)
+            rows.append([name.strip(), upload, download, ratio, bonus])
+        table = cls._telegram_table_html(title, ["站点", "上传", "下载", "分享率", "魔力"], rows)
+        if notes and not rows:
+            return f"<h3>{cls._html_escape(title)}</h3>{cls._telegram_list_html(notes)}"
+        return table
+
+    @classmethod
+    def _telegram_storage_table(cls, title: str, lines: List[str]) -> str:
+        rows = []
+        for item in cls._telegram_section_items(lines):
+            if "：" not in item:
+                rows.append([item, "", ""])
+                continue
+            name, rest = item.split("：", 1)
+            fields = [part.strip() for part in rest.split("｜") if part.strip()]
+            usage = next((part for part in fields if "💽" in part), fields[0] if fields else "")
+            status = next((part for part in fields if "已用" in part), "")
+            rows.append([name.strip(), usage, status])
+        return cls._telegram_table_html(title, ["存储", "容量", "状态"], rows)
+
+    @classmethod
+    def _telegram_media_table(cls, title: str, lines: List[str]) -> str:
+        rows = []
+        for item in cls._telegram_section_items(lines):
+            for label, value in re.findall(r"(电影|电视剧|剧集|用户)\s+(\d+)", item):
+                rows.append([label, value])
+        return cls._telegram_table_html(title, ["指标", "数量"], rows)
+
+    @staticmethod
+    def _match_text(pattern: str, text: str) -> str:
+        match = re.search(pattern, str(text or ""))
+        return match.group(1).strip() if match else ""
+
+    @staticmethod
+    def _clip_telegram_html(value: str, limit: int = 32768) -> str:
+        text = str(value or "")
+        if len(text.encode("utf-8")) <= limit:
+            return text
+        encoded = text.encode("utf-8")[: max(0, limit - 64)]
+        clipped = encoded.decode("utf-8", errors="ignore").rstrip()
+        return f"{clipped}\n<p>…（已截断）</p>"
 
     @staticmethod
     def _clip_card_markdown(text: Any, limit: int = 2200) -> str:
