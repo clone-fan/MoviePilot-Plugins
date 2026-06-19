@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.39"
+    plugin_version = "1.0.40"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -1597,6 +1597,33 @@ class AgentOpsAssistant(_PluginBase):
                     return row
         return None
 
+    @staticmethod
+    def _site_userdata_number(row: Any, key: str) -> Optional[int]:
+        value = getattr(row, key, None)
+        if value in (None, ""):
+            return None
+        try:
+            return int(float(value))
+        except Exception:
+            return None
+
+    def _site_userdata_delta(self, current: Any, previous: Any) -> Optional[Tuple[int, int]]:
+        current_upload = self._site_userdata_number(current, "upload")
+        current_download = self._site_userdata_number(current, "download")
+        previous_upload = self._site_userdata_number(previous, "upload")
+        previous_download = self._site_userdata_number(previous, "download")
+        if current_upload is None and current_download is None:
+            return None
+        if not ((previous_upload is not None and previous_upload > 0) or (previous_download is not None and previous_download > 0)):
+            return None
+        upload_delta = 0
+        download_delta = 0
+        if current_upload is not None and previous_upload is not None and previous_upload > 0:
+            upload_delta = max(0, current_upload - previous_upload)
+        if current_download is not None and previous_download is not None and previous_download > 0:
+            download_delta = max(0, current_download - previous_download)
+        return upload_delta, download_delta
+
     def _get_site_increment_locked(self) -> List[str]:
         try:
             from app.db.site_oper import SiteOper
@@ -1619,18 +1646,19 @@ class AgentOpsAssistant(_PluginBase):
                 if err_msg:
                     result.append(f"⦁ {site_name}：异常 - {err_msg}")
                     continue
-                previous = None
+                delta = None
                 for i in range(1, 8):
                     prev_day = (datetime.strptime(current_day, "%Y-%m-%d") - timedelta(days=i)).strftime("%Y-%m-%d")
                     if prev_day not in previous_cache:
                         previous_cache[prev_day] = site_oper.get_userdata_by_date(prev_day) or []
                     previous = self._find_site_userdata_snapshot(previous_cache[prev_day], site_name, site_domain)
                     if previous:
+                        delta = self._site_userdata_delta(current, previous)
+                    if delta is not None:
                         break
-                if not previous:
+                if delta is None:
                     continue
-                upload_delta = max(0, int(getattr(current, "upload", 0) or 0) - int(getattr(previous, "upload", 0) or 0))
-                download_delta = max(0, int(getattr(current, "download", 0) or 0) - int(getattr(previous, "download", 0) or 0))
+                upload_delta, download_delta = delta
                 if upload_delta == 0 and download_delta == 0:
                     continue
                 extras = []
@@ -1687,17 +1715,19 @@ class AgentOpsAssistant(_PluginBase):
                     base_dt = datetime.strptime(basis_day, "%Y-%m-%d")
                 except Exception:
                     base_dt = datetime.strptime(today, "%Y-%m-%d")
+                delta = None
                 for i in range(1, 8):
                     prev_day = (base_dt - timedelta(days=i)).strftime("%Y-%m-%d")
                     if prev_day not in previous_cache:
                         previous_cache[prev_day] = site_oper.get_userdata_by_date(prev_day) or []
                     previous = self._find_site_userdata_snapshot(previous_cache[prev_day], name, domain)
                     if previous:
+                        delta = self._site_userdata_delta(current, previous)
+                    if delta is not None:
                         break
-                if not previous:
+                if delta is None:
                     continue
-                up = max(0, int(getattr(current, "upload", 0) or 0) - int(getattr(previous, "upload", 0) or 0))
-                dl = max(0, int(getattr(current, "download", 0) or 0) - int(getattr(previous, "download", 0) or 0))
+                up, dl = delta
                 if up == 0 and dl == 0:
                     continue
                 out.append({"name": name, "upload": up, "download": dl})

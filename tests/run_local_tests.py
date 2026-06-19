@@ -696,6 +696,32 @@ def main():
           "日报站点增量优先按 domain 匹配昨日快照，避免同名站点拿错基准")
     check(same_name_chart.get("upload_total") == 20 * 1024 ** 3 and same_name_chart.get("download_total") == 5 * 1024 ** 3,
           "仪表盘站点增量同样优先按 domain 匹配昨日快照")
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain="zero.x")],
+        "site_latest": [
+            types.SimpleNamespace(name="零基准站", domain="zero.x", err_msg="", updated_day=_today, upload=6 * 1024 ** 4, download=800 * 1024 ** 3),
+        ],
+        "site_prev": [
+            types.SimpleNamespace(name="零基准站", domain="zero.x", err_msg="", upload=0, download=0),
+        ],
+    })
+    zero_base_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
+    zero_base_chart = make_plugin(mod).api_site_stat_chart().get("data", {})
+    check("零基准站" not in zero_base_text and zero_base_chart.get("upload_total") == 0 and zero_base_chart.get("download_total") == 0,
+          "站点增量遇到昨日 0 基准时不把当前累计量误报为每日增量")
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain="missing.x")],
+        "site_latest": [
+            types.SimpleNamespace(name="缺字段站", domain="missing.x", err_msg="", updated_day=_today, upload=7 * 1024 ** 4, download=900 * 1024 ** 3),
+        ],
+        "site_prev": [
+            types.SimpleNamespace(name="缺字段站", domain="missing.x", err_msg=""),
+        ],
+    })
+    missing_base_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
+    missing_base_chart = make_plugin(mod).api_site_stat_chart().get("data", {})
+    check("缺字段站" not in missing_base_text and missing_base_chart.get("upload_total") == 0 and missing_base_chart.get("download_total") == 0,
+          "站点增量遇到昨日累计字段缺失时不把当前累计量误报为每日增量")
     _latest_day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     _prev_day = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
     _SUB.update({
