@@ -31,7 +31,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.42"
+    plugin_version = "1.0.43"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -987,7 +987,7 @@ class AgentOpsAssistant(_PluginBase):
     def _save_daily_report_result(self, sent: bool, success: bool, text: str = "", error: str = ""):
         self.save_data("last_daily_report", {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "template": "2026-05-29.fixed-v1-locked",
+            "template": "2026-06-20.card-v2-baseline-guard",
             "sent": bool(sent),
             "success": bool(success),
             "chars": len(text or ""),
@@ -1006,12 +1006,13 @@ class AgentOpsAssistant(_PluginBase):
             text = self._build_daily_report_message(preview=True)
             data = {
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "template": "2026-05-29.fixed-v1-locked",
+                "template": "2026-06-20.card-v2-baseline-guard",
                 "sent": False,
                 "success": True,
                 "chars": len(text or ""),
                 "sections": self._count_report_sections(text or ""),
                 "preview": text,
+                "feishu_card": self._build_daily_report_feishu_card(preview=True, text=text),
                 "error": "",
             }
             return {"code": 0, "msg": "每日汇报预览已生成", "data": data, "text": text}
@@ -1301,6 +1302,75 @@ class AgentOpsAssistant(_PluginBase):
     def _build_daily_report_message(self, preview: bool = False) -> str:
         """复刻 locked-heartbeat-report fixed-v1 模板。"""
         return self._build_heartbeat_message(preview=preview)
+
+    def _build_daily_report_feishu_card(self, preview: bool = False, text: Optional[str] = None) -> Dict[str, Any]:
+        """生成飞书/Lark 一次性 interactive 卡片 JSON 2.0；固定日报不启用流式模式。"""
+        report_text = text if text is not None else self._build_daily_report_message(preview=preview)
+        parts = self._split_daily_report_text(report_text)
+        title = parts.get("title") or "MP 运维日报"
+        intro = parts.get("intro") or []
+        elements: List[Dict[str, Any]] = []
+        if intro:
+            elements.append({
+                "tag": "markdown",
+                "element_id": "mp_daily_intro",
+                "content": self._clip_card_markdown("\n".join(intro), 1200),
+            })
+        for idx, section in enumerate(parts.get("sections") or [], start=1):
+            body = "\n".join(section.get("lines") or ["• 无"])
+            content = f"**{section.get('title') or '分区'}**\n{body}".strip()
+            elements.append({
+                "tag": "markdown",
+                "element_id": f"mp_daily_section_{idx}",
+                "content": self._clip_card_markdown(content, 2200),
+            })
+        if not elements:
+            elements.append({"tag": "markdown", "element_id": "mp_daily_empty", "content": "暂无日报内容"})
+        return {
+            "schema": "2.0",
+            "config": {
+                "update_multi": True,
+                "streaming_mode": False,
+                "summary": {"content": title[:120]},
+            },
+            "header": {
+                "template": "blue",
+                "title": {"tag": "plain_text", "content": title[:120]},
+            },
+            "body": {"elements": elements[:12]},
+        }
+
+    @staticmethod
+    def _clip_card_markdown(text: Any, limit: int = 2200) -> str:
+        value = str(text or "").strip()
+        if len(value) <= limit:
+            return value
+        return value[: max(0, limit - 18)].rstrip() + "\n\n…（已截断）"
+
+    @staticmethod
+    def _split_daily_report_text(text: str) -> Dict[str, Any]:
+        lines = [line.rstrip() for line in str(text or "").splitlines()]
+        title = next((line.strip() for line in lines if line.strip()), "MP 运维日报")
+        known_headers = {
+            "🤖 MoviePilot", "📡 站点状态", "📈 站点增量", "📥 今日下载", "📦 入库整理",
+            "📺 订阅追新", "💾 存储空间", "🎬 媒体统计", "🩺 健康巡查", "🧾 今日摘要", "⚠️ 今日提醒",
+        }
+        intro: List[str] = []
+        sections: List[Dict[str, Any]] = []
+        current: Optional[Dict[str, Any]] = None
+        for raw in lines[1:]:
+            line = raw.strip()
+            if not line:
+                continue
+            if line in known_headers:
+                current = {"title": line, "lines": []}
+                sections.append(current)
+                continue
+            if current is None:
+                intro.append(line)
+            else:
+                current.setdefault("lines", []).append(line)
+        return {"title": title, "intro": intro, "sections": sections}
 
     def _build_heartbeat_message(self, preview: bool = False) -> str:
         site_increment = self._get_site_increment_locked()
@@ -1676,8 +1746,12 @@ class AgentOpsAssistant(_PluginBase):
         upload_delta = 0
         download_delta = 0
         if current_upload is not None and previous_upload is not None and previous_upload > 0:
+            if current_upload < previous_upload:
+                return None
             upload_delta = max(0, current_upload - previous_upload)
         if current_download is not None and previous_download is not None and previous_download > 0:
+            if current_download < previous_download:
+                return None
             download_delta = max(0, current_download - previous_download)
         return upload_delta, download_delta
 
@@ -1693,6 +1767,9 @@ class AgentOpsAssistant(_PluginBase):
             today = self._today_prefix()
             result = []
             previous_cache: Dict[str, List[Any]] = {}
+            eligible_count = 0
+            baseline_ready_count = 0
+            baseline_missing_count = 0
             for current in sorted(latest_data, key=lambda row: (getattr(row, "name", None) or getattr(row, "domain", None) or "").lower()):
                 site_name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
                 site_domain = getattr(current, "domain", None)
@@ -1703,6 +1780,7 @@ class AgentOpsAssistant(_PluginBase):
                 if err_msg:
                     result.append(f"⦁ {site_name}：异常 - {err_msg}")
                     continue
+                eligible_count += 1
                 delta = None
                 for i in range(1, 8):
                     prev_day = (datetime.strptime(current_day, "%Y-%m-%d") - timedelta(days=i)).strftime("%Y-%m-%d")
@@ -1714,7 +1792,9 @@ class AgentOpsAssistant(_PluginBase):
                     if delta is not None:
                         break
                 if delta is None:
+                    baseline_missing_count += 1
                     continue
+                baseline_ready_count += 1
                 upload_delta, download_delta = delta
                 if upload_delta == 0 and download_delta == 0:
                     continue
@@ -1727,7 +1807,11 @@ class AgentOpsAssistant(_PluginBase):
                     extras.append(f"🪙 {self._format_metric_number(bonus)}")
                 suffix = "｜" + "｜".join(extras) if extras else ""
                 result.append(f"⦁ {site_name}：⬆ {self._format_bytes(upload_delta)} ｜ ⬇ {self._format_bytes(download_delta)}{suffix}")
-            return result or ["⦁ 无"]
+            if result:
+                return result
+            if eligible_count and baseline_missing_count and not baseline_ready_count:
+                return ["⦁ 暂无增量（基线不足）"]
+            return ["⦁ 无"]
         except Exception as e:
             return [f"⦁ 异常 - {e}"]
 
@@ -1743,7 +1827,8 @@ class AgentOpsAssistant(_PluginBase):
 
     def _site_increment_snapshot(self) -> Dict[str, Any]:
         """站点上传/下载增量快照，优先今日；今日未生成时回退到最近有效快照。"""
-        result = {"date": self._today_prefix(), "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}
+        result = {"date": self._today_prefix(), "basis": "today", "sites": [], "upload_total": 0, "download_total": 0,
+                  "baseline_ready": False, "baseline_missing": 0}
         try:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
@@ -1762,6 +1847,8 @@ class AgentOpsAssistant(_PluginBase):
                 return result
             previous_cache: Dict[str, List[Any]] = {}
             out: List[Dict[str, Any]] = []
+            baseline_ready_count = 0
+            baseline_missing_count = 0
             for current in latest_data:
                 name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
                 domain = getattr(current, "domain", None)
@@ -1782,7 +1869,9 @@ class AgentOpsAssistant(_PluginBase):
                     if delta is not None:
                         break
                 if delta is None:
+                    baseline_missing_count += 1
                     continue
+                baseline_ready_count += 1
                 up, dl = delta
                 if up == 0 and dl == 0:
                     continue
@@ -1790,6 +1879,8 @@ class AgentOpsAssistant(_PluginBase):
             result["sites"] = out
             result["upload_total"] = sum(int(d.get("upload", 0)) for d in out)
             result["download_total"] = sum(int(d.get("download", 0)) for d in out)
+            result["baseline_ready"] = bool(baseline_ready_count)
+            result["baseline_missing"] = baseline_missing_count
         except Exception as err:
             logger.warning(f"AgentOpsAssistant 站点增量数据获取失败：{err}")
         return result

@@ -609,6 +609,8 @@ def main():
     pr_preview_result = pr_preview_api.api_preview_daily_report()
     check(pr_preview_result.get("code") == 0 and pr_preview_result.get("text") == "日报预览正文", "每日汇报 API 预览直接返回完整正文")
     check(not pr_preview_api._stub_messages and "last_daily_report" not in pr_preview_api._stub_data, "每日汇报 API 预览不发消息也不写执行状态")
+    check((pr_preview_result.get("data") or {}).get("feishu_card", {}).get("schema") == "2.0",
+          "每日汇报 API 预览同时返回飞书卡片 JSON，便于通知重建验收")
     pr_pack = make_plugin(mod)
     packed = pr_pack._report_body_lines(["⦁ A", "⦁ B", "⦁ 这是一条比较长的内容，用来确认长信息不会被强行横向挤压而影响阅读"])
     check(packed[0] == "• A ｜ • B" and packed[1].startswith("• 这是一条比较长"), "短信息横向并排，长信息独占一行")
@@ -632,7 +634,39 @@ def main():
     _SUB.update({"site_latest": [types.SimpleNamespace(name="馒头", domain="m.x", err_msg="", updated_day=f"{_today} 08:30:00")],
                  "sites": [types.SimpleNamespace(domain="m.x")]})
     sh_today_time = make_plugin(mod)._get_site_health_locked()
-    check(sh_today_time == ["⦁ 全部 1 个站点正常"], "站点状态：updated_day 带时间也识别为今日正常")
+    check(sh_today_time == ["⦁ 全部 1 个站点正常"], "站点状态：全正常时压缩为一行摘要，updated_day 带时间也识别为今日正常")
+
+    p_summary_layout = make_plugin(mod)
+    for name, val in [("_get_site_increment_locked", []), ("_get_site_health_locked", []),
+                      ("_get_transfer_health_locked", []), ("_get_today_subscribe_updates_locked", []),
+                      ("_get_downloader_health_locked", []), ("_get_storage_health_locked", []),
+                      ("_get_today_downloads_locked", []), ("_get_media_stats_locked", []),
+                      ("_version_report_lines", [])]:
+        setattr(p_summary_layout, name, (lambda v=val: v))
+    p_summary_layout._get_health_report_locked = lambda *a, **k: []
+    summary_msg = p_summary_layout._build_heartbeat_message()
+    check("\n🧾 今日摘要\n\n" in summary_msg and "• ✅ 今日摘要 ｜" not in summary_msg,
+          "今日摘要作为独立小节展示，不再把标题和正文拼成同一行")
+    p_card = make_plugin(mod, report_storage=False, report_media_stat=False)
+    for name, val in [("_get_site_increment_locked", ["⦁ 馒头：⬆ 10.00 GB ｜ ⬇ 2.00 GB｜📊 3.405"]),
+                      ("_get_site_health_locked", ["⦁ 馒头 | 正常"]),
+                      ("_get_transfer_health_locked", ["⦁ 无"]),
+                      ("_get_today_subscribe_updates_locked", []),
+                      ("_get_downloader_health_locked", ["⦁ 在线 2 个"]),
+                      ("_get_storage_health_locked", ["⦁ 本地：💽 76.34 GB/283.75 GB ｜ 🟢 已用 27%"]),
+                      ("_get_today_downloads_locked", ["⦁ 无"]),
+                      ("_get_media_stats_locked", ["⦁ 电影 120 ｜ 电视剧 46 ｜ 剧集 2300 ｜ 用户 3"]),
+                      ("_version_report_lines", ["⦁ 当前版本：前端 1.0 / 后端 2.0"])]:
+        setattr(p_card, name, (lambda v=val: v))
+    p_card._get_health_report_locked = lambda *a, **k: ["⦁ 状态：全部正常", "⦁ 巡查项：共 7 项，通过 7 项，异常 0 项"]
+    feishu_card = p_card._build_daily_report_feishu_card(preview=True)
+    check(feishu_card.get("schema") == "2.0" and feishu_card.get("config", {}).get("update_multi") is True,
+          "飞书日报卡片使用 JSON 2.0 且开启 update_multi，保留后续升级为流式卡片的基础")
+    check(feishu_card.get("config", {}).get("streaming_mode") is False,
+          "固定每日汇报不启用流式模式，避免聊天摘要停留在生成中")
+    feishu_content = json.dumps(feishu_card, ensure_ascii=False)
+    check("📈 站点增量" in feishu_content and "馒头" in feishu_content and "10.00 GB" in feishu_content,
+          "飞书日报卡片承载重建后的站点增量分区")
 
     print("== 日报下载与入库展示口径 ==")
     p_report = make_plugin(mod)
@@ -710,6 +744,19 @@ def main():
     missing_base_chart = make_plugin(mod).api_site_stat_chart().get("data", {})
     check("缺字段站" not in missing_base_text and missing_base_chart.get("upload_total") == 0 and missing_base_chart.get("download_total") == 0,
           "站点增量遇到昨日累计字段缺失时不把当前累计量误报为每日增量")
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain="nobase.x")],
+        "site_latest": [
+            types.SimpleNamespace(name="无基线站", domain="nobase.x", err_msg="", updated_day=_today, upload=6 * 1024 ** 4, download=800 * 1024 ** 3),
+        ],
+        "site_prev": [],
+    })
+    nobase_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
+    nobase_chart = make_plugin(mod).api_site_stat_chart().get("data", {})
+    check("基线不足" in nobase_text and "6.00 TB" not in nobase_text and "800.00 GB" not in nobase_text,
+          "站点增量没有历史基线时明确提示基线不足，绝不展示当前累计上传/下载")
+    check(nobase_chart.get("baseline_ready") is False and nobase_chart.get("upload_total") == 0 and nobase_chart.get("download_total") == 0,
+          "站点增量图表没有历史基线时标记 baseline_ready=False，合计保持 0")
     _latest_day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     _prev_day = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
     _SUB.update({
