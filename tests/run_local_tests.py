@@ -683,8 +683,10 @@ def main():
           "Telegram RichMessage 使用 html 且关闭实体猜测，不同时设置 markdown")
     check("📌 今日结论" in tg_html and "<th>看板</th>" not in tg_html and "站点：1 个，全部正常" in tg_html and "增量：↑ 10.00 GB / ↓ 2.00 GB" in tg_html,
           "Telegram RichMessage 首屏使用结论摘要，不再把总览做成后台表格")
-    check("<details><summary>📈 站点增量</summary>" in tg_html and "<table>" not in tg_html and "<th" not in tg_html and "<b>馒头</b><br>流量：↑" in tg_html and "<br>指标：分享" in tg_html and "<h3>📈 站点增量</h3>" not in tg_html and "<details><summary>📡 站点状态</summary>" in tg_html and "<details><summary>📥 今日下载</summary>" in tg_html,
+    check("<details><summary>📈 站点增量</summary>" in tg_html and "<table>" not in tg_html and "<th" not in tg_html and "<b>📈 馒头</b><br>流量：↑" in tg_html and "<br>指标：分享" in tg_html and "<h3>📈 站点增量</h3>" not in tg_html and "<details><summary>📡 站点状态（1 个正常）</summary>" in tg_html and "<details><summary>📥 今日下载</summary>" in tg_html,
           "Telegram RichMessage 明细保留折叠，但移动端/桌面端都不能依赖宽表格布局")
+    check("<li>无</li>" not in tg_html and tg_html.count("<li>📭 无</li>") >= 2,
+          "Telegram RichMessage 通用折叠明细的空状态也必须图标化，不能退成裸文本“无”")
     check("🧾 今日摘要" not in tg_html and "系统正常" not in tg_html,
           "Telegram RichMessage 已有首屏结论时不再重复渲染底部今日摘要块")
     p_site_summary_count = make_plugin(mod, report_version=False, report_site_status=True, report_site_increment=False,
@@ -698,17 +700,17 @@ def main():
         ],
     })
     site_summary_html = p_site_summary_count._build_daily_report_telegram_html(preview=True)
-    check("站点：7 个，全部正常" in site_summary_html and "全部 7 个站点正常" in site_summary_html and "站点：1 个" not in site_summary_html and "全部 1 个站点正常" not in site_summary_html and "<details><summary>📡 站点状态</summary>" in site_summary_html,
-          "Telegram RichMessage 总览和站点摘要都正确解析压缩站点摘要里的真实站点数量")
-    check("<li>馒头：正常</li>" in site_summary_html and "<li>麒麟：正常</li>" in site_summary_html and "<li>全部 7 个站点正常</li>" not in site_summary_html,
-          "Telegram RichMessage 站点状态折叠明细必须展开列出全正常站点名，不能只放压缩摘要")
+    check("站点：7 个，全部正常" in site_summary_html and "📡 站点状态（7 个正常）" in site_summary_html and "站点：1 个" not in site_summary_html and "全部 1 个站点正常" not in site_summary_html and "📡 站点状态</b><br>全部 7 个站点正常" not in site_summary_html,
+          "Telegram RichMessage 总览和站点折叠标题都正确解析压缩站点摘要里的真实站点数量，且不重复渲染站点摘要块")
+    check("<li>✅ 馒头：正常</li>" in site_summary_html and "<li>✅ 麒麟：正常</li>" in site_summary_html and "<li>全部 7 个站点正常</li>" not in site_summary_html,
+          "Telegram RichMessage 站点状态折叠明细必须带状态图标列出全正常站点名，不能只放压缩摘要")
     p_risk = make_plugin(mod, report_site_increment=False, report_today_download=False,
                          report_transfer=False, report_subscribe=False, report_storage=False,
                          report_media_stat=False, report_health=False, report_summary=False)
     p_risk._get_site_health_locked = lambda: ["⦁ 馒头 | 正常", "⦁ 红叶 | 异常（Cookie 失效）"]
     p_risk._version_report_lines = lambda: []
     risk_html = p_risk._build_daily_report_telegram_html(preview=True)
-    check("🚨 站点风险</b>" in risk_html and "红叶：异常（Cookie 失效）" in risk_html and "<details><summary>📡 站点状态</summary>" in risk_html,
+    check("🚨 站点风险</b>" in risk_html and "⚠️ 红叶：异常（Cookie 失效）" in risk_html and "<details><summary>📡 站点状态</summary>" in risk_html,
           "Telegram RichMessage 关键异常前置展示，同时保留完整折叠明细")
     p_cols_off = make_plugin(mod, report_version=False, report_site_status=False, report_site_increment=False,
                              report_today_download=False, report_transfer=False, report_subscribe=False,
@@ -785,8 +787,9 @@ def main():
     long_cell = "VeryLongStorageNameWithoutNaturalBreakpoints1234567890ABCDEFGHIJK"
     long_storage_html = p_card._telegram_storage_table("", [f"⦁ {long_cell}：💽 /config/plugins/AgentOpsAssistant/Backup/weekly/archive/2026/06/20 ｜ 🟢 已用 26% <safe>"])
     media_html = p_card._telegram_media_table("", ["⦁ 电影 120 ｜ 电视剧 46 ｜ 剧集 2300 ｜ 用户 3"])
-    check("\u200b" in long_storage_html and long_cell not in long_storage_html and "&lt;safe&gt;" in long_storage_html and "<table>" not in long_storage_html and "<table>" not in media_html,
-          "Telegram RichMessage 长文本明细使用可换行的移动端友好块，同时保留 HTML escape")
+    health_icon_html = p_card._telegram_health_list_html(["状态：全部正常", "巡查项：共 7 项，通过 7 项，异常 0 项", "正常项：订阅、站点"])
+    check("\u200b" in long_storage_html and long_cell not in long_storage_html and "&lt;safe&gt;" in long_storage_html and "<table>" not in long_storage_html and "<table>" not in media_html and "<b>💾" in long_storage_html and "<b>🎬 电影</b>" in media_html and "<b>👤 用户</b>" in media_html and "✅ 状态：全部正常" in health_icon_html,
+          "Telegram RichMessage 长文本明细使用可换行的移动端友好块，同时为存储/媒体/健康明细补齐图标并保留 HTML escape")
     _SUB["site_refresh_error"] = None
     _SUB["site_refresh_result"] = {"馒头": object()}
     p_tg_send = make_plugin(mod, daily_report_telegram_rich_enabled=True,

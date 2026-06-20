@@ -32,7 +32,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.50"
+    plugin_version = "1.0.51"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -1573,14 +1573,14 @@ class AgentOpsAssistant(_PluginBase):
             elif header.startswith("📈"):
                 chunks.append(self._telegram_details_html(header, self._telegram_increment_table("", lines)))
             elif header.startswith("📥") or header.startswith("📦") or header.startswith("📺"):
-                body = self._telegram_list_html(self._telegram_section_items(lines))
+                body = self._telegram_general_list_html(header, self._telegram_section_items(lines))
                 chunks.append(self._telegram_details_html(header, body))
             elif header.startswith("💾"):
                 chunks.append(self._telegram_details_html(header, self._telegram_storage_table("", lines)))
             elif header.startswith("🎬"):
                 chunks.append(self._telegram_details_html(header, self._telegram_media_table("", lines)))
             elif header.startswith("🩺"):
-                body = self._telegram_list_html(self._telegram_section_items(lines))
+                body = self._telegram_health_list_html(self._telegram_section_items(lines))
                 chunks.append(self._telegram_details_html(header, body))
             elif header.startswith("🧾") or header.startswith("⚠️"):
                 continue
@@ -1685,10 +1685,10 @@ class AgentOpsAssistant(_PluginBase):
         ok_count = 0
         compressed_ok_count = 0
         for item in cls._telegram_section_items(lines):
-            clean = cls._telegram_status_label(item)
-            all_items.append(clean)
+            detail = cls._telegram_status_detail_label(item)
+            all_items.append(detail)
             if any(key in item for key in ("异常", "失效", "过期")):
-                risk_items.append(clean)
+                risk_items.append(detail)
             else:
                 match = re.search(r"全部\s*(\d+)\s*个站点正常", item)
                 if match:
@@ -1700,16 +1700,30 @@ class AgentOpsAssistant(_PluginBase):
             if len(risk_items) > 3:
                 alert_items.append(f"另 {len(risk_items) - 3} 项异常在明细中")
             headline = cls._telegram_quote_html("🚨 站点风险", alert_items, max_items=4)
+            detail_title = title
         else:
-            headline = cls._telegram_quote_html(title, [f"全部 {compressed_ok_count or ok_count or len(all_items)} 个站点正常"], max_items=1)
+            count = compressed_ok_count or ok_count or len(all_items)
+            headline = ""
+            detail_title = f"{title}（{count} 个正常）"
         detail_items = cls._telegram_expand_compressed_site_items(all_items)
-        return headline + cls._telegram_details_html(title, cls._telegram_list_html(detail_items))
+        return headline + cls._telegram_details_html(detail_title, cls._telegram_list_html(detail_items))
 
     @staticmethod
     def _telegram_status_label(item: str) -> str:
         clean = re.sub(r"^\s*[✅⚠️⚠]\s*", "", str(item or "").strip())
         clean = re.sub(r"：\s*[✅⚠️⚠]\s*", "：", clean)
         return clean.replace(" | ", "：", 1)
+
+    @classmethod
+    def _telegram_status_detail_label(cls, item: str) -> str:
+        clean = cls._telegram_status_label(item)
+        if any(key in clean for key in ("异常", "失效")):
+            return f"⚠️ {clean}"
+        if "过期" in clean:
+            return f"⏳ {clean}"
+        if "正常" in clean:
+            return f"✅ {clean}"
+        return clean
 
     @classmethod
     def _telegram_expand_compressed_site_items(cls, items: List[str]) -> List[str]:
@@ -1730,11 +1744,11 @@ class AgentOpsAssistant(_PluginBase):
                 err = str(getattr(row, "err_msg", None) or "").strip()
                 day = cls._normalize_day(getattr(row, "updated_day", None))
                 if err:
-                    detail_items.append(f"{name}：异常（{err[:30]}）")
+                    detail_items.append(f"⚠️ {name}：异常（{err[:30]}）")
                 elif day == today:
-                    detail_items.append(f"{name}：正常")
+                    detail_items.append(f"✅ {name}：正常")
                 else:
-                    detail_items.append(f"{name}：数据过期")
+                    detail_items.append(f"⏳ {name}：数据过期")
             return detail_items or items
         except Exception:
             return items
@@ -1748,6 +1762,35 @@ class AgentOpsAssistant(_PluginBase):
         if not items:
             return "<p>无</p>"
         return "<ul>" + "".join(f"<li>{cls._telegram_text_html(item)}</li>" for item in items) + "</ul>"
+
+    @classmethod
+    def _telegram_general_list_html(cls, title: str, items: List[str]) -> str:
+        normalized: List[str] = []
+        for item in items or []:
+            text = str(item or "").strip()
+            if text in {"无", "暂无", "暂无记录"}:
+                normalized.append("📭 无")
+            elif text:
+                normalized.append(text)
+        return cls._telegram_list_html(normalized)
+
+    @classmethod
+    def _telegram_health_list_html(cls, items: List[str]) -> str:
+        enriched: List[str] = []
+        for item in items or []:
+            text = str(item or "").strip()
+            if text.startswith("状态："):
+                icon = "✅" if "全部正常" in text or "异常 0" in text else "⚠️"
+                enriched.append(f"{icon} {text}")
+            elif text.startswith("巡查项："):
+                enriched.append(f"🩺 {text}")
+            elif text.startswith("正常项："):
+                enriched.append(f"✅ {text}")
+            elif "异常" in text or "失败" in text:
+                enriched.append(f"⚠️ {text}")
+            elif text:
+                enriched.append(text)
+        return cls._telegram_list_html(enriched)
 
     @classmethod
     def _telegram_mobile_rows_html(cls, title: str, rows: List[List[Any]]) -> str:
@@ -1802,7 +1845,7 @@ class AgentOpsAssistant(_PluginBase):
             metric = f"分享 {ratio}" if ratio else "分享 -"
             if bonus:
                 metric = f"{metric} / 魔力 {bonus}"
-            rows.append([name.strip(), f"流量：↑ {upload or '-'} / ↓ {download or '-'}", f"指标：{metric}"])
+            rows.append([f"📈 {name.strip()}", f"流量：↑ {upload or '-'} / ↓ {download or '-'}", f"指标：{metric}"])
         table = cls._telegram_mobile_rows_html(title, rows)
         if notes and not rows:
             heading = f"<h3>{cls._html_escape(title)}</h3>" if str(title or "").strip() else ""
@@ -1853,15 +1896,16 @@ class AgentOpsAssistant(_PluginBase):
             fields = [part.strip() for part in rest.split("｜") if part.strip()]
             usage = next((part for part in fields if "💽" in part), fields[0] if fields else "")
             status = next((part for part in fields if "已用" in part), "")
-            rows.append([name.strip(), f"容量：{usage}" if usage else "", f"状态：{status}" if status else ""])
+            rows.append([f"💾 {name.strip()}", f"容量：{usage}" if usage else "", f"状态：{status}" if status else ""])
         return cls._telegram_mobile_rows_html(title, rows)
 
     @classmethod
     def _telegram_media_table(cls, title: str, lines: List[str]) -> str:
         rows = []
+        icons = {"电影": "🎬", "电视剧": "📺", "剧集": "🎞", "用户": "👤"}
         for item in cls._telegram_section_items(lines):
             for label, value in re.findall(r"(电影|电视剧|剧集|用户)\s+(\d+)", item):
-                rows.append([label, f"数量：{value}"])
+                rows.append([f"{icons.get(label, '•')} {label}", f"数量：{value}"])
         return cls._telegram_mobile_rows_html(title, rows)
 
     @staticmethod

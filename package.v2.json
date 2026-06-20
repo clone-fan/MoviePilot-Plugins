@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅追新,站点统计,日志清理,自动备份,更新检查,插件卸载,本地插件",
-    "version": "1.0.50",
+    "version": "1.0.51",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.51": "优化每日汇报 Telegram RichMessage 明细图标层级：站点状态折叠标题直接带正常数量，避免“站点状态”重复摘要；站点、站点增量、存储空间、媒体统计、健康巡查和通用空状态明细补齐状态/类型图标，让移动端和桌面端展开后更容易扫读。",
       "v1.0.50": "修复每日汇报 Telegram RichMessage 回归：顶部今日结论正确解析“全部 N 个站点正常”的真实站点数，不再把压缩站点摘要误报为 1 个；站点状态折叠明细会展开列出全正常站点名，避免只展示一条压缩摘要；已有首屏结论时不再重复渲染底部“今日摘要/今日提醒”块。",
       "v1.0.49": "修复每日汇报实时性与 TG 展示：手动/定时发送前先刷新站点用户数据和健康巡查，刷新失败/停止时取消发送避免旧快照误报；订阅追新优先实时计算，实时为空不再回填早些时候缓存；站点增量明确标记过期快照和抓取错误；Telegram RichMessage 折叠明细改为移动端/桌面端友好的块状列表。",
       "v1.0.48": "收敛每日汇报 Telegram RichMessage 配置入口：配置页不再暴露插件私有 Bot Token/Chat ID 和 RichMessage 开关，默认复用 MoviePilot 全局 Telegram 通知配置；旧配置中关闭 RichMessage 的隐藏值会自动迁移为启用，避免更新后日报断送。",
