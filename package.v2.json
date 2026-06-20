@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、订阅追新、站点统计、插件日志清理、自动备份、更新检查与插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,订阅追新,站点统计,日志清理,自动备份,更新检查,插件卸载,本地插件",
-    "version": "1.0.48",
+    "version": "1.0.49",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.49": "修复每日汇报实时性与 TG 展示：手动/定时发送前先刷新站点用户数据和健康巡查，刷新失败/停止时取消发送避免旧快照误报；订阅追新优先实时计算，实时为空不再回填早些时候缓存；站点增量明确标记过期快照和抓取错误；Telegram RichMessage 折叠明细改为移动端/桌面端友好的块状列表。",
       "v1.0.48": "收敛每日汇报 Telegram RichMessage 配置入口：配置页不再暴露插件私有 Bot Token/Chat ID 和 RichMessage 开关，默认复用 MoviePilot 全局 Telegram 通知配置；旧配置中关闭 RichMessage 的隐藏值会自动迁移为启用，避免更新后日报断送。",
       "v1.0.47": "修复 Telegram RichMessage 日报升级后旧配置断链：插件未单独填写 Bot Token/Chat ID 时自动复用 MoviePilot 全局 Telegram 通知配置；HTTP 发送复用 MoviePilot 全局代理并增加 urllib 兜底；失败状态记录 Telegram API 真实错误且脱敏 Bot Token。",
       "v1.0.46": "每日汇报通知收敛为 Telegram RichMessage 唯一通道：参考流式卡片的先草稿后终态体验，发送时调用 sendRichMessageDraft + sendRichMessage；预览只返回 telegram_rich_message；失败或未配置时记录失败状态，不再回退 MoviePilot 纯文本通知。",

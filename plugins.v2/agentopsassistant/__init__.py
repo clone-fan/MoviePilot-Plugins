@@ -32,7 +32,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.48"
+    plugin_version = "1.0.49"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -965,6 +965,12 @@ class AgentOpsAssistant(_PluginBase):
     def run_daily_report(self) -> bool:
         name = "MP运维每日汇报"
         try:
+            refresh_result = self._refresh_daily_report_live_data()
+            if refresh_result.get("success") is False:
+                error = str(refresh_result.get("message") or refresh_result.get("error") or "站点数据刷新失败，日报已取消")
+                self._save_task_result(name, False, 1, error)
+                self._save_daily_report_result(sent=False, success=False, text="", error=error, message=error, returncode=1)
+                return False
             text = self._build_daily_report_message()
             if self._send_daily_report_telegram_rich(text):
                 self._save_task_result(name, True, 0, "OK telegram_rich_message")
@@ -979,6 +985,50 @@ class AgentOpsAssistant(_PluginBase):
             self._save_daily_report_result(sent=True, success=False, text="", error=str(err), message=str(err), returncode=-1)
             logger.error(f"AgentOpsAssistant MP运维每日汇报 执行失败：{err}")
             return False
+
+    def _refresh_daily_report_live_data(self) -> Dict[str, Any]:
+        """刷新日报依赖的实时数据；预览不调用，避免只读接口产生副作用。"""
+        result: Dict[str, Any] = {"success": True}
+        try:
+            needs_site_data = self._report_site_status or self._report_site_increment or self._report_summary
+            if needs_site_data:
+                from app.chain.site import SiteChain
+                active_count = 0
+                try:
+                    from app.db.site_oper import SiteOper
+                    active_count = len(SiteOper().list_active() or [])
+                except Exception as err:
+                    logger.warning(f"AgentOpsAssistant 读取活跃站点数量失败：{err}")
+                site_datas = SiteChain().refresh_userdatas()
+                if site_datas is None:
+                    message = "站点数据刷新被系统停止，日报已取消以避免使用旧快照"
+                    logger.warning(f"AgentOpsAssistant {message}")
+                    self._save_task_result("站点数据统计", False, 1, message)
+                    return {"site_userdata": "stopped", "success": False, "message": message}
+                count = len(site_datas or {}) if hasattr(site_datas or {}, "__len__") else 0
+                if active_count and count == 0:
+                    message = f"已触发 {active_count} 个站点用户数据刷新，但未返回可用数据，日报已取消以避免使用旧快照"
+                    logger.warning(f"AgentOpsAssistant {message}")
+                    self._save_task_result("站点数据统计", False, 1, message)
+                    return {"site_userdata": "empty", "success": False, "message": message, "active_count": active_count}
+                message = f"已刷新 {count} 个站点用户数据" if count else "已触发站点用户数据刷新，未返回可用数据"
+                self._save_task_result("站点数据统计", True, 0, message)
+                result.update({"site_userdata": "ok", "count": count})
+            else:
+                result["site_userdata"] = "skipped"
+
+            if self._report_health and self._health_check_enabled:
+                self._build_health_summary(persist=True)
+                result["health_check"] = "ok"
+            else:
+                result["health_check"] = "skipped"
+
+            return result
+        except Exception as err:
+            message = f"日报实时数据刷新失败：{err}"
+            logger.warning(f"AgentOpsAssistant {message}")
+            self._save_task_result("每日汇报实时刷新", False, 1, message)
+            return {"site_userdata": "error", "success": False, "error": str(err), "message": message}
 
     def run_daily_report_preview(self) -> bool:
         name = "预览每日汇报"
@@ -1662,6 +1712,22 @@ class AgentOpsAssistant(_PluginBase):
         return "<ul>" + "".join(f"<li>{cls._telegram_text_html(item)}</li>" for item in items) + "</ul>"
 
     @classmethod
+    def _telegram_mobile_rows_html(cls, title: str, rows: List[List[Any]]) -> str:
+        heading = f"<h3>{cls._html_escape(title)}</h3>" if str(title or "").strip() else ""
+        items: List[str] = []
+        for row in rows or []:
+            cells = [str(cell or "").strip() for cell in row if str(cell or "").strip()]
+            if not cells:
+                continue
+            label = cells[0]
+            details = cells[1:]
+            detail_html = "".join(f"<br>{cls._telegram_text_html(detail)}" for detail in details)
+            items.append(f"<li><b>{cls._telegram_text_html(label)}</b>{detail_html}</li>")
+        if not items:
+            return f"{heading}<p>无</p>"
+        return f"{heading}<ul>{''.join(items)}</ul>"
+
+    @classmethod
     def _telegram_table_html(cls, title: str, headers: List[str], rows: List[List[Any]]) -> str:
         heading = f"<h3>{cls._html_escape(title)}</h3>" if str(title or "").strip() else ""
         if not rows:
@@ -1698,8 +1764,8 @@ class AgentOpsAssistant(_PluginBase):
             metric = f"分享 {ratio}" if ratio else "分享 -"
             if bonus:
                 metric = f"{metric} / 魔力 {bonus}"
-            rows.append([name.strip(), f"↑ {upload or '-'} / ↓ {download or '-'}", metric])
-        table = cls._telegram_table_html(title, ["站点", "流量", "指标"], rows)
+            rows.append([name.strip(), f"流量：↑ {upload or '-'} / ↓ {download or '-'}", f"指标：{metric}"])
+        table = cls._telegram_mobile_rows_html(title, rows)
         if notes and not rows:
             heading = f"<h3>{cls._html_escape(title)}</h3>" if str(title or "").strip() else ""
             return f"{heading}{cls._telegram_list_html(notes)}"
@@ -1749,16 +1815,16 @@ class AgentOpsAssistant(_PluginBase):
             fields = [part.strip() for part in rest.split("｜") if part.strip()]
             usage = next((part for part in fields if "💽" in part), fields[0] if fields else "")
             status = next((part for part in fields if "已用" in part), "")
-            rows.append([name.strip(), usage, status])
-        return cls._telegram_table_html(title, ["存储", "容量", "状态"], rows)
+            rows.append([name.strip(), f"容量：{usage}" if usage else "", f"状态：{status}" if status else ""])
+        return cls._telegram_mobile_rows_html(title, rows)
 
     @classmethod
     def _telegram_media_table(cls, title: str, lines: List[str]) -> str:
         rows = []
         for item in cls._telegram_section_items(lines):
             for label, value in re.findall(r"(电影|电视剧|剧集|用户)\s+(\d+)", item):
-                rows.append([label, value])
-        return cls._telegram_table_html(title, ["指标", "数量"], rows)
+                rows.append([label, f"数量：{value}"])
+        return cls._telegram_mobile_rows_html(title, rows)
 
     @staticmethod
     def _match_text(pattern: str, text: str) -> str:
@@ -2197,15 +2263,20 @@ class AgentOpsAssistant(_PluginBase):
             eligible_count = 0
             baseline_ready_count = 0
             baseline_missing_count = 0
+            stale_count = 0
+            stale_days: List[str] = []
             for current in sorted(latest_data, key=lambda row: (getattr(row, "name", None) or getattr(row, "domain", None) or "").lower()):
                 site_name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
                 site_domain = getattr(current, "domain", None)
                 current_day = self._normalize_day(getattr(current, "updated_day", None))
                 err_msg = str(getattr(current, "err_msg", None) or "").strip()
-                if current_day != today:
-                    continue
                 if err_msg:
                     result.append(f"⦁ {site_name}：异常 - {err_msg}")
+                    continue
+                if current_day != today:
+                    stale_count += 1
+                    if current_day:
+                        stale_days.append(current_day)
                     continue
                 eligible_count += 1
                 delta = None
@@ -2234,6 +2305,12 @@ class AgentOpsAssistant(_PluginBase):
                     extras.append(f"🪙 {self._format_metric_number(bonus)}")
                 suffix = "｜" + "｜".join(extras) if extras else ""
                 result.append(f"⦁ {site_name}：⬆ {self._format_bytes(upload_delta)} ｜ ⬇ {self._format_bytes(download_delta)}{suffix}")
+            if stale_count:
+                latest_day = max(stale_days) if stale_days else "未知日期"
+                if result:
+                    result.append(f"⦁ 另 {stale_count} 个站点快照过期（最新 {latest_day}），未计入今日增量")
+                elif not eligible_count:
+                    return [f"⦁ 站点快照过期（最新 {latest_day}），等待今日站点数据刷新"]
             if result:
                 return result
             if eligible_count and baseline_missing_count and not baseline_ready_count:
@@ -2255,28 +2332,40 @@ class AgentOpsAssistant(_PluginBase):
     def _site_increment_snapshot(self) -> Dict[str, Any]:
         """站点上传/下载增量快照，优先今日；今日未生成时回退到最近有效快照。"""
         result = {"date": self._today_prefix(), "basis": "today", "sites": [], "upload_total": 0, "download_total": 0,
-                  "baseline_ready": False, "baseline_missing": 0}
+                  "baseline_ready": False, "baseline_missing": 0, "latest_date": "", "stale": False,
+                  "stale_count": 0, "error_count": 0, "data_valid": False}
         try:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
             latest_data = site_oper.get_userdata_latest() or []
             active_domains = {s.domain for s in (site_oper.list_active() or []) if getattr(s, "domain", None)}
-            latest_data = [
+            active_latest = [
                 d for d in latest_data
-                if d and getattr(d, "domain", None) in active_domains and not str(getattr(d, "err_msg", None) or "").strip()
+                if d and getattr(d, "domain", None) in active_domains
             ]
             today = self._today_prefix()
-            days = sorted({self._normalize_day(getattr(d, "updated_day", None)) for d in latest_data if self._normalize_day(getattr(d, "updated_day", None))}, reverse=True)
+            error_count = len([d for d in active_latest if str(getattr(d, "err_msg", None) or "").strip()])
+            valid_latest = [d for d in active_latest if not str(getattr(d, "err_msg", None) or "").strip()]
+            all_days = sorted({self._normalize_day(getattr(d, "updated_day", None)) for d in active_latest if self._normalize_day(getattr(d, "updated_day", None))}, reverse=True)
+            latest_day = all_days[0] if all_days else ""
+            result["latest_date"] = latest_day
+            result["error_count"] = error_count
+            result["stale_count"] = len([d for d in active_latest if self._normalize_day(getattr(d, "updated_day", None)) not in ("", today)])
+            result["stale"] = bool(latest_day and latest_day != today)
+            result["data_valid"] = bool(active_latest) and error_count == 0 and result["stale_count"] == 0
+            days = sorted({self._normalize_day(getattr(d, "updated_day", None)) for d in valid_latest if self._normalize_day(getattr(d, "updated_day", None))}, reverse=True)
             basis_day = today if any(day == today for day in days) else (days[0] if days else today)
             result["date"] = basis_day
             result["basis"] = "today" if basis_day == today else "latest"
-            if not latest_data:
+            if result["basis"] == "latest":
+                result["stale"] = True
+            if not valid_latest:
                 return result
             previous_cache: Dict[str, List[Any]] = {}
             out: List[Dict[str, Any]] = []
             baseline_ready_count = 0
             baseline_missing_count = 0
-            for current in latest_data:
+            for current in valid_latest:
                 name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
                 domain = getattr(current, "domain", None)
                 if self._normalize_day(getattr(current, "updated_day", None)) != basis_day:
@@ -3029,10 +3118,17 @@ class AgentOpsAssistant(_PluginBase):
         return ["✅ 今日摘要", "⦁ 系统正常", "⦁ 站点快照正常", "⦁ 无失败转移", "⦁ 下载器无异常"]
 
     def _get_today_subscribe_updates_locked(self) -> List[str]:
-        items = self._load_subscribereminder_today_locked()
-        if items:
+        realtime_ok, items = self._load_subscribereminder_today_realtime_locked()
+        if realtime_ok:
             return self._unique_keep_order(items)
-        return self._load_subscribereminder_today_fallback_locked()
+        return self._unique_keep_order(self._load_subscribereminder_today_locked())
+
+    def _load_subscribereminder_today_realtime_locked(self) -> Tuple[bool, List[str]]:
+        try:
+            return True, self._load_subscribereminder_today_fallback_impl()
+        except Exception as err:
+            logger.warning(f"AgentOpsAssistant 订阅追新实时计算失败：{err}")
+            return False, []
 
     @staticmethod
     def _unique_keep_order(items: List[Any]) -> List[str]:
@@ -3056,52 +3152,55 @@ class AgentOpsAssistant(_PluginBase):
                 s = raw.strip()
                 if not s:
                     continue
-                lines.append(s.lstrip("📺︎").lstrip("📺").strip())
+                lines.append(s.lstrip("???").lstrip("??").strip())
             return lines
         except Exception:
             return []
 
     def _load_subscribereminder_today_fallback_locked(self) -> List[str]:
         try:
-            from app.chain.media import MediaChain
-            from app.chain.tmdb import TmdbChain
-            from app.db.subscribe_oper import SubscribeOper
-            from app.schemas.types import MediaType
-            subscribe_oper = SubscribeOper(); tmdb = TmdbChain(); media = MediaChain()
-            current_date = datetime.now().date().strftime("%Y-%m-%d")
-            items = []
-            for subscribe in subscribe_oper.list() or []:
-                sub_type = str(getattr(subscribe, "type", "") or "").strip().lower()
-                year = getattr(subscribe, "year", None) or "未知年份"
-                name = getattr(subscribe, "name", None) or "未命名订阅"
-                if sub_type in {"电视剧", "tv"}:
-                    tmdbid = getattr(subscribe, "tmdbid", None); season = getattr(subscribe, "season", None)
-                    if not tmdbid or season in (None, ""):
-                        continue
-                    try:
-                        season_num = int(season)
-                    except Exception:
-                        continue
-                    episodes_info = tmdb.tmdb_episodes(tmdbid=tmdbid, season=season_num, episode_group=getattr(subscribe, "episode_group", None)) or []
-                    episodes = []
-                    for episode in episodes_info:
-                        if episode and getattr(episode, "air_date", None) and str(episode.air_date) == current_date:
-                            episode_number = getattr(episode, "episode_number", None)
-                            if episode_number:
-                                episodes.append(int(episode_number))
-                    if episodes:
-                        items.append(f"{name} ({year}) S{season_num:02d}{self._episode_ranges(sorted(set(episodes)))}")
-                    continue
-                if sub_type in {"电影", "movie"}:
-                    tmdbid = getattr(subscribe, "tmdbid", None)
-                    if not tmdbid:
-                        continue
-                    mediainfo = media.recognize_media(tmdbid=tmdbid, mtype=MediaType.MOVIE)
-                    if mediainfo and str(getattr(mediainfo, "release_date", None) or "") == current_date:
-                        items.append(f"{name} ({year})")
-            return self._unique_keep_order(items)
+            return self._load_subscribereminder_today_fallback_impl()
         except Exception:
             return []
+
+    def _load_subscribereminder_today_fallback_impl(self) -> List[str]:
+        from app.chain.media import MediaChain
+        from app.chain.tmdb import TmdbChain
+        from app.db.subscribe_oper import SubscribeOper
+        from app.schemas.types import MediaType
+        subscribe_oper = SubscribeOper(); tmdb = TmdbChain(); media = MediaChain()
+        current_date = datetime.now().date().strftime("%Y-%m-%d")
+        items = []
+        for subscribe in subscribe_oper.list() or []:
+            sub_type = str(getattr(subscribe, "type", "") or "").strip().lower()
+            year = getattr(subscribe, "year", None) or "????"
+            name = getattr(subscribe, "name", None) or "?????"
+            if sub_type in {"???", "tv"}:
+                tmdbid = getattr(subscribe, "tmdbid", None); season = getattr(subscribe, "season", None)
+                if not tmdbid or season in (None, ""):
+                    continue
+                try:
+                    season_num = int(season)
+                except Exception:
+                    continue
+                episodes_info = tmdb.tmdb_episodes(tmdbid=tmdbid, season=season_num, episode_group=getattr(subscribe, "episode_group", None)) or []
+                episodes = []
+                for episode in episodes_info:
+                    if episode and getattr(episode, "air_date", None) and str(episode.air_date) == current_date:
+                        episode_number = getattr(episode, "episode_number", None)
+                        if episode_number:
+                            episodes.append(int(episode_number))
+                if episodes:
+                    items.append(f"{name} ({year}) S{season_num:02d}{self._episode_ranges(sorted(set(episodes)))}")
+                continue
+            if sub_type in {"??", "movie"}:
+                tmdbid = getattr(subscribe, "tmdbid", None)
+                if not tmdbid:
+                    continue
+                mediainfo = media.recognize_media(tmdbid=tmdbid, mtype=MediaType.MOVIE)
+                if mediainfo and str(getattr(mediainfo, "release_date", None) or "") == current_date:
+                    items.append(f"{name} ({year})")
+        return self._unique_keep_order(items)
 
     def _build_update_status(self) -> Dict[str, Any]:
         result = {"safe_mode": True, "note": "本插件直接检查 MoviePilot 后端/前端 release；默认只通知，不重启。", "moviepilot": {}, "plugin_market": self._build_market_status()}

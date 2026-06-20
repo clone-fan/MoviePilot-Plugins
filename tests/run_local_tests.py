@@ -154,7 +154,8 @@ class _StubDirectoryHelper:
 
 
 # 订阅规则填充桩：_SUB 配置下载历史/订阅列表，并记录 update 调用
-_SUB = {"history": None, "subs": [], "updates": [], "sub_get": None, "sites": [], "site_latest": []}
+_SUB = {"history": None, "subs": [], "updates": [], "sub_get": None, "sites": [], "site_latest": [],
+        "site_refresh_calls": 0, "site_refresh_result": {}, "site_refresh_error": None}
 
 
 class _StubDownloadHistoryOper:
@@ -175,6 +176,14 @@ class _StubSiteOper:
         if isinstance(prev, dict):
             return list(prev.get(day, []))
         return list(prev)
+
+
+class _StubSiteChain:
+    def refresh_userdatas(self):
+        _SUB["site_refresh_calls"] = int(_SUB.get("site_refresh_calls") or 0) + 1
+        if _SUB.get("site_refresh_error"):
+            raise RuntimeError(_SUB.get("site_refresh_error"))
+        return _SUB.get("site_refresh_result")
 
 
 def install_stubs():
@@ -224,6 +233,9 @@ def install_stubs():
     subo.SubscribeOper = _StubSubscribeOper
     siteo = _mod("app.db.site_oper")
     siteo.SiteOper = _StubSiteOper
+    chain = _mod("app.chain")
+    chain_site = _mod("app.chain.site")
+    chain_site.SiteChain = _StubSiteChain
     # apscheduler
     _mod("apscheduler")
     _mod("apscheduler.triggers")
@@ -671,8 +683,8 @@ def main():
           "Telegram RichMessage 使用 html 且关闭实体猜测，不同时设置 markdown")
     check("📌 今日结论" in tg_html and "<th>看板</th>" not in tg_html and "站点：1 个，全部正常" in tg_html and "增量：↑ 10.00 GB / ↓ 2.00 GB" in tg_html,
           "Telegram RichMessage 首屏使用结论摘要，不再把总览做成后台表格")
-    check("<details><summary>📈 站点增量</summary>" in tg_html and "<th>流量</th>" in tg_html and "<h3>📈 站点增量</h3>" not in tg_html and "<details><summary>📡 站点状态</summary>" in tg_html and "<details><summary>📥 今日下载</summary>" in tg_html,
-          "Telegram RichMessage 站点增量也进入折叠明细，不把单个表格裸露在首屏")
+    check("<details><summary>📈 站点增量</summary>" in tg_html and "<table>" not in tg_html and "<th" not in tg_html and "<b>馒头</b><br>流量：↑" in tg_html and "<br>指标：分享" in tg_html and "<h3>📈 站点增量</h3>" not in tg_html and "<details><summary>📡 站点状态</summary>" in tg_html and "<details><summary>📥 今日下载</summary>" in tg_html,
+          "Telegram RichMessage 明细保留折叠，但移动端/桌面端都不能依赖宽表格布局")
     p_risk = make_plugin(mod, report_site_increment=False, report_today_download=False,
                          report_transfer=False, report_subscribe=False, report_storage=False,
                          report_media_stat=False, report_health=False, report_summary=False)
@@ -707,6 +719,21 @@ def main():
     site_only_html = p_site_only._build_daily_report_telegram_html(preview=True)
     check("📌 今日结论" in site_only_html and "站点：" in site_only_html and "增量：" not in site_only_html and "下载：" not in site_only_html and "健康：" not in site_only_html,
           "Telegram RichMessage 总览只汇总已开启栏目，不用关闭栏目凑版面")
+    p_sub_live = make_plugin(mod)
+    p_sub_live._load_subscribereminder_today_locked = lambda: ["早上缓存 S01E01"]
+    p_sub_live._load_subscribereminder_today_realtime_locked = lambda: (True, ["当前实时 S01E02"])
+    check(p_sub_live._get_today_subscribe_updates_locked() == ["当前实时 S01E02"],
+          "每日汇报订阅追新优先实时计算，不能用当天早些时候的缓存覆盖当前数据")
+    p_sub_empty = make_plugin(mod)
+    p_sub_empty._load_subscribereminder_today_locked = lambda: ["早上缓存 S01E01"]
+    p_sub_empty._load_subscribereminder_today_realtime_locked = lambda: (True, [])
+    check(p_sub_empty._get_today_subscribe_updates_locked() == [],
+          "每日汇报订阅追新实时结果为空时不能回填早些时候缓存")
+    p_sub_error = make_plugin(mod)
+    p_sub_error._load_subscribereminder_today_locked = lambda: ["缓存兜底 S01E03"]
+    p_sub_error._load_subscribereminder_today_realtime_locked = lambda: (False, [])
+    check(p_sub_error._get_today_subscribe_updates_locked() == ["缓存兜底 S01E03"],
+          "每日汇报订阅追新仅在实时计算失败时才允许回退当天缓存")
     p_tg_http = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                             daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="12345")
     tg_calls = []
@@ -739,9 +766,12 @@ def main():
     check("A&amp;B站" in escaped_tg_html and "&lt;token&gt;" in escaped_tg_html and "<token>" not in escaped_tg_html,
           "Telegram RichMessage 动态内容必须 HTML escape，避免站点名/错误详情破坏结构")
     long_cell = "VeryLongStorageNameWithoutNaturalBreakpoints1234567890ABCDEFGHIJK"
-    long_table_html = p_card._telegram_table_html("", ["存储", "容量", "状态"], [[long_cell, "/config/plugins/AgentOpsAssistant/Backup/weekly/archive/2026/06/20", "🟢 已用 26% <safe>"]])
-    check("\u200b" in long_table_html and long_cell not in long_table_html and "&lt;safe&gt;" in long_table_html,
-          "Telegram RichMessage 表格长文本注入软换行点，同时保留 HTML escape")
+    long_storage_html = p_card._telegram_storage_table("", [f"⦁ {long_cell}：💽 /config/plugins/AgentOpsAssistant/Backup/weekly/archive/2026/06/20 ｜ 🟢 已用 26% <safe>"])
+    media_html = p_card._telegram_media_table("", ["⦁ 电影 120 ｜ 电视剧 46 ｜ 剧集 2300 ｜ 用户 3"])
+    check("\u200b" in long_storage_html and long_cell not in long_storage_html and "&lt;safe&gt;" in long_storage_html and "<table>" not in long_storage_html and "<table>" not in media_html,
+          "Telegram RichMessage 长文本明细使用可换行的移动端友好块，同时保留 HTML escape")
+    _SUB["site_refresh_error"] = None
+    _SUB["site_refresh_result"] = {"馒头": object()}
     p_tg_send = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                             daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
     sent_rich_payloads = []
@@ -750,6 +780,63 @@ def main():
           "每日汇报只发送 Telegram RichMessage，不再发飞书或 MP 纯文本通知")
     check((p_tg_send._stub_data.get("last_daily_report") or {}).get("message") == "OK telegram_rich_message",
           "每日汇报成功状态明确记录 telegram_rich_message")
+    _SUB["site_refresh_calls"] = 0
+    _SUB["site_refresh_result"] = {"馒头": object()}
+    p_live_report = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                                daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    build_order = []
+    health_order = []
+    p_live_report._build_health_summary = lambda persist=True: health_order.append(_SUB["site_refresh_calls"]) or {
+        "success": True, "checks": [], "total": 0, "pass": 0, "fail": 0
+    }
+    p_live_report._build_daily_report_message = lambda preview=False: build_order.append(_SUB["site_refresh_calls"]) or "📮 MP 运维日报｜刷新后\n\n📡 站点状态\n\n• 全部 1 个站点正常"
+    p_live_report._post_telegram_rich_message = lambda rich, token=None, chat_id=None: True
+    check(p_live_report.run_daily_report() is True and _SUB["site_refresh_calls"] == 1 and health_order == [1] and build_order == [1],
+          "手动/定时每日汇报必须先刷新当时站点用户数据和健康巡查，再生成日报内容")
+    _SUB["site_refresh_calls"] = 0
+    p_live_preview = make_plugin(mod)
+    preview_health_order = []
+    p_live_preview._build_health_summary = lambda persist=True: preview_health_order.append("health") or {}
+    p_live_preview._build_daily_report_message = lambda preview=False: "📮 MP 运维日报｜预览"
+    check(p_live_preview.run_daily_report_preview() is True and _SUB["site_refresh_calls"] == 0 and preview_health_order == [],
+          "每日汇报预览保持只读，不触发站点数据/健康巡查刷新副作用")
+    _SUB["site_refresh_calls"] = 0
+    _SUB["site_refresh_result"] = None
+    p_refresh_stopped = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                                    daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    stopped_sent = []
+    p_refresh_stopped._build_daily_report_message = lambda preview=False: stopped_sent.append("built") or "不应生成"
+    p_refresh_stopped._post_telegram_rich_message = lambda rich, token=None, chat_id=None: stopped_sent.append(rich) or True
+    stopped_ok = p_refresh_stopped.run_daily_report()
+    stopped_last = p_refresh_stopped._stub_data.get("last_daily_report") or {}
+    check(stopped_ok is False and _SUB["site_refresh_calls"] == 1 and not stopped_sent
+          and stopped_last.get("sent") is False and "旧快照" in (stopped_last.get("error") or ""),
+          "站点数据刷新被停止时，每日汇报必须取消发送，不能继续用旧快照误报")
+    _SUB["site_refresh_calls"] = 0
+    _SUB["site_refresh_result"] = {"馒头": object()}
+    _SUB["site_refresh_error"] = "Cookie 失效"
+    p_refresh_error = make_plugin(mod, daily_report_telegram_rich_enabled=True,
+                                  daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    error_sent = []
+    p_refresh_error._build_daily_report_message = lambda preview=False: error_sent.append("built") or "不应生成"
+    p_refresh_error._post_telegram_rich_message = lambda rich, token=None, chat_id=None: error_sent.append(rich) or True
+    error_ok = p_refresh_error.run_daily_report()
+    error_last = p_refresh_error._stub_data.get("last_daily_report") or {}
+    check(error_ok is False and _SUB["site_refresh_calls"] == 1 and not error_sent
+          and "Cookie 失效" in (error_last.get("error") or ""),
+          "站点数据刷新异常时，每日汇报必须取消发送并记录真实错误")
+    _SUB["site_refresh_error"] = None
+    _SUB["site_refresh_result"] = {"馒头": object()}
+    _SUB["site_refresh_calls"] = 0
+    p_summary_site_refresh = make_plugin(mod, report_site_status=False, report_site_increment=False,
+                                         report_summary=True, report_health=False,
+                                         daily_report_telegram_rich_enabled=True,
+                                         daily_report_telegram_bot_token="token",
+                                         daily_report_telegram_chat_id="chat")
+    p_summary_site_refresh._build_daily_report_message = lambda preview=False: "📮 MP 运维日报｜摘要"
+    p_summary_site_refresh._post_telegram_rich_message = lambda rich, token=None, chat_id=None: True
+    check(p_summary_site_refresh.run_daily_report() is True and _SUB["site_refresh_calls"] == 1,
+          "即使关闭站点栏目，只要日报摘要会读取站点状态，也必须先刷新当时站点数据")
     p_tg_fallback = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                                 daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
     p_tg_fallback._post_telegram_rich_message = lambda rich, token=None, chat_id=None: False
@@ -955,6 +1042,48 @@ def main():
           "饼图：过零点无今日快照时使用最近有效快照")
     check(fallback_data.get("upload_total") == 20 * 1024 ** 3 and fallback_data.get("download_total") == 4 * 1024 ** 3,
           "饼图：最近快照按其前一有效日期计算增量")
+    _stale_day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain="stale.x")],
+        "site_latest": [
+            types.SimpleNamespace(name="过期站", domain="stale.x", err_msg="", updated_day=_stale_day, upload=120 * 1024 ** 3, download=15 * 1024 ** 3),
+        ],
+        "site_prev": {
+            (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"): [
+                types.SimpleNamespace(name="过期站", domain="stale.x", err_msg="", upload=100 * 1024 ** 3, download=11 * 1024 ** 3)
+            ],
+        },
+    })
+    stale_inc_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
+    stale_chart = make_plugin(mod).api_site_stat_chart().get("data", {})
+    check("站点快照过期" in stale_inc_text and "20.00 GB" not in stale_inc_text,
+          "日报站点增量遇到过期快照必须明确提示时效性，不把历史增量当今日增量")
+    check(stale_chart.get("basis") == "latest" and stale_chart.get("stale") is True and stale_chart.get("latest_date") == _stale_day,
+          "站点统计图使用最近快照时必须显式标记 stale/latest_date，避免用户误判为今日数据")
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain="ok.x"), types.SimpleNamespace(domain="old.x")],
+        "site_latest": [
+            types.SimpleNamespace(name="今日站", domain="ok.x", err_msg="", updated_day=_today, upload=120 * 1024 ** 3, download=15 * 1024 ** 3),
+            types.SimpleNamespace(name="旧站", domain="old.x", err_msg="", updated_day=_stale_day, upload=88 * 1024 ** 3, download=1 * 1024 ** 3),
+        ],
+        "site_prev": [
+            types.SimpleNamespace(name="今日站", domain="ok.x", err_msg="", upload=100 * 1024 ** 3, download=11 * 1024 ** 3),
+            types.SimpleNamespace(name="旧站", domain="old.x", err_msg="", upload=80 * 1024 ** 3, download=0),
+        ],
+    })
+    mixed_inc_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
+    check("今日站：⬆ 20.00 GB ｜ ⬇ 4.00 GB" in mixed_inc_text and "另 1 个站点快照过期" in mixed_inc_text,
+          "日报站点增量有部分站点过期时，正常站点照常展示，同时提示未计入的过期站点")
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain="bad.x")],
+        "site_latest": [
+            types.SimpleNamespace(name="坏站", domain="bad.x", err_msg="Cookie 失效", updated_day=_today, upload=120 * 1024 ** 3, download=15 * 1024 ** 3),
+        ],
+        "site_prev": [],
+    })
+    bad_chart = make_plugin(mod).api_site_stat_chart().get("data", {})
+    check(bad_chart.get("error_count") == 1 and bad_chart.get("data_valid") is False,
+          "站点统计图遇到站点抓取错误时必须标记 data_valid=False，而不是静默返回空增量")
     p_site_fail = make_plugin(mod)
     p_site_fail.api_site_stat_chart = lambda: {"code": 1, "msg": "站点接口异常", "data": {"sites": [], "upload_total": 0, "download_total": 0}}
     site_fail = p_site_fail.api_run_site_stat()
