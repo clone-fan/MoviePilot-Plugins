@@ -32,7 +32,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.49"
+    plugin_version = "1.0.50"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -1583,8 +1583,7 @@ class AgentOpsAssistant(_PluginBase):
                 body = self._telegram_list_html(self._telegram_section_items(lines))
                 chunks.append(self._telegram_details_html(header, body))
             elif header.startswith("🧾") or header.startswith("⚠️"):
-                body = "<br>".join(self._html_escape(item) for item in self._telegram_section_items(lines))
-                chunks.append(f"<blockquote><b>{self._html_escape(header)}</b><br>{body or '无'}</blockquote>")
+                continue
             else:
                 chunks.append(f"<h3>{self._html_escape(header)}</h3>{self._telegram_list_html(self._telegram_section_items(lines))}")
         return self._clip_telegram_html("\n".join(chunks))
@@ -1635,7 +1634,13 @@ class AgentOpsAssistant(_PluginBase):
         rows: List[str] = []
 
         site_items = sections.get("📡 站点状态") or []
-        site_total = len([x for x in site_items if x and "未取到" not in x and x != "无"])
+        site_total = 0
+        for item in site_items:
+            match = re.search(r"全部\s*(\d+)\s*个站点正常", item)
+            if match:
+                site_total = max(site_total, int(match.group(1)))
+        if not site_total:
+            site_total = len([x for x in site_items if x and "未取到" not in x and x != "无"])
         site_bad = len([x for x in site_items if "异常" in x or "失效" in x or "过期" in x])
         if site_items:
             site_state = f"异常 {site_bad}" if site_bad else "全部正常"
@@ -1678,12 +1683,16 @@ class AgentOpsAssistant(_PluginBase):
         all_items: List[str] = []
         risk_items: List[str] = []
         ok_count = 0
+        compressed_ok_count = 0
         for item in cls._telegram_section_items(lines):
             clean = cls._telegram_status_label(item)
             all_items.append(clean)
             if any(key in item for key in ("异常", "失效", "过期")):
                 risk_items.append(clean)
             else:
+                match = re.search(r"全部\s*(\d+)\s*个站点正常", item)
+                if match:
+                    compressed_ok_count = max(compressed_ok_count, int(match.group(1)))
                 ok_count += 1
 
         if risk_items:
@@ -1692,14 +1701,43 @@ class AgentOpsAssistant(_PluginBase):
                 alert_items.append(f"另 {len(risk_items) - 3} 项异常在明细中")
             headline = cls._telegram_quote_html("🚨 站点风险", alert_items, max_items=4)
         else:
-            headline = cls._telegram_quote_html(title, [f"全部 {ok_count or len(all_items)} 个站点正常"], max_items=1)
-        return headline + cls._telegram_details_html(title, cls._telegram_list_html(all_items))
+            headline = cls._telegram_quote_html(title, [f"全部 {compressed_ok_count or ok_count or len(all_items)} 个站点正常"], max_items=1)
+        detail_items = cls._telegram_expand_compressed_site_items(all_items)
+        return headline + cls._telegram_details_html(title, cls._telegram_list_html(detail_items))
 
     @staticmethod
     def _telegram_status_label(item: str) -> str:
         clean = re.sub(r"^\s*[✅⚠️⚠]\s*", "", str(item or "").strip())
         clean = re.sub(r"：\s*[✅⚠️⚠]\s*", "：", clean)
         return clean.replace(" | ", "：", 1)
+
+    @classmethod
+    def _telegram_expand_compressed_site_items(cls, items: List[str]) -> List[str]:
+        if not items or not any(re.search(r"全部\s*\d+\s*个站点正常", str(item or "")) for item in items):
+            return items
+        try:
+            from app.db.site_oper import SiteOper
+            site_oper = SiteOper()
+            active_domains = {site.domain for site in (site_oper.list_active() or []) if getattr(site, "domain", None)}
+            latest = [
+                row for row in (site_oper.get_userdata_latest() or [])
+                if row and getattr(row, "domain", None) in active_domains
+            ]
+            today = cls._today_prefix()
+            detail_items: List[str] = []
+            for row in latest:
+                name = getattr(row, "name", None) or getattr(row, "domain", None) or "未知站点"
+                err = str(getattr(row, "err_msg", None) or "").strip()
+                day = cls._normalize_day(getattr(row, "updated_day", None))
+                if err:
+                    detail_items.append(f"{name}：异常（{err[:30]}）")
+                elif day == today:
+                    detail_items.append(f"{name}：正常")
+                else:
+                    detail_items.append(f"{name}：数据过期")
+            return detail_items or items
+        except Exception:
+            return items
 
     @classmethod
     def _telegram_details_html(cls, title: str, body: str) -> str:

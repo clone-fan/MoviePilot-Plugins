@@ -685,6 +685,23 @@ def main():
           "Telegram RichMessage 首屏使用结论摘要，不再把总览做成后台表格")
     check("<details><summary>📈 站点增量</summary>" in tg_html and "<table>" not in tg_html and "<th" not in tg_html and "<b>馒头</b><br>流量：↑" in tg_html and "<br>指标：分享" in tg_html and "<h3>📈 站点增量</h3>" not in tg_html and "<details><summary>📡 站点状态</summary>" in tg_html and "<details><summary>📥 今日下载</summary>" in tg_html,
           "Telegram RichMessage 明细保留折叠，但移动端/桌面端都不能依赖宽表格布局")
+    check("🧾 今日摘要" not in tg_html and "系统正常" not in tg_html,
+          "Telegram RichMessage 已有首屏结论时不再重复渲染底部今日摘要块")
+    p_site_summary_count = make_plugin(mod, report_version=False, report_site_status=True, report_site_increment=False,
+                                       report_today_download=False, report_transfer=False, report_subscribe=False,
+                                       report_storage=False, report_media_stat=False, report_health=False, report_summary=False)
+    _SUB.update({
+        "sites": [types.SimpleNamespace(domain=f"s{i}.example") for i in range(1, 8)],
+        "site_latest": [
+            types.SimpleNamespace(name=name, domain=f"s{i}.example", err_msg="", updated_day=f"{_today} 08:30:00")
+            for i, name in enumerate(["馒头", "青蛙", "红叶", "柠檬", "观众", "织梦", "麒麟"], start=1)
+        ],
+    })
+    site_summary_html = p_site_summary_count._build_daily_report_telegram_html(preview=True)
+    check("站点：7 个，全部正常" in site_summary_html and "全部 7 个站点正常" in site_summary_html and "站点：1 个" not in site_summary_html and "全部 1 个站点正常" not in site_summary_html and "<details><summary>📡 站点状态</summary>" in site_summary_html,
+          "Telegram RichMessage 总览和站点摘要都正确解析压缩站点摘要里的真实站点数量")
+    check("<li>馒头：正常</li>" in site_summary_html and "<li>麒麟：正常</li>" in site_summary_html and "<li>全部 7 个站点正常</li>" not in site_summary_html,
+          "Telegram RichMessage 站点状态折叠明细必须展开列出全正常站点名，不能只放压缩摘要")
     p_risk = make_plugin(mod, report_site_increment=False, report_today_download=False,
                          report_transfer=False, report_subscribe=False, report_storage=False,
                          report_media_stat=False, report_health=False, report_summary=False)
