@@ -32,7 +32,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.47"
+    plugin_version = "1.0.48"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -221,7 +221,8 @@ class AgentOpsAssistant(_PluginBase):
         self._daily_report_enabled = bool(config.get("daily_report_enabled", True))
         self._daily_report_cron = config.get("daily_report_cron") or "0 22 * * *"
         self._daily_report_greeting = str(config.get("daily_report_greeting") or "少爷").strip() or "少爷"
-        self._daily_report_telegram_rich_enabled = bool(config.get("daily_report_telegram_rich_enabled", True))
+        # 每日汇报固定使用 Telegram RichMessage；旧配置里隐藏的 false 不应打断日报。
+        self._daily_report_telegram_rich_enabled = True
         self._daily_report_telegram_bot_token = str(config.get("daily_report_telegram_bot_token") or "").strip()
         self._daily_report_telegram_chat_id = str(config.get("daily_report_telegram_chat_id") or "").strip()
         self._health_in_report = bool(config.get("health_in_report", True))

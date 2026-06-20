@@ -827,6 +827,26 @@ def main():
           and leak_token not in p_tg_http_error._daily_report_telegram_last_error
           and "bot***" in p_tg_http_error._daily_report_telegram_last_error,
           "Telegram API 错误详情写入 last_daily_report 前必须脱敏 Bot Token")
+    config_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "Config.vue").read_text(encoding="utf-8")
+    check('label="Bot Token"' not in config_vue and 'label="Chat ID"' not in config_vue
+          and 'label="Telegram RichMessage"' not in config_vue,
+          "日报设置页不暴露插件私有 TG Bot Token/Chat ID，默认复用 MoviePilot 全局 Telegram 通知配置")
+    _PU["notifications"] = [{
+        "name": "默认 Telegram",
+        "type": "telegram",
+        "enabled": True,
+        "config": {"TELEGRAM_TOKEN": "global-token", "TELEGRAM_CHAT_ID": "-100123"},
+        "switchs": ["插件"],
+    }]
+    p_tg_disabled_legacy = make_plugin(mod, daily_report_telegram_rich_enabled=False,
+                                       daily_report_telegram_bot_token="", daily_report_telegram_chat_id="")
+    legacy_send = {}
+    p_tg_disabled_legacy._post_telegram_rich_message = (
+        lambda rich, token=None, chat_id=None: legacy_send.update(token=token, chat_id=chat_id) or True
+    )
+    check(p_tg_disabled_legacy.run_daily_report() is True
+          and legacy_send == {"token": "global-token", "chat_id": "-100123"},
+          "旧配置里 RichMessage 开关为 False 时也必须迁移为默认 TG RichMessage，不让隐藏旧值打断日报")
     _PU["notifications"] = []
 
     print("== 日报下载与入库展示口径 ==")

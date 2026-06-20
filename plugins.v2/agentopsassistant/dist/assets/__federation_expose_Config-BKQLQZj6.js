@@ -237,9 +237,6 @@ const defaults = {
   daily_report_enabled: true,
   daily_report_cron: '0 22 * * *',
   daily_report_greeting: '少爷',
-  daily_report_telegram_rich_enabled: true,
-  daily_report_telegram_bot_token: '',
-  daily_report_telegram_chat_id: '',
   health_in_report: true,
   subscribe_in_report: true,
   site_stat_in_report: true,
@@ -615,7 +612,12 @@ watch(() => props.initialConfig, value => {
 }, { immediate: true, deep: true });
 
 function saveConfig() {
-  emit('save', { ...form });
+  emit('save', {
+    ...form,
+    daily_report_telegram_rich_enabled: true,
+    daily_report_telegram_bot_token: '',
+    daily_report_telegram_chat_id: '',
+  });
 }
 
 function selectMain(key) {
@@ -734,7 +736,7 @@ return (_ctx, _cache) => {
                 class: "text-none aoa-header-link",
                 onClick: _cache[2] || (_cache[2] = $event => (emit('switch')))
               }, {
-                default: _withCtx(() => [...(_cache[113] || (_cache[113] = [
+                default: _withCtx(() => [...(_cache[110] || (_cache[110] = [
                   _createTextVNode(" 仪表盘 ", -1)
                 ]))]),
                 _: 1
@@ -748,13 +750,13 @@ return (_ctx, _cache) => {
           ]),
           default: _withCtx(() => [
             _createVNode(_component_VCardTitle, { class: "text-h6 aoa-header-title" }, {
-              default: _withCtx(() => [...(_cache[111] || (_cache[111] = [
+              default: _withCtx(() => [...(_cache[108] || (_cache[108] = [
                 _createTextVNode("MP 运维助手", -1)
               ]))]),
               _: 1
             }),
             _createVNode(_component_VCardSubtitle, { class: "text-caption aoa-header-subtitle" }, {
-              default: _withCtx(() => [...(_cache[112] || (_cache[112] = [
+              default: _withCtx(() => [...(_cache[109] || (_cache[109] = [
                 _createTextVNode("配置中心", -1)
               ]))]),
               _: 1
@@ -855,7 +857,7 @@ return (_ctx, _cache) => {
                     }, null, 8, ["enabled", "count-label"]),
                     _createVNode(_unref(SettingSection), {
                       title: "汇报设置",
-                      note: "发送时间、Telegram 富消息与称呼集中配置"
+                      note: "推送使用 MoviePilot 全局 Telegram 通知配置"
                     }, {
                       default: _withCtx(() => [
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
@@ -889,52 +891,6 @@ return (_ctx, _cache) => {
                                   hint: "汇报开头与提醒中对你的称呼，留空默认“少爷”",
                                   clearable: "",
                                   disabled: !form.daily_report_enabled
-                                }, null, 8, ["modelValue", "disabled"])
-                              ]),
-                              _: 1
-                            }),
-                            _createVNode(_component_VCol, { cols: "12" }, {
-                              default: _withCtx(() => [
-                                _createVNode(_component_VSwitch, {
-                                  modelValue: form.daily_report_telegram_rich_enabled,
-                                  "onUpdate:modelValue": _cache[7] || (_cache[7] = $event => ((form.daily_report_telegram_rich_enabled) = $event)),
-                                  label: "Telegram RichMessage",
-                                  color: "primary",
-                                  inset: "",
-                                  "hide-details": "",
-                                  disabled: !form.daily_report_enabled
-                                }, null, 8, ["modelValue", "disabled"])
-                              ]),
-                              _: 1
-                            }),
-                            _createVNode(_component_VCol, {
-                              cols: "12",
-                              md: "6"
-                            }, {
-                              default: _withCtx(() => [
-                                _createVNode(_component_VTextField, {
-                                  modelValue: form.daily_report_telegram_bot_token,
-                                  "onUpdate:modelValue": _cache[8] || (_cache[8] = $event => ((form.daily_report_telegram_bot_token) = $event)),
-                                  label: "Bot Token",
-                                  type: "password",
-                                  autocomplete: "off",
-                                  "prepend-inner-icon": "mdi-robot-outline",
-                                  disabled: !form.daily_report_enabled || !form.daily_report_telegram_rich_enabled
-                                }, null, 8, ["modelValue", "disabled"])
-                              ]),
-                              _: 1
-                            }),
-                            _createVNode(_component_VCol, {
-                              cols: "12",
-                              md: "6"
-                            }, {
-                              default: _withCtx(() => [
-                                _createVNode(_component_VTextField, {
-                                  modelValue: form.daily_report_telegram_chat_id,
-                                  "onUpdate:modelValue": _cache[9] || (_cache[9] = $event => ((form.daily_report_telegram_chat_id) = $event)),
-                                  label: "Chat ID",
-                                  "prepend-inner-icon": "mdi-chat-outline",
-                                  disabled: !form.daily_report_enabled || !form.daily_report_telegram_rich_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -975,7 +931,7 @@ return (_ctx, _cache) => {
                           _createElementVNode("div", _hoisted_14, [
                             _createVNode(_component_VTable, { class: "aoa-report-table" }, {
                               default: _withCtx(() => [
-                                _cache[114] || (_cache[114] = _createElementVNode("thead", null, [
+                                _cache[111] || (_cache[111] = _createElementVNode("thead", null, [
                                   _createElementVNode("tr", null, [
                                     _createElementVNode("th", {
                                       scope: "col",
@@ -1041,7 +997,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.subscribe_reminder_enabled,
-                      "onUpdate:enabled": _cache[10] || (_cache[10] = $event => ((form.subscribe_reminder_enabled) = $event)),
+                      "onUpdate:enabled": _cache[7] || (_cache[7] = $event => ((form.subscribe_reminder_enabled) = $event)),
                       icon: "mdi-bell-ring-outline",
                       kicker: "MP 订阅管理",
                       "on-title": "订阅追新已启用",
@@ -1063,7 +1019,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VCronField, {
                                   modelValue: form.subscribe_reminder_cron,
-                                  "onUpdate:modelValue": _cache[11] || (_cache[11] = $event => ((form.subscribe_reminder_cron) = $event)),
+                                  "onUpdate:modelValue": _cache[8] || (_cache[8] = $event => ((form.subscribe_reminder_cron) = $event)),
                                   label: "推送时间 (Cron)",
                                   disabled: !form.subscribe_reminder_enabled
                                 }, null, 8, ["modelValue", "disabled"])
@@ -1077,7 +1033,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.subscribe_reminder_subtype,
-                                  "onUpdate:modelValue": _cache[12] || (_cache[12] = $event => ((form.subscribe_reminder_subtype) = $event)),
+                                  "onUpdate:modelValue": _cache[9] || (_cache[9] = $event => ((form.subscribe_reminder_subtype) = $event)),
                                   items: subscribeSubtypeItems,
                                   label: "提醒类型",
                                   multiple: "",
@@ -1095,7 +1051,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.subscribe_reminder_msgtype,
-                                  "onUpdate:modelValue": _cache[13] || (_cache[13] = $event => ((form.subscribe_reminder_msgtype) = $event)),
+                                  "onUpdate:modelValue": _cache[10] || (_cache[10] = $event => ((form.subscribe_reminder_msgtype) = $event)),
                                   items: messageTypeItems,
                                   label: "消息类型",
                                   disabled: !form.subscribe_reminder_enabled
@@ -1120,7 +1076,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.site_stat_enabled,
-                      "onUpdate:enabled": _cache[14] || (_cache[14] = $event => ((form.site_stat_enabled) = $event)),
+                      "onUpdate:enabled": _cache[11] || (_cache[11] = $event => ((form.site_stat_enabled) = $event)),
                       icon: "mdi-chart-line",
                       kicker: "MP 站点统计",
                       "on-title": "站点数据采集已启用",
@@ -1142,7 +1098,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.site_stat_dashboard_type,
-                                  "onUpdate:modelValue": _cache[15] || (_cache[15] = $event => ((form.site_stat_dashboard_type) = $event)),
+                                  "onUpdate:modelValue": _cache[12] || (_cache[12] = $event => ((form.site_stat_dashboard_type) = $event)),
                                   items: siteStatRangeItems,
                                   label: "统计数据范围",
                                   disabled: !form.site_stat_enabled
@@ -1157,7 +1113,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.site_stat_notify_type,
-                                  "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((form.site_stat_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[13] || (_cache[13] = $event => ((form.site_stat_notify_type) = $event)),
                                   items: siteNotifyItems,
                                   label: "通知方式",
                                   disabled: !form.site_stat_enabled
@@ -1182,7 +1138,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.health_check_enabled,
-                      "onUpdate:enabled": _cache[17] || (_cache[17] = $event => ((form.health_check_enabled) = $event)),
+                      "onUpdate:enabled": _cache[14] || (_cache[14] = $event => ((form.health_check_enabled) = $event)),
                       icon: "mdi-heart-pulse",
                       kicker: "MP 健康巡查",
                       "on-title": "自动巡查已启用",
@@ -1198,14 +1154,14 @@ return (_ctx, _cache) => {
                         _createElementVNode("div", _hoisted_24, [
                           _createVNode(_component_VCronField, {
                             modelValue: form.health_check_cron,
-                            "onUpdate:modelValue": _cache[18] || (_cache[18] = $event => ((form.health_check_cron) = $event)),
+                            "onUpdate:modelValue": _cache[15] || (_cache[15] = $event => ((form.health_check_cron) = $event)),
                             label: "巡查时间 (Cron)",
                             class: "aoa-health-field-third",
                             disabled: !form.health_check_enabled
                           }, null, 8, ["modelValue", "disabled"]),
                           _createVNode(_component_VTextField, {
                             modelValue: form.health_check_storage_threshold,
-                            "onUpdate:modelValue": _cache[19] || (_cache[19] = $event => ((form.health_check_storage_threshold) = $event)),
+                            "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((form.health_check_storage_threshold) = $event)),
                             modelModifiers: { number: true },
                             label: "容量阈值",
                             type: "number",
@@ -1217,7 +1173,7 @@ return (_ctx, _cache) => {
                           }, null, 8, ["modelValue", "disabled"]),
                           _createVNode(_component_VSelect, {
                             modelValue: form.health_check_notify_type,
-                            "onUpdate:modelValue": _cache[20] || (_cache[20] = $event => ((form.health_check_notify_type) = $event)),
+                            "onUpdate:modelValue": _cache[17] || (_cache[17] = $event => ((form.health_check_notify_type) = $event)),
                             items: notificationTypeItems,
                             label: "异常通知渠道",
                             class: "aoa-health-field-third",
@@ -1225,7 +1181,7 @@ return (_ctx, _cache) => {
                           }, null, 8, ["modelValue", "disabled"]),
                           _createVNode(_component_VSelect, {
                             modelValue: form.health_check_items,
-                            "onUpdate:modelValue": _cache[21] || (_cache[21] = $event => ((form.health_check_items) = $event)),
+                            "onUpdate:modelValue": _cache[18] || (_cache[18] = $event => ((form.health_check_items) = $event)),
                             items: healthCheckItems,
                             class: "aoa-health-field-full aoa-health-select",
                             label: "巡查项目",
@@ -1250,7 +1206,7 @@ return (_ctx, _cache) => {
                           }, 8, ["modelValue", "disabled"]),
                           _createVNode(_component_VSelect, {
                             modelValue: form.health_check_database_targets,
-                            "onUpdate:modelValue": _cache[22] || (_cache[22] = $event => ((form.health_check_database_targets) = $event)),
+                            "onUpdate:modelValue": _cache[19] || (_cache[19] = $event => ((form.health_check_database_targets) = $event)),
                             items: healthDatabaseTargets,
                             class: "aoa-health-field-full aoa-health-select",
                             label: "数据库",
@@ -1275,7 +1231,7 @@ return (_ctx, _cache) => {
                           }, 8, ["modelValue", "disabled"]),
                           _createVNode(_component_VSelect, {
                             modelValue: form.health_check_storage_targets,
-                            "onUpdate:modelValue": _cache[23] || (_cache[23] = $event => ((form.health_check_storage_targets) = $event)),
+                            "onUpdate:modelValue": _cache[20] || (_cache[20] = $event => ((form.health_check_storage_targets) = $event)),
                             items: healthStorageTargets,
                             class: "aoa-health-field-full aoa-health-select",
                             label: "存储空间",
@@ -1300,7 +1256,7 @@ return (_ctx, _cache) => {
                           }, 8, ["modelValue", "disabled"]),
                           _createVNode(_component_VSelect, {
                             modelValue: form.health_check_directory_targets,
-                            "onUpdate:modelValue": _cache[24] || (_cache[24] = $event => ((form.health_check_directory_targets) = $event)),
+                            "onUpdate:modelValue": _cache[21] || (_cache[21] = $event => ((form.health_check_directory_targets) = $event)),
                             items: healthDirectoryTargets,
                             class: "aoa-health-field-full aoa-health-select",
                             label: "目录权限",
@@ -1338,7 +1294,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.subfill_enabled,
-                      "onUpdate:enabled": _cache[25] || (_cache[25] = $event => ((form.subfill_enabled) = $event)),
+                      "onUpdate:enabled": _cache[22] || (_cache[22] = $event => ((form.subfill_enabled) = $event)),
                       icon: "mdi-auto-fix",
                       kicker: "MP 订阅管理",
                       "on-title": "订阅规则填充已启用",
@@ -1360,7 +1316,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.subfill_notify,
-                                  "onUpdate:modelValue": _cache[26] || (_cache[26] = $event => ((form.subfill_notify) = $event)),
+                                  "onUpdate:modelValue": _cache[23] || (_cache[23] = $event => ((form.subfill_notify) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -1377,7 +1333,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.subfill_notify_type,
-                                  "onUpdate:modelValue": _cache[27] || (_cache[27] = $event => ((form.subfill_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[24] || (_cache[24] = $event => ((form.subfill_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
                                   disabled: !form.subfill_enabled || !form.subfill_notify
@@ -1389,7 +1345,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.subfill_details,
-                                  "onUpdate:modelValue": _cache[28] || (_cache[28] = $event => ((form.subfill_details) = $event)),
+                                  "onUpdate:modelValue": _cache[25] || (_cache[25] = $event => ((form.subfill_details) = $event)),
                                   items: _unref(subfillDetailItems),
                                   label: "自动填充哪些规则",
                                   multiple: "",
@@ -1422,7 +1378,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.subfill_category_enabled,
-                                  "onUpdate:modelValue": _cache[29] || (_cache[29] = $event => ((form.subfill_category_enabled) = $event)),
+                                  "onUpdate:modelValue": _cache[26] || (_cache[26] = $event => ((form.subfill_category_enabled) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -1435,7 +1391,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextarea, {
                                   modelValue: form.subfill_category_confs,
-                                  "onUpdate:modelValue": _cache[30] || (_cache[30] = $event => ((form.subfill_category_confs) = $event)),
+                                  "onUpdate:modelValue": _cache[27] || (_cache[27] = $event => ((form.subfill_category_confs) = $event)),
                                   label: "二级分类规则（每行一个分类）",
                                   "auto-grow": "",
                                   rows: "3",
@@ -1462,7 +1418,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.backup_enabled,
-                      "onUpdate:enabled": _cache[31] || (_cache[31] = $event => ((form.backup_enabled) = $event)),
+                      "onUpdate:enabled": _cache[28] || (_cache[28] = $event => ((form.backup_enabled) = $event)),
                       icon: "mdi-folder-arrow-up-outline",
                       kicker: "MP 自动备份",
                       "on-title": "本地备份已启用",
@@ -1484,7 +1440,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VCronField, {
                                   modelValue: form.backup_cron,
-                                  "onUpdate:modelValue": _cache[32] || (_cache[32] = $event => ((form.backup_cron) = $event)),
+                                  "onUpdate:modelValue": _cache[29] || (_cache[29] = $event => ((form.backup_cron) = $event)),
                                   label: "备份时间 (Cron)",
                                   disabled: !form.backup_enabled
                                 }, null, 8, ["modelValue", "disabled"])
@@ -1498,7 +1454,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.backup_path,
-                                  "onUpdate:modelValue": _cache[33] || (_cache[33] = $event => ((form.backup_path) = $event)),
+                                  "onUpdate:modelValue": _cache[30] || (_cache[30] = $event => ((form.backup_path) = $event)),
                                   label: "本地备份路径",
                                   "prepend-inner-icon": "mdi-folder-outline",
                                   disabled: !form.backup_enabled
@@ -1509,7 +1465,7 @@ return (_ctx, _cache) => {
                             _createVNode(_component_VCol, { cols: "12" }, {
                               default: _withCtx(() => [
                                 _createElementVNode("div", _hoisted_27, [
-                                  _cache[115] || (_cache[115] = _createElementVNode("span", { class: "text-body-2" }, "本地保留份数", -1)),
+                                  _cache[112] || (_cache[112] = _createElementVNode("span", { class: "text-body-2" }, "本地保留份数", -1)),
                                   _createVNode(_component_VChip, {
                                     size: "small",
                                     color: "primary",
@@ -1523,7 +1479,7 @@ return (_ctx, _cache) => {
                                 ]),
                                 _createVNode(_component_VSlider, {
                                   modelValue: form.backup_keep_count,
-                                  "onUpdate:modelValue": _cache[34] || (_cache[34] = $event => ((form.backup_keep_count) = $event)),
+                                  "onUpdate:modelValue": _cache[31] || (_cache[31] = $event => ((form.backup_keep_count) = $event)),
                                   min: 1,
                                   max: 30,
                                   step: 1,
@@ -1555,7 +1511,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.backup_notify,
-                                  "onUpdate:modelValue": _cache[35] || (_cache[35] = $event => ((form.backup_notify) = $event)),
+                                  "onUpdate:modelValue": _cache[32] || (_cache[32] = $event => ((form.backup_notify) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -1572,7 +1528,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.backup_notify_type,
-                                  "onUpdate:modelValue": _cache[36] || (_cache[36] = $event => ((form.backup_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[33] || (_cache[33] = $event => ((form.backup_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
                                   disabled: !form.backup_enabled || !form.backup_notify
@@ -1587,7 +1543,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.backup_onlyonce,
-                                  "onUpdate:modelValue": _cache[37] || (_cache[37] = $event => ((form.backup_onlyonce) = $event)),
+                                  "onUpdate:modelValue": _cache[34] || (_cache[34] = $event => ((form.backup_onlyonce) = $event)),
                                   color: "warning",
                                   inset: "",
                                   "hide-details": "",
@@ -1614,7 +1570,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.backup_webdav_enabled,
-                      "onUpdate:enabled": _cache[38] || (_cache[38] = $event => ((form.backup_webdav_enabled) = $event)),
+                      "onUpdate:enabled": _cache[35] || (_cache[35] = $event => ((form.backup_webdav_enabled) = $event)),
                       icon: "mdi-cloud-upload-outline",
                       kicker: "MP 自动备份",
                       "on-title": "WebDAV 远端备份已启用",
@@ -1636,7 +1592,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.backup_webdav_hostname,
-                                  "onUpdate:modelValue": _cache[39] || (_cache[39] = $event => ((form.backup_webdav_hostname) = $event)),
+                                  "onUpdate:modelValue": _cache[36] || (_cache[36] = $event => ((form.backup_webdav_hostname) = $event)),
                                   label: "WebDAV 地址",
                                   placeholder: "https://dav.example.com/backup",
                                   "prepend-inner-icon": "mdi-web",
@@ -1652,7 +1608,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.backup_webdav_login,
-                                  "onUpdate:modelValue": _cache[40] || (_cache[40] = $event => ((form.backup_webdav_login) = $event)),
+                                  "onUpdate:modelValue": _cache[37] || (_cache[37] = $event => ((form.backup_webdav_login) = $event)),
                                   label: "账号",
                                   disabled: !form.backup_webdav_enabled
                                 }, null, 8, ["modelValue", "disabled"])
@@ -1666,7 +1622,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.backup_webdav_password,
-                                  "onUpdate:modelValue": _cache[41] || (_cache[41] = $event => ((form.backup_webdav_password) = $event)),
+                                  "onUpdate:modelValue": _cache[38] || (_cache[38] = $event => ((form.backup_webdav_password) = $event)),
                                   label: "密码",
                                   type: "password",
                                   disabled: !form.backup_webdav_enabled
@@ -1694,7 +1650,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.backup_webdav_max_count,
-                                  "onUpdate:modelValue": _cache[42] || (_cache[42] = $event => ((form.backup_webdav_max_count) = $event)),
+                                  "onUpdate:modelValue": _cache[39] || (_cache[39] = $event => ((form.backup_webdav_max_count) = $event)),
                                   items: _unref(keepCountPresets),
                                   label: "远端保留份数",
                                   disabled: !form.backup_webdav_enabled
@@ -1709,7 +1665,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.backup_webdav_notify,
-                                  "onUpdate:modelValue": _cache[43] || (_cache[43] = $event => ((form.backup_webdav_notify) = $event)),
+                                  "onUpdate:modelValue": _cache[40] || (_cache[40] = $event => ((form.backup_webdav_notify) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -1726,7 +1682,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.backup_webdav_notify_type,
-                                  "onUpdate:modelValue": _cache[44] || (_cache[44] = $event => ((form.backup_webdav_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[41] || (_cache[41] = $event => ((form.backup_webdav_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
                                   disabled: !form.backup_webdav_enabled || !form.backup_webdav_notify
@@ -1741,7 +1697,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.backup_webdav_digest_auth,
-                                  "onUpdate:modelValue": _cache[45] || (_cache[45] = $event => ((form.backup_webdav_digest_auth) = $event)),
+                                  "onUpdate:modelValue": _cache[42] || (_cache[42] = $event => ((form.backup_webdav_digest_auth) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -1758,7 +1714,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.backup_webdav_disable_check,
-                                  "onUpdate:modelValue": _cache[46] || (_cache[46] = $event => ((form.backup_webdav_disable_check) = $event)),
+                                  "onUpdate:modelValue": _cache[43] || (_cache[43] = $event => ((form.backup_webdav_disable_check) = $event)),
                                   color: "warning",
                                   inset: "",
                                   "hide-details": "",
@@ -1785,7 +1741,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.log_clean_enabled,
-                      "onUpdate:enabled": _cache[47] || (_cache[47] = $event => ((form.log_clean_enabled) = $event)),
+                      "onUpdate:enabled": _cache[44] || (_cache[44] = $event => ((form.log_clean_enabled) = $event)),
                       icon: "mdi-file-document-remove-outline",
                       kicker: "MP 日志清理",
                       "on-title": "插件日志清理已启用",
@@ -1807,7 +1763,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VCronField, {
                                   modelValue: form.log_clean_cron,
-                                  "onUpdate:modelValue": _cache[48] || (_cache[48] = $event => ((form.log_clean_cron) = $event)),
+                                  "onUpdate:modelValue": _cache[45] || (_cache[45] = $event => ((form.log_clean_cron) = $event)),
                                   label: "清理时间 (Cron)",
                                   disabled: !form.log_clean_enabled
                                 }, null, 8, ["modelValue", "disabled"])
@@ -1821,7 +1777,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.log_clean_rows,
-                                  "onUpdate:modelValue": _cache[49] || (_cache[49] = $event => ((form.log_clean_rows) = $event)),
+                                  "onUpdate:modelValue": _cache[46] || (_cache[46] = $event => ((form.log_clean_rows) = $event)),
                                   items: _unref(logRowsPresets),
                                   label: "保留行数",
                                   disabled: !form.log_clean_enabled
@@ -1836,7 +1792,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.log_clean_selected_ids,
-                                  "onUpdate:modelValue": _cache[50] || (_cache[50] = $event => ((form.log_clean_selected_ids) = $event)),
+                                  "onUpdate:modelValue": _cache[47] || (_cache[47] = $event => ((form.log_clean_selected_ids) = $event)),
                                   items: installedPlugins.value,
                                   loading: installedLoading.value,
                                   label: "限定插件",
@@ -1872,7 +1828,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.log_clean_notify,
-                                  "onUpdate:modelValue": _cache[51] || (_cache[51] = $event => ((form.log_clean_notify) = $event)),
+                                  "onUpdate:modelValue": _cache[48] || (_cache[48] = $event => ((form.log_clean_notify) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -1889,7 +1845,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.log_clean_notify_type,
-                                  "onUpdate:modelValue": _cache[52] || (_cache[52] = $event => ((form.log_clean_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[49] || (_cache[49] = $event => ((form.log_clean_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
                                   disabled: !form.log_clean_enabled || !form.log_clean_notify
@@ -1904,7 +1860,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.log_clean_onlyonce,
-                                  "onUpdate:modelValue": _cache[53] || (_cache[53] = $event => ((form.log_clean_onlyonce) = $event)),
+                                  "onUpdate:modelValue": _cache[50] || (_cache[50] = $event => ((form.log_clean_onlyonce) = $event)),
                                   color: "warning",
                                   inset: "",
                                   "hide-details": "",
@@ -1931,7 +1887,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.mp_update_enabled,
-                      "onUpdate:enabled": _cache[54] || (_cache[54] = $event => ((form.mp_update_enabled) = $event)),
+                      "onUpdate:enabled": _cache[51] || (_cache[51] = $event => ((form.mp_update_enabled) = $event)),
                       icon: "mdi-movie-open-cog-outline",
                       kicker: "MP 更新检查",
                       "on-title": "主程序更新检查已启用",
@@ -1953,7 +1909,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VCronField, {
                                   modelValue: form.mp_update_cron,
-                                  "onUpdate:modelValue": _cache[55] || (_cache[55] = $event => ((form.mp_update_cron) = $event)),
+                                  "onUpdate:modelValue": _cache[52] || (_cache[52] = $event => ((form.mp_update_cron) = $event)),
                                   label: "检查时间 (Cron)",
                                   disabled: !form.mp_update_enabled
                                 }, null, 8, ["modelValue", "disabled"])
@@ -1967,7 +1923,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.mp_update_types,
-                                  "onUpdate:modelValue": _cache[56] || (_cache[56] = $event => ((form.mp_update_types) = $event)),
+                                  "onUpdate:modelValue": _cache[53] || (_cache[53] = $event => ((form.mp_update_types) = $event)),
                                   items: _unref(mpUpdateTypes),
                                   label: "检查范围",
                                   multiple: "",
@@ -1985,7 +1941,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.mp_update_notify_type,
-                                  "onUpdate:modelValue": _cache[57] || (_cache[57] = $event => ((form.mp_update_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[54] || (_cache[54] = $event => ((form.mp_update_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
                                   disabled: !form.mp_update_enabled || !form.mp_update_notify
@@ -2000,7 +1956,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.mp_update_notify,
-                                  "onUpdate:modelValue": _cache[58] || (_cache[58] = $event => ((form.mp_update_notify) = $event)),
+                                  "onUpdate:modelValue": _cache[55] || (_cache[55] = $event => ((form.mp_update_notify) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -2017,7 +1973,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.mp_update_restart_confirm,
-                                  "onUpdate:modelValue": _cache[59] || (_cache[59] = $event => ((form.mp_update_restart_confirm) = $event)),
+                                  "onUpdate:modelValue": _cache[56] || (_cache[56] = $event => ((form.mp_update_restart_confirm) = $event)),
                                   color: "warning",
                                   inset: "",
                                   "hide-details": "",
@@ -2044,7 +2000,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.market_update_enabled,
-                      "onUpdate:enabled": _cache[60] || (_cache[60] = $event => ((form.market_update_enabled) = $event)),
+                      "onUpdate:enabled": _cache[57] || (_cache[57] = $event => ((form.market_update_enabled) = $event)),
                       icon: "mdi-puzzle-plus-outline",
                       kicker: "MP 插件库",
                       "on-title": "插件库更新检查已启用",
@@ -2066,7 +2022,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.market_update_interval,
-                                  "onUpdate:modelValue": _cache[61] || (_cache[61] = $event => ((form.market_update_interval) = $event)),
+                                  "onUpdate:modelValue": _cache[58] || (_cache[58] = $event => ((form.market_update_interval) = $event)),
                                   items: _unref(intervalPresets),
                                   label: "检查间隔",
                                   disabled: !form.market_update_enabled
@@ -2081,7 +2037,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.market_update_notify_type,
-                                  "onUpdate:modelValue": _cache[62] || (_cache[62] = $event => ((form.market_update_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[59] || (_cache[59] = $event => ((form.market_update_notify_type) = $event)),
                                   items: _unref(marketNotifyItems),
                                   label: "通知消息类型",
                                   disabled: !form.market_update_enabled
@@ -2096,7 +2052,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.market_update_timeout,
-                                  "onUpdate:modelValue": _cache[63] || (_cache[63] = $event => ((form.market_update_timeout) = $event)),
+                                  "onUpdate:modelValue": _cache[60] || (_cache[60] = $event => ((form.market_update_timeout) = $event)),
                                   label: "请求超时（秒）",
                                   type: "number",
                                   min: "1",
@@ -2112,7 +2068,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.market_update_notify,
-                                  "onUpdate:modelValue": _cache[64] || (_cache[64] = $event => ((form.market_update_notify) = $event)),
+                                  "onUpdate:modelValue": _cache[61] || (_cache[61] = $event => ((form.market_update_notify) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -2129,7 +2085,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.market_update_proxy,
-                                  "onUpdate:modelValue": _cache[65] || (_cache[65] = $event => ((form.market_update_proxy) = $event)),
+                                  "onUpdate:modelValue": _cache[62] || (_cache[62] = $event => ((form.market_update_proxy) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -2146,7 +2102,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.market_update_auto_get,
-                                  "onUpdate:modelValue": _cache[66] || (_cache[66] = $event => ((form.market_update_auto_get) = $event)),
+                                  "onUpdate:modelValue": _cache[63] || (_cache[63] = $event => ((form.market_update_auto_get) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -2177,7 +2133,7 @@ return (_ctx, _cache) => {
                                           default: _withCtx(() => [
                                             _createVNode(_component_VSwitch, {
                                               modelValue: form.market_update_write_settings,
-                                              "onUpdate:modelValue": _cache[67] || (_cache[67] = $event => ((form.market_update_write_settings) = $event)),
+                                              "onUpdate:modelValue": _cache[64] || (_cache[64] = $event => ((form.market_update_write_settings) = $event)),
                                               color: "warning",
                                               inset: "",
                                               "hide-details": "",
@@ -2194,7 +2150,7 @@ return (_ctx, _cache) => {
                                           default: _withCtx(() => [
                                             _createVNode(_component_VSwitch, {
                                               modelValue: form.market_update_write_env,
-                                              "onUpdate:modelValue": _cache[68] || (_cache[68] = $event => ((form.market_update_write_env) = $event)),
+                                              "onUpdate:modelValue": _cache[65] || (_cache[65] = $event => ((form.market_update_write_env) = $event)),
                                               color: "warning",
                                               inset: "",
                                               "hide-details": "",
@@ -2211,7 +2167,7 @@ return (_ctx, _cache) => {
                                           default: _withCtx(() => [
                                             _createVNode(_component_VSwitch, {
                                               modelValue: form.market_update_blacklist_enabled,
-                                              "onUpdate:modelValue": _cache[69] || (_cache[69] = $event => ((form.market_update_blacklist_enabled) = $event)),
+                                              "onUpdate:modelValue": _cache[66] || (_cache[66] = $event => ((form.market_update_blacklist_enabled) = $event)),
                                               color: "primary",
                                               inset: "",
                                               "hide-details": "",
@@ -2228,7 +2184,7 @@ return (_ctx, _cache) => {
                                           default: _withCtx(() => [
                                             _createVNode(_component_VTextField, {
                                               modelValue: form.market_update_wiki_url,
-                                              "onUpdate:modelValue": _cache[70] || (_cache[70] = $event => ((form.market_update_wiki_url) = $event)),
+                                              "onUpdate:modelValue": _cache[67] || (_cache[67] = $event => ((form.market_update_wiki_url) = $event)),
                                               label: "Wiki 地址",
                                               disabled: !form.market_update_enabled
                                             }, null, 8, ["modelValue", "disabled"])
@@ -2239,7 +2195,7 @@ return (_ctx, _cache) => {
                                           default: _withCtx(() => [
                                             _createVNode(_component_VSelect, {
                                               modelValue: form.market_update_blacklist,
-                                              "onUpdate:modelValue": _cache[71] || (_cache[71] = $event => ((form.market_update_blacklist) = $event)),
+                                              "onUpdate:modelValue": _cache[68] || (_cache[68] = $event => ((form.market_update_blacklist) = $event)),
                                               items: pluginMarkets.value,
                                               loading: marketsLoading.value,
                                               label: "黑名单插件库（不参与更新检查）",
@@ -2283,7 +2239,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.market_update_auto_install,
-                                  "onUpdate:modelValue": _cache[72] || (_cache[72] = $event => ((form.market_update_auto_install) = $event)),
+                                  "onUpdate:modelValue": _cache[69] || (_cache[69] = $event => ((form.market_update_auto_install) = $event)),
                                   color: "warning",
                                   inset: "",
                                   "hide-details": "",
@@ -2300,7 +2256,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.market_update_skip_running,
-                                  "onUpdate:modelValue": _cache[73] || (_cache[73] = $event => ((form.market_update_skip_running) = $event)),
+                                  "onUpdate:modelValue": _cache[70] || (_cache[70] = $event => ((form.market_update_skip_running) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -2314,7 +2270,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.market_update_install_ids,
-                                  "onUpdate:modelValue": _cache[74] || (_cache[74] = $event => ((form.market_update_install_ids) = $event)),
+                                  "onUpdate:modelValue": _cache[71] || (_cache[71] = $event => ((form.market_update_install_ids) = $event)),
                                   items: installedPlugins.value,
                                   loading: installedLoading.value,
                                   label: "自动更新范围",
@@ -2334,7 +2290,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.market_update_exclude_ids,
-                                  "onUpdate:modelValue": _cache[75] || (_cache[75] = $event => ((form.market_update_exclude_ids) = $event)),
+                                  "onUpdate:modelValue": _cache[72] || (_cache[72] = $event => ((form.market_update_exclude_ids) = $event)),
                                   items: installedPlugins.value,
                                   loading: installedLoading.value,
                                   label: "排除插件",
@@ -2388,7 +2344,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.plugin_uninstall_ids,
-                                  "onUpdate:modelValue": _cache[76] || (_cache[76] = $event => ((form.plugin_uninstall_ids) = $event)),
+                                  "onUpdate:modelValue": _cache[73] || (_cache[73] = $event => ((form.plugin_uninstall_ids) = $event)),
                                   items: installedPlugins.value,
                                   loading: installedLoading.value,
                                   label: "选择要卸载的已安装插件",
@@ -2421,7 +2377,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.plugin_uninstall_remove_plugin,
-                                  "onUpdate:modelValue": _cache[77] || (_cache[77] = $event => ((form.plugin_uninstall_remove_plugin) = $event)),
+                                  "onUpdate:modelValue": _cache[74] || (_cache[74] = $event => ((form.plugin_uninstall_remove_plugin) = $event)),
                                   color: "error",
                                   inset: "",
                                   "hide-details": "",
@@ -2437,7 +2393,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.plugin_uninstall_clear_config,
-                                  "onUpdate:modelValue": _cache[78] || (_cache[78] = $event => ((form.plugin_uninstall_clear_config) = $event)),
+                                  "onUpdate:modelValue": _cache[75] || (_cache[75] = $event => ((form.plugin_uninstall_clear_config) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -2453,7 +2409,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.plugin_uninstall_clear_data,
-                                  "onUpdate:modelValue": _cache[79] || (_cache[79] = $event => ((form.plugin_uninstall_clear_data) = $event)),
+                                  "onUpdate:modelValue": _cache[76] || (_cache[76] = $event => ((form.plugin_uninstall_clear_data) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -2482,7 +2438,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.plugin_uninstall_notify,
-                                  "onUpdate:modelValue": _cache[80] || (_cache[80] = $event => ((form.plugin_uninstall_notify) = $event)),
+                                  "onUpdate:modelValue": _cache[77] || (_cache[77] = $event => ((form.plugin_uninstall_notify) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -2498,7 +2454,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.plugin_uninstall_notify_type,
-                                  "onUpdate:modelValue": _cache[81] || (_cache[81] = $event => ((form.plugin_uninstall_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[78] || (_cache[78] = $event => ((form.plugin_uninstall_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
                                   disabled: !form.plugin_uninstall_notify
@@ -2513,7 +2469,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.plugin_uninstall_delete_source,
-                                  "onUpdate:modelValue": _cache[82] || (_cache[82] = $event => ((form.plugin_uninstall_delete_source) = $event)),
+                                  "onUpdate:modelValue": _cache[79] || (_cache[79] = $event => ((form.plugin_uninstall_delete_source) = $event)),
                                   color: "error",
                                   inset: "",
                                   "hide-details": "",
@@ -2539,7 +2495,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.seedclean_enabled,
-                      "onUpdate:enabled": _cache[83] || (_cache[83] = $event => ((form.seedclean_enabled) = $event)),
+                      "onUpdate:enabled": _cache[80] || (_cache[80] = $event => ((form.seedclean_enabled) = $event)),
                       icon: "mdi-delete-sweep-outline",
                       kicker: "MP 下载器管理",
                       "on-title": "自动删种已启用",
@@ -2561,7 +2517,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VCronField, {
                                   modelValue: form.seedclean_cron,
-                                  "onUpdate:modelValue": _cache[84] || (_cache[84] = $event => ((form.seedclean_cron) = $event)),
+                                  "onUpdate:modelValue": _cache[81] || (_cache[81] = $event => ((form.seedclean_cron) = $event)),
                                   label: "执行周期 (Cron)",
                                   disabled: !form.seedclean_enabled
                                 }, null, 8, ["modelValue", "disabled"])
@@ -2575,7 +2531,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.seedclean_action,
-                                  "onUpdate:modelValue": _cache[85] || (_cache[85] = $event => ((form.seedclean_action) = $event)),
+                                  "onUpdate:modelValue": _cache[82] || (_cache[82] = $event => ((form.seedclean_action) = $event)),
                                   items: seedActionItems,
                                   "hide-details": "",
                                   label: "动作",
@@ -2588,7 +2544,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.seedclean_downloaders,
-                                  "onUpdate:modelValue": _cache[86] || (_cache[86] = $event => ((form.seedclean_downloaders) = $event)),
+                                  "onUpdate:modelValue": _cache[83] || (_cache[83] = $event => ((form.seedclean_downloaders) = $event)),
                                   items: downloaderOptions.value,
                                   loading: downloadersLoading.value,
                                   label: "下载器（必选）",
@@ -2625,7 +2581,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_size,
-                                  "onUpdate:modelValue": _cache[87] || (_cache[87] = $event => ((form.seedclean_size) = $event)),
+                                  "onUpdate:modelValue": _cache[84] || (_cache[84] = $event => ((form.seedclean_size) = $event)),
                                   label: "种子大小（GB）",
                                   "hide-details": "",
                                   placeholder: "1-10",
@@ -2642,7 +2598,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_ratio,
-                                  "onUpdate:modelValue": _cache[88] || (_cache[88] = $event => ((form.seedclean_ratio) = $event)),
+                                  "onUpdate:modelValue": _cache[85] || (_cache[85] = $event => ((form.seedclean_ratio) = $event)),
                                   label: "分享率不小于",
                                   "hide-details": "",
                                   placeholder: "2",
@@ -2659,7 +2615,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_time,
-                                  "onUpdate:modelValue": _cache[89] || (_cache[89] = $event => ((form.seedclean_time) = $event)),
+                                  "onUpdate:modelValue": _cache[86] || (_cache[86] = $event => ((form.seedclean_time) = $event)),
                                   label: "做种不少于（小时）",
                                   "hide-details": "",
                                   placeholder: "240",
@@ -2676,7 +2632,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_upspeed,
-                                  "onUpdate:modelValue": _cache[90] || (_cache[90] = $event => ((form.seedclean_upspeed) = $event)),
+                                  "onUpdate:modelValue": _cache[87] || (_cache[87] = $event => ((form.seedclean_upspeed) = $event)),
                                   label: "均速上限（KB/s）",
                                   "hide-details": "",
                                   placeholder: "低于才处理",
@@ -2693,7 +2649,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_labels,
-                                  "onUpdate:modelValue": _cache[91] || (_cache[91] = $event => ((form.seedclean_labels) = $event)),
+                                  "onUpdate:modelValue": _cache[88] || (_cache[88] = $event => ((form.seedclean_labels) = $event)),
                                   label: "标签",
                                   "hide-details": "",
                                   placeholder: "逗号分隔",
@@ -2710,7 +2666,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_torrentcategorys,
-                                  "onUpdate:modelValue": _cache[92] || (_cache[92] = $event => ((form.seedclean_torrentcategorys) = $event)),
+                                  "onUpdate:modelValue": _cache[89] || (_cache[89] = $event => ((form.seedclean_torrentcategorys) = $event)),
                                   label: "任务分类",
                                   "hide-details": "",
                                   placeholder: "逗号分隔",
@@ -2727,7 +2683,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_pathkeywords,
-                                  "onUpdate:modelValue": _cache[93] || (_cache[93] = $event => ((form.seedclean_pathkeywords) = $event)),
+                                  "onUpdate:modelValue": _cache[90] || (_cache[90] = $event => ((form.seedclean_pathkeywords) = $event)),
                                   label: "保存路径关键词",
                                   "hide-details": "",
                                   placeholder: "支持正则",
@@ -2744,7 +2700,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_trackerkeywords,
-                                  "onUpdate:modelValue": _cache[94] || (_cache[94] = $event => ((form.seedclean_trackerkeywords) = $event)),
+                                  "onUpdate:modelValue": _cache[91] || (_cache[91] = $event => ((form.seedclean_trackerkeywords) = $event)),
                                   label: "Tracker 关键词",
                                   "hide-details": "",
                                   placeholder: "支持正则",
@@ -2761,7 +2717,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_torrentstates,
-                                  "onUpdate:modelValue": _cache[95] || (_cache[95] = $event => ((form.seedclean_torrentstates) = $event)),
+                                  "onUpdate:modelValue": _cache[92] || (_cache[92] = $event => ((form.seedclean_torrentstates) = $event)),
                                   label: "任务状态（仅 QB）",
                                   "hide-details": "",
                                   placeholder: "pausedUP,stalledUP",
@@ -2778,7 +2734,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.seedclean_errorkeywords,
-                                  "onUpdate:modelValue": _cache[96] || (_cache[96] = $event => ((form.seedclean_errorkeywords) = $event)),
+                                  "onUpdate:modelValue": _cache[93] || (_cache[93] = $event => ((form.seedclean_errorkeywords) = $event)),
                                   label: "错误信息（仅 TR）",
                                   "hide-details": "",
                                   placeholder: "支持正则",
@@ -2808,7 +2764,7 @@ return (_ctx, _cache) => {
                                 _createElementVNode("div", _hoisted_34, [
                                   _createVNode(_component_VSwitch, {
                                     modelValue: form.seedclean_samedata,
-                                    "onUpdate:modelValue": _cache[97] || (_cache[97] = $event => ((form.seedclean_samedata) = $event)),
+                                    "onUpdate:modelValue": _cache[94] || (_cache[94] = $event => ((form.seedclean_samedata) = $event)),
                                     color: "primary",
                                     inset: "",
                                     "hide-details": "",
@@ -2817,7 +2773,7 @@ return (_ctx, _cache) => {
                                   }, null, 8, ["modelValue", "disabled"]),
                                   _createVNode(_component_VSwitch, {
                                     modelValue: form.seedclean_mponly,
-                                    "onUpdate:modelValue": _cache[98] || (_cache[98] = $event => ((form.seedclean_mponly) = $event)),
+                                    "onUpdate:modelValue": _cache[95] || (_cache[95] = $event => ((form.seedclean_mponly) = $event)),
                                     color: "primary",
                                     inset: "",
                                     "hide-details": "",
@@ -2826,7 +2782,7 @@ return (_ctx, _cache) => {
                                   }, null, 8, ["modelValue", "disabled"]),
                                   _createVNode(_component_VSwitch, {
                                     modelValue: form.seedclean_notify,
-                                    "onUpdate:modelValue": _cache[99] || (_cache[99] = $event => ((form.seedclean_notify) = $event)),
+                                    "onUpdate:modelValue": _cache[96] || (_cache[96] = $event => ((form.seedclean_notify) = $event)),
                                     color: "primary",
                                     inset: "",
                                     "hide-details": "",
@@ -2844,7 +2800,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.seedclean_notify_type,
-                                  "onUpdate:modelValue": _cache[100] || (_cache[100] = $event => ((form.seedclean_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[97] || (_cache[97] = $event => ((form.seedclean_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   "hide-details": "",
                                   label: "消息类型",
@@ -2870,7 +2826,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.msgnotify_enabled,
-                      "onUpdate:enabled": _cache[101] || (_cache[101] = $event => ((form.msgnotify_enabled) = $event)),
+                      "onUpdate:enabled": _cache[98] || (_cache[98] = $event => ((form.msgnotify_enabled) = $event)),
                       icon: "mdi-television-play",
                       kicker: "MP 媒体通知",
                       "on-title": "媒体服务器通知已启用",
@@ -2892,7 +2848,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.msgnotify_notify_type,
-                                  "onUpdate:modelValue": _cache[102] || (_cache[102] = $event => ((form.msgnotify_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[99] || (_cache[99] = $event => ((form.msgnotify_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
                                   "prepend-inner-icon": "mdi-message-badge-outline",
@@ -2908,7 +2864,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.msgnotify_types,
-                                  "onUpdate:modelValue": _cache[103] || (_cache[103] = $event => ((form.msgnotify_types) = $event)),
+                                  "onUpdate:modelValue": _cache[100] || (_cache[100] = $event => ((form.msgnotify_types) = $event)),
                                   items: _unref(msgGroupItems),
                                   label: "通知哪些事件",
                                   multiple: "",
@@ -2925,7 +2881,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.msgnotify_servers,
-                                  "onUpdate:modelValue": _cache[104] || (_cache[104] = $event => ((form.msgnotify_servers) = $event)),
+                                  "onUpdate:modelValue": _cache[101] || (_cache[101] = $event => ((form.msgnotify_servers) = $event)),
                                   items: mediaserverOptions.value,
                                   loading: mediaserversLoading.value,
                                   label: "媒体服务器范围",
@@ -2959,7 +2915,7 @@ return (_ctx, _cache) => {
                   default: _withCtx(() => [
                     _createVNode(_unref(ModuleHero), {
                       enabled: form.dltag_enabled,
-                      "onUpdate:enabled": _cache[105] || (_cache[105] = $event => ((form.dltag_enabled) = $event)),
+                      "onUpdate:enabled": _cache[102] || (_cache[102] = $event => ((form.dltag_enabled) = $event)),
                       icon: "mdi-tag-multiple-outline",
                       kicker: "MP 下载器管理",
                       "on-title": "批量打标签已启用",
@@ -2981,7 +2937,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.dltag_downloaders,
-                                  "onUpdate:modelValue": _cache[106] || (_cache[106] = $event => ((form.dltag_downloaders) = $event)),
+                                  "onUpdate:modelValue": _cache[103] || (_cache[103] = $event => ((form.dltag_downloaders) = $event)),
                                   items: downloaderOptions.value,
                                   loading: downloadersLoading.value,
                                   label: "下载器范围",
@@ -3004,7 +2960,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VTextField, {
                                   modelValue: form.dltag_prefix,
-                                  "onUpdate:modelValue": _cache[107] || (_cache[107] = $event => ((form.dltag_prefix) = $event)),
+                                  "onUpdate:modelValue": _cache[104] || (_cache[104] = $event => ((form.dltag_prefix) = $event)),
                                   label: "标签前缀（可选）",
                                   placeholder: "如 站点-",
                                   clearable: "",
@@ -3033,7 +2989,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSwitch, {
                                   modelValue: form.dltag_notify,
-                                  "onUpdate:modelValue": _cache[108] || (_cache[108] = $event => ((form.dltag_notify) = $event)),
+                                  "onUpdate:modelValue": _cache[105] || (_cache[105] = $event => ((form.dltag_notify) = $event)),
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
@@ -3050,7 +3006,7 @@ return (_ctx, _cache) => {
                               default: _withCtx(() => [
                                 _createVNode(_component_VSelect, {
                                   modelValue: form.dltag_notify_type,
-                                  "onUpdate:modelValue": _cache[109] || (_cache[109] = $event => ((form.dltag_notify_type) = $event)),
+                                  "onUpdate:modelValue": _cache[106] || (_cache[106] = $event => ((form.dltag_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
                                   disabled: !form.dltag_enabled || !form.dltag_notify
@@ -3119,9 +3075,9 @@ return (_ctx, _cache) => {
             _createVNode(_component_VSpacer),
             _createVNode(_component_VBtn, {
               variant: "text",
-              onClick: _cache[110] || (_cache[110] = $event => (emit('close')))
+              onClick: _cache[107] || (_cache[107] = $event => (emit('close')))
             }, {
-              default: _withCtx(() => [...(_cache[116] || (_cache[116] = [
+              default: _withCtx(() => [...(_cache[113] || (_cache[113] = [
                 _createTextVNode("取消", -1)
               ]))]),
               _: 1
@@ -3132,7 +3088,7 @@ return (_ctx, _cache) => {
               "prepend-icon": "mdi-content-save-outline",
               onClick: saveConfig
             }, {
-              default: _withCtx(() => [...(_cache[117] || (_cache[117] = [
+              default: _withCtx(() => [...(_cache[114] || (_cache[114] = [
                 _createTextVNode("保存配置", -1)
               ]))]),
               _: 1
@@ -3148,6 +3104,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-8f20929e"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-2c654354"]]);
 
 export { Config as default };
