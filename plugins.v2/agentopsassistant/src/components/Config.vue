@@ -88,13 +88,85 @@ const SettingSection = defineComponent({
 
 // 手动触发动作状态
 const action = reactive({ running: '', message: '', ok: true })
+const actionComponentMap = {
+  run_daily_report: 'daily_report',
+  run_heartbeat_report: 'daily_report',
+  run_subscribe_reminder: 'subscribe_reminder',
+  run_site_stat: 'site_stat',
+  run_health_check: 'health_check',
+  subfill_clear_history: 'subfill',
+  subfill_clear_handled: 'subfill',
+  run_backup: 'backup',
+  preview_backup_restore: 'backup',
+  run_backup_restore: 'backup',
+  run_log_clean: 'log_clean',
+  preview_log_clean: 'log_clean',
+  run_mp_update: 'mp_update',
+  run_market_update: 'market_update',
+  run_seed_clean: 'seedclean',
+  run_downloader_tag: 'dltag',
+}
+const actionDisabledReason = computed(() => {
+  if (!form.enabled) return '插件总开关未启用，手动动作已暂停。'
+  return ''
+})
+function actionComponentEnabled(itemOrPath) {
+  const path = typeof itemOrPath === 'string' ? itemOrPath : itemOrPath?.path
+  const component = actionComponentMap[path]
+  if (!component) return true
+  return !!form[`${component}_enabled`]
+}
+function actionComponentDisabledMessage(path) {
+  const component = actionComponentMap[path]
+  if (!component || actionComponentEnabled(path)) return ''
+  return '当前组件未启用，手动动作已暂停。'
+}
+function buildActionPayload(path) {
+  if (path !== 'run_plugin_uninstall') return {}
+  return {
+    plugin_uninstall_ids: Array.isArray(form.plugin_uninstall_ids) ? [...form.plugin_uninstall_ids] : [],
+    plugin_uninstall_remove_plugin: !!form.plugin_uninstall_remove_plugin,
+    plugin_uninstall_clear_config: !!form.plugin_uninstall_clear_config,
+    plugin_uninstall_clear_data: !!form.plugin_uninstall_clear_data,
+    plugin_uninstall_delete_source: !!form.plugin_uninstall_delete_source,
+    plugin_uninstall_notify: !!form.plugin_uninstall_notify,
+    plugin_uninstall_notify_type: form.plugin_uninstall_notify_type || 'Plugin',
+  }
+}
+
+function installedPluginValues() {
+  return new Set((installedPlugins.value || []).map(item => String(item?.value ?? item?.id ?? item?.title ?? item ?? '')))
+}
+
+async function refreshAfterPluginUninstall(res) {
+  const uninstalled = Array.isArray(res?.data?.uninstalled) ? res.data.uninstalled : []
+  const removed = new Set(uninstalled
+    .filter(item => item && item.success !== false)
+    .map(item => String(item.plugin_id || item.id || item.value || ''))
+    .filter(Boolean))
+  await loadInstalledPlugins()
+  const available = installedPluginValues()
+  form.plugin_uninstall_ids = (Array.isArray(form.plugin_uninstall_ids) ? form.plugin_uninstall_ids : [])
+    .filter(id => !removed.has(String(id)) && available.has(String(id)))
+  form.plugin_uninstall_confirm = false
+}
+
 async function runAction(path, label) {
   if (action.running) return
+  const disabledMessage = actionDisabledReason.value || actionComponentDisabledMessage(path)
+  if (disabledMessage) {
+    action.ok = false
+    action.message = disabledMessage
+    return
+  }
   action.running = path
   action.message = ''
   try {
-    const res = await postPluginApi(props.api, path)
-    const ok = !res || res.code === 0 || res.code === undefined
+    const res = await postPluginApi(props.api, path, buildActionPayload(path))
+    const ok = !!res && res.code === 0
+    if (ok && path === 'run_plugin_uninstall') {
+      await refreshAfterPluginUninstall(res)
+    }
     action.ok = ok
     action.message = (res && res.msg) || `${label}已${ok ? '完成' : '失败'}`
   } catch (err) {
@@ -117,6 +189,153 @@ async function loadInstalledPlugins() {
     installedPlugins.value = []
   } finally {
     installedLoading.value = false
+  }
+}
+
+// 本地备份恢复
+const backupArchives = ref([])
+const backupArchivesLoading = ref(false)
+const backupRestoreLoading = ref(false)
+const backupRestoreResult = ref(null)
+const backupRestore = reactive({
+  archive: '',
+  restore_config: true,
+  restore_cookies: true,
+  restore_database: true,
+  confirm: false,
+})
+const webdavBackupArchives = ref([])
+const webdavBackupArchivesLoading = ref(false)
+const webdavBackupRestoreLoading = ref(false)
+const webdavBackupRestoreResult = ref(null)
+const webdavBackupRestore = reactive({
+  archive: '',
+  restore_config: true,
+  restore_cookies: true,
+  restore_database: true,
+  confirm: false,
+})
+const backupRestoreUnavailable = computed(() => !form.enabled || !form.backup_enabled)
+const backupRestoreUnavailableMessage = computed(() => {
+  if (!form.enabled) return '插件总开关未启用，备份恢复已跳过。'
+  if (!form.backup_enabled) return '自动备份组件未启用，备份恢复已跳过。'
+  return ''
+})
+const webdavBackupRestoreUnavailable = computed(() => !form.enabled || !form.backup_enabled || !form.backup_webdav_enabled)
+const webdavBackupRestoreUnavailableMessage = computed(() => {
+  if (!form.enabled) return '插件总开关未启用，WebDAV 恢复已跳过。'
+  if (!form.backup_enabled) return '自动备份组件未启用，WebDAV 恢复已跳过。'
+  if (!form.backup_webdav_enabled) return 'WebDAV 远端备份未启用，恢复已跳过。'
+  return ''
+})
+async function loadBackupArchives() {
+  backupArchivesLoading.value = true
+  try {
+    const res = await getPluginApi(props.api, 'backup_archives')
+    backupArchives.value = Array.isArray(res) ? res : (res?.data || [])
+    if (!backupRestore.archive && backupArchives.value.length) {
+      backupRestore.archive = backupArchives.value[0].name || backupArchives.value[0].value || ''
+    }
+  } catch {
+    backupArchives.value = []
+  } finally {
+    backupArchivesLoading.value = false
+  }
+}
+async function loadWebdavBackupArchives() {
+  if (webdavBackupRestoreUnavailable.value) {
+    webdavBackupArchives.value = []
+    return
+  }
+  webdavBackupArchivesLoading.value = true
+  try {
+    const res = await getPluginApi(props.api, 'webdav_backup_archives')
+    webdavBackupArchives.value = Array.isArray(res) ? res : (res?.data || [])
+    if (!webdavBackupRestore.archive && webdavBackupArchives.value.length) {
+      webdavBackupRestore.archive = webdavBackupArchives.value[0].name || webdavBackupArchives.value[0].value || ''
+    }
+  } catch {
+    webdavBackupArchives.value = []
+  } finally {
+    webdavBackupArchivesLoading.value = false
+  }
+}
+function backupRestorePayload() {
+  return {
+    archive: backupRestore.archive,
+    restore_config: !!backupRestore.restore_config,
+    restore_cookies: !!backupRestore.restore_cookies,
+    restore_database: !!backupRestore.restore_database,
+  }
+}
+function webdavBackupRestorePayload() {
+  return {
+    archive: webdavBackupRestore.archive,
+    restore_config: !!webdavBackupRestore.restore_config,
+    restore_cookies: !!webdavBackupRestore.restore_cookies,
+    restore_database: !!webdavBackupRestore.restore_database,
+  }
+}
+async function previewBackupRestore() {
+  if (!backupRestore.archive || backupRestoreLoading.value) return
+  if (backupRestoreUnavailable.value) {
+    backupRestoreResult.value = { code: 1, msg: backupRestoreUnavailableMessage.value }
+    return
+  }
+  backupRestoreLoading.value = true
+  try {
+    backupRestoreResult.value = await postPluginApi(props.api, 'preview_backup_restore', backupRestorePayload())
+  } catch (err) {
+    backupRestoreResult.value = { code: 1, msg: err?.message || '备份恢复预览失败' }
+  } finally {
+    backupRestoreLoading.value = false
+  }
+}
+async function previewWebdavBackupRestore() {
+  if (!webdavBackupRestore.archive || webdavBackupRestoreLoading.value) return
+  if (webdavBackupRestoreUnavailable.value) {
+    webdavBackupRestoreResult.value = { code: 1, msg: webdavBackupRestoreUnavailableMessage.value }
+    return
+  }
+  webdavBackupRestoreLoading.value = true
+  try {
+    webdavBackupRestoreResult.value = await postPluginApi(props.api, 'preview_webdav_backup_restore', webdavBackupRestorePayload())
+  } catch (err) {
+    webdavBackupRestoreResult.value = { code: 1, msg: err?.message || 'WebDAV 备份恢复预览失败' }
+  } finally {
+    webdavBackupRestoreLoading.value = false
+  }
+}
+async function runWebdavBackupRestore() {
+  if (!webdavBackupRestore.archive || !webdavBackupRestore.confirm || webdavBackupRestoreLoading.value) return
+  if (webdavBackupRestoreUnavailable.value) {
+    webdavBackupRestoreResult.value = { code: 1, msg: webdavBackupRestoreUnavailableMessage.value }
+    return
+  }
+  webdavBackupRestoreLoading.value = true
+  try {
+    webdavBackupRestoreResult.value = await postPluginApi(props.api, 'run_webdav_backup_restore', webdavBackupRestorePayload())
+    await loadBackupArchives()
+  } catch (err) {
+    webdavBackupRestoreResult.value = { code: 1, msg: err?.message || 'WebDAV 备份恢复执行失败' }
+  } finally {
+    webdavBackupRestoreLoading.value = false
+  }
+}
+async function runBackupRestore() {
+  if (!backupRestore.archive || !backupRestore.confirm || backupRestoreLoading.value) return
+  if (backupRestoreUnavailable.value) {
+    backupRestoreResult.value = { code: 1, msg: backupRestoreUnavailableMessage.value }
+    return
+  }
+  backupRestoreLoading.value = true
+  try {
+    backupRestoreResult.value = await postPluginApi(props.api, 'run_backup_restore', backupRestorePayload())
+    await loadBackupArchives()
+  } catch (err) {
+    backupRestoreResult.value = { code: 1, msg: err?.message || '备份恢复执行失败' }
+  } finally {
+    backupRestoreLoading.value = false
   }
 }
 
@@ -252,6 +471,7 @@ const defaults = {
   market_update_wiki_xpath: '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()',
   plugin_uninstall_id: '',
   plugin_uninstall_ids: [],
+  plugin_uninstall_confirm: false,
   plugin_uninstall_remove_plugin: true,
   plugin_uninstall_clear_config: true,
   plugin_uninstall_clear_data: true,
@@ -469,16 +689,6 @@ const activeActionItems = computed(() => {
     market: [
       { path: 'run_market_update', label: '立即检查', icon: 'mdi-cloud-sync-outline', note: '检查插件库并处理已安装插件更新' },
     ],
-    clean: [
-      {
-        path: 'run_plugin_uninstall',
-        label: '执行卸载',
-        icon: 'mdi-puzzle-remove-outline',
-        note: '不可逆操作，执行前确认插件和清理范围',
-        color: 'error',
-        disabled: !form.plugin_uninstall_ids || !form.plugin_uninstall_ids.length,
-      },
-    ],
     seedremove: [
       {
         path: 'run_seed_clean',
@@ -543,11 +753,13 @@ watch(() => props.initialConfig, value => {
   form.health_check_database_targets = toArr(form.health_check_database_targets)
   form.health_check_storage_targets = toArr(form.health_check_storage_targets)
   form.health_check_directory_targets = toArr(form.health_check_directory_targets)
+  form.plugin_uninstall_confirm = false
 }, { immediate: true, deep: true })
 
 function saveConfig() {
   emit('save', {
     ...form,
+    plugin_uninstall_confirm: false,
     daily_report_telegram_rich_enabled: true,
     daily_report_telegram_bot_token: '',
     daily_report_telegram_chat_id: '',
@@ -571,6 +783,8 @@ function bindDialogScrollHost() {
 onMounted(() => {
   bindDialogScrollHost()
   loadInstalledPlugins()
+  loadBackupArchives()
+  loadWebdavBackupArchives()
   loadPluginMarkets()
   loadDownloaders()
   loadMediaservers()
@@ -828,7 +1042,9 @@ onBeforeUnmount(() => {
                     <VSelect v-model="form.health_check_notify_type" :items="notificationTypeItems" label="异常通知渠道"
                       class="aoa-health-field-third" :disabled="!form.health_check_enabled" />
                     <VSelect v-model="form.health_check_items" :items="healthCheckItems" class="aoa-health-field-full aoa-health-select"
-                      label="巡查项目" multiple chips closable-chips clearable :disabled="!form.health_check_enabled">
+                      label="巡查项目" multiple chips closable-chips clearable
+                      hint="留空或清空表示巡查全部项目" persistent-hint
+                      :disabled="!form.health_check_enabled">
                       <template #chip="{ item, props }">
                         <VChip v-bind="props" class="aoa-health-selection-chip" variant="tonal">
                           {{ selectionTitle(item) }}
@@ -959,6 +1175,71 @@ onBeforeUnmount(() => {
                     </VCol>
                   </VRow>
                 </SettingSection>
+                <SettingSection title="一键恢复" note="从本插件生成的本地备份包恢复配置、Cookies 或数据库">
+                  <VRow class="aoa-setting-grid">
+                    <VCol v-if="backupRestoreUnavailable" cols="12">
+                      <VAlert type="warning" variant="tonal" density="comfortable">
+                        {{ backupRestoreUnavailableMessage }}
+                      </VAlert>
+                    </VCol>
+                    <VCol cols="12" md="8">
+                      <VSelect v-model="backupRestore.archive" :items="backupArchives"
+                        item-title="name" item-value="name" label="选择备份包"
+                        prepend-inner-icon="mdi-archive-search-outline"
+                        :loading="backupArchivesLoading" :disabled="backupRestoreUnavailable || backupArchivesLoading"
+                        no-data-text="暂无可恢复备份包" />
+                    </VCol>
+                    <VCol cols="12" md="4" class="d-flex align-center">
+                      <VBtn variant="tonal" color="primary" block
+                        prepend-icon="mdi-refresh"
+                        :loading="backupArchivesLoading"
+                        :disabled="backupRestoreUnavailable"
+                        @click="loadBackupArchives">
+                        刷新列表
+                      </VBtn>
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VCheckbox v-model="backupRestore.restore_config" hide-details
+                        label="恢复配置文件" :disabled="backupRestoreUnavailable" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VCheckbox v-model="backupRestore.restore_cookies" hide-details
+                        label="恢复 Cookies" :disabled="backupRestoreUnavailable" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VCheckbox v-model="backupRestore.restore_database" hide-details
+                        label="恢复数据库" :disabled="backupRestoreUnavailable" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VSwitch v-model="backupRestore.confirm" color="error" inset hide-details
+                        label="确认覆盖当前配置" :disabled="backupRestoreUnavailable" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VBtn variant="tonal" color="primary" block
+                        prepend-icon="mdi-file-eye-outline"
+                        :loading="backupRestoreLoading"
+                        :disabled="backupRestoreUnavailable || !backupRestore.archive"
+                        @click="previewBackupRestore">
+                        预览恢复
+                      </VBtn>
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VBtn variant="flat" color="error" block
+                        prepend-icon="mdi-backup-restore"
+                        :loading="backupRestoreLoading"
+                        :disabled="backupRestoreUnavailable || !backupRestore.archive || !backupRestore.confirm"
+                        @click="runBackupRestore">
+                        一键恢复
+                      </VBtn>
+                    </VCol>
+                    <VCol v-if="backupRestoreResult" cols="12">
+                      <VAlert :type="backupRestoreResult.code === 0 ? 'success' : 'error'"
+                        variant="tonal" density="comfortable">
+                        {{ backupRestoreResult.msg || backupRestoreResult.text || '备份恢复已返回结果' }}
+                      </VAlert>
+                    </VCol>
+                  </VRow>
+                </SettingSection>
               </VForm>
             </div>
 
@@ -1012,6 +1293,72 @@ onBeforeUnmount(() => {
                     <VCol cols="12" md="8">
                       <VSwitch v-model="form.backup_webdav_disable_check" color="warning" inset hide-details
                         label="跳过证书校验（自签名时启用）" :disabled="!form.backup_webdav_enabled" />
+                    </VCol>
+                  </VRow>
+                </SettingSection>
+                <SettingSection title="WebDAV 一键恢复" note="从远端备份包下载到本地后恢复配置、Cookies 或数据库">
+                  <VRow class="aoa-setting-grid">
+                    <VCol v-if="webdavBackupRestoreUnavailable" cols="12">
+                      <VAlert type="warning" variant="tonal" density="comfortable">
+                        {{ webdavBackupRestoreUnavailableMessage }}
+                      </VAlert>
+                    </VCol>
+                    <VCol cols="12" md="8">
+                      <VSelect v-model="webdavBackupRestore.archive" :items="webdavBackupArchives"
+                        item-title="name" item-value="name" label="选择远端备份包"
+                        prepend-inner-icon="mdi-cloud-search-outline"
+                        :loading="webdavBackupArchivesLoading"
+                        :disabled="webdavBackupRestoreUnavailable || webdavBackupArchivesLoading"
+                        no-data-text="暂无远端可恢复备份包" />
+                    </VCol>
+                    <VCol cols="12" md="4" class="d-flex align-center">
+                      <VBtn variant="tonal" color="primary" block
+                        prepend-icon="mdi-cloud-sync-outline"
+                        :loading="webdavBackupArchivesLoading"
+                        :disabled="webdavBackupRestoreUnavailable"
+                        @click="loadWebdavBackupArchives">
+                        刷新远端
+                      </VBtn>
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VCheckbox v-model="webdavBackupRestore.restore_config" hide-details
+                        label="恢复配置文件" :disabled="webdavBackupRestoreUnavailable" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VCheckbox v-model="webdavBackupRestore.restore_cookies" hide-details
+                        label="恢复 Cookies" :disabled="webdavBackupRestoreUnavailable" />
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <VCheckbox v-model="webdavBackupRestore.restore_database" hide-details
+                        label="恢复数据库" :disabled="webdavBackupRestoreUnavailable" />
+                    </VCol>
+                    <VCol cols="12">
+                      <VSwitch v-model="webdavBackupRestore.confirm" color="error" inset hide-details
+                        label="确认下载并覆盖当前配置" :disabled="webdavBackupRestoreUnavailable" />
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VBtn variant="tonal" color="primary" block
+                        prepend-icon="mdi-file-eye-outline"
+                        :loading="webdavBackupRestoreLoading"
+                        :disabled="webdavBackupRestoreUnavailable || !webdavBackupRestore.archive"
+                        @click="previewWebdavBackupRestore">
+                        预览远端恢复
+                      </VBtn>
+                    </VCol>
+                    <VCol cols="12" md="6">
+                      <VBtn variant="flat" color="error" block
+                        prepend-icon="mdi-cloud-refresh-outline"
+                        :loading="webdavBackupRestoreLoading"
+                        :disabled="webdavBackupRestoreUnavailable || !webdavBackupRestore.archive || !webdavBackupRestore.confirm"
+                        @click="runWebdavBackupRestore">
+                        恢复远端备份
+                      </VBtn>
+                    </VCol>
+                    <VCol v-if="webdavBackupRestoreResult" cols="12">
+                      <VAlert :type="webdavBackupRestoreResult.code === 0 ? 'success' : 'error'"
+                        variant="tonal" density="comfortable">
+                        {{ webdavBackupRestoreResult.msg || webdavBackupRestoreResult.text || 'WebDAV 备份恢复已返回结果' }}
+                      </VAlert>
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -1166,6 +1513,10 @@ onBeforeUnmount(() => {
                             <VTextField v-model="form.market_update_wiki_url" label="Wiki 地址"
                               :disabled="!form.market_update_enabled" />
                           </VCol>
+                          <VCol cols="12" md="6">
+                            <VTextField v-model="form.market_update_wiki_xpath" label="Wiki XPath"
+                              :disabled="!form.market_update_enabled" />
+                          </VCol>
                           <VCol cols="12">
                             <VSelect v-model="form.market_update_blacklist" :items="pluginMarkets"
                               :loading="marketsLoading" label="黑名单插件库（不参与更新检查）"
@@ -1230,6 +1581,33 @@ onBeforeUnmount(() => {
                         :loading="installedLoading" label="选择要卸载的已安装插件"
                         multiple chips closable-chips clearable
                         prepend-inner-icon="mdi-puzzle-remove-outline" />
+                    </VCol>
+                    <VCol cols="12">
+                      <div class="aoa-inline-action aoa-plugin-uninstall-action">
+                        <VSwitch
+                          v-model="form.plugin_uninstall_confirm"
+                          color="error"
+                          inset
+                          hide-details
+                          density="compact"
+                          class="aoa-plugin-uninstall-confirm"
+                          label="确认执行卸载"
+                        />
+                        <VBtn
+                          size="small"
+                          color="error"
+                          variant="tonal"
+                          prepend-icon="mdi-puzzle-remove-outline"
+                          class="aoa-action-btn text-none"
+                          :disabled="!!actionDisabledReason || !(form.plugin_uninstall_ids && form.plugin_uninstall_ids.length) || !form.plugin_uninstall_confirm"
+                          :title="actionDisabledReason || (!(form.plugin_uninstall_ids && form.plugin_uninstall_ids.length) ? '请先选择要卸载的插件' : !form.plugin_uninstall_confirm ? '请先确认执行卸载' : '')"
+                          :loading="action.running === 'run_plugin_uninstall'"
+                          @click="runAction('run_plugin_uninstall', '执行卸载')"
+                        >
+                          执行卸载
+                        </VBtn>
+                        <span class="aoa-action-note">不可逆操作，执行前确认插件和清理范围</span>
+                      </div>
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -1347,15 +1725,21 @@ onBeforeUnmount(() => {
                 </SettingSection>
 
                 <SettingSection title="保护与通知" note="辅种保护、MoviePilot 任务限制和通知渠道">
-                  <VRow class="aoa-setting-grid">
+                  <VRow class="aoa-setting-grid aoa-seed-protect-row">
                     <VCol cols="12" md="8">
                       <div class="aoa-seed-options">
-                        <VSwitch v-model="form.seedclean_samedata" color="primary" inset hide-details
-                          label="处理辅种" :disabled="!form.seedclean_enabled" />
-                        <VSwitch v-model="form.seedclean_mponly" color="primary" inset hide-details
-                          label="仅 MoviePilot 任务" :disabled="!form.seedclean_enabled" />
-                        <VSwitch v-model="form.seedclean_notify" color="primary" inset hide-details
-                          label="处理结果通知" :disabled="!form.seedclean_enabled" />
+                        <VSwitch v-model="form.seedclean_samedata" class="aoa-seed-option-control" color="primary" inset
+                          hide-details :disabled="!form.seedclean_enabled">
+                          <template #label><span class="aoa-seed-option-label">处理辅种</span></template>
+                        </VSwitch>
+                        <VSwitch v-model="form.seedclean_mponly" class="aoa-seed-option-control" color="primary" inset
+                          hide-details :disabled="!form.seedclean_enabled">
+                          <template #label><span class="aoa-seed-option-label">仅 MoviePilot 任务</span></template>
+                        </VSwitch>
+                        <VSwitch v-model="form.seedclean_notify" class="aoa-seed-option-control" color="primary" inset
+                          hide-details :disabled="!form.seedclean_enabled">
+                          <template #label><span class="aoa-seed-option-label">处理结果通知</span></template>
+                        </VSwitch>
                       </div>
                     </VCol>
                     <VCol cols="12" md="4">
@@ -1455,7 +1839,8 @@ onBeforeUnmount(() => {
                   variant="tonal"
                   :prepend-icon="item.icon"
                   class="aoa-action-btn text-none"
-                  :disabled="item.disabled"
+                  :disabled="!!actionDisabledReason || item.disabled || !actionComponentEnabled(item)"
+                  :title="actionDisabledReason || actionComponentDisabledMessage(item.path)"
                   :loading="action.running === item.path"
                   @click="runAction(item.path, item.label)"
                 >
@@ -2063,6 +2448,17 @@ onBeforeUnmount(() => {
   -webkit-box-orient: vertical;
   text-wrap: balance;
 }
+.aoa-inline-action {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 2px 0 0;
+}
+.aoa-plugin-uninstall-action {
+  width: 100%;
+}
 .aoa-action-dock {
   flex: 0 0 auto;
   padding: 12px var(--aoa-pane-x) 16px;
@@ -2119,13 +2515,26 @@ onBeforeUnmount(() => {
 }
 .aoa-seed-options {
   min-height: 48px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--aoa-grid-gutter-x);
+  display: flex;
+  flex-wrap: nowrap;
+  gap: clamp(6px, 1.2vw, 12px);
   align-items: center;
+  justify-content: flex-start;
 }
-.aoa-seed-options :deep(.v-selection-control) {
+.aoa-seed-option-control {
   min-height: 42px;
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+.aoa-seed-option-label {
+  display: inline-flex;
+  max-width: none;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  font-size: 12px;
+  line-height: 1.1;
+  letter-spacing: 0;
 }
 .aoa-pane :deep(.aoa-module-hero) {
   display: flex;
@@ -2541,8 +2950,8 @@ onBeforeUnmount(() => {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .aoa-seed-options {
-    grid-template-columns: 1fr;
+  .aoa-seed-protect-row .aoa-seed-options {
+    gap: 6px 10px;
   }
   .aoa-pane :deep(.aoa-module-hero),
   .aoa-pane :deep(.aoa-module-state),

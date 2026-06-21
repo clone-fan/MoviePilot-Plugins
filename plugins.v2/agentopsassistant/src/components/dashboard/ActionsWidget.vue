@@ -28,7 +28,8 @@ const emit = defineEmits(['runAction'])
         class="mp-action-btn text-none"
         :class="[`mp-action-btn--${action.tone}`]"
         :loading="actionRunning === action.path"
-        :disabled="!!actionRunning && actionRunning !== action.path"
+        :disabled="action.disabled || (!!actionRunning && actionRunning !== action.path)"
+        :title="action.reason || action.desc"
         @click="emit('runAction', action)"
       >
         <span class="mp-action-icon"><VIcon :icon="action.icon" size="19" /></span>
@@ -56,15 +57,18 @@ const emit = defineEmits(['runAction'])
 .mp-actions-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   min-height: 100%;
-  padding: 16px;
-  border-radius: 8px;
-  border: 1px solid rgba(var(--v-border-color), 0.14);
+  padding: 18px;
+  border-radius: var(--mp-widget-radius);
+  border: 1px solid rgba(var(--v-border-color), var(--mp-widget-panel-line));
   background:
-    radial-gradient(circle at 14% 0%, rgba(var(--v-theme-primary), 0.10), transparent 34%),
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.86), rgba(var(--v-theme-surface), 0.64));
-  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.06);
+    radial-gradient(circle at 14% 0%, rgba(var(--v-theme-error), 0.10), transparent 34%),
+    radial-gradient(circle at 92% 12%, rgba(var(--v-theme-primary), 0.070), transparent 32%),
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-hi)), rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-lo)));
+  box-shadow: var(--mp-widget-shadow-panel);
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
 }
 
 .mp-panel-head {
@@ -79,9 +83,10 @@ const emit = defineEmits(['runAction'])
   height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.10);
+  border-radius: 12px;
+  color: rgb(var(--v-theme-error));
+  background: rgba(var(--v-theme-error), 0.12);
+  box-shadow: var(--mp-widget-shadow-cell) !important;
 }
 
 .mp-panel-head h3 {
@@ -101,28 +106,36 @@ const emit = defineEmits(['runAction'])
 .mp-action-list {
   min-height: 0;
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .mp-action-btn {
   min-width: 0;
-  min-height: 58px;
+  min-height: 60px;
   justify-content: stretch;
-  border-radius: 8px;
-  border: 1px solid rgba(var(--v-border-color), 0.12);
+  border-radius: var(--mp-widget-cell-radius);
+  border: 1px solid rgba(var(--v-border-color), var(--mp-widget-cell-line));
   color: rgba(var(--v-theme-on-surface), 0.90);
   background:
-    linear-gradient(180deg, rgba(var(--v-theme-on-surface), 0.045), rgba(var(--v-theme-on-surface), 0.014)),
-    rgba(var(--v-theme-surface), 0.58);
+    linear-gradient(180deg, rgba(var(--v-theme-on-surface), var(--mp-widget-cell-line-soft)), rgba(var(--v-theme-on-surface), 0.012)),
+    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill));
+  box-shadow: var(--mp-widget-shadow-cell) !important;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.055));
   cursor: pointer;
-  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.mp-action-btn.v-btn,
+:deep(.mp-action-btn.v-btn) {
+  box-shadow: var(--mp-widget-shadow-cell) !important;
 }
 
 .mp-action-btn:hover {
   border-color: rgba(var(--v-theme-primary), 0.24);
   background:
     linear-gradient(180deg, rgba(var(--v-theme-on-surface), 0.065), rgba(var(--v-theme-on-surface), 0.020)),
-    rgba(var(--v-theme-surface), 0.76);
+    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill-strong));
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.07));
 }
 
 .mp-action-btn:focus-visible {
@@ -144,9 +157,10 @@ const emit = defineEmits(['runAction'])
   height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 12px;
   color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.10);
+  box-shadow: var(--mp-widget-shadow-cell);
 }
 
 .mp-action-btn--green .mp-action-icon {

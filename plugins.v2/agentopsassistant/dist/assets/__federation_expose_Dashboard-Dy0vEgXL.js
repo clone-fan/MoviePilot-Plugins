@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-Dc5i-DQA.js';
+import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-BRN2mpKk.js';
 
 const {resolveComponent:_resolveComponent$1,createVNode:_createVNode$1,createElementVNode:_createElementVNode$1,toDisplayString:_toDisplayString$1,openBlock:_openBlock$2,createBlock:_createBlock$2,createCommentVNode:_createCommentVNode$1,normalizeClass:_normalizeClass$1,normalizeStyle:_normalizeStyle,renderList:_renderList$1,Fragment:_Fragment$1,createElementBlock:_createElementBlock$2} = await importShared('vue');
 
@@ -167,7 +167,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-ed67cf85"]]);
+const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-9fa01bb1"]]);
 
 const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,toDisplayString:_toDisplayString,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1,normalizeClass:_normalizeClass,withCtx:_withCtx,createBlock:_createBlock$1,createCommentVNode:_createCommentVNode} = await importShared('vue');
 
@@ -221,7 +221,8 @@ return (_ctx, _cache) => {
           variant: "text",
           class: _normalizeClass(["mp-action-btn text-none", [`mp-action-btn--${action.tone}`]]),
           loading: __props.actionRunning === action.path,
-          disabled: !!__props.actionRunning && __props.actionRunning !== action.path,
+          disabled: action.disabled || (!!__props.actionRunning && __props.actionRunning !== action.path),
+          title: action.reason || action.desc,
           onClick: $event => (emit('runAction', action))
         }, {
           default: _withCtx(() => [
@@ -242,7 +243,7 @@ return (_ctx, _cache) => {
             })
           ]),
           _: 2
-        }, 1032, ["class", "loading", "disabled", "onClick"]))
+        }, 1032, ["class", "loading", "disabled", "title", "onClick"]))
       }), 128))
     ]),
     (__props.actionMessage)
@@ -261,7 +262,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-077079bb"]]);
+const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-46a84ff1"]]);
 
 const {resolveDynamicComponent:_resolveDynamicComponent,openBlock:_openBlock,createBlock:_createBlock,createElementBlock:_createElementBlock} = await importShared('vue');
 
@@ -301,18 +302,32 @@ const siteChart = reactive({
 });
 
 const actionItems = [
-  { path: 'run_site_stat', label: '站点统计', desc: '刷新站点增量', icon: 'mdi-chart-pie', tone: 'blue' },
-  { path: 'run_daily_report', label: '每日汇报', desc: '发送运维摘要', icon: 'mdi-send-clock-outline', tone: 'green' },
-  { path: 'run_subscribe_reminder', label: '订阅追新', desc: '推送今日追新', icon: 'mdi-bell-badge-outline', tone: 'cyan' },
-  { path: 'run_health_check', label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse', tone: 'violet' },
+  { path: 'run_site_stat', component: 'site_stat', label: '站点统计', desc: '刷新站点增量', icon: 'mdi-chart-pie', tone: 'blue' },
+  { path: 'run_daily_report', component: 'daily_report', label: '每日汇报', desc: '发送运维摘要', icon: 'mdi-send-clock-outline', tone: 'green' },
+  { path: 'run_subscribe_reminder', component: 'subscribe_reminder', label: '订阅追新', desc: '推送今日追新', icon: 'mdi-bell-badge-outline', tone: 'cyan' },
+  { path: 'run_health_check', component: 'health_check', label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse', tone: 'violet' },
 ];
 
 const componentKey = computed(() => props.config?.attrs?.component || props.config?.key || 'site');
+const componentEnabledStates = computed(() => props.config?.attrs?.components || props.config?.components || {});
 const componentMap = {
   site: SiteStatsWidget,
   actions: ActionsWidget,
 };
 const activeComponent = computed(() => componentMap[componentKey.value] || SiteStatsWidget);
+function actionComponentEnabled(action) {
+  const states = componentEnabledStates.value || {};
+  if (!action?.component || !(action.component in states)) return true
+  return !!states[action.component]
+}
+const widgetActions = computed(() => actionItems.map(action => {
+  const enabled = actionComponentEnabled(action);
+  return {
+    ...action,
+    disabled: !enabled,
+    reason: enabled ? '' : '组件未启用，动作已暂停',
+  }
+}));
 
 const sitePieColors = [
   { color: 'rgba(var(--v-theme-success), 0.94)', glow: 'rgba(var(--v-theme-success), 0.28)' },
@@ -406,12 +421,18 @@ async function loadSiteChart() {
 
 async function runAction(action) {
   if (!props.api || actionRunning.value) return
+  if (action.disabled) {
+    actionOk.value = false;
+    actionMessage.value = action.reason || '组件未启用，动作已暂停';
+    window.setTimeout(() => { actionMessage.value = ''; }, 5000);
+    return
+  }
   actionRunning.value = action.path;
   actionMessage.value = '';
   actionOk.value = true;
   try {
     const res = await postPluginApi(props.api, action.path);
-    const ok = !res || res.code === 0 || res.code === undefined;
+    const ok = !!res && res.code === 0;
     actionOk.value = ok;
     actionMessage.value = (res && res.msg) || `${action.label}已${ok ? '完成' : '失败'}`;
     if (ok && action.path === 'run_site_stat') await loadSiteChart();
@@ -444,19 +465,19 @@ return (_ctx, _cache) => {
       "has-site-chart": hasSiteChart.value,
       "format-bytes": formatBytes,
       "site-percent": sitePercent,
-      actions: actionItems,
+      actions: widgetActions.value,
       "action-running": actionRunning.value,
       "action-message": actionMessage.value,
       "action-ok": actionOk.value,
       "allow-refresh": __props.allowRefresh,
       onRefresh: loadSiteChart,
       onRunAction: runAction
-    }, null, 40, ["loading", "error", "site-chart", "site-rows", "site-table-rows", "site-traffic-total", "site-date-label", "site-date-note", "site-pie-style", "has-site-chart", "action-running", "action-message", "action-ok", "allow-refresh"]))
+    }, null, 40, ["loading", "error", "site-chart", "site-rows", "site-table-rows", "site-traffic-total", "site-date-label", "site-date-note", "site-pie-style", "has-site-chart", "actions", "action-running", "action-message", "action-ok", "allow-refresh"]))
   ]))
 }
 }
 
 };
-const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-9ebdbad3"]]);
+const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-6d8d4930"]]);
 
 export { Dashboard as default };

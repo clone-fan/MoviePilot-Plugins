@@ -13,10 +13,12 @@ AgentOpsAssistant 本地单元测试（无需运行中的 MoviePilot）。
 import importlib.util
 import json
 import os
+import shutil
 import sys
 import tempfile
 import time
 import types
+import zipfile
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
@@ -344,10 +346,10 @@ def main():
     check(p._seedclean_has_any_condition() is True, "设了大小后=True")
     p._seedclean_size = ""
 
-    g = make_plugin(mod, seedclean_downloaders=[])
+    g = make_plugin(mod, seedclean_enabled=True, seedclean_downloaders=[])
     check(g.run_seed_clean() is False, "无下载器 -> 不执行返回 False")
     check(g._stub_messages and "选择下载器" in g._stub_messages[-1].get("text", ""), "无下载器时按通知配置提醒用户")
-    g2 = make_plugin(mod, seedclean_downloaders=["qb1"])  # 无任何条件
+    g2 = make_plugin(mod, seedclean_enabled=True, seedclean_downloaders=["qb1"])  # 无任何条件
     check(g2.run_seed_clean() is False, "有下载器但无条件 -> 跳过返回 False")
 
     print("== QB 条件匹配（命中=返回 dict=删除目标）==")
@@ -395,7 +397,7 @@ def main():
         def get_configs(self): return {"qb1": types.SimpleNamespace(name="qb1")}
     dl_mod.DownloaderHelper = _DH
 
-    p = make_plugin(mod, seedclean_downloaders=["qb1"], seedclean_size="1-10", seedclean_action="pause")
+    p = make_plugin(mod, seedclean_enabled=True, seedclean_downloaders=["qb1"], seedclean_size="1-10", seedclean_action="pause")
     res = p.run_seed_clean()
     check(res is True, "pause 动作执行成功返回 True")
     check(inst.stopped == ["h1"], "命中种子被暂停（stop_torrents 收到 h1）")
@@ -403,13 +405,13 @@ def main():
 
     inst2 = FakeDownloaderInstance([fake_qb_torrent(hash="h2", size=int(5 * 1024 ** 3))])
     service.instance = inst2
-    p2 = make_plugin(mod, seedclean_downloaders=["qb1"], seedclean_size="1-10", seedclean_action="delete")
+    p2 = make_plugin(mod, seedclean_enabled=True, seedclean_downloaders=["qb1"], seedclean_size="1-10", seedclean_action="delete")
     p2.run_seed_clean()
     check(inst2.deleted == ["h2"], "delete 动作调用 delete_torrents(delete_file=False)")
 
     inst3 = FakeDownloaderInstance([fake_qb_torrent(hash="h3", size=int(0.1 * 1024 ** 3))])  # 太小，不命中
     service.instance = inst3
-    p3 = make_plugin(mod, seedclean_downloaders=["qb1"], seedclean_size="1-10", seedclean_action="delete")
+    p3 = make_plugin(mod, seedclean_enabled=True, seedclean_downloaders=["qb1"], seedclean_size="1-10", seedclean_action="delete")
     p3.run_seed_clean()
     check(inst3.deleted == [] and inst3.stopped == [], "不命中的种子不被处理（无误删）")
 
@@ -419,7 +421,7 @@ def main():
         fake_qb_torrent(hash="tb", tags="https://tracker.example.com/announce"),
     ])
     service.instance = tinst
-    make_plugin(mod, dltag_downloaders=["qb1"]).run_downloader_tag()
+    make_plugin(mod, dltag_enabled=True, dltag_downloaders=["qb1"]).run_downloader_tag()
     qb_tag_hashes = [h for c in tinst.tagged if c[0] == "qb" for h in c[1]]
     check("ta" in qb_tag_hashes and "tb" not in qb_tag_hashes, "未打标签的补打、已打标签的跳过（幂等）")
 
@@ -443,6 +445,111 @@ def main():
                                           "backup_count": 0, "backup_size_text": "0 B", "errors": ["真失败"]})
     check("状态：异常" in t_err and "异常：" in t_err, "真失败仍报异常")
 
+    print("== 备份一键恢复 ==")
+    cfg_settings = sys.modules["app.core.config"].settings
+    old_config_path, old_db_type = cfg_settings.CONFIG_PATH, cfg_settings.DB_TYPE
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        config_dir = root / "config"
+        backup_dir = root / "backups"
+        config_dir.mkdir()
+        backup_dir.mkdir()
+        (config_dir / "category.yaml").write_text("old-category", encoding="utf-8")
+        (config_dir / "app.env").write_text("old-env", encoding="utf-8")
+        (config_dir / "cookies").mkdir()
+        (config_dir / "cookies" / "old.cookie").write_text("old-cookie", encoding="utf-8")
+        (config_dir / "user.db").write_text("old-db", encoding="utf-8")
+        cfg_settings.CONFIG_PATH = str(config_dir)
+        cfg_settings.DB_TYPE = "sqlite"
+        valid_zip = backup_dir / "bk_20260621010101.zip"
+        with zipfile.ZipFile(valid_zip, "w") as zf:
+            zf.writestr("manifest.json", json.dumps({"created_at": "2026-06-21 01:01:01", "db_type": "sqlite"}, ensure_ascii=False))
+            zf.writestr("category.yaml", "new-category")
+            zf.writestr("app.env", "new-env")
+            zf.writestr("cookies/session.cookie", "new-cookie")
+            zf.writestr("user.db", "new-db")
+        (backup_dir / "not_backup.zip").write_text("skip", encoding="utf-8")
+        missing_manifest = backup_dir / "bk_20260621020202.zip"
+        with zipfile.ZipFile(missing_manifest, "w") as zf:
+            zf.writestr("category.yaml", "no-manifest")
+        slip_zip = backup_dir / "bk_20260621030303.zip"
+        with zipfile.ZipFile(slip_zip, "w") as zf:
+            zf.writestr("manifest.json", "{}")
+            zf.writestr("../evil.txt", "bad")
+        p_restore = make_plugin(mod, backup_enabled=True, backup_path=str(backup_dir), backup_keep_count=20, backup_notify=False)
+        archives = p_restore._list_backup_archives()
+        check([x["name"] for x in archives] == ["bk_20260621030303.zip", "bk_20260621020202.zip", "bk_20260621010101.zip"],
+              "备份恢复列表只列备份目录内 bk_*.zip")
+        preview = p_restore.api_preview_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": True, "restore_database": True})
+        check(preview.get("code") == 0 and preview.get("data", {}).get("archive", {}).get("name") == valid_zip.name,
+              "备份恢复预览读取 manifest 与包内容")
+        bad_path = p_restore.api_preview_backup_restore({"archive": "../bk_20260621010101.zip"})
+        check(bad_path.get("code") == 1 and "备份目录" in bad_path.get("msg", ""),
+              "备份恢复拒绝路径穿越 archive")
+        bad_manifest = p_restore.api_preview_backup_restore({"archive": missing_manifest.name})
+        check(bad_manifest.get("code") == 1 and "manifest.json" in bad_manifest.get("msg", ""),
+              "备份恢复拒绝缺少 manifest 的包")
+        bad_slip = p_restore.api_preview_backup_restore({"archive": slip_zip.name})
+        check(bad_slip.get("code") == 1 and "非法路径" in bad_slip.get("msg", ""),
+              "备份恢复拒绝 zip slip 条目")
+        run_restore = p_restore.api_run_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": True, "restore_database": True})
+        data_restore = run_restore.get("data", {})
+        check(run_restore.get("code") == 0 and data_restore.get("emergency_backup") and Path(data_restore["emergency_backup"]).exists(),
+              "执行恢复前强制生成 emergency backup")
+        check((config_dir / "category.yaml").read_text(encoding="utf-8") == "new-category"
+              and (config_dir / "app.env").read_text(encoding="utf-8") == "new-env",
+              "备份恢复覆盖配置文件")
+        check((config_dir / "cookies" / "session.cookie").read_text(encoding="utf-8") == "new-cookie"
+              and not (config_dir / "cookies" / "old.cookie").exists(),
+              "备份恢复替换 cookies 目录")
+        check((config_dir / "user.db").read_text(encoding="utf-8") == "new-db",
+              "备份恢复覆盖 SQLite user.db")
+
+        pg_zip = backup_dir / "bk_20260621040404.zip"
+        with zipfile.ZipFile(pg_zip, "w") as zf:
+            zf.writestr("manifest.json", json.dumps({"created_at": "2026-06-21 04:04:04", "db_type": "postgresql"}, ensure_ascii=False))
+            zf.writestr("postgresql_backup.sql", "select 1;")
+        p_restore._find_psql = lambda: ""
+        pg_restore = p_restore.api_run_backup_restore({"archive": pg_zip.name, "restore_config": False, "restore_cookies": False, "restore_database": True})
+        check(pg_restore.get("code") == 1 and "psql" in pg_restore.get("msg", "").lower(),
+              "PostgreSQL 恢复缺少 psql 时可读失败且不执行破坏性动作")
+
+        class FakeWebDavClient:
+            def __init__(self):
+                self.downloads = []
+
+            def list(self):
+                return ["bk_20260621010101.zip", "notes.txt", "folder/bk_20260621099999.zip"]
+
+            def info(self, name):
+                return {"size": valid_zip.stat().st_size, "modified": "2026-06-21 01:01:01"}
+
+            def download_sync(self, remote_path, local_path):
+                self.downloads.append((remote_path, local_path))
+                shutil.copyfile(valid_zip, local_path)
+
+        fake_webdav = FakeWebDavClient()
+        p_restore._backup_webdav_enabled = True
+        p_restore._create_webdav_client = lambda: fake_webdav
+        webdav_archives = p_restore.api_webdav_backup_archives()
+        check(webdav_archives.get("code") == 0
+              and [x["name"] for x in webdav_archives.get("data", [])] == ["bk_20260621010101.zip"],
+              "WebDAV 恢复列表只列远端根目录 bk_*.zip")
+        webdav_preview = p_restore.api_preview_webdav_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": False, "restore_database": False})
+        check(webdav_preview.get("code") == 0
+              and webdav_preview.get("data", {}).get("source") == "webdav"
+              and fake_webdav.downloads[-1][0] == valid_zip.name,
+              "WebDAV 恢复预览会下载远端备份并复用本地预览链路")
+        webdav_run = p_restore.api_run_webdav_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": False, "restore_database": False})
+        check(webdav_run.get("code") == 0
+              and webdav_run.get("data", {}).get("source") == "webdav"
+              and webdav_run.get("data", {}).get("remote_archive") == valid_zip.name,
+              "WebDAV 恢复执行会下载远端备份并复用本地恢复链路")
+        webdav_bad = p_restore.api_preview_webdav_backup_restore({"archive": "folder/bk_20260621010101.zip"})
+        check(webdav_bad.get("code") == 1 and "WebDAV" in webdav_bad.get("msg", ""),
+              "WebDAV 恢复拒绝子目录或路径穿越 archive")
+    cfg_settings.CONFIG_PATH, cfg_settings.DB_TYPE = old_config_path, old_db_type
+
     print("== 插件卸载（多选 ID 与卸载流程回归）==")
     r1 = make_plugin(mod, plugin_uninstall_ids=["AutoBackup"])._build_plugin_uninstall_status(clean=False)
     check(r1.get("plugin_id") == "AutoBackup" and not r1.get("blocked") and r1.get("success") is True,
@@ -452,6 +559,29 @@ def main():
     api_uninstall_empty = make_plugin(mod, plugin_uninstall_ids=[]).api_preview_plugin_uninstall()
     check(api_uninstall_empty.get("code") == 1 and "选择目标插件" in api_uninstall_empty.get("msg", ""),
           "插件卸载预览无目标时提示用户先选择插件")
+    _PU.update({"installed": ["AutoBackup", "OtherPlugin"], "removed_plugins": [], "removed_jobs": [],
+                "config_deleted": [], "data_deleted": [], "folders": {"系统": ["AutoBackup", "OtherPlugin"]}})
+    p_payload = make_plugin(mod, plugin_uninstall_ids=[], plugin_uninstall_remove_plugin=False,
+                            plugin_uninstall_clear_config=True, plugin_uninstall_clear_data=True)
+    try:
+        api_payload = p_payload.api_run_plugin_uninstall({
+            "plugin_uninstall_ids": ["AutoBackup"],
+            "plugin_uninstall_remove_plugin": True,
+            "plugin_uninstall_clear_config": False,
+            "plugin_uninstall_clear_data": False,
+        })
+        payload_error = ""
+    except TypeError as err:
+        api_payload = {}
+        payload_error = str(err)
+    check(not payload_error, "插件卸载执行接口接受当前表单 payload")
+    if not payload_error:
+        check(api_payload.get("code") == 0 and "AutoBackup" in _PU["removed_plugins"],
+              "未保存配置时也按 payload 执行插件卸载")
+        check(p_payload._plugin_uninstall_ids == [] and p_payload._plugin_uninstall_remove_plugin is False,
+              "本次 payload 不污染实例保存的插件卸载配置")
+        check("AutoBackup" not in _PU["config_deleted"] and "AutoBackup" not in _PU["data_deleted"],
+              "payload 清理开关仅作用于本次执行")
     r3 = make_plugin(mod, plugin_uninstall_ids=["moviepilot"])._build_plugin_uninstall_status(clean=True)
     check(r3.get("success") is False and any("moviepilot" in e.lower() for e in r3.get("errors", [])),
           "禁止治理 MoviePilot/本体（保护）")
@@ -474,7 +604,7 @@ def main():
         outside = Path(tmpdir) / "outside-residue.txt"
         outside.write_text("keep me", encoding="utf-8")
         p_uninstall_guard = make_plugin(mod, plugin_uninstall_ids=["UnsafePlugin"], plugin_uninstall_remove_plugin=False)
-        p_uninstall_guard._plugin_uninstall_candidates = lambda pid: [{
+        p_uninstall_guard._plugin_uninstall_candidates = lambda pid, **_: [{
             "plugin_id": pid,
             "kind": "local_source",
             "path": str(outside),
@@ -1133,7 +1263,7 @@ def main():
     check("AgentOpsAssistant.SubscribeReminder" not in [s.get("id") for s in (p_off.get_service() or [])], "关闭时不注册订阅追新服务")
 
     print("== 通知类型统一 ==")
-    p_market = make_plugin(mod, market_update_notify=True, market_update_notify_type="Other")
+    p_market = make_plugin(mod, market_update_enabled=True, market_update_notify=True, market_update_notify_type="Other")
     p_market._build_market_update_status = lambda apply=False: {"success": True, "has_update": True}
     p_market._auto_update_installed_plugins = lambda apply=True: {}
     p_market._format_market_update_text = lambda data: "market update"
@@ -1141,16 +1271,16 @@ def main():
     p_market.post_message = lambda **kw: market_sent.update(kw)
     p_market.run_market_update()
     check(getattr(market_sent.get("mtype"), "name", "") == "Other", "插件库更新通知使用所选消息类型")
-    p_market_preview_error = make_plugin(mod)
+    p_market_preview_error = make_plugin(mod, market_update_enabled=True)
     p_market_preview_error._build_market_update_status = lambda apply=False: (_ for _ in ()).throw(RuntimeError("插件库记录页面获取失败：no_response"))
     market_preview_error = p_market_preview_error.api_preview_market_update()
     check(market_preview_error.get("code") == 1 and "no_response" in market_preview_error.get("msg", ""), "插件库更新预览失败时返回可读错误而不是抛异常")
     check(not p_market_preview_error._stub_messages and not p_market_preview_error._stub_data, "插件库更新预览失败不发消息也不写状态")
-    p_update_preview_error = make_plugin(mod)
+    p_update_preview_error = make_plugin(mod, mp_update_enabled=True)
     p_update_preview_error._build_update_status = lambda: (_ for _ in ()).throw(RuntimeError("release api timeout"))
     update_preview_error = p_update_preview_error.api_preview_updates()
     check(update_preview_error.get("code") == 1 and "release api timeout" in update_preview_error.get("msg", ""), "MP 更新预览失败时返回可读错误而不是抛异常")
-    p_log_preview_error = make_plugin(mod)
+    p_log_preview_error = make_plugin(mod, log_clean_enabled=True)
     p_log_preview_error._build_log_preview = lambda: (_ for _ in ()).throw(RuntimeError("log path denied"))
     log_preview_error = p_log_preview_error.api_preview_log_clean()
     check(log_preview_error.get("code") == 1 and "log path denied" in log_preview_error.get("msg", ""), "日志清理预览失败时返回可读错误而不是抛异常")
@@ -1158,7 +1288,7 @@ def main():
     p_plugin_preview_error._build_plugin_uninstall_status = lambda clean=False: (_ for _ in ()).throw(RuntimeError("plugin list broken"))
     plugin_preview_error = p_plugin_preview_error.api_preview_plugin_uninstall()
     check(plugin_preview_error.get("code") == 1 and "plugin list broken" in plugin_preview_error.get("msg", ""), "插件卸载预览失败时返回可读错误而不是抛异常")
-    p_api_task_error = make_plugin(mod)
+    p_api_task_error = make_plugin(mod, subfill_enabled=True)
     p_api_task_error.run_subfill_clear_history = lambda: (_ for _ in ()).throw(RuntimeError("save_data failed"))
     api_task_error = p_api_task_error.api_subfill_clear_history()
     check(api_task_error.get("code") == 1 and "save_data failed" in api_task_error.get("msg", ""), "通用手动任务异常时返回失败信封而不是硬抛")
@@ -1181,13 +1311,13 @@ def main():
     check(update_titles == ["MP 运维助手 - MoviePilot更新检查"], "MP 更新通知标题不是预览标题")
     check(getattr(p_update._stub_messages[0].get("mtype"), "name", "") == "Other", "MP 更新通知使用所选消息类型")
 
-    p_update_preview = make_plugin(mod, enabled=True, mp_update_notify=True)
+    p_update_preview = make_plugin(mod, enabled=True, mp_update_enabled=True, mp_update_notify=True)
     p_update_preview._get_local_versions = p_update._get_local_versions
     p_update_preview._check_one_release = p_update._check_one_release
     p_update_preview._build_market_status = p_update._build_market_status
     preview_result = p_update_preview.api_preview_updates()
     check(preview_result.get("code") == 0 and not p_update_preview._stub_messages, "MP 更新预览接口不发送通知")
-    p_update_restart_preview = make_plugin(mod, enabled=True, mp_update_notify=True, mp_update_restart_confirm=True)
+    p_update_restart_preview = make_plugin(mod, enabled=True, mp_update_enabled=True, mp_update_notify=True, mp_update_restart_confirm=True)
     p_update_restart_preview._get_local_versions = p_update._get_local_versions
     p_update_restart_preview._check_one_release = p_update._check_one_release
     p_update_restart_preview._build_market_status = p_update._build_market_status
@@ -1215,13 +1345,13 @@ def main():
     check(update_error_api.get("code") == 1, "MP 更新检查 API 遇到 release 异常时返回失败信封")
 
     print("== 命令入口：通知去重 ==")
-    p_cmd_notify = make_plugin(mod, subscribe_reminder_msgtype="Plugin")
+    p_cmd_notify = make_plugin(mod, subscribe_reminder_enabled=True, subscribe_reminder_msgtype="Plugin")
     p_cmd_notify._get_today_subscribe_updates_locked = lambda: ["凡人修仙传 S01E52"]
     p_cmd_notify.handle_command(types.SimpleNamespace(event_data={"action": "mpops_subscribe"}))
     cmd_titles = [m.get("title") for m in p_cmd_notify._stub_messages]
     check(cmd_titles == ["MP 运维助手 - 订阅追新"], "命令触发的任务已发送业务通知时，不再补发命令执行结果")
 
-    p_cmd_feedback = make_plugin(mod)
+    p_cmd_feedback = make_plugin(mod, health_check_enabled=True)
     p_cmd_feedback._build_health_summary = lambda: {
         "success": True,
         "checks": [{"name": "database", "ok": True, "detail": "连接正常"}],
@@ -1242,7 +1372,8 @@ def main():
           "组合命令已有业务通知但存在失败任务时，仍补发失败汇总")
 
     print("== onlyonce 保存后立即运行一次（修复死开关）==")
-    p_once = make_plugin(mod, enabled=True)
+    p_once = make_plugin(mod, enabled=True, backup_enabled=True, log_clean_enabled=True,
+                         market_update_enabled=True, subscribe_reminder_enabled=True, site_stat_enabled=True)
     once_calls = []
     p_once.run_backup = lambda: once_calls.append("backup") or True
     p_once.run_log_clean = lambda: once_calls.append("log") or True
@@ -1266,6 +1397,125 @@ def main():
     check(all(cfg_once[key] is False for key in expected_once_keys), "onlyonce 命中后清零（防重载重复触发）")
     check(set(once_calls) == expected_once_calls, "onlyonce 全部映射到实际任务")
     check(p_once._fire_onlyonce({}) == [], "无 onlyonce 置位 -> 不触发")
+
+    print("== 总开关 / 组件开关关闭态守卫 ==")
+    p_disabled = make_plugin(mod, enabled=False, backup_enabled=True, market_update_enabled=True,
+                             health_check_enabled=True, seedclean_enabled=True, seedclean_downloaders=["qb1"])
+    disabled_calls = []
+    p_disabled.run_backup = lambda: disabled_calls.append("backup") or True
+    cfg_disabled_once = {"backup_onlyonce": True}
+    fired_disabled = p_disabled._fire_onlyonce(cfg_disabled_once)
+    check(fired_disabled == [] and cfg_disabled_once["backup_onlyonce"] is False and disabled_calls == [],
+          "总开关关闭时 onlyonce 只复位不执行业务")
+    p_disabled._create_agentops_backup = lambda: (_ for _ in ()).throw(RuntimeError("backup should not run"))
+    disabled_backup = p_disabled.api_run_backup()
+    check(disabled_backup.get("code") == 1 and "插件未启用" in disabled_backup.get("msg", ""),
+          "总开关关闭时手动备份 API 跳过业务链路")
+    check((disabled_backup.get("data") or {}).get("code") == 1
+          and "插件未启用" in (disabled_backup.get("data") or {}).get("msg", ""),
+          "总开关关闭时备份跳过响应在 data 内也保留失败信封，防止前端解包后误报成功")
+    p_disabled._site_increment_snapshot = lambda: (_ for _ in ()).throw(RuntimeError("site should not run"))
+    disabled_site = p_disabled.api_run_site_stat()
+    disabled_market = p_disabled.api_run_market_update()
+    check((disabled_site.get("data") or {}).get("code") == 1
+          and (disabled_market.get("data") or {}).get("code") == 1
+          and (disabled_site.get("data") or {}).get("skipped") is True
+          and (disabled_market.get("data") or {}).get("skipped") is True,
+          "总开关关闭时带 data 的手动动作跳过响应都保留失败信封，防止旧前端误报完成")
+    disabled_restore_calls = []
+    p_disabled._list_backup_archives = lambda: disabled_restore_calls.append("list") or []
+    p_disabled._build_backup_restore_preview = lambda payload: disabled_restore_calls.append("preview") or {}
+    p_disabled._run_backup_restore = lambda payload: disabled_restore_calls.append("run") or {"success": True}
+    disabled_archives = p_disabled.api_backup_archives()
+    disabled_restore_preview = p_disabled.api_preview_backup_restore({"archive": "bk_20260621010101.zip"})
+    disabled_restore_run = p_disabled.api_run_backup_restore({"archive": "bk_20260621010101.zip"})
+    check(disabled_restore_calls == []
+          and disabled_archives.get("code") == 1
+          and disabled_restore_preview.get("code") == 1
+          and disabled_restore_run.get("code") == 1
+          and "插件未启用" in disabled_restore_run.get("msg", ""),
+          "总开关关闭时备份恢复 API 跳过业务链路")
+    p_disabled._build_health_summary = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("health should not run"))
+    disabled_health = p_disabled.api_run_health_check()
+    check(disabled_health.get("code") == 1 and "插件未启用" in disabled_health.get("msg", ""),
+          "总开关关闭时健康巡查 API 跳过业务链路")
+    p_disabled.save_data("last_daily_report", {"success": False, "returncode": 2, "output": "插件未启用，已跳过每日汇报。", "time": "2026-06-21 13:26:01"})
+    disabled_dashboard = p_disabled.api_dashboard().get("data", {})
+    check(disabled_dashboard.get("task_on") == 0 and disabled_dashboard.get("task_failed") == 0,
+          "总开关关闭时仪表盘不把单组件配置开关或历史跳过结果算作当前启用/异常")
+    p_disabled._build_daily_report_message = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("daily preview should not run"))
+    disabled_preview = p_disabled.api_preview_daily_report()
+    check(disabled_preview.get("code") == 1 and "插件未启用" in disabled_preview.get("msg", ""),
+          "总开关关闭时日报预览跳过实时构建链路")
+    disabled_preview_calls = []
+    p_disabled._build_log_preview = lambda: disabled_preview_calls.append("log") or (_ for _ in ()).throw(RuntimeError("log preview should not run"))
+    p_disabled._build_plugin_uninstall_status = lambda **kwargs: disabled_preview_calls.append("uninstall") or (_ for _ in ()).throw(RuntimeError("plugin uninstall preview should not run"))
+    disabled_log_preview = p_disabled.api_preview_log_clean()
+    disabled_uninstall_preview = p_disabled.api_preview_plugin_uninstall()
+    check(disabled_preview_calls == []
+          and disabled_log_preview.get("code") == 1
+          and disabled_uninstall_preview.get("code") == 1
+          and "插件未启用" in disabled_log_preview.get("msg", "")
+          and "插件未启用" in disabled_uninstall_preview.get("msg", ""),
+          "总开关关闭时日志清理/插件卸载预览不触发业务扫描")
+    p_disabled.handle_command(types.SimpleNamespace(event_data={"action": "mpops_backup"}))
+    check(any("插件未启用" in (m.get("text", "") + m.get("title", "")) for m in p_disabled._stub_messages),
+          "总开关关闭时远程命令只提示跳过")
+
+    p_components_off = make_plugin(mod, enabled=True, backup_enabled=False, market_update_enabled=False,
+                                   daily_report_enabled=False, health_check_enabled=False, site_stat_enabled=False,
+                                   subscribe_reminder_enabled=False, seedclean_enabled=False,
+                                   dltag_enabled=False, seedclean_downloaders=["qb1"], dltag_downloaders=["qb1"])
+    p_components_off._create_agentops_backup = lambda: (_ for _ in ()).throw(RuntimeError("backup should not run"))
+    check("自动备份未启用" in p_components_off.api_run_backup().get("msg", ""),
+          "备份组件关闭时手动备份 API 跳过")
+    component_restore_calls = []
+    p_components_off._list_backup_archives = lambda: component_restore_calls.append("list") or []
+    p_components_off._build_backup_restore_preview = lambda payload: component_restore_calls.append("preview") or {}
+    p_components_off._run_backup_restore = lambda payload: component_restore_calls.append("run") or {"success": True}
+    component_archives = p_components_off.api_backup_archives()
+    component_restore_preview = p_components_off.api_preview_backup_restore({"archive": "bk_20260621010101.zip"})
+    component_restore_run = p_components_off.api_run_backup_restore({"archive": "bk_20260621010101.zip"})
+    check(component_restore_calls == []
+          and component_archives.get("code") == 1
+          and component_restore_preview.get("code") == 1
+          and component_restore_run.get("code") == 1
+          and "备份恢复未启用" in component_restore_run.get("msg", ""),
+          "备份组件关闭时备份恢复 API 跳过")
+    p_components_off._build_market_update_status = lambda apply=False: (_ for _ in ()).throw(RuntimeError("market should not run"))
+    check("插件库更新未启用" in p_components_off.api_run_market_update().get("msg", ""),
+          "插件库更新组件关闭时手动 API 跳过")
+    p_components_off._build_health_summary = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("health should not run"))
+    check("健康巡查未启用" in p_components_off.api_run_health_check().get("msg", ""),
+          "健康巡查组件关闭时手动 API 跳过")
+    p_components_off._build_daily_report_message = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("daily preview should not run"))
+    check("每日汇报未启用" in p_components_off.api_preview_daily_report().get("msg", ""),
+          "每日汇报组件关闭时预览 API 跳过")
+    p_components_off._build_update_status = lambda: (_ for _ in ()).throw(RuntimeError("update should not run"))
+    check("主程序更新检查未启用" in p_components_off.api_preview_updates().get("msg", ""),
+          "主程序更新组件关闭时预览 API 跳过")
+    p_components_off._build_market_update_status = lambda apply=False: (_ for _ in ()).throw(RuntimeError("market preview should not run"))
+    check("插件库更新未启用" in p_components_off.api_preview_market_update().get("msg", ""),
+          "插件库更新组件关闭时预览 API 跳过")
+    p_components_off._build_log_preview = lambda: (_ for _ in ()).throw(RuntimeError("log preview should not run"))
+    check("日志清理未启用" in p_components_off.api_preview_log_clean().get("msg", ""),
+          "日志清理组件关闭时预览 API 跳过")
+    p_components_off._site_increment_snapshot = lambda: (_ for _ in ()).throw(RuntimeError("site should not run"))
+    site_skip = p_components_off.api_site_stat_chart()
+    check(site_skip.get("code") == 0 and "未启用" in site_skip.get("msg", "") and not site_skip.get("data", {}).get("sites"),
+          "站点统计组件关闭时图表接口不采集站点数据")
+    p_components_off._seed_clean_run = lambda: (_ for _ in ()).throw(RuntimeError("seed should not run"))
+    check("自动删种未启用" in p_components_off.api_run_seed_clean().get("msg", ""),
+          "自动删种组件关闭时手动 API 跳过")
+    p_components_off._downloader_overview_data = lambda: (_ for _ in ()).throw(RuntimeError("downloader should not run"))
+    downloader_skip = p_components_off.api_downloader_overview()
+    check(downloader_skip.get("code") == 1
+          and downloader_skip.get("data", {}).get("downloaders") == []
+          and downloader_skip.get("data", {}).get("skipped") is True
+          and "下载器活动未启用" in downloader_skip.get("msg", ""),
+          "种子打标签组件关闭时下载器活动概览不访问下载器链路")
+    check("种子打标签未启用" in p_components_off.api_run_downloader_tag().get("msg", ""),
+          "种子打标签组件关闭时手动 API 跳过")
 
     print("== 发版自检：接口/服务/命令/生命周期完整性 ==")
     pa = make_plugin(mod, enabled=True, seedclean_enabled=True, seedclean_downloaders=["qb1"], seedclean_cron="0 1 * * *",
@@ -1521,8 +1771,28 @@ def main():
         if isinstance(actions_dashboard, tuple) and len(actions_dashboard) == 3:
             _, action_attrs, _ = actions_dashboard
             check(action_attrs.get("component") == "actions", "manual actions widget is exposed separately")
+            components = action_attrs.get("components") or {}
+            check(components.get("site_stat") is True
+                  and components.get("daily_report") is True
+                  and components.get("subscribe_reminder") is True
+                  and components.get("health_check") is True,
+                  "manual actions widget attrs expose current component enabled states")
         else:
             check(False, "manual actions widget is exposed separately")
+        dashboard_actions_off = make_plugin(mod, enabled=True, daily_report_enabled=False,
+                                            subscribe_reminder_enabled=False, site_stat_enabled=False,
+                                            health_check_enabled=False)
+        actions_off = dashboard_actions_off.get_dashboard(key="actions")
+        if isinstance(actions_off, tuple) and len(actions_off) == 3:
+            _, action_off_attrs, _ = actions_off
+            components = action_off_attrs.get("components") or {}
+            check(components.get("site_stat") is False
+                  and components.get("daily_report") is False
+                  and components.get("subscribe_reminder") is False
+                  and components.get("health_check") is False,
+                  "manual actions widget attrs reflect disabled components so frontend can disable buttons")
+        else:
+            check(False, "manual actions widget remains available but receives disabled component states")
         check(dashboard_on.get_dashboard(key="status") is None, "status widget is not published to MP dashboard")
         check(dashboard_on.get_dashboard(key="runtime") is None, "runtime widget is not published to MP dashboard")
         check(dashboard_on.get_dashboard(key="unknown") is None, "unknown dashboard widget key is ignored")

@@ -2,17 +2,17 @@ const currentImports = {};
       const exportSet = new Set(['Module', '__esModule', 'default', '_export_sfc']);
       let moduleMap = {
 "./Config":()=>{
-      dynamicLoadingCss(["__federation_expose_Config-DP3u-e_X.css"], false, './Config');
-      return __federation_import('./__federation_expose_Config-BKQLQZj6.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
+      dynamicLoadingCss(["__federation_expose_Config-D0OV3DZK.css"], false, './Config');
+      return __federation_import('./__federation_expose_Config-BGq4crFW.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
 "./Page":()=>{
-      dynamicLoadingCss(["__federation_expose_Page-Be2A961V.css"], false, './Page');
-      return __federation_import('./__federation_expose_Page-BNs28WwV.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
+      dynamicLoadingCss(["__federation_expose_Page-Cl45OS94.css"], false, './Page');
+      return __federation_import('./__federation_expose_Page-MBWp9EpT.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
 "./AppPage":()=>{
-      dynamicLoadingCss(["__federation_expose_Page-Be2A961V.css"], false, './AppPage');
-      return __federation_import('./__federation_expose_AppPage-C8-TCd80.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
+      dynamicLoadingCss(["__federation_expose_Page-Cl45OS94.css"], false, './AppPage');
+      return __federation_import('./__federation_expose_AppPage-CO9ClXum.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},
 "./Dashboard":()=>{
-      dynamicLoadingCss(["__federation_expose_Dashboard-CU2xhOjl.css"], false, './Dashboard');
-      return __federation_import('./__federation_expose_Dashboard-DaNWM-C4.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},};
+      dynamicLoadingCss(["__federation_expose_Dashboard-BXPNMHRn.css"], false, './Dashboard');
+      return __federation_import('./__federation_expose_Dashboard-Dy0vEgXL.js').then(module =>Object.keys(module).every(item => exportSet.has(item)) ? () => module.default : () => module)},};
       const seen = {};
       const dynamicLoadingCss = (cssFilePaths, dontAppendStylesToHead, exposeItemName) => {
         const metaUrl = import.meta.url;

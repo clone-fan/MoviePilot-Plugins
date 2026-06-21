@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-Dc5i-DQA.js';
+import { _ as _export_sfc, g as getPluginApi, a as getPluginApiRaw, p as postPluginApi } from './_plugin-vue_export-helper-BRN2mpKk.js';
 
 // Utilities
 const {getCurrentInstance:_getCurrentInstance} = await importShared('vue');
@@ -52,9 +52,9 @@ const _hoisted_22 = { class: "site-stat" };
 const _hoisted_23 = { class: "site-stat" };
 const _hoisted_24 = { class: "site-table site-legend" };
 const _hoisted_25 = { class: "site-row-cell site-name" };
-const _hoisted_26 = { class: "site-row-cell" };
-const _hoisted_27 = { class: "site-row-cell" };
-const _hoisted_28 = { class: "site-row-cell" };
+const _hoisted_26 = { class: "site-row-cell site-upload" };
+const _hoisted_27 = { class: "site-row-cell site-download" };
+const _hoisted_28 = { class: "site-row-cell site-percent" };
 const _hoisted_29 = {
   key: 1,
   class: "site-body site-body--empty"
@@ -82,22 +82,29 @@ const _hoisted_46 = {
   key: 1,
   class: "download-body download-body--empty"
 };
-const _hoisted_47 = { class: "panel runtime-panel" };
-const _hoisted_48 = { class: "panel-head" };
-const _hoisted_49 = { class: "panel-icon panel-icon--cyan" };
-const _hoisted_50 = {
+const _hoisted_47 = { class: "downloader-card downloader-card--empty" };
+const _hoisted_48 = {
+  key: 0,
+  class: "downloader-card downloader-card--empty downloader-card--ghost"
+};
+const _hoisted_49 = { class: "panel runtime-panel" };
+const _hoisted_50 = { class: "panel-head" };
+const _hoisted_51 = { class: "panel-icon panel-icon--cyan" };
+const _hoisted_52 = {
   key: 1,
   class: "runtime-track task-grid"
 };
-const _hoisted_51 = { class: "module-top" };
-const _hoisted_52 = { class: "module-title" };
-const _hoisted_53 = { class: "module-note" };
-const _hoisted_54 = {
+const _hoisted_53 = { class: "module-top" };
+const _hoisted_54 = { class: "module-title" };
+const _hoisted_55 = { class: "module-note" };
+const _hoisted_56 = {
   key: 0,
   class: "module module--empty"
 };
 
 const {ref,reactive,computed,onMounted} = await importShared('vue');
+
+const dialogBackdropStyleId = 'agentops-dashboard-dialog-backdrop-style';
 
 
 const _sfc_main = {
@@ -111,7 +118,6 @@ const _sfc_main = {
 
 const props = __props;
 const emit = __emit;
-
 const loading = ref(true);
 const error = ref('');
 const actionRunning = ref('');
@@ -130,6 +136,7 @@ const data = reactive({
 
 const siteChart = reactive({ date: '', basis: 'today', sites: [], upload_total: 0, download_total: 0 });
 const downloaders = ref([]);
+const downloaderOverviewMessage = ref('');
 const dashboardThemeClass = computed(() => {
   const name = String(vuetifyTheme.global.name.value || '').toLowerCase();
   if (name.includes('transparent')) return 'agentops-theme--transparent'
@@ -137,6 +144,8 @@ const dashboardThemeClass = computed(() => {
   return ''
 });
 const isSidebarSurface = computed(() => props.surface === 'sidebar');
+const isPluginDisabled = computed(() => !data.enabled);
+const actionsDisabled = computed(() => isPluginDisabled.value);
 
 const overallColor = computed(() => {
   if (!data.enabled) return 'muted'
@@ -173,12 +182,18 @@ async function loadDashboard() {
 
 async function runAction(path, label) {
   if (actionRunning.value) return
+  if (actionsDisabled.value) {
+    actionOk.value = false;
+    actionMessage.value = '插件总开关未启用，手动命令已暂停';
+    setTimeout(() => { actionMessage.value = ''; }, 5000);
+    return
+  }
   actionRunning.value = path;
   actionMessage.value = '';
   actionOk.value = true;
   try {
     const res = await postPluginApi(props.api, path);
-    const ok = !res || res.code === 0 || res.code === undefined;
+    const ok = !!res && res.code === 0;
     actionOk.value = ok;
     actionMessage.value = (res && res.msg) || `${label}已${ok ? '完成' : '失败'}`;
     setTimeout(() => { actionMessage.value = ''; }, 5000);
@@ -267,10 +282,13 @@ async function loadSiteChart() {
 
 async function loadDownloaderOverview() {
   try {
-    const res = await getPluginApi(props.api, 'downloader_overview');
-    downloaders.value = (res && res.downloaders) || [];
+    const res = await getPluginApiRaw(props.api, 'downloader_overview');
+    const payload = res && typeof res === 'object' && 'data' in res ? res.data : res;
+    downloaders.value = (payload && payload.downloaders) || [];
+    downloaderOverviewMessage.value = payload?.message || res?.msg || '';
   } catch {
     downloaders.value = [];
+    downloaderOverviewMessage.value = '下载器活动获取失败';
   }
 }
 
@@ -301,16 +319,22 @@ const healthItems = computed(() => {
 });
 
 function isTaskBad(task) {
+  if (!isTaskOn(task)) return false
   return task?.color === 'error' || /失败|异常|错误/.test(String(task?.state || ''))
 }
 
+function isTaskOn(task) {
+  return !!data.enabled && !!task?.enabled
+}
+
 const taskCards = computed(() => [...(data.tasks || [])].sort((a, b) => {
-  const aw = isTaskBad(a) ? 0 : a.enabled ? 1 : 2;
-  const bw = isTaskBad(b) ? 0 : b.enabled ? 1 : 2;
+  const aw = isTaskBad(a) ? 0 : isTaskOn(a) ? 1 : 2;
+  const bw = isTaskBad(b) ? 0 : isTaskOn(b) ? 1 : 2;
   return aw - bw
 }));
 
 const issueItems = computed(() => {
+  if (isPluginDisabled.value) return []
   const healthProblems = healthItems.value.filter(item => !item.ok);
   if (healthProblems.length) return healthProblems
   const taskProblems = taskCards.value
@@ -322,14 +346,20 @@ const issueItems = computed(() => {
       ok: false,
     }));
   if (taskProblems.length) return taskProblems
-  if (!data.enabled) return [{ name: '运行状态', detail: '插件当前未启用', detailRows: [], ok: false }]
   return []
 });
-const issueCount = computed(() => Math.max(Number(data.task_failed) || 0, issueItems.value.length));
-const primaryIssue = computed(() => issueItems.value[0] || { name: '系统状态', detail: '当前任务和健康巡查未发现阻塞项', detailRows: [], ok: true });
-const issueTitle = computed(() => issueCount.value > 0 ? `${issueCount.value} 项需要处理` : '运行平稳');
+const issueCount = computed(() => (isPluginDisabled.value ? 0 : Math.max(Number(data.task_failed) || 0, issueItems.value.length)));
+const primaryIssue = computed(() => {
+  if (isPluginDisabled.value) return { name: '运行状态', detail: '插件当前未启用', detailRows: [], ok: true }
+  return issueItems.value[0] || { name: '系统状态', detail: '当前任务和健康巡查未发现阻塞项', detailRows: [], ok: true }
+});
+const issueTitle = computed(() => {
+  if (isPluginDisabled.value) return '插件已停用'
+  return issueCount.value > 0 ? `${issueCount.value} 项需要处理` : '运行平稳'
+});
 const issueDesc = computed(() => {
   if (error.value) return error.value
+  if (isPluginDisabled.value) return '插件未启用时不会运行定时任务或业务链路，仪表盘仅展示当前配置快照'
   if (issueCount.value > 0) return `健康巡查发现${primaryIssue.value.name}异常，仪表盘优先展示具体路径和原因`
   return '任务调度与健康巡查处于稳定状态'
 });
@@ -342,7 +372,7 @@ const lastRunLabel = computed(() => {
 
 const metricCards = computed(() => [
   { label: '运行状态', value: overallText.value, icon: 'mdi-check', tone: overallColor.value },
-  { label: '启用组件', value: `${data.task_on} / ${data.task_total}`, icon: 'mdi-layers-triple-outline', tone: 'blue' },
+  { label: '启用组件', value: `${data.enabled ? data.task_on : 0} / ${data.task_total}`, icon: 'mdi-layers-triple-outline', tone: 'blue' },
   { label: '异常组件', value: String(issueCount.value), icon: 'mdi-shield-alert-outline', tone: issueCount.value ? 'red' : 'green' },
   { label: '站点流量', value: formatGB(siteTrafficTotal.value), icon: 'mdi-chart-line-variant', tone: 'amber' },
 ]);
@@ -380,13 +410,32 @@ const actionGroups = [
     icon: 'mdi-puzzle-check-outline',
     actions: [
       { path: 'run_market_update', label: '插件更新', icon: 'mdi-cloud-sync-outline', tone: 'amber' },
-      { path: 'run_plugin_uninstall', label: '插件卸载', icon: 'mdi-puzzle-remove-outline', tone: 'red' },
     ],
   },
 ];
 const actionItems = computed(() => actionGroups.flatMap(group => group.actions));
 
-onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview(); });
+function ensureDialogBackdropStyle() {
+  if (typeof document === 'undefined' || document.getElementById(dialogBackdropStyleId)) return
+  const style = document.createElement('style');
+  style.id = dialogBackdropStyleId;
+  style.textContent = `
+.v-overlay:has(.agentops-dashboard) .v-overlay__scrim {
+  opacity: 0.70 !important;
+  background: rgb(var(--v-theme-background)) !important;
+  backdrop-filter: blur(10px) saturate(112%);
+  -webkit-backdrop-filter: blur(10px) saturate(112%);
+}
+`;
+  document.head.appendChild(style);
+}
+
+onMounted(() => {
+  ensureDialogBackdropStyle();
+  loadDashboard();
+  loadSiteChart();
+  loadDownloaderOverview();
+});
 
 return (_ctx, _cache) => {
   const _component_VIcon = _resolveComponent("VIcon");
@@ -454,12 +503,12 @@ return (_ctx, _cache) => {
         ]),
         _createElementVNode("section", _hoisted_4, [
           _createElementVNode("article", {
-            class: _normalizeClass(["panel alert-panel", { 'alert-panel--ok': issueCount.value === 0 && !error.value }])
+            class: _normalizeClass(["panel alert-panel", { 'alert-panel--ok': issueCount.value === 0 && !error.value && !isPluginDisabled.value, 'alert-panel--idle': isPluginDisabled.value && !error.value }])
           }, [
             _createElementVNode("div", _hoisted_5, [
               _createElementVNode("div", _hoisted_6, [
                 _createVNode(_component_VIcon, {
-                  icon: issueCount.value || error.value ? 'mdi-alert-outline' : 'mdi-shield-check-outline',
+                  icon: isPluginDisabled.value && !error.value ? 'mdi-power-standby' : issueCount.value || error.value ? 'mdi-alert-outline' : 'mdi-shield-check-outline',
                   size: "28"
                 }, null, 8, ["icon"])
               ]),
@@ -472,8 +521,8 @@ return (_ctx, _cache) => {
               _createElementVNode("b", null, _toDisplayString(primaryIssue.value.name), 1),
               _createElementVNode("strong", null, _toDisplayString(primaryIssue.value.detail), 1),
               _createElementVNode("span", {
-                class: _normalizeClass(["badge", { 'badge--ok': issueCount.value === 0 && !error.value }])
-              }, _toDisplayString(issueCount.value || error.value ? '异常' : '正常'), 3)
+                class: _normalizeClass(["badge", { 'badge--ok': issueCount.value === 0 && !error.value && !isPluginDisabled.value, 'badge--idle': isPluginDisabled.value && !error.value }])
+              }, _toDisplayString(error.value ? '异常' : isPluginDisabled.value ? '停用' : issueCount.value ? '异常' : '正常'), 3)
             ])
           ], 2),
           _createElementVNode("section", _hoisted_9, [
@@ -632,6 +681,7 @@ return (_ctx, _cache) => {
                         variant: "text",
                         density: "comfortable",
                         loading: actionRunning.value === action.path,
+                        disabled: actionsDisabled.value || (!!actionRunning.value && actionRunning.value !== action.path),
                         class: _normalizeClass(["cmd-btn action-btn action-item text-none", [`cmd-btn--${action.tone}`, `action-btn--${action.tone}`]]),
                         onClick: $event => (runAction(action.path, action.label))
                       }, {
@@ -643,7 +693,7 @@ return (_ctx, _cache) => {
                           _createElementVNode("span", _hoisted_41, _toDisplayString(action.label), 1)
                         ]),
                         _: 2
-                      }, 1032, ["loading", "class", "onClick"]))
+                      }, 1032, ["loading", "disabled", "class", "onClick"]))
                     }), 128))
                   ])
                 ])
@@ -686,33 +736,35 @@ return (_ctx, _cache) => {
                     ]))
                   }), 128))
                 ]))
-              : (_openBlock(), _createElementBlock("div", _hoisted_46, [...(_cache[25] || (_cache[25] = [
-                  _createElementVNode("div", { class: "downloader-card downloader-card--empty" }, [
+              : (_openBlock(), _createElementBlock("div", _hoisted_46, [
+                  _createElementVNode("div", _hoisted_47, [
                     _createElementVNode("div", null, [
-                      _createElementVNode("strong", null, "暂无活动下载器"),
-                      _createElementVNode("span", null, "刷新后同步正在下载的任务")
+                      _createElementVNode("strong", null, _toDisplayString(downloaderOverviewMessage.value ? '下载器活动已跳过' : '暂无活动下载器'), 1),
+                      _createElementVNode("span", null, _toDisplayString(downloaderOverviewMessage.value || '刷新后同步正在下载的任务'), 1)
                     ]),
-                    _createElementVNode("span", { class: "ok-chip ok-chip--idle" }, "等待")
-                  ], -1),
-                  _createElementVNode("div", { class: "downloader-card downloader-card--empty downloader-card--ghost" }, [
-                    _createElementVNode("div", null, [
-                      _createElementVNode("strong", null, "下载器快照"),
-                      _createElementVNode("span", null, "连接后显示实时上下行速度")
-                    ]),
-                    _createElementVNode("span", { class: "ok-chip ok-chip--idle" }, "空闲")
-                  ], -1)
-                ]))]))
+                    _cache[25] || (_cache[25] = _createElementVNode("span", { class: "ok-chip ok-chip--idle" }, "等待", -1))
+                  ]),
+                  (!downloaderOverviewMessage.value)
+                    ? (_openBlock(), _createElementBlock("div", _hoisted_48, [...(_cache[26] || (_cache[26] = [
+                        _createElementVNode("div", null, [
+                          _createElementVNode("strong", null, "下载器快照"),
+                          _createElementVNode("span", null, "连接后显示实时上下行速度")
+                        ], -1),
+                        _createElementVNode("span", { class: "ok-chip ok-chip--idle" }, "空闲", -1)
+                      ]))]))
+                    : _createCommentVNode("", true)
+                ]))
           ]),
-          _createElementVNode("article", _hoisted_47, [
-            _createElementVNode("div", _hoisted_48, [
-              _createElementVNode("span", _hoisted_49, [
+          _createElementVNode("article", _hoisted_49, [
+            _createElementVNode("div", _hoisted_50, [
+              _createElementVNode("span", _hoisted_51, [
                 _createVNode(_component_VIcon, {
                   icon: "mdi-format-list-bulleted",
                   size: "20"
                 })
               ]),
-              _cache[26] || (_cache[26] = _createElementVNode("h2", null, "组件运行状况", -1)),
-              _cache[27] || (_cache[27] = _createElementVNode("span", { class: "panel-note" }, "异常优先", -1))
+              _cache[27] || (_cache[27] = _createElementVNode("h2", null, "组件运行状况", -1)),
+              _cache[28] || (_cache[28] = _createElementVNode("span", { class: "panel-note" }, "异常优先", -1))
             ]),
             (loading.value)
               ? (_openBlock(), _createBlock(_component_VSkeletonLoader, {
@@ -720,26 +772,26 @@ return (_ctx, _cache) => {
                   class: "runtime-loader",
                   type: "list-item-two-line@4"
                 }))
-              : (_openBlock(), _createElementBlock("div", _hoisted_50, [
+              : (_openBlock(), _createElementBlock("div", _hoisted_52, [
                   (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(taskCards.value, (task) => {
                     return (_openBlock(), _createElementBlock("div", {
                       key: task.key,
-                      class: _normalizeClass(["module task-card", { 'module--bad': isTaskBad(task), 'module--off': !task.enabled }])
+                      class: _normalizeClass(["module task-card", { 'module--bad': isTaskBad(task), 'module--off': !isTaskOn(task) }])
                     }, [
-                      _createElementVNode("div", _hoisted_51, [
+                      _createElementVNode("div", _hoisted_53, [
                         _createElementVNode("i", {
-                          class: _normalizeClass(["dot", { red: isTaskBad(task), gray: !task.enabled }])
+                          class: _normalizeClass(["dot", { red: isTaskBad(task), gray: !isTaskOn(task) }])
                         }, null, 2),
-                        _createElementVNode("span", _hoisted_52, _toDisplayString(task.name), 1),
+                        _createElementVNode("span", _hoisted_54, _toDisplayString(task.name), 1),
                         _createElementVNode("span", {
-                          class: _normalizeClass(["state", { bad: isTaskBad(task), off: !task.enabled }])
-                        }, _toDisplayString(isTaskBad(task) ? '失败' : task.enabled ? 'ON' : 'OFF'), 3)
+                          class: _normalizeClass(["state", { bad: isTaskBad(task), off: !isTaskOn(task) }])
+                        }, _toDisplayString(isTaskBad(task) ? '失败' : isTaskOn(task) ? 'ON' : 'OFF'), 3)
                       ]),
-                      _createElementVNode("div", _hoisted_53, _toDisplayString(task.next ? `下次 ${task.next}` : task.last_time ? `最近 ${task.last_time}` : '等待调度'), 1)
+                      _createElementVNode("div", _hoisted_55, _toDisplayString(task.next ? `下次 ${task.next}` : task.last_time ? `最近 ${task.last_time}` : '等待调度'), 1)
                     ], 2))
                   }), 128)),
                   (!taskCards.value.length)
-                    ? (_openBlock(), _createElementBlock("div", _hoisted_54, [...(_cache[28] || (_cache[28] = [
+                    ? (_openBlock(), _createElementBlock("div", _hoisted_56, [...(_cache[29] || (_cache[29] = [
                         _createElementVNode("div", { class: "module-top" }, [
                           _createElementVNode("i", { class: "dot gray" }),
                           _createElementVNode("span", { class: "module-title" }, "暂无任务"),
@@ -759,6 +811,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-4965c679"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-816e2a25"]]);
 
 export { Page as default };

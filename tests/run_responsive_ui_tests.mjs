@@ -14,6 +14,7 @@ const GB = 1024 ** 3
 
 const viewports = [
   { name: 'desktop', width: 1440, height: 900 },
+  { name: 'short-desktop', width: 1240, height: 760 },
   { name: 'tablet', width: 834, height: 1112 },
   { name: 'mobile', width: 390, height: 844 },
   { name: 'narrow', width: 360, height: 740 },
@@ -405,6 +406,34 @@ async function auditVisibleDashboard(page, scope) {
     const actionTotal = document.querySelectorAll('.action-item').length
     const actionVisible = actionScroll ? [...actionScroll.querySelectorAll('.action-item')].filter(isVisible).length : 0
     const actionBox = actionScroll ? info(actionScroll) : null
+    const viewportHeight = window.innerHeight
+    const viewportWidth = window.innerWidth
+    const dashboard = document.querySelector('.agentops-dashboard')
+    const dashboardBox = dashboard ? dashboard.getBoundingClientRect() : null
+    const dashboardStyle = dashboard ? getComputedStyle(dashboard) : null
+    const isSidebarDashboard = dashboard?.classList.contains('dashboard-shell--sidebar')
+    const clippedPanels = ['.alert-panel', '.site-panel', '.command-panel', '.download-panel', '.runtime-panel']
+      .map(sel => document.querySelector(sel))
+      .filter(el => el && isVisible(el))
+      .map(el => ({ ...info(el), bottom: Math.round(el.getBoundingClientRect().bottom) }))
+      .filter(item => {
+        if (viewportWidth <= 760 || isSidebarDashboard) return false
+        const dashboardCanScroll = dashboard && dashboard.scrollHeight > dashboard.clientHeight + 3 && /auto|scroll/.test(dashboardStyle.overflowY)
+        return item.bottom > viewportHeight + 3 && !dashboardCanScroll
+      })
+    const collapsedPanels = ['.download-panel', '.runtime-panel']
+      .map(sel => document.querySelector(sel))
+      .filter(el => el && isVisible(el))
+      .map(info)
+      .filter(item => viewportWidth > 760 && item.height < 128)
+    const dashboardViewport = dashboard ? {
+      width: Math.round(dashboardBox.width),
+      height: Math.round(dashboardBox.height),
+      scrollHeight: dashboard.scrollHeight,
+      clientHeight: dashboard.clientHeight,
+      overflowY: dashboardStyle.overflowY,
+      viewportHeight,
+    } : null
 
     const scrollbarIssues = [
       '.agentops-dashboard',
@@ -418,7 +447,7 @@ async function auditVisibleDashboard(page, scope) {
       .map(el => ({ ...info(el), width: getComputedStyle(el, '::-webkit-scrollbar').width, height: getComputedStyle(el, '::-webkit-scrollbar').height }))
       .filter(item => item.width !== '1px' || item.height !== '1px')
 
-    return { scope, horizontalOverflow, clippedImportantText, clippedCommandLabelStyles, actionTotal, actionVisible, actionBox, scrollbarIssues }
+    return { scope, horizontalOverflow, clippedImportantText, clippedCommandLabelStyles, actionTotal, actionVisible, actionBox, clippedPanels, collapsedPanels, dashboardViewport, scrollbarIssues }
   }, scope)
 
   assert.deepEqual(result.horizontalOverflow, [], `${scope} dashboard should not have plugin-internal horizontal overflow`)
@@ -426,6 +455,11 @@ async function auditVisibleDashboard(page, scope) {
   assert.deepEqual(result.clippedCommandLabelStyles, [], `${scope} command button labels should never rely on hidden overflow or ellipsis`)
   assert.equal(result.actionVisible, result.actionTotal, `${scope} dashboard should render every manual action button`)
   assert.equal(result.actionBox?.overflowY, 'visible', `${scope} dashboard action buttons should not rely on an internal scroller`)
+  assert.deepEqual(result.clippedPanels, [], `${scope} dashboard panels should not be clipped by short desktop viewports without a dashboard scroll container`)
+  assert.deepEqual(result.collapsedPanels, [], `${scope} dashboard bottom panels should not collapse into title-only bars`)
+  if (result.dashboardViewport && result.dashboardViewport.scrollHeight > result.dashboardViewport.clientHeight + 3) {
+    assert.match(result.dashboardViewport.overflowY, /auto|scroll/, `${scope} dashboard overflow should stay reachable when content is taller than the viewport`)
+  }
   assert.deepEqual(result.scrollbarIssues, [], `${scope} dashboard scrollbars should stay at 1px`)
 }
 

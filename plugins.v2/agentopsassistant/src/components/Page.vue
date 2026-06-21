@@ -1,13 +1,14 @@
 ﻿<script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useTheme } from 'vuetify'
-import { getPluginApi, postPluginApi } from './api'
+import { getPluginApi, getPluginApiRaw, postPluginApi } from './api'
 
 const props = defineProps({
   api: { type: [Object, Function], default: null },
   surface: { type: String, default: 'dialog' },
 })
 const emit = defineEmits(['close', 'switch'])
+const dialogBackdropStyleId = 'agentops-dashboard-dialog-backdrop-style'
 
 const loading = ref(true)
 const error = ref('')
@@ -27,6 +28,7 @@ const data = reactive({
 
 const siteChart = reactive({ date: '', basis: 'today', sites: [], upload_total: 0, download_total: 0 })
 const downloaders = ref([])
+const downloaderOverviewMessage = ref('')
 const dashboardThemeClass = computed(() => {
   const name = String(vuetifyTheme.global.name.value || '').toLowerCase()
   if (name.includes('transparent')) return 'agentops-theme--transparent'
@@ -34,6 +36,8 @@ const dashboardThemeClass = computed(() => {
   return ''
 })
 const isSidebarSurface = computed(() => props.surface === 'sidebar')
+const isPluginDisabled = computed(() => !data.enabled)
+const actionsDisabled = computed(() => isPluginDisabled.value)
 
 const overallColor = computed(() => {
   if (!data.enabled) return 'muted'
@@ -70,12 +74,18 @@ async function loadDashboard() {
 
 async function runAction(path, label) {
   if (actionRunning.value) return
+  if (actionsDisabled.value) {
+    actionOk.value = false
+    actionMessage.value = '插件总开关未启用，手动命令已暂停'
+    setTimeout(() => { actionMessage.value = '' }, 5000)
+    return
+  }
   actionRunning.value = path
   actionMessage.value = ''
   actionOk.value = true
   try {
     const res = await postPluginApi(props.api, path)
-    const ok = !res || res.code === 0 || res.code === undefined
+    const ok = !!res && res.code === 0
     actionOk.value = ok
     actionMessage.value = (res && res.msg) || `${label}已${ok ? '完成' : '失败'}`
     setTimeout(() => { actionMessage.value = '' }, 5000)
@@ -164,10 +174,13 @@ async function loadSiteChart() {
 
 async function loadDownloaderOverview() {
   try {
-    const res = await getPluginApi(props.api, 'downloader_overview')
-    downloaders.value = (res && res.downloaders) || []
+    const res = await getPluginApiRaw(props.api, 'downloader_overview')
+    const payload = res && typeof res === 'object' && 'data' in res ? res.data : res
+    downloaders.value = (payload && payload.downloaders) || []
+    downloaderOverviewMessage.value = payload?.message || res?.msg || ''
   } catch {
     downloaders.value = []
+    downloaderOverviewMessage.value = '下载器活动获取失败'
   }
 }
 
@@ -198,16 +211,22 @@ const healthItems = computed(() => {
 })
 
 function isTaskBad(task) {
+  if (!isTaskOn(task)) return false
   return task?.color === 'error' || /失败|异常|错误/.test(String(task?.state || ''))
 }
 
+function isTaskOn(task) {
+  return !!data.enabled && !!task?.enabled
+}
+
 const taskCards = computed(() => [...(data.tasks || [])].sort((a, b) => {
-  const aw = isTaskBad(a) ? 0 : a.enabled ? 1 : 2
-  const bw = isTaskBad(b) ? 0 : b.enabled ? 1 : 2
+  const aw = isTaskBad(a) ? 0 : isTaskOn(a) ? 1 : 2
+  const bw = isTaskBad(b) ? 0 : isTaskOn(b) ? 1 : 2
   return aw - bw
 }))
 
 const issueItems = computed(() => {
+  if (isPluginDisabled.value) return []
   const healthProblems = healthItems.value.filter(item => !item.ok)
   if (healthProblems.length) return healthProblems
   const taskProblems = taskCards.value
@@ -219,14 +238,20 @@ const issueItems = computed(() => {
       ok: false,
     }))
   if (taskProblems.length) return taskProblems
-  if (!data.enabled) return [{ name: '运行状态', detail: '插件当前未启用', detailRows: [], ok: false }]
   return []
 })
-const issueCount = computed(() => Math.max(Number(data.task_failed) || 0, issueItems.value.length))
-const primaryIssue = computed(() => issueItems.value[0] || { name: '系统状态', detail: '当前任务和健康巡查未发现阻塞项', detailRows: [], ok: true })
-const issueTitle = computed(() => issueCount.value > 0 ? `${issueCount.value} 项需要处理` : '运行平稳')
+const issueCount = computed(() => (isPluginDisabled.value ? 0 : Math.max(Number(data.task_failed) || 0, issueItems.value.length)))
+const primaryIssue = computed(() => {
+  if (isPluginDisabled.value) return { name: '运行状态', detail: '插件当前未启用', detailRows: [], ok: true }
+  return issueItems.value[0] || { name: '系统状态', detail: '当前任务和健康巡查未发现阻塞项', detailRows: [], ok: true }
+})
+const issueTitle = computed(() => {
+  if (isPluginDisabled.value) return '插件已停用'
+  return issueCount.value > 0 ? `${issueCount.value} 项需要处理` : '运行平稳'
+})
 const issueDesc = computed(() => {
   if (error.value) return error.value
+  if (isPluginDisabled.value) return '插件未启用时不会运行定时任务或业务链路，仪表盘仅展示当前配置快照'
   if (issueCount.value > 0) return `健康巡查发现${primaryIssue.value.name}异常，仪表盘优先展示具体路径和原因`
   return '任务调度与健康巡查处于稳定状态'
 })
@@ -239,7 +264,7 @@ const lastRunLabel = computed(() => {
 
 const metricCards = computed(() => [
   { label: '运行状态', value: overallText.value, icon: 'mdi-check', tone: overallColor.value },
-  { label: '启用组件', value: `${data.task_on} / ${data.task_total}`, icon: 'mdi-layers-triple-outline', tone: 'blue' },
+  { label: '启用组件', value: `${data.enabled ? data.task_on : 0} / ${data.task_total}`, icon: 'mdi-layers-triple-outline', tone: 'blue' },
   { label: '异常组件', value: String(issueCount.value), icon: 'mdi-shield-alert-outline', tone: issueCount.value ? 'red' : 'green' },
   { label: '站点流量', value: formatGB(siteTrafficTotal.value), icon: 'mdi-chart-line-variant', tone: 'amber' },
 ])
@@ -277,13 +302,32 @@ const actionGroups = [
     icon: 'mdi-puzzle-check-outline',
     actions: [
       { path: 'run_market_update', label: '插件更新', icon: 'mdi-cloud-sync-outline', tone: 'amber' },
-      { path: 'run_plugin_uninstall', label: '插件卸载', icon: 'mdi-puzzle-remove-outline', tone: 'red' },
     ],
   },
 ]
 const actionItems = computed(() => actionGroups.flatMap(group => group.actions))
 
-onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
+function ensureDialogBackdropStyle() {
+  if (typeof document === 'undefined' || document.getElementById(dialogBackdropStyleId)) return
+  const style = document.createElement('style')
+  style.id = dialogBackdropStyleId
+  style.textContent = `
+.v-overlay:has(.agentops-dashboard) .v-overlay__scrim {
+  opacity: 0.70 !important;
+  background: rgb(var(--v-theme-background)) !important;
+  backdrop-filter: blur(10px) saturate(112%);
+  -webkit-backdrop-filter: blur(10px) saturate(112%);
+}
+`
+  document.head.appendChild(style)
+}
+
+onMounted(() => {
+  ensureDialogBackdropStyle()
+  loadDashboard()
+  loadSiteChart()
+  loadDownloaderOverview()
+})
 </script>
 
 <template>
@@ -304,10 +348,10 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
       </header>
 
       <section class="dashboard-canvas">
-        <article class="panel alert-panel" :class="{ 'alert-panel--ok': issueCount === 0 && !error }">
+        <article class="panel alert-panel" :class="{ 'alert-panel--ok': issueCount === 0 && !error && !isPluginDisabled, 'alert-panel--idle': isPluginDisabled && !error }">
           <div class="alert-top">
             <div class="alert-icon">
-              <VIcon :icon="issueCount || error ? 'mdi-alert-outline' : 'mdi-shield-check-outline'" size="28" />
+              <VIcon :icon="isPluginDisabled && !error ? 'mdi-power-standby' : issueCount || error ? 'mdi-alert-outline' : 'mdi-shield-check-outline'" size="28" />
             </div>
             <div class="alert-copy">
               <h1>{{ error ? '数据加载失败' : issueTitle }}</h1>
@@ -317,7 +361,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
           <div class="alert-line">
             <b>{{ primaryIssue.name }}</b>
             <strong>{{ primaryIssue.detail }}</strong>
-            <span class="badge" :class="{ 'badge--ok': issueCount === 0 && !error }">{{ issueCount || error ? '异常' : '正常' }}</span>
+            <span class="badge" :class="{ 'badge--ok': issueCount === 0 && !error && !isPluginDisabled, 'badge--idle': isPluginDisabled && !error }">{{ error ? '异常' : isPluginDisabled ? '停用' : issueCount ? '异常' : '正常' }}</span>
           </div>
         </article>
 
@@ -365,9 +409,9 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
                 <div class="th">站点</div><div class="th">上传</div><div class="th">下载</div><div class="th">占比</div>
                 <template v-for="site in siteTableRows" :key="site.name">
                   <div class="site-row-cell site-name"><i class="dot" :style="{ background: site.color, boxShadow: `0 0 8px ${site.glow}` }"></i>{{ site.name }}</div>
-                  <div class="site-row-cell">↑ {{ formatGB(site.upload) }}</div>
-                  <div class="site-row-cell">↓ {{ formatGB(site.download) }}</div>
-                  <div class="site-row-cell">{{ sitePercent(site.value) }}</div>
+                  <div class="site-row-cell site-upload">↑ {{ formatGB(site.upload) }}</div>
+                  <div class="site-row-cell site-download">↓ {{ formatGB(site.download) }}</div>
+                  <div class="site-row-cell site-percent">{{ sitePercent(site.value) }}</div>
                 </template>
               </div>
             </div>
@@ -429,6 +473,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
                   variant="text"
                   density="comfortable"
                   :loading="actionRunning === action.path"
+                  :disabled="actionsDisabled || (!!actionRunning && actionRunning !== action.path)"
                   class="cmd-btn action-btn action-item text-none"
                   :class="[`cmd-btn--${action.tone}`, `action-btn--${action.tone}`]"
                   @click="runAction(action.path, action.label)"
@@ -459,12 +504,12 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
           <div v-else class="download-body download-body--empty">
             <div class="downloader-card downloader-card--empty">
               <div>
-                <strong>暂无活动下载器</strong>
-                <span>刷新后同步正在下载的任务</span>
+                <strong>{{ downloaderOverviewMessage ? '下载器活动已跳过' : '暂无活动下载器' }}</strong>
+                <span>{{ downloaderOverviewMessage || '刷新后同步正在下载的任务' }}</span>
               </div>
               <span class="ok-chip ok-chip--idle">等待</span>
             </div>
-            <div class="downloader-card downloader-card--empty downloader-card--ghost">
+            <div v-if="!downloaderOverviewMessage" class="downloader-card downloader-card--empty downloader-card--ghost">
               <div>
                 <strong>下载器快照</strong>
                 <span>连接后显示实时上下行速度</span>
@@ -482,11 +527,11 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
           </div>
           <VSkeletonLoader v-if="loading" class="runtime-loader" type="list-item-two-line@4" />
           <div v-else class="runtime-track task-grid">
-            <div v-for="task in taskCards" :key="task.key" class="module task-card" :class="{ 'module--bad': isTaskBad(task), 'module--off': !task.enabled }">
+            <div v-for="task in taskCards" :key="task.key" class="module task-card" :class="{ 'module--bad': isTaskBad(task), 'module--off': !isTaskOn(task) }">
               <div class="module-top">
-                <i class="dot" :class="{ red: isTaskBad(task), gray: !task.enabled }"></i>
+                <i class="dot" :class="{ red: isTaskBad(task), gray: !isTaskOn(task) }"></i>
                 <span class="module-title">{{ task.name }}</span>
-                <span class="state" :class="{ bad: isTaskBad(task), off: !task.enabled }">{{ isTaskBad(task) ? '失败' : task.enabled ? 'ON' : 'OFF' }}</span>
+                <span class="state" :class="{ bad: isTaskBad(task), off: !isTaskOn(task) }">{{ isTaskBad(task) ? '失败' : isTaskOn(task) ? 'ON' : 'OFF' }}</span>
               </div>
               <div class="module-note">{{ task.next ? `下次 ${task.next}` : task.last_time ? `最近 ${task.last_time}` : '等待调度' }}</div>
             </div>
@@ -550,6 +595,15 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   --soft-line-alpha: 0.075;
   --donut-core-line-alpha: 0.060;
   --donut-core-panel-alpha: 0.96;
+  --site-cell-line-alpha: 0.092;
+  --site-cell-line-low-alpha: 0.030;
+  --site-cell-border-alpha: 0.090;
+  --site-cell-fill-alpha: 0.26;
+  --site-cell-shadow:
+    inset 0 1px 0 rgba(var(--line), 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+    0 8px 18px rgba(0, 0, 0, 0.075),
+    0 2px 6px rgba(0, 0, 0, 0.045);
   --command-cyan-alpha: 0.060;
   --download-blue-alpha: 0.060;
   --runtime-violet-alpha: 0.050;
@@ -569,6 +623,11 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
     0 4px 9px rgba(0, 0, 0, 0.075),
     0 1px 3px rgba(0, 0, 0, 0.050);
   width: 100%;
+  box-sizing: border-box;
+  max-height: calc(100dvh - 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 8px;
   color: rgba(var(--ink), 0.94);
   font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
@@ -589,6 +648,15 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   --panel-inner-alpha: 0.12;
   --panel-inner-strong-alpha: 0.16;
   --status-panel-alpha: 0.32;
+  --site-cell-line-alpha: 0.115;
+  --site-cell-line-low-alpha: 0.038;
+  --site-cell-border-alpha: 0.105;
+  --site-cell-fill-alpha: 0.40;
+  --site-cell-shadow:
+    inset 0 1px 0 rgba(var(--line), 0.10),
+    inset 0 -1px 0 rgba(var(--line), 0.030),
+    0 8px 18px rgba(15, 23, 42, 0.060),
+    0 2px 7px rgba(15, 23, 42, 0.035);
   --shadow-panel:
     inset 0 1px 0 rgba(var(--line), 0.080),
     inset 0 -1px 0 rgba(var(--line), 0.035),
@@ -637,6 +705,15 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   --soft-line-alpha: 0.012;
   --donut-core-line-alpha: 0.010;
   --donut-core-panel-alpha: 0.040;
+  --site-cell-line-alpha: 0.030;
+  --site-cell-line-low-alpha: 0.010;
+  --site-cell-border-alpha: 0.060;
+  --site-cell-fill-alpha: 0.006;
+  --site-cell-shadow:
+    inset 0 1px 0 rgba(var(--line), 0.050),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.014),
+    0 4px 10px rgba(0, 0, 0, 0.024),
+    0 1px 3px rgba(0, 0, 0, 0.014);
   --command-cyan-alpha: 0.010;
   --download-blue-alpha: 0.010;
   --runtime-violet-alpha: 0.010;
@@ -694,23 +771,19 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 
 .dashboard-shell {
   border-radius: var(--aoa-dashboard-radius);
-  padding: 28px;
-  border: 1px solid rgba(var(--line), 0.075);
-  background:
-    radial-gradient(circle at 78% 8%, rgba(var(--cyan), var(--shell-cyan-alpha)), transparent 31%),
-    radial-gradient(circle at 16% 10%, rgba(var(--blue), var(--shell-blue-alpha)), transparent 29%),
-    linear-gradient(180deg, rgba(var(--panel), var(--shell-panel-hi)), rgba(var(--panel), var(--shell-panel-lo))),
-    rgba(var(--stage), var(--shell-stage-alpha));
-  box-shadow:
-    inset 0 1px 0 rgba(var(--line), 0.055),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.10),
-    0 18px 48px rgba(0, 0, 0, 0.10),
-    0 5px 16px rgba(0, 0, 0, 0.060);
-  backdrop-filter: blur(26px) saturate(145%);
+  padding: 26px 40px 34px;
+  border: 0;
+  background: transparent;
+  background-color: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .dashboard-shell--sidebar {
   min-height: calc(100dvh - 72px);
+  max-height: none;
+  overflow: visible;
   padding: 28px 22px 30px;
   border: 0;
   border-radius: 0 !important;
@@ -780,33 +853,28 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   width: min(1208px, 100%);
   min-height: 790px;
   margin: 0 auto;
-  overflow: hidden;
+  overflow: visible;
   border-radius: var(--aoa-dashboard-radius);
-  border: 1px solid rgba(var(--line), 0.105);
-  background:
-    radial-gradient(circle at 82% 0%, rgba(var(--cyan), var(--frame-cyan-alpha)), transparent 34%),
-    radial-gradient(circle at 9% 100%, rgba(var(--violet), var(--frame-violet-alpha)), transparent 35%),
-    linear-gradient(145deg, rgba(var(--panel), var(--frame-panel-hi)), rgba(var(--panel), var(--frame-panel-lo))),
-    rgba(var(--stage), var(--frame-stage-alpha));
-  background-color: rgba(var(--stage), var(--frame-stage-alpha)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(var(--line), 0.095),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.10),
-    0 14px 34px rgba(0, 0, 0, 0.09),
-    0 4px 12px rgba(0, 0, 0, 0.055);
-  backdrop-filter: blur(30px) saturate(155%);
+  border: 0;
+  background: transparent;
+  background-color: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .agentops-toolbar {
-  height: 50px;
+  height: 56px;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 0 16px;
-  border-bottom: 1px solid rgba(var(--line), 0.072);
-  background:
-    linear-gradient(180deg, rgba(var(--panel), var(--toolbar-panel-hi)), rgba(var(--panel), var(--toolbar-panel-lo))),
-    rgba(var(--line), 0.018);
+  gap: 12px;
+  padding: 0 22px;
+  margin-bottom: 18px;
+  border-bottom: 0;
+  background: transparent;
+  background-color: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .brand {
@@ -874,12 +942,13 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 
 .dashboard-canvas {
-  height: 740px;
-  padding: 12px;
+  height: min(746px, calc(100dvh - 150px));
+  min-height: 620px;
+  padding: 18px;
   display: grid;
   grid-template-columns: minmax(300px, 410px) minmax(300px, 410px) minmax(280px, 1fr);
-  grid-template-rows: 164px 300px 218px;
-  gap: 10px;
+  grid-template-rows: minmax(136px, 0.72fr) minmax(250px, 1.25fr) minmax(180px, 0.9fr);
+  gap: 14px;
 }
 
 .panel {
@@ -958,6 +1027,13 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
     linear-gradient(145deg, rgba(var(--green), 0.055), rgba(var(--panel), var(--status-mix-alpha))),
     rgba(var(--panel), var(--status-panel-alpha));
 }
+.alert-panel--idle {
+  border-color: rgba(var(--blue), 0.16);
+  background:
+    radial-gradient(circle at 7% 0%, rgba(var(--blue), 0.075), transparent 44%),
+    linear-gradient(145deg, rgba(var(--line), 0.030), rgba(var(--panel), var(--status-mix-alpha))),
+    rgba(var(--panel), var(--status-panel-alpha));
+}
 .alert-top {
   display: flex;
   align-items: center;
@@ -981,6 +1057,13 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .alert-panel--ok .alert-icon {
   color: rgb(var(--green));
   background: rgba(var(--green), 0.20);
+}
+.alert-panel--idle .alert-icon {
+  color: rgba(var(--blue), 0.92);
+  background: rgba(var(--blue), 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--line), 0.14),
+    0 4px 10px rgba(0, 0, 0, 0.045);
 }
 .alert-copy {
   min-width: 0;
@@ -1018,6 +1101,9 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .alert-panel--ok .alert-line {
   border-color: rgba(var(--green), 0.20);
 }
+.alert-panel--idle .alert-line {
+  border-color: rgba(var(--blue), 0.14);
+}
 .alert-line b {
   color: rgba(var(--red), 0.98);
   font-weight: 850;
@@ -1025,6 +1111,9 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 .alert-panel--ok .alert-line b {
   color: rgba(var(--green), 0.98);
+}
+.alert-panel--idle .alert-line b {
+  color: rgba(var(--blue), 0.96);
 }
 .alert-line strong {
   min-width: 0;
@@ -1051,6 +1140,10 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .badge--ok {
   color: rgb(var(--green));
   background: rgba(var(--green), 0.16);
+}
+.badge--idle {
+  color: rgba(var(--blue), 0.96);
+  background: rgba(var(--blue), 0.14);
 }
 
 .metrics-panel {
@@ -1130,8 +1223,8 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   height: calc(100% - 38px);
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
-  gap: 16px;
-  padding: 8px 16px 16px;
+  gap: 18px;
+  padding: 14px 18px 18px;
 }
 .donut-zone {
   display: grid;
@@ -1202,12 +1295,12 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 .site-stat {
   min-width: 0;
   border-radius: 15px;
-  border: 1px solid rgba(var(--line), 0.070);
+  border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
   padding: 12px 13px;
   background:
-    linear-gradient(180deg, rgba(var(--line), 0.068), rgba(var(--line), 0.022)),
-    rgba(var(--panel), var(--panel-inner-strong-alpha));
-  box-shadow: var(--shadow-block);
+    linear-gradient(180deg, rgba(var(--line), var(--site-cell-line-alpha)), rgba(var(--line), var(--site-cell-line-low-alpha))),
+    rgba(var(--panel), var(--site-cell-fill-alpha));
+  box-shadow: var(--site-cell-shadow);
 }
 .site-stat span,
 .site-table .th {
@@ -1243,12 +1336,12 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   display: flex;
   align-items: center;
   border-radius: 11px;
+  border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
   padding: 0 10px;
-  background: rgba(var(--line), 0.022);
-  box-shadow:
-    inset 0 1px 0 rgba(var(--line), 0.045),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.07),
-    0 2px 5px rgba(0, 0, 0, 0.040);
+  background:
+    linear-gradient(180deg, rgba(var(--line), var(--site-cell-line-alpha)), rgba(var(--line), var(--site-cell-line-low-alpha))),
+    rgba(var(--panel), var(--site-cell-fill-alpha));
+  box-shadow: var(--site-cell-shadow);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1375,7 +1468,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 .cmd-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(118px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
 }
 .cmd-btn {
@@ -1613,28 +1706,19 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 
 .agentops-dashboard.agentops-theme--transparent.dashboard-shell {
-  border-color: rgba(var(--line), 0.055);
-  background:
-    radial-gradient(circle at 78% 8%, rgba(var(--cyan), var(--shell-cyan-alpha)), transparent 31%),
-    radial-gradient(circle at 16% 10%, rgba(var(--blue), var(--shell-blue-alpha)), transparent 29%),
-    linear-gradient(180deg, rgba(var(--line), 0.008), rgba(var(--line), 0.002)),
-    rgba(var(--stage), var(--shell-stage-alpha));
-  box-shadow:
-    inset 0 1px 0 rgba(var(--line), 0.026),
-    0 6px 16px rgba(0, 0, 0, 0.018);
+  border: 0;
+  background: transparent;
+  background-color: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .agentops-dashboard.agentops-theme--transparent .agentops-frame {
-  border-color: rgba(var(--line), 0.074);
-  background:
-    radial-gradient(circle at 82% 0%, rgba(var(--cyan), var(--frame-cyan-alpha)), transparent 34%),
-    radial-gradient(circle at 9% 100%, rgba(var(--violet), var(--frame-violet-alpha)), transparent 35%),
-    linear-gradient(145deg, rgba(var(--line), 0.010), rgba(var(--line), 0.003)),
-    rgba(var(--stage), var(--frame-stage-alpha));
-  background-color: rgba(var(--stage), var(--frame-stage-alpha)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(var(--line), 0.032),
-    0 4px 12px rgba(0, 0, 0, 0.016);
+  border: 0;
+  background: transparent;
+  background-color: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .agentops-dashboard.agentops-theme--transparent.dashboard-shell--sidebar,
@@ -1647,10 +1731,10 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 }
 
 .agentops-dashboard.agentops-theme--transparent .agentops-toolbar {
-  border-bottom-color: rgba(var(--line), 0.050);
-  background:
-    linear-gradient(180deg, rgba(var(--line), 0.012), rgba(var(--line), 0.003)),
-    rgba(var(--stage), 0.002);
+  border-bottom: 0;
+  background: transparent;
+  background-color: transparent !important;
+  box-shadow: none;
 }
 
 .agentops-dashboard.agentops-theme--transparent .panel {
@@ -1723,8 +1807,6 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 
 .agentops-dashboard.agentops-theme--transparent .top-button,
 .agentops-dashboard.agentops-theme--transparent .alert-line,
-.agentops-dashboard.agentops-theme--transparent .site-stat,
-.agentops-dashboard.agentops-theme--transparent .site-row-cell,
 .agentops-dashboard.agentops-theme--transparent .site-empty-row,
 .agentops-dashboard.agentops-theme--transparent .command-group,
 .agentops-dashboard.agentops-theme--transparent .cmd-btn,
@@ -1797,9 +1879,97 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   }
 }
 
+@media (min-width: 1181px) and (max-height: 820px) {
+  .dashboard-shell {
+    padding: 14px 24px 18px;
+  }
+  .agentops-frame {
+    min-height: 0;
+  }
+  .agentops-toolbar {
+    height: 44px;
+    min-height: 44px;
+    padding: 0 16px;
+    margin-bottom: 10px;
+  }
+  .dashboard-canvas {
+    height: calc(100dvh - 150px);
+    min-height: 560px;
+    padding: 14px;
+    gap: 12px;
+    grid-template-rows: minmax(118px, 0.58fr) minmax(214px, 1fr) minmax(150px, 0.68fr);
+  }
+  .alert-panel {
+    padding: 18px 18px 16px;
+  }
+  .alert-top {
+    gap: 14px;
+  }
+  .alert-copy h1 {
+    font-size: 26px;
+  }
+  .metrics-panel {
+    gap: 12px;
+  }
+  .metric-card {
+    padding: 15px 14px;
+  }
+  .site-body {
+    gap: 14px;
+    padding: 12px 16px 16px;
+  }
+  .donut-zone {
+    min-height: 180px;
+  }
+  .site-data {
+    grid-template-rows: 64px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .site-stat {
+    padding: 9px 10px;
+  }
+  .command-panel {
+    padding: 18px;
+  }
+  .command-head {
+    margin-bottom: 14px;
+  }
+  .command-body {
+    grid-template-rows: 82px 108px 108px 82px;
+    gap: 12px;
+  }
+  .command-group {
+    padding: 10px 12px;
+  }
+  .group-head {
+    margin-bottom: 8px;
+  }
+  .cmd-grid {
+    gap: 8px;
+  }
+  .cmd-btn {
+    height: 34px;
+  }
+  .download-body {
+    gap: 8px;
+    padding: 2px 12px 12px;
+  }
+  .downloader-card {
+    min-height: 58px;
+  }
+  .runtime-track {
+    grid-auto-rows: 64px;
+    padding: 3px 12px 10px;
+  }
+  .module {
+    height: 64px;
+    padding: 8px 9px;
+  }
+}
+
 @media (max-width: 1180px) {
   .dashboard-shell {
-    padding: 18px;
+    padding: 0;
   }
   .dashboard-shell--sidebar {
     padding: 22px 18px 26px;
@@ -1808,6 +1978,7 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
     min-height: 0;
   }
   .dashboard-canvas {
+    height: auto;
     min-height: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto;
@@ -1836,6 +2007,10 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   .command-panel {
     min-height: 420px;
   }
+  .download-panel,
+  .runtime-panel {
+    min-height: 180px;
+  }
   .dashboard-shell--sidebar .metric-copy strong {
     font-size: 15px;
   }
@@ -1843,10 +2018,10 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
 
 @media (max-width: 760px) {
   .agentops-dashboard {
-    padding: 4px;
+    padding: 0;
   }
   .dashboard-shell {
-    padding: 10px;
+    padding: 0;
     border-radius: var(--aoa-dashboard-radius);
   }
   .dashboard-shell--sidebar {
@@ -1859,15 +2034,35 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   }
   .agentops-toolbar {
     height: auto;
-    min-height: 50px;
-    flex-wrap: wrap;
-    padding: 10px 12px;
+    min-height: 56px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
   }
   .brand {
-    width: 100%;
+    flex: 1 1 auto;
+    width: auto;
+    gap: 8px;
+  }
+  .brand-title {
+    font-size: 14px;
+  }
+  .brand small {
+    display: none;
   }
   .toolbar-space {
     display: none;
+  }
+  .top-button {
+    min-width: 44px;
+    height: 36px;
+    padding-inline: 10px;
+  }
+  .top-button--icon {
+    width: 36px;
+    min-width: 36px;
+    padding-inline: 0;
   }
   .dashboard-canvas,
   .metrics-panel,
@@ -1878,7 +2073,12 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
     grid-template-columns: 1fr;
   }
   .dashboard-canvas {
-    padding: 10px;
+    height: auto;
+    min-height: 0;
+    padding: 12px;
+    gap: 14px;
+    grid-template-rows: auto;
+    overflow: visible;
   }
   .dashboard-shell--sidebar .dashboard-canvas {
     height: auto;
@@ -1914,6 +2114,44 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   .command-panel {
     grid-column: auto;
   }
+  .alert-panel,
+  .site-panel,
+  .download-panel,
+  .runtime-panel {
+    min-height: 0;
+    height: auto;
+  }
+  .alert-panel {
+    padding: 16px;
+  }
+  .command-panel {
+    min-height: 0;
+    height: auto;
+    padding: 18px 16px;
+    overflow: visible;
+  }
+  .command-head {
+    margin-bottom: 18px;
+  }
+  .command-body {
+    height: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: visible;
+    padding-right: 0;
+  }
+  .command-group {
+    justify-content: flex-start;
+    padding: 16px 14px;
+  }
+  .cmd-grid {
+    gap: 10px;
+  }
+  .cmd-btn {
+    min-height: 40px;
+  }
   .site-body,
   .download-body,
   .runtime-track {
@@ -1924,8 +2162,8 @@ onMounted(() => { loadDashboard(); loadSiteChart(); loadDownloaderOverview() })
   }
   .site-table .th:nth-child(3),
   .site-table .th:nth-child(4),
-  .site-row-cell:nth-of-type(4n),
-  .site-row-cell:nth-of-type(4n + 1) {
+  .site-row-cell.site-download,
+  .site-row-cell.site-percent {
     display: none;
   }
   .alert-copy h1 {

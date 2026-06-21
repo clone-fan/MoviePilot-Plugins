@@ -28,18 +28,32 @@ const siteChart = reactive({
 })
 
 const actionItems = [
-  { path: 'run_site_stat', label: '站点统计', desc: '刷新站点增量', icon: 'mdi-chart-pie', tone: 'blue' },
-  { path: 'run_daily_report', label: '每日汇报', desc: '发送运维摘要', icon: 'mdi-send-clock-outline', tone: 'green' },
-  { path: 'run_subscribe_reminder', label: '订阅追新', desc: '推送今日追新', icon: 'mdi-bell-badge-outline', tone: 'cyan' },
-  { path: 'run_health_check', label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse', tone: 'violet' },
+  { path: 'run_site_stat', component: 'site_stat', label: '站点统计', desc: '刷新站点增量', icon: 'mdi-chart-pie', tone: 'blue' },
+  { path: 'run_daily_report', component: 'daily_report', label: '每日汇报', desc: '发送运维摘要', icon: 'mdi-send-clock-outline', tone: 'green' },
+  { path: 'run_subscribe_reminder', component: 'subscribe_reminder', label: '订阅追新', desc: '推送今日追新', icon: 'mdi-bell-badge-outline', tone: 'cyan' },
+  { path: 'run_health_check', component: 'health_check', label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse', tone: 'violet' },
 ]
 
 const componentKey = computed(() => props.config?.attrs?.component || props.config?.key || 'site')
+const componentEnabledStates = computed(() => props.config?.attrs?.components || props.config?.components || {})
 const componentMap = {
   site: SiteStatsWidget,
   actions: ActionsWidget,
 }
 const activeComponent = computed(() => componentMap[componentKey.value] || SiteStatsWidget)
+function actionComponentEnabled(action) {
+  const states = componentEnabledStates.value || {}
+  if (!action?.component || !(action.component in states)) return true
+  return !!states[action.component]
+}
+const widgetActions = computed(() => actionItems.map(action => {
+  const enabled = actionComponentEnabled(action)
+  return {
+    ...action,
+    disabled: !enabled,
+    reason: enabled ? '' : '组件未启用，动作已暂停',
+  }
+}))
 
 const sitePieColors = [
   { color: 'rgba(var(--v-theme-success), 0.94)', glow: 'rgba(var(--v-theme-success), 0.28)' },
@@ -133,12 +147,18 @@ async function loadSiteChart() {
 
 async function runAction(action) {
   if (!props.api || actionRunning.value) return
+  if (action.disabled) {
+    actionOk.value = false
+    actionMessage.value = action.reason || '组件未启用，动作已暂停'
+    window.setTimeout(() => { actionMessage.value = '' }, 5000)
+    return
+  }
   actionRunning.value = action.path
   actionMessage.value = ''
   actionOk.value = true
   try {
     const res = await postPluginApi(props.api, action.path)
-    const ok = !res || res.code === 0 || res.code === undefined
+    const ok = !!res && res.code === 0
     actionOk.value = ok
     actionMessage.value = (res && res.msg) || `${action.label}已${ok ? '完成' : '失败'}`
     if (ok && action.path === 'run_site_stat') await loadSiteChart()
@@ -173,7 +193,7 @@ onMounted(loadSiteChart)
       :has-site-chart="hasSiteChart"
       :format-bytes="formatBytes"
       :site-percent="sitePercent"
-      :actions="actionItems"
+      :actions="widgetActions"
       :action-running="actionRunning"
       :action-message="actionMessage"
       :action-ok="actionOk"
@@ -186,6 +206,26 @@ onMounted(loadSiteChart)
 
 <style scoped>
 .aoa-dashboard-widget {
+  --mp-widget-radius: 16px;
+  --mp-widget-inner-radius: 14px;
+  --mp-widget-cell-radius: 12px;
+  --mp-widget-panel-fill-hi: 0.78;
+  --mp-widget-panel-fill-lo: 0.56;
+  --mp-widget-panel-line: 0.12;
+  --mp-widget-cell-fill: 0.34;
+  --mp-widget-cell-fill-strong: 0.48;
+  --mp-widget-cell-line: 0.12;
+  --mp-widget-cell-line-soft: 0.04;
+  --mp-widget-shadow-panel:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.045),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.07),
+    0 12px 30px rgba(0, 0, 0, 0.075),
+    0 3px 10px rgba(0, 0, 0, 0.045);
+  --mp-widget-shadow-cell:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    0 7px 18px rgba(0, 0, 0, 0.055),
+    0 2px 6px rgba(0, 0, 0, 0.035);
   width: 100%;
   height: 100%;
   min-height: 100%;

@@ -3,11 +3,12 @@ import html
 import os
 import shutil
 import subprocess
+import tempfile
 import zipfile
 import re
 import threading
 from datetime import datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional, Tuple
 
 from apscheduler.triggers.cron import CronTrigger
@@ -32,7 +33,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.51"
+    plugin_version = "1.0.52"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -363,24 +364,27 @@ class AgentOpsAssistant(_PluginBase):
         """“保存后立即运行一次”：对置位的 onlyonce 开关各跑一次对应任务并清除该开关，
         避免下次重载重复触发。任务异步执行，不阻塞插件初始化。"""
         once = [
-            ("backup_onlyonce", self.run_backup),
-            ("log_clean_onlyonce", self.run_log_clean),
-            ("market_update_onlyonce", self.run_market_update),
-            ("subscribe_reminder_onlyonce", self.run_subscribe_reminder),
-            ("site_stat_onlyonce", lambda: (self.api_run_site_stat() or {}).get("code") == 0),
+            ("backup_onlyonce", "自动备份", "backup", self.run_backup),
+            ("log_clean_onlyonce", "日志清理", "log_clean", self.run_log_clean),
+            ("market_update_onlyonce", "插件库更新", "market_update", self.run_market_update),
+            ("subscribe_reminder_onlyonce", "订阅追新", "subscribe_reminder", self.run_subscribe_reminder),
+            ("site_stat_onlyonce", "站点数据统计", "site_stat", lambda: (self.api_run_site_stat() or {}).get("code") == 0),
         ]
-        pending = [(k, fn) for k, fn in once if config.get(k)]
+        pending = [(k, name, component, fn) for k, name, component, fn in once if config.get(k)]
         if not pending:
             return []
-        for k, _ in pending:
+        for k, _, _, _ in pending:
             config[k] = False
         try:
             self.update_config(config)
         except Exception as err:
             logger.warning(f"AgentOpsAssistant 清除 onlyonce 开关失败：{err}")
+        runnable = [(k, fn) for k, name, component, fn in pending if self._can_run_task(name, component)[0]]
+        if not runnable:
+            return []
 
         def _runner():
-            for key, fn in pending:
+            for key, fn in runnable:
                 try:
                     fn()
                 except Exception as err:
@@ -388,10 +392,49 @@ class AgentOpsAssistant(_PluginBase):
         timer = threading.Timer(2.0, _runner)
         timer.daemon = True
         timer.start()
-        return [k for k, _ in pending]
+        return [k for k, _ in runnable]
 
     def get_state(self) -> bool:
         return self._enabled
+
+    def _component_enabled(self, key: Optional[str]) -> bool:
+        if not key:
+            return True
+        mapping = {
+            "daily_report": self._daily_report_enabled,
+            "subscribe_reminder": self._subscribe_reminder_enabled,
+            "site_stat": self._site_stat_enabled,
+            "health_check": self._health_check_enabled,
+            "log_clean": self._log_clean_enabled,
+            "backup": self._backup_enabled,
+            "mp_update": self._mp_update_enabled,
+            "market_update": self._market_update_enabled,
+            "seedclean": self._seedclean_enabled,
+            "dltag": self._dltag_enabled,
+            "msgnotify": self._msgnotify_enabled,
+            "subfill": self._subfill_enabled,
+        }
+        return bool(mapping.get(key, True))
+
+    def _can_run_task(self, name: str, component: Optional[str] = None) -> Tuple[bool, str]:
+        if not self._enabled:
+            return False, f"插件未启用，已跳过{name}。"
+        if component and not self._component_enabled(component):
+            return False, f"{name}未启用，已跳过。"
+        return True, ""
+
+    def _guard_task(self, name: str, component: Optional[str] = None) -> Tuple[bool, str]:
+        ok, msg = self._can_run_task(name, component)
+        if not ok:
+            self._save_task_result(name, False, 2, msg)
+        return ok, msg
+
+    @staticmethod
+    def _skipped_data(msg: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        payload = dict(data or {})
+        payload.update({"code": 1, "msg": msg, "message": msg, "skipped": True})
+        payload.setdefault("success", False)
+        return payload
 
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
@@ -426,6 +469,12 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/preview_log_clean", "endpoint": self.api_preview_log_clean, "auth": "bear", "methods": ["POST"], "summary": "预览日志清理范围"},
             {"path": "/run_log_clean", "endpoint": self.api_run_log_clean, "auth": "bear", "methods": ["POST"], "summary": "执行插件日志清理"},
             {"path": "/run_backup", "endpoint": self.api_run_backup, "auth": "bear", "methods": ["POST"], "summary": "执行MP运维助手自动备份"},
+            {"path": "/backup_archives", "endpoint": self.api_backup_archives, "auth": "bear", "methods": ["GET"], "summary": "列出本地可恢复备份包"},
+            {"path": "/preview_backup_restore", "endpoint": self.api_preview_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "预览本地备份恢复内容"},
+            {"path": "/run_backup_restore", "endpoint": self.api_run_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "执行本地备份一键恢复"},
+            {"path": "/webdav_backup_archives", "endpoint": self.api_webdav_backup_archives, "auth": "bear", "methods": ["GET"], "summary": "列出 WebDAV 可恢复备份包"},
+            {"path": "/preview_webdav_backup_restore", "endpoint": self.api_preview_webdav_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "预览 WebDAV 备份恢复内容"},
+            {"path": "/run_webdav_backup_restore", "endpoint": self.api_run_webdav_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "执行 WebDAV 备份一键恢复"},
             {"path": "/preview_updates", "endpoint": self.api_preview_updates, "auth": "bear", "methods": ["POST"], "summary": "预览MoviePilot后端/前端更新状态（不通知、不重启）"},
             {"path": "/run_mp_update", "endpoint": self.api_run_mp_update, "auth": "bear", "methods": ["POST"], "summary": "立即检查MoviePilot后端/前端更新并通知"},
             {"path": "/preview_market_update", "endpoint": self.api_preview_market_update, "auth": "bear", "methods": ["POST"], "summary": "预览插件库更新"},
@@ -526,6 +575,12 @@ class AgentOpsAssistant(_PluginBase):
             "subtitle": widget.get("subtitle", ""),
             "border": False,
             "component": widget["key"],
+            "components": {
+                "daily_report": bool(self._daily_report_enabled),
+                "subscribe_reminder": bool(self._subscribe_reminder_enabled),
+                "site_stat": bool(self._site_stat_enabled),
+                "health_check": bool(self._health_check_enabled),
+            },
             "rows": widget.get("rows", 5),
             "refresh": 60,
         }
@@ -557,6 +612,9 @@ class AgentOpsAssistant(_PluginBase):
         }
         tasks = handlers.get(action)
         if not tasks:
+            return
+        if not self._enabled:
+            self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手命令已跳过", text="插件未启用，已跳过远程命令。")
             return
         results = []
         has_failed_task = False
@@ -944,6 +1002,9 @@ class AgentOpsAssistant(_PluginBase):
     def run_subscribe_reminder(self) -> bool:
         """独立推送今日订阅追新（与每日汇报分开，按 subscribe_reminder_cron 调度，也可手动触发）。"""
         name = "订阅追新"
+        ok, _ = self._guard_task(name, "subscribe_reminder")
+        if not ok:
+            return False
         try:
             items = self._get_today_subscribe_updates_locked()
             if items:
@@ -964,6 +1025,9 @@ class AgentOpsAssistant(_PluginBase):
 
     def run_daily_report(self) -> bool:
         name = "MP运维每日汇报"
+        ok, _ = self._guard_task(name, "daily_report")
+        if not ok:
+            return False
         try:
             refresh_result = self._refresh_daily_report_live_data()
             if refresh_result.get("success") is False:
@@ -1032,6 +1096,9 @@ class AgentOpsAssistant(_PluginBase):
 
     def run_daily_report_preview(self) -> bool:
         name = "预览每日汇报"
+        ok, _ = self._guard_task(name, "daily_report")
+        if not ok:
+            return False
         try:
             text = self._build_daily_report_message(preview=True)
             self._save_daily_report_result(sent=False, success=True, text=text, error="")
@@ -1065,6 +1132,9 @@ class AgentOpsAssistant(_PluginBase):
         return sum(1 for icon in icons if icon in (text or ""))
 
     def api_preview_daily_report(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("每日汇报", "daily_report")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
         try:
             text = self._build_daily_report_message(preview=True)
             data = {
@@ -1083,12 +1153,15 @@ class AgentOpsAssistant(_PluginBase):
             return {"code": 1, "msg": f"每日汇报预览失败：{err}", "data": {}, "text": ""}
 
     def api_run_daily_report(self) -> Dict[str, Any]:
-        return self._api_run_task("每日汇报", self.run_daily_report)
+        return self._api_run_task("每日汇报", self.run_daily_report, "daily_report")
 
     def api_run_subscribe_reminder(self) -> Dict[str, Any]:
-        return self._api_run_task("订阅追新", self.run_subscribe_reminder)
+        return self._api_run_task("订阅追新", self.run_subscribe_reminder, "subscribe_reminder")
 
     def run_health_check(self) -> bool:
+        ok, _ = self._guard_task("健康巡查", "health_check")
+        if not ok:
+            return False
         data = self._build_health_summary()
         text = self._format_health_summary(data)
         self._save_task_result("健康巡查", True, 0, text)
@@ -1101,6 +1174,10 @@ class AgentOpsAssistant(_PluginBase):
         return True
 
     def api_run_health_check(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("健康巡查", "health_check")
+        if not ok:
+            self._save_task_result("健康巡查", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
         self.run_health_check()
         data = self.get_data("last_health_check") or {}
         failed = 0
@@ -1114,7 +1191,7 @@ class AgentOpsAssistant(_PluginBase):
         return {"code": 0, "msg": msg}
 
     def api_run_mp_update(self) -> Dict[str, Any]:
-        return self._api_run_task("主程序更新检查", self.run_mp_update_check)
+        return self._api_run_task("主程序更新检查", self.run_mp_update_check, "mp_update")
 
     def api_dashboard(self) -> Dict[str, Any]:
         """仪表盘数据：插件总状态、各模块快照、最近健康巡查概览。"""
@@ -1133,7 +1210,7 @@ class AgentOpsAssistant(_PluginBase):
                     "last_time": latest.get("time") or "",
                     "last_summary": self._task_result_summary(latest),
                 })
-            failed = [t for t in tasks if t["state"] == "失败"]
+            failed = [t for t in tasks if self._enabled and t["enabled"] and t["state"] == "失败"]
             health = self.get_data("last_health_check") or {}
             return {
                 "code": 0,
@@ -1142,7 +1219,7 @@ class AgentOpsAssistant(_PluginBase):
                     "summary": self._build_summary(),
                     "tasks": tasks,
                     "task_total": len(tasks),
-                    "task_on": len([t for t in tasks if t["enabled"]]),
+                    "task_on": len([t for t in tasks if self._enabled and t["enabled"]]),
                     "task_failed": len(failed),
                     "health": {
                         "time": health.get("time") or "",
@@ -1195,6 +1272,9 @@ class AgentOpsAssistant(_PluginBase):
             return {"code": 1, "msg": f"插件库仓库列表获取失败：{err}", "data": []}
 
     def api_preview_log_clean(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("日志清理", "log_clean")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
         try:
             data = self._build_log_preview()
             return {"code": 0, "msg": "日志清理预览完成，未删除任何文件。", "data": data, "text": self._format_log_preview_text(data)}
@@ -1203,10 +1283,17 @@ class AgentOpsAssistant(_PluginBase):
             return {"code": 1, "msg": f"日志清理预览失败：{err}", "data": {}, "text": ""}
 
     def api_run_log_clean(self) -> Dict[str, Any]:
+        ok_guard, msg = self._can_run_task("日志清理", "log_clean")
+        if not ok_guard:
+            self._save_task_result("日志清理", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
         ok = self.run_log_clean()
         return {"code": 0 if ok else 1, "msg": "插件日志清理执行成功" if ok else "插件日志清理执行失败，详情请查看插件日志。"}
 
     def run_log_preview(self) -> bool:
+        ok, _ = self._guard_task("日志清理预览", "log_clean")
+        if not ok:
+            return False
         data = self._build_log_preview()
         text = self._format_log_preview_text(data)
         self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 日志清理预览", text=text)
@@ -1214,6 +1301,9 @@ class AgentOpsAssistant(_PluginBase):
         return True
 
     def run_log_clean(self) -> bool:
+        ok, _ = self._guard_task("日志清理", "log_clean")
+        if not ok:
+            return False
         try:
             data = self._build_log_clean_stats(clean=True)
             text = self._format_log_clean_result_text(data)
@@ -1227,11 +1317,95 @@ class AgentOpsAssistant(_PluginBase):
             return False
 
     def api_run_backup(self) -> Dict[str, Any]:
+        ok_guard, msg = self._can_run_task("自动备份", "backup")
+        if not ok_guard:
+            self._save_task_result("自动备份", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, self._build_backup_status())}
         ok = self.run_backup()
         data = self._build_backup_status()
         return {"code": 0 if ok else 1, "msg": "自动备份执行成功" if ok else "自动备份执行失败，详情请查看插件日志。", "data": data}
 
+    def api_backup_archives(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("备份恢复", "backup")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": []}
+        try:
+            return {"code": 0, "msg": "备份包列表获取成功", "data": self._list_backup_archives()}
+        except Exception as err:
+            return {"code": 1, "msg": f"备份包列表获取失败：{err}", "data": []}
+
+    def api_preview_backup_restore(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("备份恢复", "backup")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"errors": [msg]}), "text": msg}
+        try:
+            data = self._build_backup_restore_preview(payload or {})
+            return {"code": 0, "msg": "备份恢复预览完成，未覆盖任何文件。", "data": data, "text": self._format_backup_restore_text(data)}
+        except Exception as err:
+            return {"code": 1, "msg": f"备份恢复预览失败：{err}", "data": {}, "text": ""}
+
+    def api_run_backup_restore(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        ok_guard, msg = self._can_run_task("备份恢复", "backup")
+        if not ok_guard:
+            self._save_task_result("备份恢复", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"errors": [msg]}), "text": msg}
+        data = self._run_backup_restore(payload or {})
+        ok = bool(data.get("success"))
+        return {"code": 0 if ok else 1, "msg": "备份恢复执行成功" if ok else f"备份恢复执行失败：{'；'.join(data.get('errors') or [])}", "data": data, "text": self._format_backup_restore_text(data)}
+
+    def api_webdav_backup_archives(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("WebDAV 备份恢复", "backup")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": []}
+        if not self._backup_webdav_enabled:
+            return {"code": 1, "msg": "WebDAV 远端备份未启用。", "data": []}
+        try:
+            return {"code": 0, "msg": "WebDAV 备份包列表获取成功", "data": self._list_webdav_backup_archives()}
+        except Exception as err:
+            return {"code": 1, "msg": f"WebDAV 备份包列表获取失败：{err}", "data": []}
+
+    def api_preview_webdav_backup_restore(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("WebDAV 备份恢复", "backup")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"errors": [msg]}), "text": msg}
+        if not self._backup_webdav_enabled:
+            return {"code": 1, "msg": "WebDAV 远端备份未启用。", "data": {}, "text": ""}
+        try:
+            restore_payload = dict(payload or {})
+            archive_path = self._download_webdav_backup_archive(restore_payload.get("archive") or restore_payload.get("name") or restore_payload.get("path"))
+            restore_payload["archive"] = archive_path.name
+            data = self._build_backup_restore_preview(restore_payload)
+            data["source"] = "webdav"
+            data["remote_archive"] = archive_path.name
+            return {"code": 0, "msg": "WebDAV 备份恢复预览完成，未覆盖任何文件。", "data": data, "text": self._format_backup_restore_text(data)}
+        except Exception as err:
+            return {"code": 1, "msg": f"WebDAV 备份恢复预览失败：{err}", "data": {}, "text": ""}
+
+    def api_run_webdav_backup_restore(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        ok_guard, msg = self._can_run_task("WebDAV 备份恢复", "backup")
+        if not ok_guard:
+            self._save_task_result("WebDAV 备份恢复", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"errors": [msg]}), "text": msg}
+        if not self._backup_webdav_enabled:
+            msg = "WebDAV 远端备份未启用。"
+            self._save_task_result("WebDAV 备份恢复", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": {"success": False, "errors": [msg]}, "text": msg}
+        try:
+            restore_payload = dict(payload or {})
+            archive_path = self._download_webdav_backup_archive(restore_payload.get("archive") or restore_payload.get("name") or restore_payload.get("path"))
+            restore_payload["archive"] = archive_path.name
+            data = self._run_backup_restore(restore_payload)
+            data["source"] = "webdav"
+            data["remote_archive"] = archive_path.name
+        except Exception as err:
+            data = {"success": False, "dry_run": False, "errors": [str(err)], "warnings": [], "restored": [], "emergency_backup": "", "source": "webdav"}
+        ok = bool(data.get("success"))
+        return {"code": 0 if ok else 1, "msg": "WebDAV 备份恢复执行成功" if ok else f"WebDAV 备份恢复执行失败：{'；'.join(data.get('errors') or [])}", "data": data, "text": self._format_backup_restore_text(data)}
+
     def api_preview_updates(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("主程序更新检查", "mp_update")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
         try:
             data = self._build_update_status()
             return {"code": 0, "msg": "更新状态预览完成，未执行更新或重启。", "data": data, "text": self._format_update_status_text(data)}
@@ -1240,6 +1414,9 @@ class AgentOpsAssistant(_PluginBase):
             return {"code": 1, "msg": f"更新状态预览失败：{err}", "data": {}, "text": ""}
 
     def api_preview_market_update(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("插件库更新", "market_update")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
         try:
             data = self._build_market_update_status(apply=False)
             return {"code": 0, "msg": "插件库更新预览完成，未写入配置。", "data": data, "text": self._format_market_update_text(data)}
@@ -1247,11 +1424,18 @@ class AgentOpsAssistant(_PluginBase):
             return {"code": 1, "msg": f"插件库更新预览失败：{err}", "data": {}, "text": ""}
 
     def api_run_market_update(self) -> Dict[str, Any]:
+        ok_guard, msg = self._can_run_task("插件库更新", "market_update")
+        if not ok_guard:
+            self._save_task_result("插件库更新", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, self._build_market_status())}
         ok = self.run_market_update()
         data = self._build_market_status()
         return {"code": 0 if ok else 1, "msg": "插件库更新检查执行成功" if ok else "插件库更新检查失败，详情请查看插件日志。", "data": data}
 
     def api_preview_plugin_uninstall(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("插件卸载预览")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"blocked": msg, "uninstalled": []}), "text": msg}
         try:
             data = self._build_plugin_uninstall_status(clean=False)
             success = bool(data.get("success", True))
@@ -1265,44 +1449,65 @@ class AgentOpsAssistant(_PluginBase):
             logger.error(f"AgentOpsAssistant 插件卸载预览失败：{err}")
             return {"code": 1, "msg": f"插件卸载预览失败：{err}", "data": {}, "text": ""}
 
-    def api_run_plugin_uninstall(self) -> Dict[str, Any]:
-        ok = self.run_plugin_uninstall_clean()
-        data = self._build_plugin_uninstall_status(clean=False)
+    def api_run_plugin_uninstall(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        ok_guard, msg = self._can_run_task("插件卸载")
+        if not ok_guard:
+            self._save_task_result("插件卸载", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"blocked": msg, "uninstalled": []})}
+        override = self._plugin_uninstall_config_from_payload(payload)
+        ok, data = self._run_plugin_uninstall_clean(override=override)
         return {"code": 0 if ok else 1, "msg": "插件卸载执行成功" if ok else "插件卸载未执行或失败，详情请查看插件日志。", "data": data}
 
     def run_plugin_uninstall_preview(self) -> bool:
+        ok, _ = self._guard_task("插件卸载预览")
+        if not ok:
+            return False
         data = self._build_plugin_uninstall_status(clean=False)
         text = self._format_plugin_uninstall_text(data)
         self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件卸载预览", text=text)
         self._save_task_result("插件卸载预览", bool(data.get("success", True)), 0 if data.get("success", True) else 1, text)
         return bool(data.get("success", True))
 
-    def run_plugin_uninstall_clean(self) -> bool:
-        if not (self._plugin_uninstall_ids or self._plugin_uninstall_id):
+    def run_plugin_uninstall_clean(self, override: Optional[Dict[str, Any]] = None) -> bool:
+        ok, _ = self._guard_task("插件卸载")
+        if not ok:
+            return False
+        ok, _ = self._run_plugin_uninstall_clean(override=override)
+        return ok
+
+    def _run_plugin_uninstall_clean(self, override: Optional[Dict[str, Any]] = None) -> Tuple[bool, Dict[str, Any]]:
+        options = self._plugin_uninstall_options(override)
+        if not options["raw_ids"]:
             text = "未执行：请先在配置页选择目标插件。"
             self._save_task_result("插件卸载", False, 2, text)
-            if self._plugin_uninstall_notify:
-                self.post_message(mtype=self._notification_type(self._plugin_uninstall_notify_type), title="MP 运维助手 - 插件卸载未执行", text=text)
-            return False
+            if options["notify"]:
+                self.post_message(mtype=self._notification_type(options["notify_type"]), title="MP 运维助手 - 插件卸载未执行", text=text)
+            return False, {"success": False, "dry_run": False, "plugin_id": "", "uninstalled": [], "errors": [], "blocked": "请先在配置页选择目标插件。"}
         try:
-            data = self._build_plugin_uninstall_status(clean=True)
+            data = self._build_plugin_uninstall_status(clean=True, override=override)
             text = self._format_plugin_uninstall_text(data)
-            if self._plugin_uninstall_notify:
-                self.post_message(mtype=self._notification_type(self._plugin_uninstall_notify_type), title="MP 运维助手 - 插件卸载结果", text=text)
+            if options["notify"]:
+                self.post_message(mtype=self._notification_type(options["notify_type"]), title="MP 运维助手 - 插件卸载结果", text=text)
             self._save_task_result("插件卸载", bool(data.get("success")), 0 if data.get("success") else 1, text)
-            return bool(data.get("success"))
+            return bool(data.get("success")), data
         except Exception as err:
             self._save_task_result("插件卸载", False, -1, str(err))
             logger.error(f"AgentOpsAssistant 插件卸载执行失败：{err}")
-            return False
+            return False, {"success": False, "dry_run": False, "plugin_id": "", "uninstalled": [], "errors": [str(err)], "blocked": ""}
 
     def run_update_preview(self) -> bool:
+        ok, _ = self._guard_task("主程序更新检查", "mp_update")
+        if not ok:
+            return False
         data = self._build_update_status()
         text = self._format_update_status_text(data)
         self._save_task_result("更新状态预览", True, 0, text)
         return True
 
     def run_mp_update_check(self) -> bool:
+        ok, _ = self._guard_task("主程序更新检查", "mp_update")
+        if not ok:
+            return False
         data = self._build_update_status()
         text = self._format_update_status_text(data)
         mp = data.get("moviepilot") or {}
@@ -1322,6 +1527,9 @@ class AgentOpsAssistant(_PluginBase):
         return success
 
     def run_market_update(self) -> bool:
+        ok, _ = self._guard_task("插件库更新", "market_update")
+        if not ok:
+            return False
         try:
             data = self._build_market_update_status(apply=True)
             data["plugin_update"] = self._auto_update_installed_plugins(apply=True)
@@ -1338,6 +1546,9 @@ class AgentOpsAssistant(_PluginBase):
             return False
 
     def run_backup(self) -> bool:
+        ok, _ = self._guard_task("自动备份", "backup")
+        if not ok:
+            return False
         try:
             data = self._create_agentops_backup()
             text = self._format_backup_status_text(data)
@@ -1350,7 +1561,11 @@ class AgentOpsAssistant(_PluginBase):
             logger.error(f"AgentOpsAssistant 自动备份执行失败：{err}")
             return False
 
-    def _api_run_task(self, name: str, runner) -> Dict[str, Any]:
+    def _api_run_task(self, name: str, runner, component: Optional[str] = None) -> Dict[str, Any]:
+        ok, msg = self._can_run_task(name, component)
+        if not ok:
+            self._save_task_result(name, False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
         try:
             success = bool(runner())
             return {"code": 0 if success else 1, "msg": f"{name}执行{'成功' if success else '失败'}，详情请查看插件日志。"}
@@ -2596,6 +2811,9 @@ class AgentOpsAssistant(_PluginBase):
     def run_downloader_tag(self) -> bool:
         """按种子 tracker 站点为种子补打标签（移植自 hotlcc 下载器助手；幂等，已打的跳过）。"""
         name = "种子打标签"
+        ok, _ = self._guard_task(name, "dltag")
+        if not ok:
+            return False
         try:
             from app.helper.downloader import DownloaderHelper
             from app.utils.string import StringUtils
@@ -2824,7 +3042,7 @@ class AgentOpsAssistant(_PluginBase):
 
     # ===== 自动删种（功能移植自 jxxghp/MoviePilot-Plugins「自动删种」TorrentRemover，适配本插件）=====
     def api_run_seed_clean(self) -> Dict[str, Any]:
-        return self._api_run_task("自动删种", self.run_seed_clean)
+        return self._api_run_task("自动删种", self.run_seed_clean, "seedclean")
 
     def api_downloaders(self) -> Dict[str, Any]:
         """已配置下载器列表，供自动删种下拉选择。"""
@@ -2857,13 +3075,17 @@ class AgentOpsAssistant(_PluginBase):
             return {"code": 1, "msg": f"媒体服务器列表获取失败：{err}", "data": []}
 
     def api_subfill_clear_history(self) -> Dict[str, Any]:
-        return self._api_run_task("清理填充历史", self.run_subfill_clear_history)
+        return self._api_run_task("清理填充历史", self.run_subfill_clear_history, "subfill")
 
     def api_subfill_clear_handled(self) -> Dict[str, Any]:
-        return self._api_run_task("清理已处理", self.run_subfill_clear_handled)
+        return self._api_run_task("清理已处理", self.run_subfill_clear_handled, "subfill")
 
     def api_site_stat_chart(self) -> Dict[str, Any]:
         """今日各站点上传/下载增量，供仪表盘饼图。"""
+        ok, msg = self._can_run_task("站点数据统计", "site_stat")
+        if not ok:
+            data = self._skipped_data(msg, {"date": "", "basis": "skipped", "sites": [], "upload_total": 0, "download_total": 0})
+            return {"code": 0, "msg": msg, "data": data}
         try:
             return {"code": 0, "data": self._site_increment_snapshot()}
         except Exception as err:
@@ -2872,6 +3094,11 @@ class AgentOpsAssistant(_PluginBase):
 
     def api_run_site_stat(self) -> Dict[str, Any]:
         """刷新站点数据统计：站点快照来自 MoviePilot SiteOper，这里重新汇总并记录一次任务结果。"""
+        ok, msg = self._can_run_task("站点数据统计", "site_stat")
+        if not ok:
+            self._save_task_result("站点数据统计", False, 2, msg)
+            data = self._skipped_data(msg, {"date": "", "basis": "skipped", "sites": [], "upload_total": 0, "download_total": 0})
+            return {"code": 1, "msg": msg, "data": data}
         try:
             chart = self.api_site_stat_chart()
             if (chart or {}).get("code", 0) != 0:
@@ -2893,14 +3120,20 @@ class AgentOpsAssistant(_PluginBase):
             return {"code": 1, "msg": f"站点数据统计刷新失败：{err}", "data": {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}}
 
     def api_run_downloader_tag(self) -> Dict[str, Any]:
-        return self._api_run_task("种子打标签", self.run_downloader_tag)
+        return self._api_run_task("种子打标签", self.run_downloader_tag, "dltag")
 
     def api_downloader_overview(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("下载器活动", "dltag")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"downloaders": []})}
         return {"code": 0, "data": {"downloaders": self._downloader_overview_data()}}
 
     def run_seed_clean(self) -> bool:
         """按规则在所选下载器中暂停/删除种子。默认动作为暂停，安全优先。"""
         name = "自动删种"
+        ok, _ = self._guard_task(name, "seedclean")
+        if not ok:
+            return False
         if not self._seedclean_downloaders:
             text = "未执行：请先在配置页选择下载器。"
             self._save_task_result(name, False, 2, text)
@@ -3582,6 +3815,258 @@ class AgentOpsAssistant(_PluginBase):
         files.sort(key=lambda x: x["mtime"], reverse=True)
         return {"enabled": bool(self._backup_enabled), "cron": self._backup_cron, "keep_count": self._backup_keep_count, "back_path": str(backup_path), "backup_count": len(files), "backup_size": sum(x["size"] for x in files), "backup_size_text": self._format_bytes(sum(x["size"] for x in files)), "latest": files[:5], "direct": True}
 
+    def _list_backup_archives(self) -> List[Dict[str, Any]]:
+        backup_path = Path(self._backup_path or "/config/plugins/AgentOpsAssistant/Backup")
+        files: List[Dict[str, Any]] = []
+        if not backup_path.exists():
+            return files
+        for item in backup_path.glob("bk_*.zip"):
+            if not item.is_file():
+                continue
+            try:
+                stat = item.stat()
+            except Exception:
+                continue
+            files.append({
+                "name": item.name,
+                "path": str(item),
+                "size": stat.st_size,
+                "size_text": self._format_bytes(stat.st_size),
+                "mtime": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+            })
+        files.sort(key=lambda x: x["name"], reverse=True)
+        return files
+
+    def _resolve_backup_archive(self, archive: Any) -> Path:
+        backup_root = Path(self._backup_path or "/config/plugins/AgentOpsAssistant/Backup").resolve(strict=False)
+        raw = str(archive or "").strip()
+        if not raw:
+            raise ValueError("请选择要恢复的备份包。")
+        candidate = Path(raw)
+        archive_path = candidate.resolve(strict=False) if candidate.is_absolute() else (backup_root / raw).resolve(strict=False)
+        if archive_path.suffix.lower() != ".zip" or not archive_path.name.startswith("bk_"):
+            raise ValueError("只允许恢复备份目录内的 bk_*.zip 备份包。")
+        if backup_root != archive_path and backup_root not in archive_path.parents:
+            raise ValueError("备份包必须位于配置的备份目录内，禁止路径穿越。")
+        if not archive_path.is_file():
+            raise ValueError(f"备份包不存在：{archive_path.name}")
+        return archive_path
+
+    @staticmethod
+    def _validate_backup_zip_entries(zf: zipfile.ZipFile) -> None:
+        names = set(zf.namelist())
+        if "manifest.json" not in names:
+            raise ValueError("备份包缺少 manifest.json。")
+        for info in zf.infolist():
+            name = str(info.filename or "").replace("\\", "/")
+            parts = PurePosixPath(name).parts
+            if not name or name.startswith("/") or ".." in parts:
+                raise ValueError(f"备份包包含非法路径：{info.filename}")
+
+    def _inspect_backup_archive(self, archive_path: Path) -> Dict[str, Any]:
+        with zipfile.ZipFile(archive_path, "r") as zf:
+            self._validate_backup_zip_entries(zf)
+            try:
+                manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+            except Exception as err:
+                raise ValueError(f"manifest.json 读取失败：{err}") from err
+            names = set(zf.namelist())
+        stat = archive_path.stat()
+        return {
+            "archive": {
+                "name": archive_path.name,
+                "path": str(archive_path),
+                "size": stat.st_size,
+                "size_text": self._format_bytes(stat.st_size),
+                "mtime": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+            },
+            "manifest": manifest,
+            "contains": {
+                "config": [name for name in ("category.yaml", "app.env") if name in names],
+                "cookies": any(name == "cookies" or name.startswith("cookies/") for name in names),
+                "sqlite": sorted([name for name in names if name.startswith("user.db")]),
+                "postgresql": "postgresql_backup.sql" in names,
+            },
+            "entries": sorted(names),
+        }
+
+    def _backup_restore_options(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "archive": payload.get("archive") or payload.get("name") or payload.get("path"),
+            "restore_config": self._payload_bool(payload.get("restore_config", True)),
+            "restore_cookies": self._payload_bool(payload.get("restore_cookies", True)),
+            "restore_database": self._payload_bool(payload.get("restore_database", True)),
+        }
+
+    def _build_backup_restore_preview(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        options = self._backup_restore_options(payload)
+        archive_path = self._resolve_backup_archive(options["archive"])
+        data = self._inspect_backup_archive(archive_path)
+        contains = data.get("contains") or {}
+        selected: List[str] = []
+        warnings: List[str] = []
+        if options["restore_config"] and contains.get("config"):
+            selected.extend([f"配置文件：{name}" for name in contains.get("config", [])])
+        if options["restore_cookies"] and contains.get("cookies"):
+            selected.append("cookies 目录")
+        if options["restore_database"]:
+            if contains.get("sqlite"):
+                selected.extend([f"SQLite：{name}" for name in contains.get("sqlite", [])])
+            if contains.get("postgresql"):
+                selected.append("PostgreSQL：postgresql_backup.sql")
+                if not self._find_psql():
+                    warnings.append("当前环境未找到 psql，执行 PostgreSQL 恢复会失败。")
+        data.update({
+            "success": True,
+            "dry_run": True,
+            "selected": selected,
+            "options": options,
+            "config_path": str(Path(settings.CONFIG_PATH)),
+            "warnings": warnings,
+            "errors": [],
+            "emergency_backup": "",
+            "restored": [],
+        })
+        return data
+
+    def _run_backup_restore(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            data = self._build_backup_restore_preview(payload)
+        except Exception as err:
+            return {"success": False, "dry_run": False, "errors": [str(err)], "warnings": [], "restored": [], "emergency_backup": ""}
+        data["dry_run"] = False
+        data["restored"] = []
+        data["errors"] = []
+        options = data.get("options") or {}
+        contains = data.get("contains") or {}
+        if options.get("restore_database") and contains.get("postgresql") and not self._find_psql():
+            data["success"] = False
+            data["errors"].append("当前环境未找到 psql，无法自动恢复 PostgreSQL 数据库。")
+            return data
+
+        try:
+            emergency = self._create_agentops_backup()
+            emergency_path = emergency.get("zip_file") or ""
+            if not emergency.get("success") or not emergency_path or not Path(emergency_path).exists():
+                data["success"] = False
+                data["errors"].append("恢复前应急备份创建失败，已取消恢复。")
+                return data
+            data["emergency_backup"] = emergency_path
+        except Exception as err:
+            data["success"] = False
+            data["errors"].append(f"恢复前应急备份创建失败：{err}")
+            return data
+
+        archive_path = Path(data["archive"]["path"])
+        config_path = Path(settings.CONFIG_PATH)
+        backup_root = Path(self._backup_path or "/config/plugins/AgentOpsAssistant/Backup")
+        try:
+            with tempfile.TemporaryDirectory(prefix="aoa_restore_", dir=str(backup_root)) as tmp:
+                tmp_dir = Path(tmp)
+                with zipfile.ZipFile(archive_path, "r") as zf:
+                    self._validate_backup_zip_entries(zf)
+                    for name in data.get("entries") or []:
+                        if name.endswith("/"):
+                            continue
+                        target = tmp_dir / name
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        with zf.open(name) as src, target.open("wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                if options.get("restore_config"):
+                    for name in ("category.yaml", "app.env"):
+                        src = tmp_dir / name
+                        if src.exists():
+                            shutil.copy2(src, config_path / name)
+                            data["restored"].append(name)
+                if options.get("restore_cookies") and (tmp_dir / "cookies").exists():
+                    target = config_path / "cookies"
+                    if target.exists():
+                        shutil.rmtree(target)
+                    shutil.copytree(tmp_dir / "cookies", target)
+                    data["restored"].append("cookies/")
+                if options.get("restore_database"):
+                    sqlite_files = [name for name in (data.get("contains", {}).get("sqlite") or []) if (tmp_dir / name).is_file()]
+                    for name in sqlite_files:
+                        shutil.copy2(tmp_dir / name, config_path / name)
+                        data["restored"].append(name)
+                    if contains.get("postgresql"):
+                        ok, msg = self._restore_postgresql_backup(tmp_dir / "postgresql_backup.sql")
+                        if ok:
+                            data["restored"].append("postgresql_backup.sql")
+                        else:
+                            data["errors"].append(msg)
+        except Exception as err:
+            data["errors"].append(str(err))
+
+        data["success"] = not data.get("errors")
+        text = self._format_backup_restore_text(data)
+        self._save_task_result("备份恢复", bool(data.get("success")), 0 if data.get("success") else 1, text)
+        if self._backup_notify:
+            self.post_message(mtype=self._notification_type(self._backup_notify_type), title="MP 运维助手 - 备份恢复结果", text=text)
+        return data
+
+    def _restore_postgresql_backup(self, sql_path: Path) -> Tuple[bool, str]:
+        psql = self._find_psql()
+        if not psql:
+            return False, "当前环境未找到 psql，无法自动恢复 PostgreSQL 数据库。"
+        if not sql_path.exists():
+            return False, "备份包缺少 postgresql_backup.sql。"
+        env = os.environ.copy()
+        env["PGPASSWORD"] = str(getattr(settings, "DB_POSTGRESQL_PASSWORD", ""))
+        cmd = [
+            psql,
+            "-h", str(getattr(settings, "DB_POSTGRESQL_HOST", "localhost")),
+            "-p", str(getattr(settings, "DB_POSTGRESQL_PORT", "5432")),
+            "-U", str(getattr(settings, "DB_POSTGRESQL_USERNAME", "")),
+            "-d", str(getattr(settings, "DB_POSTGRESQL_DATABASE", "")),
+            "-f", str(sql_path),
+        ]
+        try:
+            result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600, check=False)
+        except Exception as err:
+            return False, f"PostgreSQL 恢复执行失败：{err}"
+        if result.returncode == 0:
+            return True, "psql 恢复成功"
+        return False, f"PostgreSQL 恢复失败：{(result.stderr or result.stdout or '').strip()[-300:]}"
+
+    @staticmethod
+    def _find_psql() -> str:
+        found = shutil.which("psql")
+        if found:
+            return found
+        import glob as _glob
+        for pattern in ("/usr/bin/psql", "/usr/local/bin/psql",
+                        "/usr/lib/postgresql/*/bin/psql", "/opt/homebrew/bin/psql",
+                        "/opt/homebrew/opt/postgresql*/bin/psql"):
+            for p in sorted(_glob.glob(pattern)):
+                if os.path.isfile(p) and os.access(p, os.X_OK):
+                    return p
+        return ""
+
+    def _format_backup_restore_text(self, data: Dict[str, Any]) -> str:
+        lines = [
+            "🧰 MP 运维助手备份恢复",
+            f"⦁ 状态：{'成功' if data.get('success') else '异常'}",
+            f"⦁ 备份包：{(data.get('archive') or {}).get('name') or '未选择'}",
+        ]
+        if data.get("dry_run"):
+            lines.append("⦁ 模式：预览，未覆盖文件")
+        if data.get("emergency_backup"):
+            lines.append(f"⦁ 应急备份：{Path(data['emergency_backup']).name}")
+        if data.get("selected"):
+            lines.append("将恢复：")
+            lines.extend([f"⦁ {x}" for x in data.get("selected", [])[:8]])
+        if data.get("restored"):
+            lines.append("已恢复：")
+            lines.extend([f"⦁ {x}" for x in data.get("restored", [])[:8]])
+        if data.get("warnings"):
+            lines.append("提示：")
+            lines.extend([f"⦁ {str(x)[:160]}" for x in data.get("warnings", [])[:5]])
+        if data.get("errors"):
+            lines.append("异常：")
+            lines.extend([f"⦁ {str(x)[:160]}" for x in data.get("errors", [])[:5]])
+        return "\n".join(lines)
+
     def _create_agentops_backup(self) -> Dict[str, Any]:
         backup_path = Path(self._backup_path or "/config/plugins/AgentOpsAssistant/Backup")
         backup_path.mkdir(parents=True, exist_ok=True)
@@ -3646,33 +4131,96 @@ class AgentOpsAssistant(_PluginBase):
         })
         return status
 
+    def _webdav_client_options(self) -> Dict[str, Any]:
+        if not self._backup_webdav_hostname:
+            raise ValueError("WebDAV 地址未配置")
+        options = {
+            "webdav_hostname": self._backup_webdav_hostname.rstrip("/"),
+            "webdav_login": self._backup_webdav_login,
+            "webdav_password": self._backup_webdav_password,
+            "disable_check": self._backup_webdav_disable_check,
+        }
+        if self._backup_webdav_digest_auth:
+            options["webdav_auth_type"] = "digest"
+        return options
+
+    def _create_webdav_client(self):
+        try:
+            from webdav3.client import Client
+        except ImportError:
+            raise RuntimeError("webdav3-client 未安装，请运行: pip install webdav3-client")
+        client = Client(self._webdav_client_options())
+        if not self._backup_webdav_disable_check and not client.check():
+            raise RuntimeError("WebDAV 连接测试失败")
+        return client
+
+    @staticmethod
+    def _normalize_webdav_archive_name(archive: Any) -> str:
+        raw = str(archive or "").strip().replace("\\", "/")
+        name = PurePosixPath(raw).name
+        if not name or name != raw.strip("/") and "/" in raw.strip("/"):
+            raise ValueError("只允许选择 WebDAV 根目录内的 bk_*.zip 备份包。")
+        if not name.startswith("bk_") or not name.endswith(".zip"):
+            raise ValueError("只允许恢复 WebDAV 根目录内的 bk_*.zip 备份包。")
+        return name
+
+    def _list_webdav_backup_archives(self) -> List[Dict[str, Any]]:
+        client = self._create_webdav_client()
+        remote_files = client.list() or []
+        files: List[Dict[str, Any]] = []
+        seen = set()
+        for item in remote_files:
+            try:
+                name = self._normalize_webdav_archive_name(item)
+            except Exception:
+                continue
+            if name in seen:
+                continue
+            seen.add(name)
+            size = 0
+            mtime = ""
+            try:
+                info = client.info(name) or {}
+                size = self._safe_int(info.get("size") or info.get("content_length"), 0, 0)
+                mtime = str(info.get("modified") or info.get("mtime") or "")
+            except Exception:
+                pass
+            files.append({
+                "name": name,
+                "path": name,
+                "size": size,
+                "size_text": self._format_bytes(size) if size else "",
+                "mtime": mtime,
+                "source": "webdav",
+            })
+        files.sort(key=lambda x: x["name"], reverse=True)
+        return files
+
+    def _download_webdav_backup_archive(self, archive: Any) -> Path:
+        name = self._normalize_webdav_archive_name(archive)
+        backup_root = Path(self._backup_path or "/config/plugins/AgentOpsAssistant/Backup").resolve(strict=False)
+        backup_root.mkdir(parents=True, exist_ok=True)
+        target = (backup_root / name).resolve(strict=False)
+        if backup_root != target and backup_root not in target.parents:
+            raise ValueError("WebDAV 备份包只能下载到配置的备份目录内。")
+        tmp_target = target.with_name(f".webdav_{target.name}.download")
+        if tmp_target.exists():
+            tmp_target.unlink()
+        client = self._create_webdav_client()
+        client.download_sync(remote_path=name, local_path=str(tmp_target))
+        self._inspect_backup_archive(tmp_target)
+        tmp_target.replace(target)
+        return target
+
     def _upload_to_webdav(self, local_zip_path: str) -> Tuple[bool, str]:
         """上传备份到 WebDAV"""
         try:
-            from webdav3.client import Client
             from webdav3.exceptions import WebDavException
         except ImportError:
             return False, "webdav3-client 未安装，请运行: pip install webdav3-client"
 
-        if not self._backup_webdav_hostname:
-            return False, "WebDAV 地址未配置"
-
         try:
-            options = {
-                "webdav_hostname": self._backup_webdav_hostname.rstrip("/"),
-                "webdav_login": self._backup_webdav_login,
-                "webdav_password": self._backup_webdav_password,
-                "disable_check": self._backup_webdav_disable_check,
-            }
-            if self._backup_webdav_digest_auth:
-                options["webdav_auth_type"] = "digest"
-
-            client = Client(options)
-
-            # 检查连接
-            if not self._backup_webdav_disable_check:
-                if not client.check():
-                    return False, "WebDAV 连接测试失败"
+            client = self._create_webdav_client()
 
             # 上传文件
             remote_path = Path(local_zip_path).name
@@ -3929,11 +4477,62 @@ class AgentOpsAssistant(_PluginBase):
         safe = re.sub(r"[^A-Za-z0-9_\-]", "", raw)[:80]
         return safe
 
-    def _build_plugin_uninstall_status(self, clean: bool = False) -> Dict[str, Any]:
+    @staticmethod
+    def _payload_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            return value.strip().lower() not in {"", "0", "false", "no", "off", "否", "关", "关闭"}
+        return bool(value)
+
+    def _plugin_uninstall_config_from_payload(self, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {}
+        override: Dict[str, Any] = {}
+        if "plugin_uninstall_ids" in payload:
+            override["plugin_uninstall_ids"] = self._parse_csv(payload.get("plugin_uninstall_ids"))
+        elif "plugin_uninstall_id" in payload:
+            override["plugin_uninstall_ids"] = self._parse_csv(payload.get("plugin_uninstall_id"))
+        for key in (
+            "plugin_uninstall_remove_plugin",
+            "plugin_uninstall_clear_config",
+            "plugin_uninstall_clear_data",
+            "plugin_uninstall_delete_source",
+            "plugin_uninstall_notify",
+        ):
+            if key in payload:
+                override[key] = self._payload_bool(payload.get(key))
+        if "plugin_uninstall_notify_type" in payload:
+            override["plugin_uninstall_notify_type"] = str(payload.get("plugin_uninstall_notify_type") or "Plugin")
+        return override
+
+    def _plugin_uninstall_options(self, override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        override = override or {}
+        raw_ids = override.get("plugin_uninstall_ids", self._plugin_uninstall_ids or [])
+        if isinstance(raw_ids, str):
+            raw_ids = self._parse_csv(raw_ids)
+        elif not isinstance(raw_ids, (list, tuple, set)):
+            raw_ids = [raw_ids] if raw_ids else []
+        raw_ids = list(raw_ids or [])
+        raw_id = override.get("plugin_uninstall_id", self._plugin_uninstall_id)
+        if not raw_ids and raw_id:
+            raw_ids = [raw_id]
+        return {
+            "raw_ids": raw_ids,
+            "remove_plugin": bool(override.get("plugin_uninstall_remove_plugin", self._plugin_uninstall_remove_plugin)),
+            "clear_config": bool(override.get("plugin_uninstall_clear_config", self._plugin_uninstall_clear_config)),
+            "clear_data": bool(override.get("plugin_uninstall_clear_data", self._plugin_uninstall_clear_data)),
+            "delete_source": bool(override.get("plugin_uninstall_delete_source", self._plugin_uninstall_delete_source)),
+            "notify": bool(override.get("plugin_uninstall_notify", self._plugin_uninstall_notify)),
+            "notify_type": str(override.get("plugin_uninstall_notify_type", self._plugin_uninstall_notify_type) or "Plugin"),
+        }
+
+    def _build_plugin_uninstall_status(self, clean: bool = False, override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        options = self._plugin_uninstall_options(override)
         # 目标插件：优先用配置页的多选列表 plugin_uninstall_ids，回退到旧的单个 plugin_uninstall_id
-        raw_ids = list(self._plugin_uninstall_ids or [])
-        if not raw_ids and self._plugin_uninstall_id:
-            raw_ids = [self._plugin_uninstall_id]
+        raw_ids = list(options["raw_ids"])
         ids: List[str] = []
         for rid in raw_ids:
             pid = self._normalize_plugin_id(rid)
@@ -3941,10 +4540,10 @@ class AgentOpsAssistant(_PluginBase):
                 ids.append(pid)
         result = {"success": True, "dry_run": not clean, "plugin_id": "、".join(ids),
                   "note": "卸载插件并按勾选项清理配置、数据、日志、备份或本地源码残留；不会删除媒体文件、下载任务或 MoviePilot 核心源码。",
-                  "remove_plugin": self._plugin_uninstall_remove_plugin,
-                  "clear_config": self._plugin_uninstall_clear_config,
-                  "clear_data": self._plugin_uninstall_clear_data,
-                  "delete_source": self._plugin_uninstall_delete_source,
+                  "remove_plugin": options["remove_plugin"],
+                  "clear_config": options["clear_config"],
+                  "clear_data": options["clear_data"],
+                  "delete_source": options["delete_source"],
                   "uninstalled": [], "cleaned_config": [], "cleaned_data": [],
                   "candidates": [], "deleted": [], "errors": [], "backup_path": "", "blocked": ""}
         if not ids:
@@ -3956,7 +4555,7 @@ class AgentOpsAssistant(_PluginBase):
             if pid.lower() in forbidden:
                 result["errors"].append(f"{pid}: 为避免自毁或误删核心组件，禁止卸载 AgentOpsAssistant / MoviePilot 本体，已跳过。")
                 continue
-            candidates = self._plugin_uninstall_candidates(pid)
+            candidates = self._plugin_uninstall_candidates(pid, delete_source=options["delete_source"])
             for item in candidates:
                 item["plugin_id"] = pid
             result["candidates"].extend(candidates)
@@ -3965,12 +4564,12 @@ class AgentOpsAssistant(_PluginBase):
             allowed_candidates = []
             for item in candidates:
                 path = Path(item.get("path") or "")
-                if self._plugin_uninstall_path_allowed(path):
+                if self._plugin_uninstall_path_allowed(path, delete_source=options["delete_source"]):
                     allowed_candidates.append(item)
                 else:
                     result["errors"].append(f"{path}: 路径越界，不在允许范围内，已跳过删除。")
-            if self._plugin_uninstall_remove_plugin:
-                ok, message, cleaned = self._uninstall_moviepilot_plugin(pid)
+            if options["remove_plugin"]:
+                ok, message, cleaned = self._uninstall_moviepilot_plugin(pid, clear_config=options["clear_config"], clear_data=options["clear_data"])
                 result["uninstalled"].append({"plugin_id": pid, "success": ok, "message": message})
                 if cleaned.get("config"):
                     result["cleaned_config"].append(pid)
@@ -3997,7 +4596,7 @@ class AgentOpsAssistant(_PluginBase):
         result["success"] = not result["errors"]
         return result
 
-    def _uninstall_moviepilot_plugin(self, plugin_id: str) -> Tuple[bool, str, Dict[str, bool]]:
+    def _uninstall_moviepilot_plugin(self, plugin_id: str, clear_config: Optional[bool] = None, clear_data: Optional[bool] = None) -> Tuple[bool, str, Dict[str, bool]]:
         cleaned = {"config": False, "data": False}
         try:
             from app.core.plugin import PluginManager
@@ -4022,13 +4621,13 @@ class AgentOpsAssistant(_PluginBase):
         self._remove_plugin_from_folders_safely(config_oper, SystemConfigKey, plugin_id)
 
         plugin_manager = PluginManager()
-        if self._plugin_uninstall_clear_config:
+        if self._plugin_uninstall_clear_config if clear_config is None else clear_config:
             try:
                 cleaned["config"] = bool(plugin_manager.delete_plugin_config(plugin_id))
                 messages.append("配置已清理" if cleaned["config"] else "配置未找到")
             except Exception as err:
                 messages.append(f"配置清理失败：{err}")
-        if self._plugin_uninstall_clear_data:
+        if self._plugin_uninstall_clear_data if clear_data is None else clear_data:
             try:
                 cleaned["data"] = bool(plugin_manager.delete_plugin_data(plugin_id))
                 messages.append("数据已清理" if cleaned["data"] else "数据未找到")
@@ -4076,7 +4675,7 @@ class AgentOpsAssistant(_PluginBase):
         except Exception as err:
             logger.warning(f"AgentOpsAssistant 从插件文件夹移除失败：{plugin_id} {err}")
 
-    def _plugin_uninstall_candidates(self, plugin_id: str) -> List[Dict[str, Any]]:
+    def _plugin_uninstall_candidates(self, plugin_id: str, delete_source: Optional[bool] = None) -> List[Dict[str, Any]]:
         lower = plugin_id.lower()
         candidates: List[Dict[str, Any]] = []
         roots = [
@@ -4085,7 +4684,8 @@ class AgentOpsAssistant(_PluginBase):
             ("backup", Path("/config/plugins_backup") / plugin_id),
             ("backup", Path("/config/plugins_backup") / lower),
         ]
-        if self._plugin_uninstall_delete_source and self._local_plugin_repo:
+        delete_source = self._plugin_uninstall_delete_source if delete_source is None else delete_source
+        if delete_source and self._local_plugin_repo:
             roots.append(("local_source", Path(self._local_plugin_repo) / "plugins.v2" / lower))
         for kind, path in roots:
             if path.exists():
@@ -4103,9 +4703,10 @@ class AgentOpsAssistant(_PluginBase):
                 deduped.append(item)
         return deduped
 
-    def _plugin_uninstall_path_allowed(self, path: Path) -> bool:
+    def _plugin_uninstall_path_allowed(self, path: Path, delete_source: Optional[bool] = None) -> bool:
         roots = [Path("/config/plugins"), Path("/config/plugins_backup"), Path("/config/logs/plugins")]
-        if self._plugin_uninstall_delete_source and self._local_plugin_repo:
+        delete_source = self._plugin_uninstall_delete_source if delete_source is None else delete_source
+        if delete_source and self._local_plugin_repo:
             roots.append(Path(self._local_plugin_repo) / "plugins.v2")
         try:
             resolved = path.resolve(strict=False)
