@@ -15,3 +15,13 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Local project SSH deploy keys
+.mp-deploy/ssh/*
+!.mp-deploy/ssh/README.md
+!.mp-deploy/ssh/config

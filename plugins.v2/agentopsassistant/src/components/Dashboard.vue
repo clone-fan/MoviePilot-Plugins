@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { getPluginApi, postPluginApi } from './api'
+import { actionMessageFromResponse, getPluginApi, postPluginApi } from './api'
 import SiteStatsWidget from './dashboard/SiteStatsWidget.vue'
 import ActionsWidget from './dashboard/ActionsWidget.vue'
 
@@ -28,10 +28,11 @@ const siteChart = reactive({
 })
 
 const actionItems = [
-  { path: 'run_site_stat', component: 'site_stat', label: '站点统计', desc: '刷新站点增量', icon: 'mdi-chart-pie', tone: 'blue' },
-  { path: 'run_daily_report', component: 'daily_report', label: '每日汇报', desc: '发送运维摘要', icon: 'mdi-send-clock-outline', tone: 'green' },
-  { path: 'run_subscribe_reminder', component: 'subscribe_reminder', label: '订阅追新', desc: '推送今日追新', icon: 'mdi-bell-badge-outline', tone: 'cyan' },
-  { path: 'run_health_check', component: 'health_check', label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse', tone: 'violet' },
+  { path: 'run_site_stat', component: 'site_stat', label: '站点统计', desc: '刷新站点增量', icon: 'mdi-chart-pie' },
+  { path: 'create_tg_console_card', component: '', label: '立即建卡', desc: '创建融合汇报卡', icon: 'mdi-card-plus-outline' },
+  { path: 'run_daily_report', component: 'daily_report', label: '立即刷新', desc: '刷新融合汇报', icon: 'mdi-refresh' },
+  { path: 'run_subscribe_reminder', component: 'subscribe_reminder', label: '订阅追新', desc: '推送今日追新', icon: 'mdi-bell-badge-outline' },
+  { path: 'run_health_check', component: 'health_check', label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse' },
 ]
 
 const componentKey = computed(() => props.config?.attrs?.component || props.config?.key || 'site')
@@ -56,11 +57,12 @@ const widgetActions = computed(() => actionItems.map(action => {
 }))
 
 const sitePieColors = [
-  { color: 'rgba(var(--v-theme-success), 0.94)', glow: 'rgba(var(--v-theme-success), 0.28)' },
-  { color: 'rgba(var(--v-theme-info), 0.90)', glow: 'rgba(var(--v-theme-info), 0.26)' },
-  { color: 'rgba(var(--v-theme-warning), 0.88)', glow: 'rgba(var(--v-theme-warning), 0.24)' },
-  { color: 'rgba(var(--v-theme-primary), 0.88)', glow: 'rgba(var(--v-theme-primary), 0.24)' },
-  { color: 'rgba(var(--v-theme-error), 0.84)', glow: 'rgba(var(--v-theme-error), 0.22)' },
+  { color: 'rgba(88, 204, 118, 0.95)', glow: 'rgba(88, 204, 118, 0.30)' },
+  { color: 'rgba(45, 212, 191, 0.92)', glow: 'rgba(45, 212, 191, 0.28)' },
+  { color: 'rgba(96, 165, 250, 0.92)', glow: 'rgba(96, 165, 250, 0.28)' },
+  { color: 'rgba(251, 191, 36, 0.90)', glow: 'rgba(251, 191, 36, 0.26)' },
+  { color: 'rgba(248, 113, 113, 0.88)', glow: 'rgba(248, 113, 113, 0.24)' },
+  { color: 'rgba(167, 139, 250, 0.90)', glow: 'rgba(167, 139, 250, 0.25)' },
 ]
 
 const siteRows = computed(() => [...(siteChart.sites || [])].sort((a, b) => {
@@ -160,11 +162,11 @@ async function runAction(action) {
     const res = await postPluginApi(props.api, action.path)
     const ok = !!res && res.code === 0
     actionOk.value = ok
-    actionMessage.value = (res && res.msg) || `${action.label}已${ok ? '完成' : '失败'}`
+    actionMessage.value = actionMessageFromResponse(res, action.label)
     if (ok && action.path === 'run_site_stat') await loadSiteChart()
   } catch (err) {
     actionOk.value = false
-    actionMessage.value = err?.message || `${action.label}失败`
+    actionMessage.value = actionMessageFromResponse({ code: 1, msg: err?.message }, action.label)
   } finally {
     actionRunning.value = ''
     window.setTimeout(() => { actionMessage.value = '' }, 5000)
@@ -209,11 +211,13 @@ onMounted(loadSiteChart)
   --mp-widget-radius: 16px;
   --mp-widget-inner-radius: 14px;
   --mp-widget-cell-radius: 12px;
-  --mp-widget-panel-fill-hi: 0.78;
-  --mp-widget-panel-fill-lo: 0.56;
+  --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--mp-dashboard-card-opacity, 0.28));
+  --mp-widget-surface-opacity: var(--mp-widget-mp-surface-opacity);
+  --mp-widget-panel-fill-hi: clamp(0.04, calc(var(--mp-widget-mp-surface-opacity) + 0.06), 0.42);
+  --mp-widget-panel-fill-lo: clamp(0.02, calc(var(--mp-widget-mp-surface-opacity) - 0.04), 0.30);
   --mp-widget-panel-line: 0.12;
-  --mp-widget-cell-fill: 0.34;
-  --mp-widget-cell-fill-strong: 0.48;
+  --mp-widget-cell-fill: clamp(0.02, calc(var(--mp-widget-mp-surface-opacity) * 0.48), 0.22);
+  --mp-widget-cell-fill-strong: clamp(0.04, calc(var(--mp-widget-mp-surface-opacity) * 0.62), 0.28);
   --mp-widget-cell-line: 0.12;
   --mp-widget-cell-line-soft: 0.04;
   --mp-widget-shadow-panel:

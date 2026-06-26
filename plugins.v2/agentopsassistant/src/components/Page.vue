@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useTheme } from 'vuetify'
-import { getPluginApi, getPluginApiRaw, postPluginApi } from './api'
+import { actionMessageFromResponse, getPluginApi, getPluginApiRaw, postPluginApi } from './api'
 
 const props = defineProps({
   api: { type: [Object, Function], default: null },
@@ -26,7 +26,17 @@ const data = reactive({
   health: { time: '', success: null, output: '' },
 })
 
-const siteChart = reactive({ date: '', basis: 'today', sites: [], upload_total: 0, download_total: 0 })
+const siteChart = reactive({
+  date: '',
+  basis: 'idle',
+  sites: [],
+  upload_total: 0,
+  download_total: 0,
+  data_valid: false,
+  message: '',
+  error: '',
+  last_error: '',
+})
 const downloaders = ref([])
 const downloaderOverviewMessage = ref('')
 const dashboardThemeClass = computed(() => {
@@ -72,7 +82,19 @@ async function loadDashboard() {
   }
 }
 
-async function runAction(path, label) {
+function actionComponentEnabled(action) {
+  if (!action?.component) return true
+  const task = (data.tasks || []).find(item => item?.key === action.component)
+  return !!data.enabled && !!task?.enabled
+}
+
+function actionComponentDisabledMessage(action) {
+  if (!action?.component || actionComponentEnabled(action)) return ''
+  const task = (data.tasks || []).find(item => item?.key === action.component)
+  return `${task?.name || action.label || '组件'}未启用，手动命令已暂停`
+}
+
+async function runAction(action) {
   if (actionRunning.value) return
   if (actionsDisabled.value) {
     actionOk.value = false
@@ -80,6 +102,14 @@ async function runAction(path, label) {
     setTimeout(() => { actionMessage.value = '' }, 5000)
     return
   }
+  const disabledMessage = actionComponentDisabledMessage(action)
+  if (disabledMessage) {
+    actionOk.value = false
+    actionMessage.value = disabledMessage
+    setTimeout(() => { actionMessage.value = '' }, 5000)
+    return
+  }
+  const path = action.path
   actionRunning.value = path
   actionMessage.value = ''
   actionOk.value = true
@@ -87,7 +117,7 @@ async function runAction(path, label) {
     const res = await postPluginApi(props.api, path)
     const ok = !!res && res.code === 0
     actionOk.value = ok
-    actionMessage.value = (res && res.msg) || `${label}已${ok ? '完成' : '失败'}`
+    actionMessage.value = actionMessageFromResponse(res, action.label)
     setTimeout(() => { actionMessage.value = '' }, 5000)
     if (ok) {
       loadDashboard()
@@ -96,7 +126,7 @@ async function runAction(path, label) {
     }
   } catch (err) {
     actionOk.value = false
-    actionMessage.value = err?.message || `${label}失败`
+    actionMessage.value = actionMessageFromResponse({ code: 1, msg: err?.message }, action.label)
     setTimeout(() => { actionMessage.value = '' }, 5000)
   } finally {
     actionRunning.value = ''
@@ -156,6 +186,21 @@ const sitePieStyle = computed(() => {
 })
 const siteTableRows = computed(() => sitePieSegments.value.slice(0, 6))
 const hasSiteChart = computed(() => !!(siteChart.sites && siteChart.sites.length))
+const siteEmptyTitle = computed(() => {
+  if (siteChart.last_error || siteChart.error) return '站点统计失败'
+  if (siteChart.basis === 'skipped') return '站点统计未启用'
+  if (siteChart.data_valid === true) return '暂无站点增量'
+  if (siteChart.basis === 'latest') return '暂无今日增量'
+  return '等待站点统计'
+})
+const siteEmptyDesc = computed(() => {
+  if (siteChart.last_error || siteChart.error) return siteChart.last_error || siteChart.error
+  if (siteChart.message) return siteChart.message
+  if (siteChart.basis === 'skipped') return '启用插件和站点统计组件后，可手动刷新生成数据'
+  if (siteChart.data_valid === true) return '已刷新但没有可展示的上传/下载增量'
+  if (siteChart.basis === 'latest') return '今日基线不足，暂用最近快照等待下一次刷新'
+  return '点击立即刷新或站点统计后显示最新可用数据'
+})
 
 function sitePercent(value) {
   const total = siteTrafficTotal.value
@@ -165,10 +210,34 @@ function sitePercent(value) {
 
 async function loadSiteChart() {
   try {
-    const res = await getPluginApi(props.api, 'site_stat_chart')
-    Object.assign(siteChart, res || {})
-  } catch {
-    /* 无站点数据时静默显示空态 */
+    const res = await getPluginApiRaw(props.api, 'site_stat_chart')
+    const payload = res && typeof res === 'object' && 'data' in res ? res.data : res
+    Object.assign(siteChart, {
+      date: '',
+      basis: 'idle',
+      sites: [],
+      upload_total: 0,
+      download_total: 0,
+      data_valid: false,
+      message: '',
+      error: '',
+      last_error: '',
+      ...(payload || {}),
+      message: payload?.message || res?.msg || '',
+      last_error: payload?.last_error || payload?.error || (res?.code && res?.msg ? res.msg : ''),
+    })
+  } catch (err) {
+    Object.assign(siteChart, {
+      date: '',
+      basis: 'error',
+      sites: [],
+      upload_total: 0,
+      download_total: 0,
+      data_valid: false,
+      message: '',
+      error: err?.message || '站点统计数据加载失败',
+      last_error: err?.message || '站点统计数据加载失败',
+    })
   }
 }
 
@@ -269,39 +338,43 @@ const metricCards = computed(() => [
   { label: '站点流量', value: formatGB(siteTrafficTotal.value), icon: 'mdi-chart-line-variant', tone: 'amber' },
 ])
 
+const quickActions = [
+  { path: 'create_tg_console_card', component: '', label: '立即建卡', icon: 'mdi-card-plus-outline', tone: 'green' },
+  { path: 'run_daily_report', component: 'daily_report', label: '立即刷新', icon: 'mdi-refresh', tone: 'green' },
+]
+
 const actionGroups = [
   {
     group: '汇报与追新',
     icon: 'mdi-newspaper-variant-outline',
     actions: [
-      { path: 'run_daily_report', label: '每日汇报', icon: 'mdi-send-clock-outline', tone: 'green' },
-      { path: 'run_subscribe_reminder', label: '订阅追新', icon: 'mdi-bell-badge-outline', tone: 'blue' },
+      { path: 'run_subscribe_reminder', component: 'subscribe_reminder', label: '订阅追新', icon: 'mdi-bell-badge-outline', tone: 'blue' },
     ],
   },
   {
     group: '站点与下载器',
     icon: 'mdi-download-network-outline',
     actions: [
-      { path: 'run_site_stat', label: '站点统计', icon: 'mdi-chart-pie', tone: 'blue' },
-      { path: 'run_downloader_tag', label: '种子标签', icon: 'mdi-tag-plus-outline', tone: 'cyan' },
-      { path: 'run_seed_clean', label: '自动删种', icon: 'mdi-delete-sweep-outline', tone: 'red' },
+      { path: 'run_site_stat', component: 'site_stat', label: '站点统计', icon: 'mdi-chart-pie', tone: 'blue' },
+      { path: 'run_downloader_tag', component: 'downloader_tag', label: '种子标签', icon: 'mdi-tag-plus-outline', tone: 'cyan' },
+      { path: 'run_seed_clean', component: 'seed_clean', label: '自动删种', icon: 'mdi-delete-sweep-outline', tone: 'red' },
     ],
   },
   {
     group: '系统维护',
     icon: 'mdi-cog-outline',
     actions: [
-      { path: 'run_backup', label: '配置备份', icon: 'mdi-database-arrow-up-outline', tone: 'violet' },
-      { path: 'run_log_clean', label: '日志清理', icon: 'mdi-broom', tone: 'violet' },
-      { path: 'run_health_check', label: '健康巡查', icon: 'mdi-heart-pulse', tone: 'green' },
-      { path: 'run_mp_update', label: 'MP 更新', icon: 'mdi-update', tone: 'amber' },
+      { path: 'run_backup', component: 'backup', label: '配置备份', icon: 'mdi-database-arrow-up-outline', tone: 'violet' },
+      { path: 'run_log_clean', component: 'log_clean', label: '日志清理', icon: 'mdi-broom', tone: 'violet' },
+      { path: 'run_health_check', component: 'health_check', label: '健康巡查', icon: 'mdi-heart-pulse', tone: 'green' },
+      { path: 'run_mp_update', component: 'mp_update', label: 'MP 更新', icon: 'mdi-update', tone: 'amber' },
     ],
   },
   {
     group: '插件治理',
     icon: 'mdi-puzzle-check-outline',
     actions: [
-      { path: 'run_market_update', label: '插件更新', icon: 'mdi-cloud-sync-outline', tone: 'amber' },
+      { path: 'run_market_update', component: 'market_update', label: '插件更新', icon: 'mdi-cloud-sync-outline', tone: 'amber' },
     ],
   },
 ]
@@ -405,14 +478,18 @@ onMounted(() => {
                   <strong>{{ siteDateLabel }}</strong>
                 </div>
               </div>
-              <div class="site-table site-legend">
-                <div class="th">站点</div><div class="th">上传</div><div class="th">下载</div><div class="th">占比</div>
-                <template v-for="site in siteTableRows" :key="site.name">
-                  <div class="site-row-cell site-name"><i class="dot" :style="{ background: site.color, boxShadow: `0 0 8px ${site.glow}` }"></i>{{ site.name }}</div>
-                  <div class="site-row-cell site-upload">↑ {{ formatGB(site.upload) }}</div>
-                  <div class="site-row-cell site-download">↓ {{ formatGB(site.download) }}</div>
-                  <div class="site-row-cell site-percent">{{ sitePercent(site.value) }}</div>
-                </template>
+              <div class="site-list site-legend">
+                <article v-for="site in siteTableRows" :key="site.name" class="site-card">
+                  <div class="site-card-head">
+                    <i class="dot" :style="{ background: site.color, boxShadow: `0 0 8px ${site.glow}` }"></i>
+                    <span class="site-name">{{ site.name }}</span>
+                    <strong class="site-percent">{{ sitePercent(site.value) }}</strong>
+                  </div>
+                  <div class="site-card-metrics">
+                    <span class="site-row-cell site-upload">↑ {{ formatGB(site.upload) }}</span>
+                    <span class="site-row-cell site-download">↓ {{ formatGB(site.download) }}</span>
+                  </div>
+                </article>
               </div>
             </div>
           </div>
@@ -440,13 +517,12 @@ onMounted(() => {
                   <strong>等待统计</strong>
                 </div>
               </div>
-              <div class="site-table site-table--empty">
-                <div class="th">站点</div><div class="th">上传</div><div class="th">下载</div><div class="th">占比</div>
+              <div class="site-list site-list--empty">
                 <div class="site-row-cell site-empty-row">
                   <VIcon icon="mdi-chart-pie" size="18" />
                   <div>
-                    <strong>暂无站点增量</strong>
-                    <span>刷新后显示最近可用快照</span>
+                    <strong>{{ siteEmptyTitle }}</strong>
+                    <span>{{ siteEmptyDesc }}</span>
                   </div>
                 </div>
               </div>
@@ -461,6 +537,28 @@ onMounted(() => {
             <span class="panel-note">{{ actionItems.length }} 项</span>
           </div>
           <div class="command-body action-scroll">
+            <section class="command-group command-quick-card" aria-label="融合通知快捷操作">
+              <div class="command-quick-copy">
+                <span>融合通知</span>
+                <strong>运维卡快捷操作</strong>
+              </div>
+              <div class="command-quick-buttons">
+                <VBtn
+                  v-for="quick in quickActions"
+                  :key="quick.path"
+                  variant="text"
+                  density="comfortable"
+                  :loading="actionRunning === quick.path"
+                  :disabled="actionsDisabled || !actionComponentEnabled(quick) || (!!actionRunning && actionRunning !== quick.path)"
+                  :title="quick.label"
+                  class="command-quick-btn text-none"
+                  @click="runAction(quick)"
+                >
+                  <VIcon :icon="quick.icon" size="20" />
+                  <span class="command-quick-label">{{ quick.label }}</span>
+                </VBtn>
+              </div>
+            </section>
             <section v-for="group in actionGroups" :key="group.group" class="command-group">
               <div class="group-head">
                 <span>{{ group.group }}</span>
@@ -473,10 +571,11 @@ onMounted(() => {
                   variant="text"
                   density="comfortable"
                   :loading="actionRunning === action.path"
-                  :disabled="actionsDisabled || (!!actionRunning && actionRunning !== action.path)"
+                  :disabled="actionsDisabled || !actionComponentEnabled(action) || (!!actionRunning && actionRunning !== action.path)"
+                  :title="actionComponentDisabledMessage(action)"
                   class="cmd-btn action-btn action-item text-none"
                   :class="[`cmd-btn--${action.tone}`, `action-btn--${action.tone}`]"
-                  @click="runAction(action.path, action.label)"
+                  @click="runAction(action)"
                 >
                   <VIcon :icon="action.icon" size="16" />
                   <span class="action-btn-label">{{ action.label }}</span>
@@ -771,7 +870,7 @@ onMounted(() => {
 
 .dashboard-shell {
   border-radius: var(--aoa-dashboard-radius);
-  padding: 26px 40px 34px;
+  padding: 26px clamp(18px, 3vw, 40px) 34px;
   border: 0;
   background: transparent;
   background-color: transparent !important;
@@ -812,7 +911,7 @@ onMounted(() => {
   min-height: 730px;
   padding: 16px 0 0;
   gap: 16px;
-  grid-template-columns: minmax(316px, 1.05fr) minmax(316px, 1.02fr) minmax(246px, 0.88fr);
+  grid-template-columns: minmax(320px, 1.15fr) minmax(320px, 1.15fr) minmax(280px, 0.9fr);
 }
 
 .dashboard-shell--sidebar .metric-card {
@@ -833,16 +932,16 @@ onMounted(() => {
 }
 
 .dashboard-shell--sidebar .command-panel {
-  padding: 22px;
+  padding: 20px 22px 22px;
 }
 
 .dashboard-shell--sidebar .command-body {
-  gap: 14px;
-  grid-template-rows: 110px 142px 142px 110px;
+  gap: 12px;
+  padding: 0 4px 12px 0;
 }
 
 .dashboard-shell--sidebar .command-group {
-  padding: 15px 12px;
+  padding: 14px 12px;
 }
 
 .dashboard-shell--sidebar .cmd-grid {
@@ -850,7 +949,8 @@ onMounted(() => {
 }
 
 .agentops-frame {
-  width: min(1208px, 100%);
+  width: 100%;
+  max-width: 1680px;
   min-height: 790px;
   margin: 0 auto;
   overflow: visible;
@@ -946,7 +1046,7 @@ onMounted(() => {
   min-height: 620px;
   padding: 18px;
   display: grid;
-  grid-template-columns: minmax(300px, 410px) minmax(300px, 410px) minmax(280px, 1fr);
+  grid-template-columns: minmax(320px, 1.08fr) minmax(320px, 1.08fr) minmax(300px, 0.92fr);
   grid-template-rows: minmax(136px, 0.72fr) minmax(250px, 1.25fr) minmax(180px, 0.9fr);
   gap: 14px;
 }
@@ -1283,71 +1383,137 @@ onMounted(() => {
 }
 .site-data {
   min-width: 0;
+  min-height: 0;
   display: grid;
-  grid-template-rows: 76px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 9px;
+  overflow: hidden;
 }
 .site-stats {
+  min-height: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  overflow: hidden;
 }
 .site-stat {
   min-width: 0;
-  border-radius: 15px;
-  border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
-  padding: 12px 13px;
-  background:
-    linear-gradient(180deg, rgba(var(--line), var(--site-cell-line-alpha)), rgba(var(--line), var(--site-cell-line-low-alpha))),
-    rgba(var(--panel), var(--site-cell-fill-alpha));
-  box-shadow: var(--site-cell-shadow);
-}
-.site-stat span,
-.site-table .th {
-  color: rgba(var(--muted), 0.70);
-  font-size: 12px;
-  font-weight: 720;
-}
-.site-stat strong {
-  display: block;
-  margin-top: 9px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 18px;
-  line-height: 1;
-  font-weight: 890;
-}
-.site-table {
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1.05fr 1fr 1fr 0.72fr;
-  gap: 8px 12px;
-  align-content: start;
-  overflow: auto;
-  padding-right: 2px;
-  color: rgba(var(--ink), 0.88);
-  font-size: 13px;
-  font-weight: 700;
-}
-.site-row-cell {
-  min-width: 0;
   min-height: 32px;
-  display: flex;
+  height: 32px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  border-radius: 11px;
+  gap: 6px;
+  border-radius: 15px;
   border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
   padding: 0 10px;
   background:
     linear-gradient(180deg, rgba(var(--line), var(--site-cell-line-alpha)), rgba(var(--line), var(--site-cell-line-low-alpha))),
     rgba(var(--panel), var(--site-cell-fill-alpha));
   box-shadow: var(--site-cell-shadow);
+  overflow: hidden;
+  contain: layout paint;
+}
+.site-stat:nth-child(3) {
+  grid-column: 1 / -1;
+  min-height: 30px;
+  height: 30px;
+}
+.site-stat span {
+  color: rgba(var(--muted), 0.70);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 720;
+}
+.site-stat strong {
+  display: block;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 890;
+}
+.site-list {
+  min-height: 0;
+  display: grid;
+  gap: 9px;
+  align-content: start;
+  overflow: auto;
+  padding-right: 2px;
+  color: rgba(var(--ink), 0.88);
+  font-size: 13px;
+  font-weight: 700;
+  scrollbar-width: thin;
+}
+.site-card {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 18px 30px;
+  gap: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
+  padding: 10px 11px;
+  background:
+    linear-gradient(180deg, rgba(var(--line), var(--site-cell-line-alpha)), rgba(var(--line), var(--site-cell-line-low-alpha))),
+    rgba(var(--panel), var(--site-cell-fill-alpha));
+  box-shadow: var(--site-cell-shadow);
+  overflow: hidden;
+  contain: layout paint;
+}
+.site-card-head {
+  min-width: 0;
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  line-height: 1;
+}
+.site-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.site-row-cell {
+  min-width: 0;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
+  padding: 0 9px;
+  background:
+    linear-gradient(180deg, rgba(var(--line), var(--site-cell-line-alpha)), rgba(var(--line), var(--site-cell-line-low-alpha))),
+    rgba(var(--panel), var(--site-cell-fill-alpha));
+  box-shadow: var(--site-cell-shadow);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1;
 }
-.site-table--empty {
-  grid-auto-rows: 32px;
+.site-list--empty {
+  grid-auto-rows: auto;
+}
+.site-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.site-percent {
+  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 820;
 }
 .site-empty-row {
   grid-column: 1 / -1;
@@ -1374,7 +1540,7 @@ onMounted(() => {
   font-size: 12px;
   line-height: 1;
 }
-.site-name {
+.site-card-head {
   gap: 8px;
 }
 .dot {
@@ -1415,8 +1581,10 @@ onMounted(() => {
 .command-panel {
   grid-column: 3;
   grid-row: 1 / 4;
-  display: flex;
-  flex-direction: column;
+  container-type: inline-size;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
   padding: 24px;
   background:
     radial-gradient(circle at 14% 0%, rgba(var(--cyan), var(--command-cyan-alpha)), transparent 34%),
@@ -1428,25 +1596,24 @@ onMounted(() => {
   height: auto;
   min-height: 24px;
   padding: 0;
-  margin-bottom: 26px;
+  margin-bottom: 0;
 }
 .command-body {
   min-height: 0;
-  flex: 1;
-  display: grid;
-  grid-template-rows: 112px 146px 146px 112px;
-  gap: 18px;
-  align-content: stretch;
-  overflow: visible;
-  padding-right: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  padding: 0 4px 10px 0;
 }
 .command-group {
   min-width: 0;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   border-radius: 16px;
-  padding: 17px 14px;
+  padding: 14px 14px;
   border: 1px solid rgba(var(--line), 0.036);
   background:
     linear-gradient(180deg, rgba(var(--line), 0.026), rgba(var(--line), 0.008)),
@@ -1461,15 +1628,124 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   color: rgba(var(--muted), 0.70);
   font-size: 12px;
   font-weight: 760;
 }
+.command-quick-card {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(112px, 0.72fr) minmax(220px, 1.28fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+}
+.command-quick-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.command-quick-copy span {
+  color: rgba(var(--muted), 0.70);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 760;
+}
+.command-quick-copy strong {
+  color: rgba(var(--ink), 0.94);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 1.15;
+  font-weight: 880;
+}
+.command-quick-buttons {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+}
+.command-quick-btn {
+  width: 100%;
+  height: 38px;
+  min-width: 0;
+  border-radius: 13px;
+  border: 1px solid rgba(var(--line), 0.095);
+  color: rgba(var(--green), 0.98);
+  background:
+    linear-gradient(180deg, rgba(var(--green), 0.115), rgba(var(--green), 0.030)),
+    rgba(var(--panel), var(--panel-inner-alpha));
+  box-shadow: var(--shadow-button);
+}
+.command-quick-btn :deep(.v-btn__content) {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  overflow: hidden;
+}
+.command-quick-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 820;
+}
+.command-quick-btn:hover {
+  border-color: rgba(var(--green), 0.25);
+  background:
+    linear-gradient(180deg, rgba(var(--green), 0.155), rgba(var(--green), 0.045)),
+    rgba(var(--panel), var(--panel-inner-strong-alpha));
+}
+.command-quick-btn :deep(.v-btn__overlay) {
+  display: none;
+}
+
+@container (max-width: 360px) {
+  .command-quick-card {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .command-quick-copy strong {
+    white-space: normal;
+    line-height: 1.18;
+  }
+
+  .command-quick-buttons {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .command-quick-btn {
+    height: 34px;
+  }
+}
+
+@container (max-width: 300px) {
+  .command-quick-buttons {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .command-quick-btn {
+    width: auto;
+    min-width: 0;
+  }
+}
 .cmd-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
+  gap: 8px;
 }
 .cmd-btn {
   min-width: 0;
@@ -1634,17 +1910,17 @@ onMounted(() => {
   height: calc(100% - 38px);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: 79px;
+  grid-auto-rows: 68px;
   align-content: start;
   gap: 8px;
   overflow: auto;
-  padding: 4px 14px 10px;
+  padding: 4px 14px 8px;
 }
 .module {
   min-width: 0;
-  height: 79px;
+  height: 68px;
   border-radius: 13px;
-  padding: 10px 10px 9px;
+  padding: 9px 10px 8px;
   border: 1px solid rgba(var(--line), 0.052);
   background:
     linear-gradient(180deg, rgba(var(--line), 0.052), rgba(var(--line), 0.016)),
@@ -1806,6 +2082,7 @@ onMounted(() => {
 }
 
 .agentops-dashboard.agentops-theme--transparent .top-button,
+.agentops-dashboard.agentops-theme--transparent .command-quick-btn,
 .agentops-dashboard.agentops-theme--transparent .alert-line,
 .agentops-dashboard.agentops-theme--transparent .site-empty-row,
 .agentops-dashboard.agentops-theme--transparent .command-group,
@@ -1819,6 +2096,7 @@ onMounted(() => {
 }
 
 .agentops-dashboard.agentops-theme--transparent .top-button,
+.agentops-dashboard.agentops-theme--transparent .command-quick-btn,
 .agentops-dashboard.agentops-theme--transparent .cmd-btn {
   box-shadow: var(--shadow-button);
 }
@@ -1922,11 +2200,25 @@ onMounted(() => {
     min-height: 180px;
   }
   .site-data {
-    grid-template-rows: 64px minmax(0, 1fr);
-    gap: 10px;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+  .site-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
   .site-stat {
-    padding: 9px 10px;
+    gap: 4px;
+    padding: 0 8px;
+    min-height: 30px;
+    height: 30px;
+  }
+  .site-stat:nth-child(3) {
+    min-height: 28px;
+    height: 28px;
+  }
+  .site-stat strong {
+    font-size: 12px;
   }
   .command-panel {
     padding: 18px;
@@ -1935,11 +2227,21 @@ onMounted(() => {
     margin-bottom: 14px;
   }
   .command-body {
-    grid-template-rows: 82px 108px 108px 82px;
-    gap: 12px;
+    gap: 10px;
   }
   .command-group {
     padding: 10px 12px;
+  }
+  .command-quick-card {
+    padding: 9px 10px 9px 12px;
+  }
+  .command-quick-copy strong {
+    font-size: 13px;
+  }
+  .command-quick-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
   }
   .group-head {
     margin-bottom: 8px;
@@ -2157,14 +2459,21 @@ onMounted(() => {
   .runtime-track {
     height: auto;
   }
-  .site-table {
-    grid-template-columns: minmax(92px, 1fr) 0.75fr;
+  .site-list {
+    gap: 8px;
+    padding-right: 0;
   }
-  .site-table .th:nth-child(3),
-  .site-table .th:nth-child(4),
-  .site-row-cell.site-download,
-  .site-row-cell.site-percent {
-    display: none;
+  .site-card {
+    padding: 9px 10px;
+    gap: 7px;
+  }
+  .site-card-metrics {
+    gap: 7px;
+  }
+  .site-row-cell {
+    min-height: 30px;
+    white-space: nowrap;
+    line-height: 1.25;
   }
   .alert-copy h1 {
     font-size: 21px;
@@ -2174,6 +2483,187 @@ onMounted(() => {
   }
   .badge {
     display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard-shell--sidebar {
+    padding: 12px 8px calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .agentops-toolbar {
+    min-height: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .brand {
+    flex: 1 0 100%;
+  }
+
+  .top-button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .top-button--icon {
+    flex: 0 0 36px;
+  }
+
+  .dashboard-canvas {
+    padding: 8px;
+    gap: 10px;
+  }
+
+  .dashboard-shell--sidebar .dashboard-canvas {
+    padding: 8px 0 0;
+    gap: 10px;
+  }
+
+  .dashboard-shell--sidebar .metrics-panel,
+  .metrics-panel,
+  .cmd-grid,
+  .runtime-track {
+    grid-template-columns: 1fr;
+  }
+
+  .alert-top {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .alert-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+  }
+
+  .alert-copy h1 {
+    font-size: 19px;
+  }
+
+  .alert-copy p {
+    font-size: 12px;
+  }
+
+  .alert-line {
+    height: auto;
+    min-height: 44px;
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+    padding: 8px 10px;
+  }
+
+  .alert-line b,
+  .alert-line strong {
+    white-space: normal;
+  }
+
+  .site-body {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .site-list {
+    gap: 8px;
+  }
+
+  .command-panel {
+    padding: 14px 12px;
+  }
+
+  .command-quick-card {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .command-quick-buttons {
+    width: 100%;
+  }
+
+  .command-quick-btn {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .cmd-btn {
+    min-height: 42px;
+    height: auto;
+  }
+
+  .cmd-btn :deep(.v-btn__content) {
+    justify-content: flex-start;
+  }
+
+  .action-btn-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: normal;
+  }
+
+  .downloader-card {
+    min-height: 64px;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .ok-chip {
+    justify-self: start;
+  }
+
+  .runtime-track {
+    grid-auto-rows: auto;
+  }
+
+  .module {
+    height: auto;
+    min-height: 64px;
+  }
+}
+
+@media (max-width: 380px) {
+  .agentops-toolbar {
+    padding: 8px;
+  }
+
+  .dashboard-shell--sidebar {
+    padding-inline: 6px;
+  }
+
+  .dashboard-canvas {
+    padding: 6px;
+    gap: 8px;
+  }
+
+  .command-quick-card {
+    padding: 10px;
+  }
+
+  .command-quick-buttons {
+    gap: 6px;
+  }
+
+  .alert-panel,
+  .command-panel,
+  .site-body,
+  .download-body,
+  .runtime-track {
+    padding-inline: 10px;
+  }
+
+  .alert-line {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .site-stat strong,
+  .metric-copy strong {
+    font-size: 16px;
   }
 }
 

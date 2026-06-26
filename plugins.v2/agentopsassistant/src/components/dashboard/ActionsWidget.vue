@@ -26,7 +26,6 @@ const emit = defineEmits(['runAction'])
         :key="action.path"
         variant="text"
         class="mp-action-btn text-none"
-        :class="[`mp-action-btn--${action.tone}`]"
         :loading="actionRunning === action.path"
         :disabled="action.disabled || (!!actionRunning && actionRunning !== action.path)"
         :title="action.reason || action.desc"
@@ -43,7 +42,6 @@ const emit = defineEmits(['runAction'])
 
     <VAlert
       v-if="actionMessage"
-      :type="actionOk ? 'success' : 'error'"
       variant="tonal"
       density="compact"
       class="mp-action-message"
@@ -55,6 +53,8 @@ const emit = defineEmits(['runAction'])
 
 <style scoped>
 .mp-actions-panel {
+  --mp-widget-panel-source-opacity: var(--mp-widget-surface-opacity, var(--mp-widget-mp-surface-opacity));
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -63,9 +63,10 @@ const emit = defineEmits(['runAction'])
   border-radius: var(--mp-widget-radius);
   border: 1px solid rgba(var(--v-border-color), var(--mp-widget-panel-line));
   background:
-    radial-gradient(circle at 14% 0%, rgba(var(--v-theme-error), 0.10), transparent 34%),
-    radial-gradient(circle at 92% 12%, rgba(var(--v-theme-primary), 0.070), transparent 32%),
-    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-hi)), rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-lo)));
+    radial-gradient(circle at 14% 0%, rgba(var(--v-theme-on-surface), 0.048), transparent 34%),
+    radial-gradient(circle at 92% 12%, rgba(var(--v-theme-on-surface), 0.034), transparent 32%),
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-hi)), rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-lo))),
+    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity));
   box-shadow: var(--mp-widget-shadow-panel);
   backdrop-filter: blur(18px) saturate(145%);
   -webkit-backdrop-filter: blur(18px) saturate(145%);
@@ -84,8 +85,8 @@ const emit = defineEmits(['runAction'])
   display: grid;
   place-items: center;
   border-radius: 12px;
-  color: rgb(var(--v-theme-error));
-  background: rgba(var(--v-theme-error), 0.12);
+  color: rgba(var(--v-theme-on-surface), 0.76);
+  background: rgba(var(--v-theme-on-surface), 0.075);
   box-shadow: var(--mp-widget-shadow-cell) !important;
 }
 
@@ -118,7 +119,8 @@ const emit = defineEmits(['runAction'])
   color: rgba(var(--v-theme-on-surface), 0.90);
   background:
     linear-gradient(180deg, rgba(var(--v-theme-on-surface), var(--mp-widget-cell-line-soft)), rgba(var(--v-theme-on-surface), 0.012)),
-    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill));
+    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill)),
+    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity));
   box-shadow: var(--mp-widget-shadow-cell) !important;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.055));
   cursor: pointer;
@@ -131,15 +133,16 @@ const emit = defineEmits(['runAction'])
 }
 
 .mp-action-btn:hover {
-  border-color: rgba(var(--v-theme-primary), 0.24);
+  border-color: rgba(var(--v-theme-on-surface), 0.18);
   background:
     linear-gradient(180deg, rgba(var(--v-theme-on-surface), 0.065), rgba(var(--v-theme-on-surface), 0.020)),
-    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill-strong));
+    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill-strong)),
+    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity));
   filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.07));
 }
 
 .mp-action-btn:focus-visible {
-  outline: 2px solid rgba(var(--v-theme-primary), 0.62);
+  outline: 2px solid rgba(var(--v-theme-on-surface), 0.38);
   outline-offset: 2px;
 }
 
@@ -158,25 +161,9 @@ const emit = defineEmits(['runAction'])
   display: grid;
   place-items: center;
   border-radius: 12px;
-  color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.10);
+  color: rgba(var(--v-theme-on-surface), 0.78);
+  background: rgba(var(--v-theme-on-surface), 0.075);
   box-shadow: var(--mp-widget-shadow-cell);
-}
-
-.mp-action-btn--green .mp-action-icon {
-  color: rgb(var(--v-theme-success));
-  background: rgba(var(--v-theme-success), 0.10);
-}
-
-.mp-action-btn--cyan .mp-action-icon,
-.mp-action-btn--blue .mp-action-icon {
-  color: rgb(var(--v-theme-info));
-  background: rgba(var(--v-theme-info), 0.10);
-}
-
-.mp-action-btn--violet .mp-action-icon {
-  color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.10);
 }
 
 .mp-action-copy {
@@ -195,6 +182,7 @@ const emit = defineEmits(['runAction'])
 }
 
 .mp-action-copy strong {
+  color: rgba(var(--v-theme-on-surface), 0.90);
   font-size: 13px;
   line-height: 1.05;
   font-weight: 760;
@@ -213,5 +201,56 @@ const emit = defineEmits(['runAction'])
 
 .mp-action-message {
   margin-top: auto;
+  color: rgba(var(--v-theme-on-surface), 0.74);
+  background: rgba(var(--v-theme-on-surface), 0.055);
+}
+
+@container (max-width: 420px) {
+  .mp-actions-panel {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .mp-panel-icon,
+  .mp-action-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 11px;
+  }
+
+  .mp-panel-head h3 {
+    font-size: 14px;
+  }
+
+  .mp-panel-head p {
+    display: none;
+  }
+
+  .mp-action-copy small {
+    display: none;
+  }
+
+  .mp-action-arrow {
+    display: none;
+  }
+
+  .mp-action-list {
+    gap: 9px;
+  }
+
+  .mp-action-btn {
+    min-height: 48px;
+  }
+
+  .mp-action-btn :deep(.v-btn__content) {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .mp-action-copy strong {
+    font-size: 13px;
+    white-space: normal;
+    line-height: 1.2;
+  }
 }
 </style>

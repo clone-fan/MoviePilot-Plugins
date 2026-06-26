@@ -1,6 +1,6 @@
 <script setup>
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, defineComponent, h, resolveComponent } from 'vue'
-import { postPluginApi, getPluginApi } from './api'
+import { actionMessageFromResponse, postPluginApi, getPluginApi } from './api'
 
 const props = defineProps({
   api: { type: [Object, Function], default: null },
@@ -10,8 +10,9 @@ const emit = defineEmits(['save', 'close', 'switch'])
 
 const form = reactive({})
 const activeMain = ref('report')
-const activeSub = ref('overview')
+const activeSub = ref('fusion')
 const configRoot = ref(null)
+const activeFusionGroup = ref('订阅与站点')
 let dialogScrollHost = null
 
 const ModuleHero = defineComponent({
@@ -88,6 +89,12 @@ const SettingSection = defineComponent({
 
 // 手动触发动作状态
 const action = reactive({ running: '', message: '', ok: true })
+const tgConsoleStatus = reactive({
+  loading: false,
+  loaded: false,
+  error: '',
+  data: {},
+})
 const actionComponentMap = {
   run_daily_report: 'daily_report',
   run_heartbeat_report: 'daily_report',
@@ -167,15 +174,45 @@ async function runAction(path, label) {
     if (ok && path === 'run_plugin_uninstall') {
       await refreshAfterPluginUninstall(res)
     }
+    if (ok && ['create_tg_console_card', 'run_daily_report'].includes(path)) {
+      await loadTgConsoleStatus()
+    }
     action.ok = ok
-    action.message = (res && res.msg) || `${label}已${ok ? '完成' : '失败'}`
+    action.message = actionMessageFromResponse(res, label)
   } catch (err) {
     action.ok = false
-    action.message = err?.message || `${label}失败`
+    action.message = actionMessageFromResponse({ code: 1, msg: err?.message }, label)
   } finally {
     action.running = ''
   }
 }
+
+async function loadTgConsoleStatus() {
+  tgConsoleStatus.loading = true
+  tgConsoleStatus.error = ''
+  try {
+    const res = await getPluginApi(props.api, 'tg_console_status')
+    tgConsoleStatus.data = res || {}
+    tgConsoleStatus.loaded = true
+  } catch (err) {
+    tgConsoleStatus.error = err?.message || '融合通知状态获取失败'
+  } finally {
+    tgConsoleStatus.loading = false
+  }
+}
+
+const tgConsoleMessageLabel = computed(() => {
+  const messageId = Number(tgConsoleStatus.data?.message_id || 0)
+  return messageId ? `#${messageId}` : '待建卡'
+})
+const tgConsoleChatLabel = computed(() => tgConsoleStatus.data?.chat_configured ? '已配置' : '未配置')
+const tgConsoleLastUpdateLabel = computed(() => {
+  const notices = Array.isArray(tgConsoleStatus.data?.notices) ? tgConsoleStatus.data.notices : []
+  const time = notices[0]?.time
+  const date = tgConsoleStatus.data?.date || ''
+  if (date && time) return `${date} ${time}`
+  return date || '暂无记录'
+})
 
 // 已安装插件（插件卸载 / 日志限定 共用）
 const installedPlugins = ref([])
@@ -266,6 +303,7 @@ function backupRestorePayload() {
     restore_config: !!backupRestore.restore_config,
     restore_cookies: !!backupRestore.restore_cookies,
     restore_database: !!backupRestore.restore_database,
+    confirm: !!backupRestore.confirm,
   }
 }
 function webdavBackupRestorePayload() {
@@ -274,6 +312,7 @@ function webdavBackupRestorePayload() {
     restore_config: !!webdavBackupRestore.restore_config,
     restore_cookies: !!webdavBackupRestore.restore_cookies,
     restore_database: !!webdavBackupRestore.restore_database,
+    confirm: !!webdavBackupRestore.confirm,
   }
 }
 async function previewBackupRestore() {
@@ -319,6 +358,7 @@ async function runWebdavBackupRestore() {
   } catch (err) {
     webdavBackupRestoreResult.value = { code: 1, msg: err?.message || 'WebDAV 备份恢复执行失败' }
   } finally {
+    webdavBackupRestore.confirm = false
     webdavBackupRestoreLoading.value = false
   }
 }
@@ -335,6 +375,7 @@ async function runBackupRestore() {
   } catch (err) {
     backupRestoreResult.value = { code: 1, msg: err?.message || '备份恢复执行失败' }
   } finally {
+    backupRestore.confirm = false
     backupRestoreLoading.value = false
   }
 }
@@ -384,12 +425,46 @@ async function loadMediaservers() {
   }
 }
 
+const fusionColumnItems = [
+  { key: 'site_stats', group: '订阅与站点', label: '站点统计', component: '站点数据统计', requires: 'site_stat', note: '站点状态、站点增量、统计空态' },
+  { key: 'subscribe', group: '订阅与站点', label: '订阅追新', component: '订阅管理', requires: 'subscribe_reminder', note: '订阅追新、规则填充结果' },
+  { key: 'download_transfer', group: '下载与媒体', label: '下载入库', component: '下载入库', requires: null, note: '今日下载、入库整理、失败明细' },
+  { key: 'media', group: '下载与媒体', label: '媒体动态', component: '媒体通知', requires: 'msgnotify', note: '播放、新入库、登录事件、媒体统计' },
+  { key: 'storage', group: '系统维护', label: '存储空间', component: '存储空间', requires: 'health_check', note: '配置目录、下载目录、媒体库、网盘容量' },
+  { key: 'health', group: '系统维护', label: '健康巡查', component: '健康巡查', requires: 'health_check', note: '数据库、目录权限、服务异常' },
+  { key: 'maintenance', group: '系统维护', label: '维护任务', component: '系统维护', requires: null, note: '备份、日志清理、插件治理、自动删种、种子标签' },
+  { key: 'updates', group: '系统维护', label: '更新检查', component: '更新检查', requires: null, note: 'MoviePilot 与插件库更新' },
+]
+const fusionColumnKeys = fusionColumnItems.map(item => item.key)
+const fusionGroupIcons = {
+  订阅与站点: 'mdi-rss-box',
+  下载与媒体: 'mdi-download-circle-outline',
+  系统维护: 'mdi-heart-pulse',
+}
+const storageTargetItems = [
+  { title: '配置目录', value: 'config' },
+  { title: '下载目录', value: 'download' },
+  { title: '媒体库目录', value: 'library' },
+  { title: 'MoviePilot 存储配置 / 网盘', value: 'storages' },
+]
+
 const defaults = {
   enabled: false,
   sidebar_nav_enabled: true,
+  fusion_notify_enabled: true,
+  fusion_notify_schedule_enabled: true,
+  fusion_notify_cron: '0 * * * *',
+  fusion_notify_msgtype: 'Plugin',
+  fusion_notify_columns: fusionColumnKeys,
+  report_storage_targets: ['config', 'download', 'library', 'storages'],
   daily_report_enabled: true,
+  daily_report_schedule_enabled: true,
   daily_report_cron: '0 22 * * *',
   daily_report_greeting: '少爷',
+  tg_console_poll_enabled: false,
+  tg_console_poll_interval: 15,
+  tg_console_allowed_user_ids: [],
+  tg_console_max_notices: 20,
   health_in_report: true,
   subscribe_in_report: true,
   site_stat_in_report: true,
@@ -403,6 +478,7 @@ const defaults = {
   report_media_stat: true,
   report_summary: true,
   health_check_enabled: true,
+  health_check_schedule_enabled: true,
   health_check_cron: '0 */6 * * *',
   health_check_items: [],
   health_check_database_targets: ['current'],
@@ -412,6 +488,7 @@ const defaults = {
   health_check_notify_type: 'Plugin',
   report_health: true,
   subscribe_reminder_enabled: true,
+  subscribe_reminder_schedule_enabled: true,
   subscribe_reminder_onlyonce: false,
   subscribe_reminder_time: '9',
   subscribe_reminder_cron: '0 9 * * *',
@@ -422,6 +499,7 @@ const defaults = {
   site_stat_dashboard_type: 'today',
   site_stat_notify_type: 'inc',
   log_clean_enabled: false,
+  log_clean_schedule_enabled: false,
   log_clean_cron: '0 3 * * 1',
   log_clean_rows: 300,
   log_clean_selected_ids: [],
@@ -429,6 +507,7 @@ const defaults = {
   log_clean_notify_type: 'Plugin',
   log_clean_onlyonce: false,
   backup_enabled: false,
+  backup_schedule_enabled: false,
   backup_onlyonce: false,
   backup_cron: '0 4 * * 1',
   backup_keep_count: 5,
@@ -445,12 +524,14 @@ const defaults = {
   backup_webdav_password: '',
   backup_webdav_max_count: 5,
   mp_update_enabled: false,
+  mp_update_schedule_enabled: false,
   mp_update_cron: '0 9 * * *',
   mp_update_notify: true,
   mp_update_notify_type: 'Plugin',
   mp_update_restart_confirm: false,
   mp_update_types: ['后端', '前端'],
   market_update_enabled: false,
+  market_update_schedule_enabled: false,
   market_update_onlyonce: false,
   market_update_interval: 86400,
   market_update_notify: true,
@@ -479,6 +560,7 @@ const defaults = {
   plugin_uninstall_notify: true,
   plugin_uninstall_notify_type: 'Plugin',
   seedclean_enabled: false,
+  seedclean_schedule_enabled: false,
   seedclean_cron: '0 */12 * * *',
   seedclean_action: 'pause',
   seedclean_downloaders: [],
@@ -514,7 +596,7 @@ const defaults = {
 }
 
 const mainTabs = [
-  { key: 'report', group: '汇报中心', title: '每日汇报', icon: 'mdi-newspaper-variant-outline', desc: '日报发送、手动推送与栏目控制' },
+  { key: 'report', group: '通知中心', title: '融合通知', icon: 'mdi-newspaper-variant-outline', desc: '单张 RichMessage 融合卡与组件栏目控制' },
   { key: 'subreminder', group: '订阅与站点', title: '订阅管理', icon: 'mdi-bell-cog-outline', desc: '订阅追新与规则填充' },
   { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '仪表盘站点数据与日报栏目' },
   { key: 'seedclean', group: '下载与媒体', title: '下载器管理', icon: 'mdi-download-network-outline', desc: '自动删种、种子标签与下载器治理' },
@@ -539,8 +621,7 @@ const navGroups = computed(() => {
 
 const subTabs = {
   report: [
-    { key: 'overview', title: '汇报总览', icon: 'mdi-newspaper-variant-outline' },
-    { key: 'columns', title: '汇报栏目', icon: 'mdi-view-column-outline' },
+    { key: 'fusion', title: '融合通知', icon: 'mdi-message-badge-outline' },
   ],
   subreminder: [
     { key: 'subscribe', title: '订阅追新', icon: 'mdi-bell-ring-outline' },
@@ -643,27 +724,40 @@ const healthChipLabels = {
   download: '下载目录',
   library: '媒体库',
 }
-const reportSections = [
-  { key: 'report_version', label: 'MoviePilot 版本', component: '每日汇报', requires: null, note: '基础版本信息' },
-  { key: 'report_site_status', label: '站点状态', component: '站点数据统计', requires: null, note: '逐站状态' },
-  { key: 'report_site_increment', label: '站点增量', component: '站点数据统计', requires: 'site_stat', note: '上传 / 下载 / 分享率 / 魔力' },
-  { key: 'report_today_download', label: '今日下载', component: '下载入库', requires: null, note: '今日已下载入库明细' },
-  { key: 'report_transfer', label: '入库整理', component: '下载入库', requires: null, note: '今日入库成功 / 失败' },
-  { key: 'report_subscribe', label: '订阅追新', component: '订阅追新', requires: 'subscribe_reminder', note: '今日追新内容' },
-  { key: 'report_storage', label: '存储空间', component: '存储空间', requires: null, note: '下载 / 媒体库目录用量' },
-  { key: 'report_media_stat', label: '媒体统计', component: '媒体库', requires: null, note: '电影 / 剧集 / 用户统计' },
-  { key: 'report_health', label: '健康巡查', component: '健康巡查', requires: 'health_check', note: '最近一次健康巡查结果' },
-  { key: 'report_summary', label: '今日摘要', component: '每日汇报', requires: null, note: '前文摘要' },
-]
+const reportSections = fusionColumnItems
+const fusionColumnGroups = computed(() => {
+  const order = []
+  const map = {}
+  for (const item of fusionColumnItems) {
+    const group = item.group || '其他'
+    if (!map[group]) {
+      map[group] = { name: group, icon: fusionGroupIcons[group] || 'mdi-view-grid-outline', items: [] }
+      order.push(map[group])
+    }
+    map[group].items.push(item)
+  }
+  return order
+})
+const activeFusionColumnGroup = computed(() => {
+  const groups = fusionColumnGroups.value
+  return groups.find(group => group.name === activeFusionGroup.value) || groups[0] || { name: '', icon: '', items: [] }
+})
+const fusionTakeoverText = '融合通知已接管'
+const FusionTakeoverAlert = defineComponent({
+  name: 'FusionTakeoverAlert',
+  setup() {
+    return () => {
+      return h('span', { class: 'aoa-fusion-takeover-note' }, fusionTakeoverText)
+    }
+  },
+})
 
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
 const currentSubs = computed(() => subTabs[activeMain.value] || [])
 const activeActionItems = computed(() => {
   const actions = {
-    overview: [
-      { path: 'run_daily_report', label: '立即发送汇报', icon: 'mdi-send-outline', note: '按当前设置发送一次完整日报' },
-      { path: 'run_health_check', label: '立即健康巡查', icon: 'mdi-heart-pulse', note: '顺手刷新日报里的健康巡查结果' },
-    ],
+    overview: [],
+    tgconsole: [],
     subscribe: [
       { path: 'run_subscribe_reminder', label: '立即推送订阅追新', icon: 'mdi-bell-ring-outline', note: '按当前设置推送今日订阅追新' },
     ],
@@ -709,7 +803,8 @@ const healthSelectedCount = computed(() => {
   const selected = Array.isArray(form.health_check_items) ? form.health_check_items : []
   return selected.length || healthCheckItems.length
 })
-const reportEnabledCount = computed(() => reportSections.filter(item => form[item.key]).length)
+const fusionColumns = computed(() => Array.isArray(form.fusion_notify_columns) ? form.fusion_notify_columns : [])
+const reportEnabledCount = computed(() => fusionColumns.value.filter(key => fusionColumnKeys.includes(key)).length)
 const seedFilterCount = computed(() => [
   form.seedclean_size,
   form.seedclean_ratio,
@@ -733,9 +828,55 @@ function selectionTitle(item) {
   return String(title || '')
 }
 
+function fusionColumnEnabled(key) {
+  return fusionColumns.value.includes(key)
+}
+
+function fusionGroupEnabledCount(group) {
+  const items = group?.items || []
+  return items.filter(item => fusionColumnEnabled(item.key)).length
+}
+
+function setFusionColumnEnabled(key, enabled) {
+  const next = new Set(fusionColumns.value.filter(v => fusionColumnKeys.includes(v)))
+  if (enabled) next.add(key)
+  else next.delete(key)
+  form.fusion_notify_columns = fusionColumnKeys.filter(v => next.has(v))
+}
+
+function setFusionGroupEnabled(group, enabled) {
+  const next = new Set(fusionColumns.value.filter(v => fusionColumnKeys.includes(v)))
+  for (const item of group?.items || []) {
+    if (enabled) next.add(item.key)
+    else next.delete(item.key)
+  }
+  form.fusion_notify_columns = fusionColumnKeys.filter(v => next.has(v))
+}
+
+watch(fusionColumnGroups, groups => {
+  if (!groups.some(group => group.name === activeFusionGroup.value)) {
+    activeFusionGroup.value = groups[0]?.name || ''
+  }
+}, { immediate: true })
+
 watch(() => props.initialConfig, value => {
   Object.keys(form).forEach(key => delete form[key])
   Object.assign(form, defaults, value || {})
+  const rawConfig = value || {}
+  const inheritSchedule = (scheduleKey, enabledKey) => {
+    if (!Object.prototype.hasOwnProperty.call(rawConfig, scheduleKey)) {
+      form[scheduleKey] = !!form[enabledKey]
+    }
+  }
+  inheritSchedule('fusion_notify_schedule_enabled', 'fusion_notify_enabled')
+  inheritSchedule('daily_report_schedule_enabled', 'daily_report_enabled')
+  inheritSchedule('subscribe_reminder_schedule_enabled', 'subscribe_reminder_enabled')
+  inheritSchedule('health_check_schedule_enabled', 'health_check_enabled')
+  inheritSchedule('backup_schedule_enabled', 'backup_enabled')
+  inheritSchedule('log_clean_schedule_enabled', 'log_clean_enabled')
+  inheritSchedule('mp_update_schedule_enabled', 'mp_update_enabled')
+  inheritSchedule('market_update_schedule_enabled', 'market_update_enabled')
+  inheritSchedule('seedclean_schedule_enabled', 'seedclean_enabled')
   const toArr = v => typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : (Array.isArray(v) ? v : [])
   form.subscribe_reminder_subtype = toArr(form.subscribe_reminder_subtype)
   form.mp_update_types = toArr(form.mp_update_types)
@@ -753,6 +894,10 @@ watch(() => props.initialConfig, value => {
   form.health_check_database_targets = toArr(form.health_check_database_targets)
   form.health_check_storage_targets = toArr(form.health_check_storage_targets)
   form.health_check_directory_targets = toArr(form.health_check_directory_targets)
+  form.fusion_notify_columns = toArr(form.fusion_notify_columns)
+  if (!form.fusion_notify_columns.length) form.fusion_notify_columns = [...fusionColumnKeys]
+  form.report_storage_targets = toArr(form.report_storage_targets)
+  if (!form.report_storage_targets.length) form.report_storage_targets = ['config', 'download', 'library', 'storages']
   form.plugin_uninstall_confirm = false
 }, { immediate: true, deep: true })
 
@@ -760,6 +905,8 @@ function saveConfig() {
   emit('save', {
     ...form,
     plugin_uninstall_confirm: false,
+    tg_console_enabled: !!form.fusion_notify_enabled,
+    tg_console_suppress_individual_notifications: !!form.fusion_notify_enabled,
     daily_report_telegram_rich_enabled: true,
     daily_report_telegram_bot_token: '',
     daily_report_telegram_chat_id: '',
@@ -782,6 +929,7 @@ function bindDialogScrollHost() {
 
 onMounted(() => {
   bindDialogScrollHost()
+  loadTgConsoleStatus()
   loadInstalledPlugins()
   loadBackupArchives()
   loadWebdavBackupArchives()
@@ -860,7 +1008,7 @@ onBeforeUnmount(() => {
         </nav>
         <section class="aoa-content">
           <div class="aoa-subtabs">
-            <div class="aoa-subtab-list">
+            <div v-if="currentSubs.length > 1" class="aoa-subtab-list">
               <button
                 v-for="sub in currentSubs"
                 :key="sub.key"
@@ -878,86 +1026,143 @@ onBeforeUnmount(() => {
           </div>
           <VDivider class="aoa-hairline" />
           <div class="aoa-window">
-            <!-- 每日汇报 · 汇报总览 -->
-            <div v-show="activeSub === 'overview'" class="aoa-pane">
-              <VForm>
+            <!-- 融合通知 -->
+            <div v-show="activeSub === 'fusion'" class="aoa-pane aoa-columns-pane">
+              <VForm class="aoa-columns-form">
                 <ModuleHero
-                  v-model:enabled="form.daily_report_enabled"
-                  icon="mdi-newspaper-variant-outline"
-                  kicker="MP 每日汇报"
-                  on-title="定时汇报已启用"
-                  off-title="定时汇报未启用"
-                  desc="按计划聚合站点、订阅与入库|同步整理存储与健康信息"
-                  :count-label="`${reportEnabledCount} 个栏目`"
+                  v-model:enabled="form.fusion_notify_enabled"
+                  icon="mdi-message-badge-outline"
+                  kicker="融合通知"
+                  on-title="融合通知已启用"
+                  off-title="融合通知未启用"
+                  desc="所有组件通知写入同一张 RichMessage|关闭后恢复组件自身通知设置"
+                  :count-label="`${reportEnabledCount} / ${reportSections.length} 个栏目`"
                 />
-                <SettingSection title="汇报设置" note="推送使用 MoviePilot 全局 Telegram 通知配置">
+
+                <SettingSection title="定时获取数据" note="融合通知开启后按这里的 Cron 全量刷新卡片数据，默认每小时一次">
                   <VRow class="aoa-setting-grid">
-                    <VCol cols="12" md="6">
-                      <VCronField v-model="form.daily_report_cron" label="汇报时间 (Cron)"
-                        :disabled="!form.daily_report_enabled" />
+                    <VCol cols="12" md="3">
+                      <VSwitch v-model="form.fusion_notify_schedule_enabled" color="primary" inset hide-details
+                        label="启用定时获取数据" :disabled="!form.fusion_notify_enabled" />
                     </VCol>
-                    <VCol cols="12" md="6">
-                      <VTextField v-model="form.daily_report_greeting" label="汇报称呼"
-                        placeholder="少爷" prepend-inner-icon="mdi-account-heart-outline"
-                        persistent-hint hint="汇报开头与提醒中对你的称呼，留空默认“少爷”" clearable
-                        :disabled="!form.daily_report_enabled" />
+                    <VCol cols="12" md="3">
+                      <VCronField v-model="form.fusion_notify_cron" label="获取周期 (Cron)"
+                        :disabled="!form.fusion_notify_enabled || !form.fusion_notify_schedule_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="3">
+                      <VTextField v-model.number="form.tg_console_max_notices" label="更新记录上限" type="number"
+                        min="1" max="50" suffix="条" prepend-inner-icon="mdi-format-list-numbered"
+                        :disabled="!form.fusion_notify_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="3">
+                      <VSelect v-model="form.fusion_notify_msgtype" :items="messageTypeItems"
+                        label="融合通知消息类型" prepend-inner-icon="mdi-message-badge-outline"
+                        :disabled="!form.fusion_notify_enabled" />
                     </VCol>
                   </VRow>
                 </SettingSection>
-              </VForm>
-            </div>
 
-            <!-- 每日汇报 · 汇报栏目 -->
-            <div v-show="activeSub === 'columns'" class="aoa-pane aoa-columns-pane">
-              <VForm class="aoa-columns-form">
-                <ModuleHero
-                  :enabled="reportEnabledCount > 0"
-                  icon="mdi-view-column-outline"
-                  kicker="MP 每日汇报"
-                  on-title="日报栏目已编排"
-                  off-title="日报栏目未启用"
-                  desc="统一控制并入日报的内容|组件状态会同步提示"
-                  :count-label="`${reportEnabledCount} / ${reportSections.length} 个栏目`"
-                  state-on="已配置"
-                  state-off="待配置"
-                  :toggle="false"
-                />
-                <SettingSection title="汇报栏目" note="勾选决定日报展示的完整栏目，对应组件未启用时自动提示">
-                  <div class="aoa-table-wrap">
-                    <div class="aoa-report-table-scroll">
-                      <VTable class="aoa-report-table">
-                        <thead>
-                          <tr>
-                            <th scope="col" class="aoa-col-enable">启用</th>
-                            <th scope="col">组件</th>
-                            <th scope="col">日报栏目</th>
-                            <th scope="col">备注</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="s in reportSections" :key="s.key">
-                            <td class="aoa-col-enable" data-label="启用">
-                              <VCheckbox
-                                v-model="form[s.key]"
-                                color="primary"
-                                hide-details
-                                density="compact"
-                                :disabled="s.requires && !form[`${s.requires}_enabled`]"
-                              />
-                            </td>
-                            <td data-label="组件">
-                              <VChip size="small" variant="tonal" color="primary">{{ s.component }}</VChip>
-                            </td>
-                            <td class="aoa-table-strong" data-label="栏目">{{ s.label }}</td>
-                            <td class="aoa-table-note" data-label="备注">
-                              <span v-if="s.requires && !form[`${s.requires}_enabled`]">需启用对应组件</span>
-                              <span v-else>{{ s.note }}</span>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </VTable>
+                <SettingSection title="栏目与插件" note="先选择大分类，再配置该分类下的小栏目；TG 按钮同步使用这些大分类">
+                  <div class="aoa-fusion-category-tabs" role="tablist" aria-label="融合通知大分类">
+                    <button
+                      v-for="group in fusionColumnGroups"
+                      :key="group.name"
+                      type="button"
+                      class="aoa-fusion-category-tab"
+                      :class="{ 'aoa-fusion-category-tab--active': activeFusionColumnGroup.name === group.name }"
+                      :aria-selected="activeFusionColumnGroup.name === group.name"
+                      @click="activeFusionGroup = group.name"
+                    >
+                      <VIcon :icon="group.icon" size="20" />
+                      <span class="aoa-fusion-category-title">{{ group.name }}</span>
+                      <span class="aoa-fusion-category-count">{{ fusionGroupEnabledCount(group) }} / {{ group.items.length }}</span>
+                    </button>
+                  </div>
+
+                  <div class="aoa-fusion-subcategory-list">
+                    <div class="aoa-fusion-subcategory-head">
+                      <div>
+                        <div class="aoa-fusion-subcategory-title">{{ activeFusionColumnGroup.name }}</div>
+                        <div class="aoa-fusion-subcategory-note">
+                          {{ fusionGroupEnabledCount(activeFusionColumnGroup) }} 个小栏目已启用
+                        </div>
+                      </div>
+                      <VSwitch
+                        :model-value="fusionGroupEnabledCount(activeFusionColumnGroup) === activeFusionColumnGroup.items.length"
+                        color="primary"
+                        inset
+                        hide-details
+                        density="compact"
+                        label="整组启用"
+                        :disabled="!form.fusion_notify_enabled"
+                        @update:model-value="setFusionGroupEnabled(activeFusionColumnGroup, $event)"
+                      />
+                    </div>
+
+                    <div
+                      v-for="s in activeFusionColumnGroup.items"
+                      :key="s.key"
+                      class="aoa-fusion-subcategory-item"
+                    >
+                      <VCheckbox
+                        :model-value="fusionColumnEnabled(s.key)"
+                        @update:model-value="setFusionColumnEnabled(s.key, $event)"
+                        color="primary"
+                        hide-details
+                        density="compact"
+                        :disabled="!form.fusion_notify_enabled || (s.requires && !form[`${s.requires}_enabled`])"
+                      />
+                      <div class="aoa-fusion-subcategory-copy">
+                        <div class="aoa-fusion-subcategory-name">{{ s.label }}</div>
+                        <div class="aoa-fusion-subcategory-meta">
+                          <span>{{ s.component }}</span>
+                          <span>{{ s.requires && !form[`${s.requires}_enabled`] ? '需启用对应组件' : s.note }}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                </SettingSection>
+
+                <SettingSection title="卡片状态" note="展示当前融合通知卡是否已创建，以及最近一次刷新结果">
+                  <VRow class="aoa-setting-grid">
+                    <VCol cols="12" md="4">
+                      <div class="aoa-status-tile">
+                        <span>消息</span>
+                        <strong>{{ tgConsoleMessageLabel }}</strong>
+                      </div>
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <div class="aoa-status-tile">
+                        <span>Chat</span>
+                        <strong>{{ tgConsoleChatLabel }}</strong>
+                      </div>
+                    </VCol>
+                    <VCol cols="12" md="4">
+                      <div class="aoa-status-tile">
+                        <span>最后更新</span>
+                        <strong>{{ tgConsoleLastUpdateLabel }}</strong>
+                      </div>
+                    </VCol>
+                  </VRow>
+                  <VAlert
+                    v-if="tgConsoleStatus.data?.last_error || tgConsoleStatus.error"
+                    type="error"
+                    variant="tonal"
+                    density="compact"
+                    class="mt-3"
+                    title="最近错误"
+                    :text="tgConsoleStatus.data?.last_error || tgConsoleStatus.error"
+                  />
+                  <VBtn
+                    size="small"
+                    variant="text"
+                    color="primary"
+                    class="mt-2 text-none"
+                    :loading="tgConsoleStatus.loading"
+                    @click="loadTgConsoleStatus"
+                  >
+                    刷新状态
+                  </VBtn>
                 </SettingSection>
               </VForm>
             </div>
@@ -971,22 +1176,27 @@ onBeforeUnmount(() => {
                   kicker="MP 订阅管理"
                   on-title="订阅追新已启用"
                   off-title="订阅追新未启用"
-                  desc="按计划推送今日订阅追新|日报展示由汇报栏目控制"
+                  desc="组件开关控制手动追新|定时推送由下方独立开关控制"
                   :count-label="`${form.subscribe_reminder_subtype?.length || 0} 类提醒`"
                 />
                 <SettingSection title="追新设置" note="推送时间、订阅类型与消息渠道集中配置">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
-                    <VCol cols="12" md="4">
-                      <VCronField v-model="form.subscribe_reminder_cron" label="推送时间 (Cron)"
-                        :disabled="!form.subscribe_reminder_enabled" />
+                    <VCol cols="12" md="3">
+                      <VSwitch v-model="form.subscribe_reminder_schedule_enabled" color="primary" inset hide-details
+                        label="启用定时追新" :disabled="!form.subscribe_reminder_enabled || form.fusion_notify_enabled" />
                     </VCol>
-                    <VCol cols="12" md="5">
+                    <VCol cols="12" md="3">
+                      <VCronField v-model="form.subscribe_reminder_cron" label="推送时间 (Cron)"
+                        :disabled="!form.subscribe_reminder_enabled || !form.subscribe_reminder_schedule_enabled || form.fusion_notify_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="3">
                       <VSelect v-model="form.subscribe_reminder_subtype" :items="subscribeSubtypeItems"
                         label="提醒类型" multiple chips closable-chips :disabled="!form.subscribe_reminder_enabled" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VSelect v-model="form.subscribe_reminder_msgtype" :items="messageTypeItems"
-                        label="消息类型" :disabled="!form.subscribe_reminder_enabled" />
+                        label="消息类型" :disabled="!form.subscribe_reminder_enabled || form.fusion_notify_enabled" />
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -1006,6 +1216,7 @@ onBeforeUnmount(() => {
                   :count-label="form.site_stat_dashboard_type === 'today' ? '今日数据' : '统计数据'"
                 />
                 <SettingSection title="统计设置" note="控制仪表盘站点数据口径与通知方式">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="6">
                       <VSelect v-model="form.site_stat_dashboard_type" :items="siteStatRangeItems"
@@ -1013,7 +1224,7 @@ onBeforeUnmount(() => {
                     </VCol>
                     <VCol cols="12" md="6">
                       <VSelect v-model="form.site_stat_notify_type" :items="siteNotifyItems"
-                        label="通知方式" :disabled="!form.site_stat_enabled" />
+                        label="通知方式" :disabled="!form.site_stat_enabled || form.fusion_notify_enabled" />
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -1027,20 +1238,45 @@ onBeforeUnmount(() => {
                   v-model:enabled="form.health_check_enabled"
                   icon="mdi-heart-pulse"
                   kicker="MP 健康巡查"
-                  on-title="自动巡查已启用"
-                  off-title="自动巡查未启用"
-                  desc="数据库、存储空间、目录权限|按计划检查，异常进入通知链路"
+                  on-title="健康巡查组件已启用"
+                  off-title="健康巡查组件未启用"
+                  desc="组件开关控制手动巡查|定时巡查由下方独立开关控制"
                   :count-label="`${healthSelectedCount} 项巡查`"
                 />
 
                 <SettingSection title="巡查设置" note="项目、时间、数据库、存储、目录和容量阈值集中配置">
                   <div class="aoa-health-scope-grid">
+                    <div class="aoa-health-field-third aoa-health-schedule-cell">
+                      <VSwitch v-model="form.health_check_schedule_enabled" color="primary" inset hide-details
+                        label="启用定时巡查" :disabled="!form.health_check_enabled || form.fusion_notify_enabled" />
+                      <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
+                    </div>
                     <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)" class="aoa-health-field-third"
-                      :disabled="!form.health_check_enabled" />
+                      :disabled="!form.health_check_enabled || !form.health_check_schedule_enabled || form.fusion_notify_enabled" />
                     <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number" class="aoa-health-field-third"
                       min="1" max="99" suffix="%" :disabled="!form.health_check_enabled" />
                     <VSelect v-model="form.health_check_notify_type" :items="notificationTypeItems" label="异常通知渠道"
-                      class="aoa-health-field-third" :disabled="!form.health_check_enabled" />
+                      class="aoa-health-field-third" :disabled="!form.health_check_enabled || form.fusion_notify_enabled" />
+                    <VSelect
+                      v-model="form.report_storage_targets"
+                      :items="storageTargetItems"
+                      class="aoa-health-field-full aoa-health-select"
+                      label="存储空间展示目标"
+                      prepend-inner-icon="mdi-harddisk"
+                      multiple
+                      chips
+                      closable-chips
+                      clearable
+                      hint="控制健康巡查和融合通知里展示哪些本地目录和网盘容量"
+                      persistent-hint
+                      :disabled="!form.health_check_enabled"
+                    >
+                      <template #chip="{ item, props }">
+                        <VChip v-bind="props" class="aoa-health-selection-chip" variant="tonal">
+                          {{ selectionTitle(item) }}
+                        </VChip>
+                      </template>
+                    </VSelect>
                     <VSelect v-model="form.health_check_items" :items="healthCheckItems" class="aoa-health-field-full aoa-health-select"
                       label="巡查项目" multiple chips closable-chips clearable
                       hint="留空或清空表示巡查全部项目" persistent-hint
@@ -1093,14 +1329,15 @@ onBeforeUnmount(() => {
                   :count-label="`${form.subfill_details?.length || 0} 项填充`"
                 />
                 <SettingSection title="规则填充" note="选择自动填充范围，并配置完成后的通知渠道">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="6">
                       <VSwitch v-model="form.subfill_notify" color="primary" inset hide-details
-                        label="填充后发送通知" :disabled="!form.subfill_enabled" />
+                        label="填充后发送通知" :disabled="!form.subfill_enabled || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="6">
                       <VSelect v-model="form.subfill_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.subfill_enabled || !form.subfill_notify" />
+                        label="消息类型" :disabled="!form.subfill_enabled || !form.subfill_notify || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12">
                       <VSelect v-model="form.subfill_details" :items="subfillDetailItems"
@@ -1134,18 +1371,23 @@ onBeforeUnmount(() => {
                   v-model:enabled="form.backup_enabled"
                   icon="mdi-folder-arrow-up-outline"
                   kicker="MP 自动备份"
-                  on-title="本地备份已启用"
-                  off-title="本地备份未启用"
-                  desc="按计划打包配置和关键数据|保留最近备份版本"
+                  on-title="备份组件已启用"
+                  off-title="备份组件未启用"
+                  desc="组件开关控制手动备份|定时备份由下方独立开关控制"
                   :count-label="`${form.backup_keep_count} 份保留`"
                 />
                 <SettingSection title="本地策略" note="备份时间、路径和保留份数集中配置">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
-                    <VCol cols="12" md="6">
-                      <VCronField v-model="form.backup_cron" label="备份时间 (Cron)"
-                        :disabled="!form.backup_enabled" />
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.backup_schedule_enabled" color="primary" inset hide-details
+                        label="启用定时备份" :disabled="!form.backup_enabled || form.fusion_notify_enabled" />
                     </VCol>
-                    <VCol cols="12" md="6">
+                    <VCol cols="12" md="4">
+                      <VCronField v-model="form.backup_cron" label="备份时间 (Cron)"
+                        :disabled="!form.backup_enabled || !form.backup_schedule_enabled || form.fusion_notify_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
                       <VTextField v-model="form.backup_path" label="本地备份路径"
                         prepend-inner-icon="mdi-folder-outline" :disabled="!form.backup_enabled" />
                     </VCol>
@@ -1160,14 +1402,15 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="通知与触发" note="备份完成通知和手动触发开关">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.backup_notify" color="primary" inset hide-details
-                        label="备份结果通知" :disabled="!form.backup_enabled" />
+                        label="备份结果通知" :disabled="!form.backup_enabled || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.backup_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.backup_enabled || !form.backup_notify" />
+                        label="消息类型" :disabled="!form.backup_enabled || !form.backup_notify || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.backup_onlyonce" color="warning" inset hide-details
@@ -1273,6 +1516,7 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="远端策略" note="保留份数、通知渠道和连接校验">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.backup_webdav_max_count" :items="keepCountPresets"
@@ -1280,11 +1524,11 @@ onBeforeUnmount(() => {
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.backup_webdav_notify" color="primary" inset hide-details
-                        label="远端备份结果通知" :disabled="!form.backup_webdav_enabled" />
+                        label="远端备份结果通知" :disabled="!form.backup_webdav_enabled || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.backup_webdav_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.backup_webdav_enabled || !form.backup_webdav_notify" />
+                        label="消息类型" :disabled="!form.backup_webdav_enabled || !form.backup_webdav_notify || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.backup_webdav_digest_auth" color="primary" inset hide-details
@@ -1371,22 +1615,27 @@ onBeforeUnmount(() => {
                   v-model:enabled="form.log_clean_enabled"
                   icon="mdi-file-document-remove-outline"
                   kicker="MP 日志清理"
-                  on-title="插件日志清理已启用"
-                  off-title="插件日志清理未启用"
-                  desc="按计划裁剪插件日志|保留排查信息和最近记录"
+                  on-title="日志清理组件已启用"
+                  off-title="日志清理组件未启用"
+                  desc="组件开关控制手动清理|定时清理由下方独立开关控制"
                   :count-label="`保留 ${form.log_clean_rows} 行`"
                 />
                 <SettingSection title="清理策略" note="清理时间、保留行数和限定插件">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
-                    <VCol cols="12" md="4">
-                      <VCronField v-model="form.log_clean_cron" label="清理时间 (Cron)"
-                        :disabled="!form.log_clean_enabled" />
+                    <VCol cols="12" md="3">
+                      <VSwitch v-model="form.log_clean_schedule_enabled" color="primary" inset hide-details
+                        label="启用定时清理" :disabled="!form.log_clean_enabled || form.fusion_notify_enabled" />
                     </VCol>
-                    <VCol cols="12" md="4">
+                    <VCol cols="12" md="3">
+                      <VCronField v-model="form.log_clean_cron" label="清理时间 (Cron)"
+                        :disabled="!form.log_clean_enabled || !form.log_clean_schedule_enabled || form.fusion_notify_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="3">
                       <VSelect v-model="form.log_clean_rows" :items="logRowsPresets"
                         label="保留行数" :disabled="!form.log_clean_enabled" />
                     </VCol>
-                    <VCol cols="12" md="4">
+                    <VCol cols="12" md="3">
                       <VSelect v-model="form.log_clean_selected_ids" :items="installedPlugins"
                         :loading="installedLoading" label="限定插件"
                         persistent-hint hint="留空＝全部插件"
@@ -1397,14 +1646,15 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="通知与触发" note="清理完成通知和手动触发开关">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.log_clean_notify" color="primary" inset hide-details
-                        label="清理结果通知" :disabled="!form.log_clean_enabled" />
+                        label="清理结果通知" :disabled="!form.log_clean_enabled || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.log_clean_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.log_clean_enabled || !form.log_clean_notify" />
+                        label="消息类型" :disabled="!form.log_clean_enabled || !form.log_clean_notify || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.log_clean_onlyonce" color="warning" inset hide-details
@@ -1422,28 +1672,33 @@ onBeforeUnmount(() => {
                   v-model:enabled="form.mp_update_enabled"
                   icon="mdi-movie-open-cog-outline"
                   kicker="MP 更新检查"
-                  on-title="主程序更新检查已启用"
-                  off-title="主程序更新检查未启用"
-                  desc="定时检查后端和前端版本|默认提醒，不直接升级"
+                  on-title="主程序更新组件已启用"
+                  off-title="主程序更新组件未启用"
+                  desc="组件开关控制手动检查|定时检查由下方独立开关控制"
                   :count-label="`${form.mp_update_types?.length || 0} 个范围`"
                 />
                 <SettingSection title="检查策略" note="检查时间、范围和通知渠道">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
-                    <VCol cols="12" md="4">
-                      <VCronField v-model="form.mp_update_cron" label="检查时间 (Cron)"
-                        :disabled="!form.mp_update_enabled" />
+                    <VCol cols="12" md="3">
+                      <VSwitch v-model="form.mp_update_schedule_enabled" color="primary" inset hide-details
+                        label="启用定时检查" :disabled="!form.mp_update_enabled || form.fusion_notify_enabled" />
                     </VCol>
-                    <VCol cols="12" md="4">
+                    <VCol cols="12" md="3">
+                      <VCronField v-model="form.mp_update_cron" label="检查时间 (Cron)"
+                        :disabled="!form.mp_update_enabled || !form.mp_update_schedule_enabled || form.fusion_notify_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="3">
                       <VSelect v-model="form.mp_update_types" :items="mpUpdateTypes"
                         label="检查范围" multiple chips closable-chips :disabled="!form.mp_update_enabled" />
                     </VCol>
-                    <VCol cols="12" md="4">
+                    <VCol cols="12" md="3">
                       <VSelect v-model="form.mp_update_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.mp_update_enabled || !form.mp_update_notify" />
+                        label="消息类型" :disabled="!form.mp_update_enabled || !form.mp_update_notify || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="6">
                       <VSwitch v-model="form.mp_update_notify" color="primary" inset hide-details
-                        label="发现新版本时通知" :disabled="!form.mp_update_enabled" />
+                        label="发现新版本时通知" :disabled="!form.mp_update_enabled || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="6">
                       <VSwitch v-model="form.mp_update_restart_confirm" color="warning" inset hide-details
@@ -1461,28 +1716,33 @@ onBeforeUnmount(() => {
                   v-model:enabled="form.market_update_enabled"
                   icon="mdi-puzzle-plus-outline"
                   kicker="MP 插件库"
-                  on-title="插件库更新检查已启用"
-                  off-title="插件库更新检查未启用"
-                  desc="检查已安装插件新版本|按策略提醒或自动处理"
+                  on-title="插件库更新组件已启用"
+                  off-title="插件库更新组件未启用"
+                  desc="组件开关控制手动检查|定时检查由下方独立开关控制"
                   :count-label="form.market_update_auto_install ? '自动安装' : '仅提醒'"
                 />
                 <SettingSection title="检查策略" note="检查间隔、通知方式和插件库访问方式">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
-                    <VCol cols="12" md="4">
+                    <VCol cols="12" md="3">
+                      <VSwitch v-model="form.market_update_schedule_enabled" color="primary" inset hide-details
+                        label="启用定时检查" :disabled="!form.market_update_enabled || form.fusion_notify_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="3">
                       <VSelect v-model="form.market_update_interval" :items="intervalPresets"
-                        label="检查间隔" :disabled="!form.market_update_enabled" />
+                        label="检查间隔" :disabled="!form.market_update_enabled || !form.market_update_schedule_enabled || form.fusion_notify_enabled" />
                     </VCol>
-                    <VCol cols="12" md="4">
+                    <VCol cols="12" md="3">
                       <VSelect v-model="form.market_update_notify_type" :items="marketNotifyItems"
-                        label="通知消息类型" :disabled="!form.market_update_enabled" />
+                        label="通知消息类型" :disabled="!form.market_update_enabled || form.fusion_notify_enabled" />
                     </VCol>
-                    <VCol cols="12" md="4">
+                    <VCol cols="12" md="3">
                       <VTextField v-model="form.market_update_timeout" label="请求超时（秒）"
                         type="number" min="1" :disabled="!form.market_update_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.market_update_notify" color="primary" inset hide-details
-                        label="发现更新时通知" :disabled="!form.market_update_enabled" />
+                        label="发现更新时通知" :disabled="!form.market_update_enabled || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.market_update_proxy" color="primary" inset hide-details
@@ -1628,14 +1888,15 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="通知与残留" note="清理结果通知和本地源码残留处理">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.plugin_uninstall_notify" color="primary" inset hide-details
-                        label="清理结果通知" />
+                        label="清理结果通知" :disabled="form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.plugin_uninstall_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.plugin_uninstall_notify" />
+                        label="消息类型" :disabled="!form.plugin_uninstall_notify || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.plugin_uninstall_delete_source" color="error" inset hide-details
@@ -1655,16 +1916,21 @@ onBeforeUnmount(() => {
                   kicker="MP 下载器管理"
                   on-title="自动删种已启用"
                   off-title="自动删种未启用"
-                  desc="按下载器、动作和筛选条件治理种子|未填写筛选条件时不会处理"
+                  desc="组件开关控制手动删种|定时执行由下方独立开关控制"
                   :count-label="`${seedFilterCount} 个条件`"
                 />
                 <SettingSection title="执行策略" note="执行周期、动作和下载器范围">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid aoa-seed-basic-row">
-                    <VCol cols="12" md="6">
-                      <VCronField v-model="form.seedclean_cron" label="执行周期 (Cron)"
-                        :disabled="!form.seedclean_enabled" />
+                    <VCol cols="12" md="4">
+                      <VSwitch v-model="form.seedclean_schedule_enabled" color="primary" inset hide-details
+                        label="启用定时执行" :disabled="!form.seedclean_enabled || form.fusion_notify_enabled" />
                     </VCol>
-                    <VCol cols="12" md="6">
+                    <VCol cols="12" md="4">
+                      <VCronField v-model="form.seedclean_cron" label="执行周期 (Cron)"
+                        :disabled="!form.seedclean_enabled || !form.seedclean_schedule_enabled || form.fusion_notify_enabled" />
+                    </VCol>
+                    <VCol cols="12" md="4">
                       <VSelect v-model="form.seedclean_action" :items="seedActionItems"
                         hide-details label="动作" :disabled="!form.seedclean_enabled" />
                     </VCol>
@@ -1725,6 +1991,7 @@ onBeforeUnmount(() => {
                 </SettingSection>
 
                 <SettingSection title="保护与通知" note="辅种保护、MoviePilot 任务限制和通知渠道">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid aoa-seed-protect-row">
                     <VCol cols="12" md="8">
                       <div class="aoa-seed-options">
@@ -1737,14 +2004,14 @@ onBeforeUnmount(() => {
                           <template #label><span class="aoa-seed-option-label">仅 MoviePilot 任务</span></template>
                         </VSwitch>
                         <VSwitch v-model="form.seedclean_notify" class="aoa-seed-option-control" color="primary" inset
-                          hide-details :disabled="!form.seedclean_enabled">
+                          hide-details :disabled="!form.seedclean_enabled || form.fusion_notify_enabled">
                           <template #label><span class="aoa-seed-option-label">处理结果通知</span></template>
                         </VSwitch>
                       </div>
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.seedclean_notify_type" :items="notificationTypeItems"
-                        hide-details label="消息类型" :disabled="!form.seedclean_enabled || !form.seedclean_notify" />
+                        hide-details label="消息类型" :disabled="!form.seedclean_enabled || !form.seedclean_notify || form.fusion_notify_enabled" />
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -1763,11 +2030,12 @@ onBeforeUnmount(() => {
                   :count-label="`${form.msgnotify_types?.length || 0} 类事件`"
                 />
                 <SettingSection title="通知范围" note="选择事件类型和媒体服务器范围">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid aoa-media-field-row">
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.msgnotify_notify_type" :items="notificationTypeItems"
                         label="消息类型" prepend-inner-icon="mdi-message-badge-outline"
-                        :disabled="!form.msgnotify_enabled" />
+                        :disabled="!form.msgnotify_enabled || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="8">
                       <VSelect v-model="form.msgnotify_types" :items="msgGroupItems"
@@ -1816,14 +2084,15 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="通知设置" note="打标完成后按选择渠道通知">
+                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid aoa-dltag-notify-row">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.dltag_notify" color="primary" inset hide-details label="完成后通知"
-                        :disabled="!form.dltag_enabled" />
+                        :disabled="!form.dltag_enabled || form.fusion_notify_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.dltag_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.dltag_enabled || !form.dltag_notify" />
+                        label="消息类型" :disabled="!form.dltag_enabled || !form.dltag_notify || form.fusion_notify_enabled" />
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -2326,6 +2595,7 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 .aoa-setting-section {
+  position: relative;
   display: grid;
   gap: var(--aoa-section-gap);
   width: 100%;
@@ -2370,6 +2640,28 @@ onBeforeUnmount(() => {
 .aoa-setting-section-body {
   min-width: 0;
 }
+.aoa-fusion-takeover-note {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: calc(100% - 36px);
+  min-height: 22px;
+  margin: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--v-border-color), 0.10);
+  background: rgba(var(--v-theme-surface), 0.34);
+  color: rgba(var(--v-theme-on-surface), 0.52);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  pointer-events: none;
+  white-space: nowrap;
+}
 .aoa-setting-grid {
   --aoa-row-x: var(--aoa-grid-gutter-x);
   --aoa-row-y: var(--aoa-grid-gutter-y);
@@ -2380,6 +2672,29 @@ onBeforeUnmount(() => {
   padding:
     calc(var(--aoa-row-y, var(--aoa-grid-gutter-y)) / 2)
     calc(var(--aoa-row-x, var(--aoa-grid-gutter-x)) / 2);
+}
+.aoa-status-tile {
+  min-height: 58px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--v-border-color), 0.12);
+  background: rgba(var(--v-theme-surface), 0.32);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+.aoa-status-tile span {
+  font-size: 11px;
+  line-height: 1.2;
+  color: rgba(var(--v-theme-on-surface), 0.52);
+}
+.aoa-status-tile strong {
+  font-size: 13px;
+  line-height: 1.35;
+  color: rgba(var(--v-theme-on-surface), 0.88);
+  overflow-wrap: anywhere;
 }
 .aoa-hint {
   font-size: 12px;
@@ -2638,12 +2953,12 @@ onBeforeUnmount(() => {
 }
 .aoa-health-scope-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--aoa-grid-gutter-y) var(--aoa-grid-gutter-x);
   align-items: stretch;
 }
 .aoa-health-field-third {
-  grid-column: span 2;
+  grid-column: span 3;
 }
 .aoa-health-field-half {
   grid-column: span 3;
@@ -2651,11 +2966,88 @@ onBeforeUnmount(() => {
 .aoa-health-field-full {
   grid-column: 1 / -1;
 }
+.aoa-health-schedule-cell {
+  min-width: 0;
+}
+.aoa-health-schedule-cell :deep(.v-selection-control) {
+  min-height: 40px;
+}
 .aoa-health-selection-chip {
   flex: 0 0 auto;
   max-width: none;
   margin-inline-end: 4px;
   color: rgba(var(--v-theme-on-surface), 0.78);
+}
+.aoa-fusion-category-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(132px, 1fr));
+  gap: 10px;
+}
+.aoa-fusion-category-tab {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--v-border-color), 0.12);
+  border-radius: 10px;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  background: rgba(var(--v-theme-surface), 0.22);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.aoa-fusion-category-tab--active {
+  border-color: rgba(var(--v-theme-primary), 0.34);
+  color: rgba(var(--v-theme-on-surface), 0.92);
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+.aoa-fusion-category-title {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.aoa-fusion-category-count {
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.56);
+}
+.aoa-fusion-subcategory-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.aoa-fusion-subcategory-head,
+.aoa-fusion-subcategory-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(var(--v-border-color), 0.10);
+  border-radius: 10px;
+  background: rgba(var(--v-theme-surface), 0.18);
+}
+.aoa-fusion-subcategory-item {
+  grid-template-columns: 36px minmax(0, 1fr);
+}
+.aoa-fusion-subcategory-title,
+.aoa-fusion-subcategory-name {
+  color: rgba(var(--v-theme-on-surface), 0.86);
+  font-size: 13px;
+  font-weight: 700;
+}
+.aoa-fusion-subcategory-note,
+.aoa-fusion-subcategory-meta {
+  color: rgba(var(--v-theme-on-surface), 0.52);
+  font-size: 12px;
+}
+.aoa-fusion-subcategory-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 3px;
 }
 .aoa-table-wrap {
   position: relative;
@@ -2746,6 +3138,9 @@ onBeforeUnmount(() => {
   padding: 12px 20px;
 }
 @media (max-width: 960px) {
+  .aoa-fusion-category-tabs {
+    grid-template-columns: repeat(2, minmax(128px, 1fr));
+  }
   .aoa-report-table :deep(table) {
     min-width: 0;
     table-layout: fixed;
@@ -2866,6 +3261,15 @@ onBeforeUnmount(() => {
   .aoa-pane {
     padding: var(--aoa-pane-y) var(--aoa-pane-x) var(--aoa-pane-bottom);
   }
+  .aoa-fusion-takeover-note {
+    position: static;
+    margin: -4px 0 2px;
+    max-width: 100%;
+  }
+  .aoa-fusion-subcategory-head {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
   .aoa-report-table :deep(table),
   .aoa-report-table :deep(tbody) {
     display: block;
@@ -2920,24 +3324,24 @@ onBeforeUnmount(() => {
   .aoa-report-table :deep(td:not(.aoa-col-enable)) {
     grid-column: 2;
   }
-  .aoa-report-table :deep(td[data-label="组件"]) {
+  .aoa-report-table :deep(td[data-label="对应插件"]) {
     grid-row: 1;
     align-items: flex-start;
   }
-  .aoa-report-table :deep(td[data-label="栏目"]) {
+  .aoa-report-table :deep(td[data-label="融合栏目"]) {
     grid-row: 2;
     align-items: flex-start;
     color: rgba(var(--v-theme-on-surface), 0.86) !important;
     font-size: 14px;
     line-height: 1.35;
   }
-  .aoa-report-table :deep(td[data-label="备注"]) {
+  .aoa-report-table :deep(td[data-label="数据范围"]) {
     grid-row: 3;
     align-items: flex-start;
     color: rgba(var(--v-theme-on-surface), 0.52) !important;
     line-height: 1.35;
   }
-  .aoa-report-table :deep(td[data-label="备注"] span) {
+  .aoa-report-table :deep(td[data-label="数据范围"] span) {
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -2969,6 +3373,113 @@ onBeforeUnmount(() => {
   .aoa-health-field-third,
   .aoa-health-field-half {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .aoa-fusion-category-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 520px) {
+  .aoa-config {
+    --aoa-pane-x: 12px;
+    --aoa-pane-y: 14px;
+    --aoa-pane-bottom: 16px;
+    --aoa-block-gap: 14px;
+    --aoa-section-pad: 14px;
+    --aoa-grid-gutter-x: 10px;
+    --aoa-grid-gutter-y: 10px;
+  }
+
+  .aoa-header {
+    padding: 10px 12px;
+  }
+
+  .aoa-header-controls {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 2px;
+  }
+
+  .aoa-header-switch :deep(.v-selection-control) {
+    min-height: 30px;
+  }
+
+  .aoa-header-switch :deep(.v-label) {
+    font-size: 12px;
+  }
+
+  .aoa-header-link {
+    flex: 0 1 auto;
+  }
+
+  .aoa-nav {
+    flex-basis: 156px;
+    height: 156px;
+  }
+
+  .aoa-pane :deep(.aoa-module-emblem) {
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+  }
+
+  .aoa-fusion-subcategory-item {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .aoa-action-dock-item {
+    gap: 8px;
+  }
+
+  .aoa-action-btn {
+    width: 100%;
+  }
+
+  .aoa-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 10px 12px;
+  }
+
+  .aoa-actions :deep(.v-btn) {
+    min-width: 0;
+    flex: 1 1 120px;
+  }
+
+  .aoa-seed-options {
+    align-items: flex-start;
+  }
+
+  .aoa-seed-option-control {
+    min-width: 0;
+  }
+
+  .aoa-seed-option-label {
+    white-space: normal;
+  }
+}
+
+@media (max-height: 640px) and (max-width: 760px) {
+  .aoa-card {
+    height: calc(100dvh - 8px);
+    max-height: calc(100dvh - 8px);
+  }
+
+  .aoa-nav {
+    flex-basis: 128px;
+    height: 128px;
+  }
+
+  .aoa-nav-scroll {
+    padding-bottom: 20px;
+  }
+
+  .aoa-pane {
+    padding: 12px var(--aoa-pane-x) var(--aoa-pane-bottom);
   }
 }
 </style>

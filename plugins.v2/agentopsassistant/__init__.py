@@ -33,7 +33,7 @@ class AgentOpsAssistant(_PluginBase):
     plugin_name = "MP 运维助手"
     plugin_desc = "面向 MoviePilot 的运维中枢：每日汇报、健康巡查、订阅追新、站点统计、日志清理、备份与更新治理。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png"
-    plugin_version = "1.0.52"
+    plugin_version = "2.0.0"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "agentopsassistant_"
@@ -79,12 +79,27 @@ class AgentOpsAssistant(_PluginBase):
     _enabled = False
     _local_plugin_repo = DEFAULT_LOCAL_PLUGIN_REPO
     _daily_report_enabled = True
+    _daily_report_schedule_enabled = True
     _daily_report_cron = "0 22 * * *"
     _daily_report_greeting = "少爷"
     _daily_report_telegram_rich_enabled = True
     _daily_report_telegram_bot_token = ""
     _daily_report_telegram_chat_id = ""
     _daily_report_telegram_last_error = ""
+    _tg_console_enabled = True
+    _tg_console_poll_enabled = False
+    _tg_console_poll_interval = 15
+    _tg_console_allowed_user_ids: List[str] = []
+    _tg_console_full_remote_enabled = False
+    _tg_console_suppress_individual_notifications = True
+    _tg_console_max_notices = 20
+    _tg_console_last_error = ""
+    _fusion_notify_enabled = True
+    _fusion_notify_schedule_enabled = True
+    _fusion_notify_cron = "0 * * * *"
+    _fusion_notify_msgtype = "Plugin"
+    _fusion_notify_columns: List[str] = []
+    _report_storage_targets: List[str] = ["config", "download", "library", "storages"]
     _health_in_report = True
     _subscribe_in_report = True
     _site_stat_in_report = True
@@ -97,7 +112,12 @@ class AgentOpsAssistant(_PluginBase):
     _report_storage = True
     _report_media_stat = True
     _report_summary = True
+    _subscribe_reminder_enabled = True
+    _subscribe_reminder_schedule_enabled = True
+    _subscribe_reminder_cron = "0 9 * * *"
+    _site_stat_enabled = True
     _health_check_enabled: bool = True
+    _health_check_schedule_enabled: bool = True
     _health_check_cron: str = "0 */6 * * *"
     _health_check_items: List[str] = []
     _health_check_database_targets: List[str] = []
@@ -107,12 +127,14 @@ class AgentOpsAssistant(_PluginBase):
     _health_check_notify_type: str = "Plugin"
     _report_health: bool = True
     _log_clean_enabled = False
+    _log_clean_schedule_enabled = False
     _log_clean_cron = "0 3 * * 1"
     _log_clean_rows = 300
     _log_clean_selected_ids: List[str] = []
     _log_clean_notify = True
     _log_clean_notify_type = "Plugin"
     _backup_enabled = False
+    _backup_schedule_enabled = False
     _backup_cron = "0 4 * * 1"
     _backup_keep_count = 5
     _backup_path = "/config/plugins/AgentOpsAssistant/Backup"
@@ -120,12 +142,14 @@ class AgentOpsAssistant(_PluginBase):
     _backup_notify_type = "Plugin"
     _backup_webdav_notify_type = "Plugin"
     _mp_update_enabled = False
+    _mp_update_schedule_enabled = False
     _mp_update_cron = "0 9 * * *"
     _mp_update_notify = True
     _mp_update_notify_type = "Plugin"
     _mp_update_restart_confirm = False
     _mp_update_types: List[str] = ["后端", "前端"]
     _market_update_enabled = False
+    _market_update_schedule_enabled = False
     _market_update_interval = 86400
     _market_update_notify = True
     _market_update_notify_type = "Plugin"
@@ -145,6 +169,7 @@ class AgentOpsAssistant(_PluginBase):
     _plugin_uninstall_notify = True
     _plugin_uninstall_notify_type = "Plugin"
     _seedclean_enabled = False
+    _seedclean_schedule_enabled = False
     _seedclean_cron = "0 */12 * * *"
     _seedclean_action = "pause"
     _seedclean_downloaders: List[str] = []
@@ -183,12 +208,13 @@ class AgentOpsAssistant(_PluginBase):
     _MSG_GROUPS = {
         "新入库": {"library.new", "ItemAdded"},
         "开始播放": {"playback.start", "media.play", "PlaybackStart"},
+        "暂停播放": {"playback.pause", "media.pause", "PlaybackPause"},
         "停止播放": {"playback.stop", "media.stop", "PlaybackStop"},
         "登录成功": {"user.authenticated"},
         "登录失败": {"user.authenticationfailed"},
         "标记": {"item.rate"},
     }
-    _MSG_LABEL = {"新入库": "新入库", "开始播放": "开始播放", "停止播放": "停止播放",
+    _MSG_LABEL = {"新入库": "新入库", "开始播放": "开始播放", "暂停播放": "暂停播放", "停止播放": "停止播放",
                   "登录成功": "登录成功", "登录失败": "登录失败", "标记": "标记了"}
     _webhook_images = {
         "emby": "https://emby.media/notificationicon.png",
@@ -220,12 +246,34 @@ class AgentOpsAssistant(_PluginBase):
         self._sidebar_nav_enabled = bool(config.get("sidebar_nav_enabled", True))
         self._local_plugin_repo = config.get("local_plugin_repo") or DEFAULT_LOCAL_PLUGIN_REPO
         self._daily_report_enabled = bool(config.get("daily_report_enabled", True))
+        self._daily_report_schedule_enabled = self._schedule_flag(config, "daily_report_schedule_enabled", self._daily_report_enabled)
         self._daily_report_cron = config.get("daily_report_cron") or "0 22 * * *"
         self._daily_report_greeting = str(config.get("daily_report_greeting") or "少爷").strip() or "少爷"
         # 每日汇报固定使用 Telegram RichMessage；旧配置里隐藏的 false 不应打断日报。
         self._daily_report_telegram_rich_enabled = True
         self._daily_report_telegram_bot_token = str(config.get("daily_report_telegram_bot_token") or "").strip()
         self._daily_report_telegram_chat_id = str(config.get("daily_report_telegram_chat_id") or "").strip()
+        self._fusion_notify_enabled = bool(config.get("fusion_notify_enabled")) if "fusion_notify_enabled" in config else True
+        self._fusion_notify_schedule_enabled = self._schedule_flag(config, "fusion_notify_schedule_enabled", self._fusion_notify_enabled)
+        self._fusion_notify_cron = config.get("fusion_notify_cron") or "0 * * * *"
+        self._fusion_notify_msgtype = str(config.get("fusion_notify_msgtype") or "Plugin").strip() or "Plugin"
+        self._fusion_notify_columns = self._parse_csv(config.get("fusion_notify_columns")) or [x["key"] for x in self._fusion_column_registry()]
+        self._report_storage_targets = self._parse_csv(config.get("report_storage_targets")) or ["config", "download", "library", "storages"]
+        # Daily report has been upgraded to the fused streaming RichMessage card.
+        # Legacy saved false values must not route reports back to standalone messages.
+        self._tg_console_enabled = self._fusion_notify_enabled
+        self._tg_console_poll_enabled = bool(config.get("tg_console_poll_enabled", False))
+        self._tg_console_poll_interval = self._safe_int(config.get("tg_console_poll_interval"), 15, 5)
+        self._tg_console_allowed_user_ids = self._parse_csv(config.get("tg_console_allowed_user_ids"))
+        self._tg_console_full_remote_enabled = bool(config.get("tg_console_full_remote_enabled", False))
+        tg_token, tg_chat_id, _ = self._resolve_daily_report_telegram_config()
+        # Fusion notification is the single output surface while enabled. Missing
+        # Telegram config records an error instead of downgrading to standalone MP notices.
+        self._tg_console_suppress_individual_notifications = bool(self._fusion_notify_enabled)
+        self._tg_console_max_notices = self._safe_int(config.get("tg_console_max_notices"), 20, 1)
+        if self._tg_console_max_notices > 50:
+            self._tg_console_max_notices = 50
+        self._tg_console_last_error = ""
         self._health_in_report = bool(config.get("health_in_report", True))
         self._subscribe_reminder_enabled = bool(config.get("subscribe_reminder_enabled", config.get("subscribe_in_report", True)))
         self._site_stat_enabled = bool(config.get("site_stat_enabled", config.get("site_stat_in_report", True)))
@@ -241,6 +289,7 @@ class AgentOpsAssistant(_PluginBase):
         self._report_media_stat = bool(config.get("report_media_stat", True))
         self._report_summary = bool(config.get("report_summary", self._health_in_report))
         self._health_check_enabled = bool(config.get("health_check_enabled", True))
+        self._health_check_schedule_enabled = self._schedule_flag(config, "health_check_schedule_enabled", self._health_check_enabled)
         self._health_check_cron = config.get("health_check_cron") or "0 */6 * * *"
         self._health_check_items = self._parse_csv(config.get("health_check_items"))
         self._health_check_database_targets = self._parse_csv(config.get("health_check_database_targets"))
@@ -260,10 +309,12 @@ class AgentOpsAssistant(_PluginBase):
         if isinstance(self._subscribe_reminder_subtype, str):
             self._subscribe_reminder_subtype = self._parse_csv(self._subscribe_reminder_subtype)
         self._subscribe_reminder_msgtype = config.get("subscribe_reminder_msgtype") or "Subscribe"
+        self._subscribe_reminder_schedule_enabled = self._schedule_flag(config, "subscribe_reminder_schedule_enabled", self._subscribe_reminder_enabled)
         self._site_stat_onlyonce = bool(config.get("site_stat_onlyonce", False))
         self._site_stat_dashboard_type = config.get("site_stat_dashboard_type") or "today"
         self._site_stat_notify_type = config.get("site_stat_notify_type") or "inc"
         self._log_clean_enabled = bool(config.get("log_clean_enabled", False))
+        self._log_clean_schedule_enabled = self._schedule_flag(config, "log_clean_schedule_enabled", self._log_clean_enabled)
         self._log_clean_cron = config.get("log_clean_cron") or "0 3 * * 1"
         self._log_clean_rows = self._safe_int(config.get("log_clean_rows"), 300, 0)
         self._log_clean_selected_ids = self._parse_csv(config.get("log_clean_selected_ids"))
@@ -271,6 +322,7 @@ class AgentOpsAssistant(_PluginBase):
         self._log_clean_notify_type = config.get("log_clean_notify_type") or "Plugin"
         self._backup_enabled = bool(config.get("backup_enabled", False))
         self._backup_onlyonce = bool(config.get("backup_onlyonce", False))
+        self._backup_schedule_enabled = self._schedule_flag(config, "backup_schedule_enabled", self._backup_enabled)
         self._backup_cron = config.get("backup_cron") or "0 4 * * 1"
         self._backup_keep_count = self._safe_int(config.get("backup_keep_count"), 5, 1)
         self._backup_path = config.get("backup_path") or "/config/plugins/AgentOpsAssistant/Backup"
@@ -286,6 +338,7 @@ class AgentOpsAssistant(_PluginBase):
         self._backup_webdav_password = str(config.get("backup_webdav_password") or "")
         self._backup_webdav_max_count = self._safe_int(config.get("backup_webdav_max_count"), 5, 1)
         self._mp_update_enabled = bool(config.get("mp_update_enabled", False))
+        self._mp_update_schedule_enabled = self._schedule_flag(config, "mp_update_schedule_enabled", self._mp_update_enabled)
         self._mp_update_cron = config.get("mp_update_cron") or "0 9 * * *"
         self._mp_update_notify = bool(config.get("mp_update_notify", True))
         self._mp_update_notify_type = config.get("mp_update_notify_type") or "Plugin"
@@ -295,6 +348,7 @@ class AgentOpsAssistant(_PluginBase):
             self._mp_update_types = self._parse_csv(self._mp_update_types) or ["后端", "前端"]
         self._market_update_enabled = bool(config.get("market_update_enabled", False))
         self._market_update_onlyonce = bool(config.get("market_update_onlyonce", False))
+        self._market_update_schedule_enabled = self._schedule_flag(config, "market_update_schedule_enabled", self._market_update_enabled)
         self._market_update_interval = self._safe_int(config.get("market_update_interval"), 86400, 60)
         self._market_update_notify = bool(config.get("market_update_notify", True))
         self._market_update_write_notify = bool(config.get("market_update_write_notify", False))
@@ -323,6 +377,7 @@ class AgentOpsAssistant(_PluginBase):
         self._plugin_uninstall_notify = bool(config.get("plugin_uninstall_notify", True))
         self._plugin_uninstall_notify_type = config.get("plugin_uninstall_notify_type") or "Plugin"
         self._seedclean_enabled = bool(config.get("seedclean_enabled", False))
+        self._seedclean_schedule_enabled = self._schedule_flag(config, "seedclean_schedule_enabled", self._seedclean_enabled)
         self._seedclean_cron = config.get("seedclean_cron") or "0 */12 * * *"
         self._seedclean_action = config.get("seedclean_action") or "pause"
         self._seedclean_downloaders = self._parse_csv(config.get("seedclean_downloaders"))
@@ -437,6 +492,31 @@ class AgentOpsAssistant(_PluginBase):
         return payload
 
     @staticmethod
+    def _restore_confirm_required_data(msg: str) -> Dict[str, Any]:
+        return {
+            "success": False,
+            "dry_run": False,
+            "errors": [msg],
+            "warnings": [],
+            "restored": [],
+            "emergency_backup": "",
+            "confirm_required": True,
+        }
+
+    @staticmethod
+    def _config_bool(config: Dict[str, Any], key: str, default: bool = False) -> bool:
+        if key not in config:
+            return bool(default)
+        value = config.get(key)
+        if isinstance(value, str):
+            return value.strip().lower() not in {"0", "false", "no", "off", ""}
+        return bool(value)
+
+    @classmethod
+    def _schedule_flag(cls, config: Dict[str, Any], schedule_key: str, component_enabled: bool) -> bool:
+        return cls._config_bool(config, schedule_key, component_enabled)
+
+    @staticmethod
     def get_command() -> List[Dict[str, Any]]:
         return [
             {"cmd": "/mpops_report", "event": EventType.PluginAction, "desc": "发送 MP 运维每日汇报", "category": "MP运维", "data": {"action": "mpops_report"}},
@@ -450,7 +530,7 @@ class AgentOpsAssistant(_PluginBase):
             {"cmd": "/mpops_market", "event": EventType.PluginAction, "desc": "检查插件库更新并按确认写入", "category": "MP运维", "data": {"action": "mpops_market"}},
             {"cmd": "/mpops_run_all", "event": EventType.PluginAction, "desc": "依次执行每日汇报与健康巡查", "category": "MP运维", "data": {"action": "mpops_run_all"}},
             {"cmd": "/mpops_plugin_preview", "event": EventType.PluginAction, "desc": "预览插件卸载与残留清理范围", "category": "MP运维", "data": {"action": "mpops_plugin_preview"}},
-            {"cmd": "/mpops_plugin_clean", "event": EventType.PluginAction, "desc": "执行插件卸载（需配置页显式确认）", "category": "MP运维", "data": {"action": "mpops_plugin_clean"}},
+            {"cmd": "/mpops_plugin_clean", "event": EventType.PluginAction, "desc": "插件卸载安全提示（需在配置页显式确认后执行）", "category": "MP运维", "data": {"action": "mpops_plugin_clean"}},
             {"cmd": "/mpops_seed_clean", "event": EventType.PluginAction, "desc": "执行自动删种（按规则暂停/删除种子）", "category": "MP运维", "data": {"action": "mpops_seed_clean"}},
             {"cmd": "/mpops_downloader_tag", "event": EventType.PluginAction, "desc": "按站点为种子批量补打标签", "category": "MP运维", "data": {"action": "mpops_downloader_tag"}},
             {"cmd": "/agentops_heartbeat", "event": EventType.PluginAction, "desc": "兼容旧命令：发送每日汇报", "category": "MP运维", "data": {"action": "mpops_report"}},
@@ -460,10 +540,15 @@ class AgentOpsAssistant(_PluginBase):
     def get_api(self) -> List[Dict[str, Any]]:
         return [
             {"path": "/dashboard", "endpoint": self.api_dashboard, "auth": "bear", "methods": ["GET"], "summary": "仪表盘数据：模块状态、最近执行、健康概览"},
+            {"path": "/tg_console_status", "endpoint": self.api_tg_console_status, "auth": "bear", "methods": ["GET"], "summary": "Telegram 融合汇报卡状态"},
+            {"path": "/preview_tg_console", "endpoint": self.api_preview_tg_console, "auth": "bear", "methods": ["POST"], "summary": "预览 Telegram 融合汇报卡 HTML"},
+            {"path": "/create_tg_console_card", "endpoint": self.api_create_tg_console_card, "auth": "bear", "methods": ["POST"], "summary": "立即创建融合通知卡"},
+            {"path": "/reset_tg_console_card", "endpoint": self.api_reset_tg_console_card, "auth": "bear", "methods": ["POST"], "summary": "重置 Telegram 融合汇报卡"},
             {"path": "/installed_plugins", "endpoint": self.api_installed_plugins, "auth": "bear", "methods": ["GET"], "summary": "已安装插件列表，供插件卸载下拉选择"},
             {"path": "/plugin_markets", "endpoint": self.api_plugin_markets, "auth": "bear", "methods": ["GET"], "summary": "已配置插件库仓库列表，供更新黑名单下拉选择"},
-            {"path": "/run_daily_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "立即发送每日汇报"},
+            {"path": "/run_daily_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "立即刷新融合汇报"},
             {"path": "/run_subscribe_reminder", "endpoint": self.api_run_subscribe_reminder, "auth": "bear", "methods": ["POST"], "summary": "立即推送订阅追新"},
+            {"path": "/run_today_transfer", "endpoint": self.api_run_today_transfer, "auth": "bear", "methods": ["POST"], "summary": "立即刷新今日入库"},
             {"path": "/preview_daily_report", "endpoint": self.api_preview_daily_report, "auth": "bear", "methods": ["POST"], "summary": "预览每日汇报（不发送）"},
             {"path": "/run_health_check", "endpoint": self.api_run_health_check, "auth": "bear", "methods": ["POST"], "summary": "立即执行健康巡查"},
             {"path": "/preview_log_clean", "endpoint": self.api_preview_log_clean, "auth": "bear", "methods": ["POST"], "summary": "预览日志清理范围"},
@@ -477,6 +562,7 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/run_webdav_backup_restore", "endpoint": self.api_run_webdav_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "执行 WebDAV 备份一键恢复"},
             {"path": "/preview_updates", "endpoint": self.api_preview_updates, "auth": "bear", "methods": ["POST"], "summary": "预览MoviePilot后端/前端更新状态（不通知、不重启）"},
             {"path": "/run_mp_update", "endpoint": self.api_run_mp_update, "auth": "bear", "methods": ["POST"], "summary": "立即检查MoviePilot后端/前端更新并通知"},
+            {"path": "/run_mp_update_apply", "endpoint": self.api_run_mp_update_apply, "auth": "bear", "methods": ["POST"], "summary": "执行MoviePilot后端/前端更新并重启"},
             {"path": "/preview_market_update", "endpoint": self.api_preview_market_update, "auth": "bear", "methods": ["POST"], "summary": "预览插件库更新"},
             {"path": "/run_market_update", "endpoint": self.api_run_market_update, "auth": "bear", "methods": ["POST"], "summary": "执行插件库更新检查并按确认写入"},
             {"path": "/preview_plugin_uninstall", "endpoint": self.api_preview_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "预览插件卸载与残留清理范围"},
@@ -490,7 +576,7 @@ class AgentOpsAssistant(_PluginBase):
             {"path": "/run_site_stat", "endpoint": self.api_run_site_stat, "auth": "bear", "methods": ["POST"], "summary": "刷新站点数据统计"},
             {"path": "/run_downloader_tag", "endpoint": self.api_run_downloader_tag, "auth": "bear", "methods": ["POST"], "summary": "按站点为种子批量补打标签"},
             {"path": "/downloader_overview", "endpoint": self.api_downloader_overview, "auth": "bear", "methods": ["GET"], "summary": "下载器活动种子概览"},
-            {"path": "/run_heartbeat_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "兼容旧接口：立即发送每日汇报"},
+            {"path": "/run_heartbeat_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "兼容旧接口：立即刷新融合汇报"},
         ]
 
     @staticmethod
@@ -502,21 +588,29 @@ class AgentOpsAssistant(_PluginBase):
         if not self.get_state():
             return []
         services = []
-        if self._daily_report_enabled:
-            self._append_cron_service(services, "AgentOpsAssistant.DailyReport", "MP 运维助手 - 每日汇报", self._daily_report_cron, self.run_daily_report)
-        if self._subscribe_reminder_enabled:
-            self._append_cron_service(services, "AgentOpsAssistant.SubscribeReminder", "MP 运维助手 - 订阅追新推送", self._subscribe_reminder_cron, self.run_subscribe_reminder)
-        if self._health_check_enabled:
-            self._append_cron_service(services, "AgentOpsAssistant.HealthCheck", "MP 运维助手 - 健康巡查", self._health_check_cron, self.run_health_check)
-        if self._log_clean_enabled:
-            self._append_cron_service(services, "AgentOpsAssistant.LogClean", "MP 运维助手 - 插件日志清理", self._log_clean_cron, self.run_log_clean)
-        if self._backup_enabled:
-            self._append_cron_service(services, "AgentOpsAssistant.Backup", "MP 运维助手 - 自动备份", self._backup_cron, self.run_backup)
-        if self._mp_update_enabled:
-            self._append_cron_service(services, "AgentOpsAssistant.MPUpdate", "MP 运维助手 - MoviePilot更新检查", self._mp_update_cron, self.run_mp_update_check)
-        if self._market_update_enabled:
-            services.append({"id": "AgentOpsAssistant.MarketUpdate", "name": "MP 运维助手 - 插件库更新检查", "trigger": IntervalTrigger(seconds=self._market_update_interval), "func": self.run_market_update, "kwargs": {}})
-        if self._seedclean_enabled and self._seedclean_downloaders:
+        if self._fusion_notify_enabled:
+            if self._fusion_notify_schedule_enabled:
+                self._append_cron_service(services, "AgentOpsAssistant.FusionNotify", "MP 运维助手 - 融合通知刷新", self._fusion_notify_cron, self.run_daily_report)
+        else:
+            if self._daily_report_enabled and self._daily_report_schedule_enabled:
+                self._append_cron_service(services, "AgentOpsAssistant.DailyReport", "MP 运维助手 - 每日汇报", self._daily_report_cron, self.run_daily_report)
+            if self._subscribe_reminder_enabled and self._subscribe_reminder_schedule_enabled:
+                self._append_cron_service(services, "AgentOpsAssistant.SubscribeReminder", "MP 运维助手 - 订阅追新推送", self._subscribe_reminder_cron, self.run_subscribe_reminder)
+            if self._health_check_enabled and self._health_check_schedule_enabled:
+                self._append_cron_service(services, "AgentOpsAssistant.HealthCheck", "MP 运维助手 - 健康巡查", self._health_check_cron, self.run_health_check)
+            if self._log_clean_enabled and self._log_clean_schedule_enabled:
+                self._append_cron_service(services, "AgentOpsAssistant.LogClean", "MP 运维助手 - 插件日志清理", self._log_clean_cron, self.run_log_clean)
+            if self._backup_enabled and self._backup_schedule_enabled:
+                self._append_cron_service(services, "AgentOpsAssistant.Backup", "MP 运维助手 - 自动备份", self._backup_cron, self.run_backup)
+            if self._mp_update_enabled and self._mp_update_schedule_enabled:
+                self._append_cron_service(services, "AgentOpsAssistant.MPUpdate", "MP 运维助手 - MoviePilot更新检查", self._mp_update_cron, self.run_mp_update_check)
+            if self._market_update_enabled and self._market_update_schedule_enabled:
+                services.append({"id": "AgentOpsAssistant.MarketUpdate", "name": "MP 运维助手 - 插件库更新检查", "trigger": IntervalTrigger(seconds=self._market_update_interval), "func": self.run_market_update, "kwargs": {}})
+        if self._tg_console_enabled and self._tg_console_poll_enabled:
+            services.append({"id": "AgentOpsAssistant.TGConsolePoll", "name": "MP 运维助手 - TG 融合汇报卡交互轮询", "trigger": IntervalTrigger(seconds=self._tg_console_poll_interval), "func": self.poll_tg_console_updates, "kwargs": {}})
+        if self._tg_console_enabled:
+            services.append({"id": "AgentOpsAssistant.FusionMediaActivityPrune", "name": "MP 运维助手 - 媒体动态过期清理", "trigger": IntervalTrigger(seconds=60), "func": self.prune_fusion_media_activity, "kwargs": {}})
+        if not self._fusion_notify_enabled and self._seedclean_enabled and self._seedclean_schedule_enabled and self._seedclean_downloaders:
             self._append_cron_service(services, "AgentOpsAssistant.SeedClean", "MP 运维助手 - 自动删种", self._seedclean_cron, self.run_seed_clean)
         return services
 
@@ -606,7 +700,7 @@ class AgentOpsAssistant(_PluginBase):
             "mpops_market": [("插件库更新", self.run_market_update)],
             "mpops_run_all": [("每日汇报", self.run_daily_report), ("健康巡查", self.run_health_check)],
             "mpops_plugin_preview": [("插件卸载预览", self.run_plugin_uninstall_preview)],
-            "mpops_plugin_clean": [("插件卸载", self.run_plugin_uninstall_clean)],
+            "mpops_plugin_clean": [("插件卸载", self.run_plugin_uninstall_confirm_required)],
             "mpops_seed_clean": [("自动删种", self.run_seed_clean)],
             "mpops_downloader_tag": [("种子打标签", self.run_downloader_tag)],
         }
@@ -614,27 +708,44 @@ class AgentOpsAssistant(_PluginBase):
         if not tasks:
             return
         if not self._enabled:
-            self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手命令已跳过", text="插件未启用，已跳过远程命令。")
+            self._notify_or_console(mtype=NotificationType.Plugin, title="MP 运维助手命令已跳过", text="插件未启用，已跳过远程命令。")
             return
         results = []
         has_failed_task = False
         task_sent_message = False
         original_post_message = self.post_message
+        original_emit_console_notice = self._emit_console_notice
         had_instance_post_message = "post_message" in getattr(self, "__dict__", {})
+        had_instance_emit_console_notice = "_emit_console_notice" in getattr(self, "__dict__", {})
 
         def tracked_post_message(*args, **kwargs):
             nonlocal task_sent_message
             task_sent_message = True
             return original_post_message(*args, **kwargs)
 
+        def tracked_emit_console_notice(*args, **kwargs):
+            nonlocal task_sent_message
+            ok = original_emit_console_notice(*args, **kwargs)
+            if ok:
+                task_sent_message = True
+            return ok
+
         try:
             # 远程命令只在任务本身没有发业务通知时补发结果，避免用户收到两条近似消息。
             self.post_message = tracked_post_message
+            self._emit_console_notice = tracked_emit_console_notice
             for name, runner in tasks:
                 ok = bool(runner())
                 has_failed_task = has_failed_task or not ok
                 results.append(f"{name}：{'成功' if ok else '失败'}")
         finally:
+            if had_instance_emit_console_notice:
+                self._emit_console_notice = original_emit_console_notice
+            else:
+                try:
+                    delattr(self, "_emit_console_notice")
+                except AttributeError:
+                    pass
             if had_instance_post_message:
                 self.post_message = original_post_message
             else:
@@ -643,7 +754,36 @@ class AgentOpsAssistant(_PluginBase):
                 except AttributeError:
                     pass
         if has_failed_task or not task_sent_message:
-            original_post_message(mtype=NotificationType.Plugin, title="MP 运维助手命令执行结果", text="\n".join(results))
+            self._notify_or_console(mtype=NotificationType.Plugin, title="MP 运维助手命令执行结果", text="\n".join(results))
+
+    @eventmanager.register(EventType.MessageAction)
+    def on_message_action(self, event: Event = None):
+        """接收 MoviePilot 通知渠道转发的 `[PLUGIN]AgentOpsAssistant|...` 按钮回调。"""
+        info = getattr(event, "event_data", None) if event else None
+        if not isinstance(info, dict):
+            return
+        plugin_id = str(info.get("plugin_id") or "").strip()
+        if plugin_id.lower() not in {self.__class__.__name__.lower(), "agentopsassistant"}:
+            return
+        data = str(info.get("text") or "").strip()
+        if not data:
+            return
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        if not token or not chat_id:
+            return
+        original_chat_id = str(info.get("original_chat_id") or chat_id or "").strip()
+        original_message_id = self._safe_int(info.get("original_message_id"), 0, 0)
+        if original_message_id and self._tg_console_same_chat(original_chat_id, chat_id):
+            state = self._tg_console_state(chat_id=chat_id)
+            state["message_id"] = original_message_id
+            self._save_tg_console_state(state)
+        callback = {
+            "id": "",
+            "from": {"id": str(info.get("userid") or "")},
+            "message": {"chat": {"id": original_chat_id or chat_id}},
+            "data": data,
+        }
+        self._handle_tg_console_callback(callback)
 
     @eventmanager.register(EventType.DownloadAdded)
     def on_download_fill_subscribe(self, event: Event = None):
@@ -692,7 +832,7 @@ class AgentOpsAssistant(_PluginBase):
                 text = self._format_subfill(filled)
                 self._save_task_result("订阅规则填充", True, 0, text)
                 if self._subfill_notify:
-                    self.post_message(mtype=self._notification_type(self._subfill_notify_type), title="MP 运维助手 - 订阅规则自动填充", text=text)
+                    self._notify_or_console(mtype=self._notification_type(self._subfill_notify_type), title="MP 运维助手 - 订阅规则自动填充", text=text)
         except Exception as err:
             logger.error(f"AgentOpsAssistant 订阅规则填充失败：{err}")
 
@@ -850,8 +990,8 @@ class AgentOpsAssistant(_PluginBase):
             SubscribeOper().update(sid, upd)
             self._subfill_log(getattr(sub, "name", str(sid)), f"二级分类[{category}]", upd)
             if self._subfill_notify:
-                self.post_message(mtype=self._notification_type(self._subfill_notify_type), title="MP 运维助手 - 订阅规则自动填充",
-                                  text=self._format_subfill([{"name": getattr(sub, "name", str(sid)), "update": upd}]))
+                self._notify_or_console(mtype=self._notification_type(self._subfill_notify_type), title="MP 运维助手 - 订阅规则自动填充",
+                                        text=self._format_subfill([{"name": getattr(sub, "name", str(sid)), "update": upd}]))
         except Exception as err:
             logger.error(f"AgentOpsAssistant 订阅二级分类填充失败：{err}")
 
@@ -917,17 +1057,18 @@ class AgentOpsAssistant(_PluginBase):
     def on_webhook_message(self, event: Event = None):
         """媒体库服务器通知（移植自 jxxghp MediaServerMsg 核心）：把 Emby/Jellyfin/Plex 的
         播放/入库/登录等 webhook 事件按配置推送通知。不含原插件的剧集聚合/IP定位/海报抓取。"""
-        if not self._msgnotify_enabled or not self._msgnotify_types:
-            return
         info = getattr(event, "event_data", None) if event else None
         if not info:
             return
         try:
             group = self._msg_group_of(getattr(info, "event", None))
-            if not group or group not in self._msgnotify_types:
+            if not group:
                 return
             server_name = getattr(info, "server_name", None)
-            if self._msgnotify_servers and server_name and server_name not in self._msgnotify_servers:
+            server_allowed = not (self._msgnotify_servers and server_name and server_name not in self._msgnotify_servers)
+            legacy_notify = bool(self._msgnotify_enabled and self._msgnotify_types and group in self._msgnotify_types and server_allowed)
+            fusion_stream = self._fusion_media_event_enabled(group, server_name)
+            if not legacy_notify and not fusion_stream:
                 return
             item_id = getattr(info, "item_id", "") or ""
             if item_id and not self._msg_dedupe(f"{server_name}-{group}-{item_id}"):
@@ -935,9 +1076,26 @@ class AgentOpsAssistant(_PluginBase):
             title = self._msg_title(group, info)
             text = self._msg_text(info)
             image = getattr(info, "image_url", None) or self._webhook_images.get(getattr(info, "channel", "") or "")
-            self.post_message(mtype=self._notification_type(self._msgnotify_notify_type, "MediaServer"), title=title, text=text, image=image)
+            if fusion_stream or (self._tg_console_enabled and self._tg_console_suppress_individual_notifications):
+                self._emit_console_media_activity(group, info, title)
+            if self._tg_console_enabled and self._tg_console_suppress_individual_notifications:
+                return
+            if legacy_notify:
+                self.post_message(mtype=self._notification_type(self._msgnotify_notify_type, "MediaServer"), title=title, text=text, image=image)
         except Exception as err:
             logger.error(f"AgentOpsAssistant 媒体库通知处理失败：{err}")
+
+    def _fusion_media_event_enabled(self, group: str, server_name: Any = None) -> bool:
+        if not self._tg_console_enabled or not self._fusion_notify_enabled:
+            return False
+        enabled_columns = set(self._fusion_notify_columns or [x["key"] for x in self._fusion_column_registry()])
+        if "media" not in enabled_columns:
+            return False
+        if group not in {"开始播放", "暂停播放", "停止播放"}:
+            return False
+        if self._msgnotify_servers and server_name and server_name not in self._msgnotify_servers:
+            return False
+        return True
 
     @classmethod
     def _msg_group_of(cls, etype):
@@ -993,11 +1151,89 @@ class AgentOpsAssistant(_PluginBase):
                 parts.append(f"进度：{round(float(pct), 2)}%")
             except (ValueError, TypeError):
                 pass
-        overview = getattr(info, "overview", None)
-        if overview:
-            parts.append(f"剧情：{overview}")
         parts.append("时间：" + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         return "\n".join(parts)
+
+    def _emit_console_media_activity(self, group: str, info: Any, title: str = "") -> bool:
+        if not self._tg_console_enabled:
+            return False
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        if not token or not chat_id:
+            self._tg_console_last_error = "Telegram 融合汇报卡 Bot Token/Chat ID 未配置"
+            return False
+        state = self._tg_console_state(chat_id=chat_id)
+        item = {
+            "title": "媒体动态",
+            "group": str(group or ""),
+            "text": self._format_media_console_text(group, info),
+            "raw_title": str(title or ""),
+            "level": "idle" if group in {"暂停播放", "停止播放"} else "info",
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "time": datetime.now().strftime("%H:%M:%S"),
+        }
+        state.setdefault("reports", {})["media_activity"] = dict(item)
+        media_col = (state.setdefault("columns", {}).get("media") or {})
+        media_items = media_col.get("items") if isinstance(media_col, dict) else []
+        if isinstance(media_items, list):
+            kept_items = [row for row in media_items if not self._is_fusion_media_activity(row)]
+            if kept_items:
+                state.setdefault("columns", {})["media"] = {"items": kept_items, "updated_at": media_col.get("updated_at") or item["updated_at"]}
+            else:
+                state.setdefault("columns", {}).pop("media", None)
+        ok = self._tg_console_upsert_card(token, chat_id, state)
+        self._save_tg_console_state(state)
+        return ok
+
+    def _format_media_console_text(self, group: str, info: Any) -> str:
+        item_type = getattr(info, "item_type", "") or ""
+        type_label = "剧集" if item_type in ("TV", "SHOW") else ("电影" if item_type == "MOV" else ("有声书" if item_type == "AUD" else "媒体"))
+        name = str(getattr(info, "item_name", "") or "").strip() or "未命名媒体"
+        user = str(getattr(info, "user_name", "") or "").strip()
+        device = " ".join(x for x in [str(getattr(info, "client", "") or "").strip(), str(getattr(info, "device_name", "") or "").strip()] if x)
+        ip_label = self._format_media_ip_label(getattr(info, "ip", ""))
+        pct = getattr(info, "percentage", None)
+        pct_text = ""
+        if pct:
+            try:
+                pct_text = f"{round(float(pct), 2)}%"
+            except (ValueError, TypeError):
+                pct_text = ""
+        if group == "停止播放":
+            lines = [f"停止播放{type_label} {name}"]
+        elif group == "暂停播放":
+            lines = [f"暂停播放{type_label} {name}"]
+        elif group == "开始播放":
+            lines = [f"开始播放{type_label} {name}"]
+        elif group == "新入库":
+            lines = [f"新入库：{type_label}《{name}》"]
+        elif group in {"登录成功", "登录失败"}:
+            lines = [f"{group}：{user or '未知用户'}"]
+        else:
+            lines = [f"{group or '媒体事件'}：{type_label}《{name}》"]
+        if device:
+            lines.append(f"设备：{device}")
+        if user and group not in {"登录成功", "登录失败"}:
+            lines.append(f"用户：{user}")
+        if ip_label:
+            lines.append(f"IP地址：{ip_label}")
+        if pct_text:
+            lines.append(f"进度：{pct_text}")
+        lines.append("时间：" + datetime.now().strftime("%H:%M:%S"))
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_media_ip_label(ip_value: Any) -> str:
+        ip = str(ip_value or "").strip()
+        if not ip:
+            return ""
+        local = False
+        try:
+            import ipaddress
+            addr = ipaddress.ip_address(ip)
+            local = addr.is_private or addr.is_loopback or addr.is_link_local
+        except Exception:
+            local = bool(re.match(r"^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)", ip))
+        return f"{ip} 本地局域网" if local else ip
 
     def run_subscribe_reminder(self) -> bool:
         """独立推送今日订阅追新（与每日汇报分开，按 subscribe_reminder_cron 调度，也可手动触发）。"""
@@ -1015,7 +1251,7 @@ class AgentOpsAssistant(_PluginBase):
                 mtype = self._notification_type(self._subscribe_reminder_msgtype, "Subscribe")
             except Exception:
                 mtype = self._notification_type("Plugin")
-            self.post_message(mtype=mtype, title="MP 运维助手 - 订阅追新", text=body)
+            self._notify_or_console(mtype=mtype, title="MP 运维助手 - 订阅追新", text=body)
             self._save_task_result(name, True, 0, body)
             return True
         except Exception as err:
@@ -1025,7 +1261,7 @@ class AgentOpsAssistant(_PluginBase):
 
     def run_daily_report(self) -> bool:
         name = "MP运维每日汇报"
-        ok, _ = self._guard_task(name, "daily_report")
+        ok, _ = self._guard_task(name)
         if not ok:
             return False
         try:
@@ -1036,6 +1272,15 @@ class AgentOpsAssistant(_PluginBase):
                 self._save_daily_report_result(sent=False, success=False, text="", error=error, message=error, returncode=1)
                 return False
             text = self._build_daily_report_message()
+            if self._tg_console_enabled:
+                if self._refresh_fusion_card(text, refresh_result):
+                    self._save_task_result(name, True, 0, "OK tg_console_card")
+                    self._save_daily_report_result(sent=True, success=True, text=text, error="", message="OK tg_console_card", returncode=0)
+                    return True
+                error = self._tg_console_last_error or "Telegram 融合汇报卡更新失败"
+                self._save_task_result(name, False, 1, error)
+                self._save_daily_report_result(sent=True, success=False, text=text, error=error, message=error, returncode=1)
+                return False
             if self._send_daily_report_telegram_rich(text):
                 self._save_task_result(name, True, 0, "OK telegram_rich_message")
                 self._save_daily_report_result(sent=True, success=True, text=text, error="", message="OK telegram_rich_message", returncode=0)
@@ -1082,7 +1327,7 @@ class AgentOpsAssistant(_PluginBase):
                 result["site_userdata"] = "skipped"
 
             if self._report_health and self._health_check_enabled:
-                self._build_health_summary(persist=True)
+                result["health_summary"] = self._build_health_summary(persist=True)
                 result["health_check"] = "ok"
             else:
                 result["health_check"] = "skipped"
@@ -1096,7 +1341,7 @@ class AgentOpsAssistant(_PluginBase):
 
     def run_daily_report_preview(self) -> bool:
         name = "预览每日汇报"
-        ok, _ = self._guard_task(name, "daily_report")
+        ok, _ = self._guard_task(name)
         if not ok:
             return False
         try:
@@ -1132,7 +1377,7 @@ class AgentOpsAssistant(_PluginBase):
         return sum(1 for icon in icons if icon in (text or ""))
 
     def api_preview_daily_report(self) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("每日汇报", "daily_report")
+        ok, msg = self._can_run_task("每日汇报")
         if not ok:
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
         try:
@@ -1153,10 +1398,57 @@ class AgentOpsAssistant(_PluginBase):
             return {"code": 1, "msg": f"每日汇报预览失败：{err}", "data": {}, "text": ""}
 
     def api_run_daily_report(self) -> Dict[str, Any]:
-        return self._api_run_task("每日汇报", self.run_daily_report, "daily_report")
+        return self._api_run_task("每日汇报", self.run_daily_report)
+
+    def api_create_tg_console_card(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("融合通知卡")
+        if not ok:
+            self._save_task_result("融合通知卡", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        if not token or not chat_id:
+            msg = "融合通知 Bot Token/Chat ID 未配置"
+            self._save_task_result("融合通知卡", False, 1, msg)
+            state = self._tg_console_state(chat_id=chat_id)
+            state["last_error"] = msg
+            self._save_tg_console_state(state)
+            return {"code": 1, "msg": msg, "data": self._tg_console_action_status_data(1, msg)}
+        state = self._new_tg_console_card_state(chat_id=chat_id)
+        self._refresh_fusion_columns(state)
+        try:
+            ok = self._tg_console_upsert_card(token, chat_id, state)
+        except Exception as err:
+            msg = f"融合通知卡创建异常：{self._telegram_safe_error(err, limit=500)}"
+            state["last_error"] = msg
+            self._save_tg_console_state(state)
+            self._save_task_result("融合通知卡", False, -1, msg)
+            logger.warning(f"AgentOpsAssistant {msg}")
+            return {"code": 1, "msg": msg, "data": self._tg_console_action_status_data(1, msg)}
+        self._save_tg_console_state(state)
+        if not ok:
+            msg = self._tg_console_last_error or state.get("last_error") or "融合通知卡创建失败"
+            self._save_task_result("融合通知卡", False, 1, msg)
+            return {"code": 1, "msg": msg, "data": self._tg_console_action_status_data(1, msg)}
+        message_id = state.get("message_id") or 0
+        msg = f"融合通知卡已创建 #{message_id}" if message_id else "融合通知卡已创建"
+        self._save_task_result("融合通知卡", True, 0, msg)
+        return {"code": 0, "msg": msg, "data": self._tg_console_action_status_data(0, msg)}
 
     def api_run_subscribe_reminder(self) -> Dict[str, Any]:
         return self._api_run_task("订阅追新", self.run_subscribe_reminder, "subscribe_reminder")
+
+    def api_run_today_transfer(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("今日入库")
+        if not ok:
+            self._save_task_result("今日入库", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
+        text = self._build_today_transfer_report_text()
+        if self._tg_console_enabled and not self._emit_console_report("today_transfer", "今日入库", text, level="success"):
+            msg = self._tg_console_last_error or "融合通知今日入库更新失败"
+            self._save_task_result("今日入库", False, 1, msg)
+            return {"code": 1, "msg": msg, "text": text}
+        self._save_task_result("今日入库", True, 0, text)
+        return {"code": 0, "msg": "今日入库已刷新", "text": text}
 
     def run_health_check(self) -> bool:
         ok, _ = self._guard_task("健康巡查", "health_check")
@@ -1170,6 +1462,8 @@ class AgentOpsAssistant(_PluginBase):
             "success": bool(data.get("success")),
             "output": text,
         })
+        if self._tg_console_enabled:
+            self._emit_console_report("health_check", "健康巡查", text, level="success" if data.get("success") else "warning")
         self._notify_health_failures(data)
         return True
 
@@ -1192,6 +1486,9 @@ class AgentOpsAssistant(_PluginBase):
 
     def api_run_mp_update(self) -> Dict[str, Any]:
         return self._api_run_task("主程序更新检查", self.run_mp_update_check, "mp_update")
+
+    def api_run_mp_update_apply(self) -> Dict[str, Any]:
+        return self._api_run_task("主程序更新执行", self.run_mp_update_apply, "mp_update")
 
     def api_dashboard(self) -> Dict[str, Any]:
         """仪表盘数据：插件总状态、各模块快照、最近健康巡查概览。"""
@@ -1226,6 +1523,7 @@ class AgentOpsAssistant(_PluginBase):
                         "success": health.get("success"),
                         "output": health.get("output") or "",
                     },
+                    "tg_console": self._tg_console_status_data(),
                 },
             }
         except Exception as err:
@@ -1296,7 +1594,7 @@ class AgentOpsAssistant(_PluginBase):
             return False
         data = self._build_log_preview()
         text = self._format_log_preview_text(data)
-        self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 日志清理预览", text=text)
+        self._notify_or_console(mtype=NotificationType.Plugin, title="MP 运维助手 - 日志清理预览", text=text)
         self._save_task_result("日志清理预览", True, 0, text)
         return True
 
@@ -1308,7 +1606,7 @@ class AgentOpsAssistant(_PluginBase):
             data = self._build_log_clean_stats(clean=True)
             text = self._format_log_clean_result_text(data)
             if self._log_clean_notify:
-                self.post_message(mtype=self._notification_type(self._log_clean_notify_type), title="MP 运维助手 - 日志清理完成", text=text)
+                self._notify_or_console(mtype=self._notification_type(self._log_clean_notify_type), title="MP 运维助手 - 日志清理完成", text=text)
             self._save_task_result("日志清理", True, 0, text)
             return True
         except Exception as err:
@@ -1349,7 +1647,12 @@ class AgentOpsAssistant(_PluginBase):
         if not ok_guard:
             self._save_task_result("备份恢复", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"errors": [msg]}), "text": msg}
-        data = self._run_backup_restore(payload or {})
+        restore_payload = dict(payload or {})
+        if restore_payload.get("confirm") is not True:
+            msg = "备份恢复需要在配置页显式确认后才能执行。"
+            self._save_task_result("备份恢复", False, 2, msg)
+            return {"code": 1, "msg": msg, "data": self._restore_confirm_required_data(msg), "text": msg}
+        data = self._run_backup_restore(restore_payload)
         ok = bool(data.get("success"))
         return {"code": 0 if ok else 1, "msg": "备份恢复执行成功" if ok else f"备份恢复执行失败：{'；'.join(data.get('errors') or [])}", "data": data, "text": self._format_backup_restore_text(data)}
 
@@ -1390,8 +1693,14 @@ class AgentOpsAssistant(_PluginBase):
             msg = "WebDAV 远端备份未启用。"
             self._save_task_result("WebDAV 备份恢复", False, 2, msg)
             return {"code": 1, "msg": msg, "data": {"success": False, "errors": [msg]}, "text": msg}
+        restore_payload = dict(payload or {})
+        if restore_payload.get("confirm") is not True:
+            msg = "WebDAV 备份恢复需要在配置页显式确认后才能执行。"
+            self._save_task_result("WebDAV 备份恢复", False, 2, msg)
+            data = self._restore_confirm_required_data(msg)
+            data["source"] = "webdav"
+            return {"code": 1, "msg": msg, "data": data, "text": msg}
         try:
-            restore_payload = dict(payload or {})
             archive_path = self._download_webdav_backup_archive(restore_payload.get("archive") or restore_payload.get("name") or restore_payload.get("path"))
             restore_payload["archive"] = archive_path.name
             data = self._run_backup_restore(restore_payload)
@@ -1464,7 +1773,7 @@ class AgentOpsAssistant(_PluginBase):
             return False
         data = self._build_plugin_uninstall_status(clean=False)
         text = self._format_plugin_uninstall_text(data)
-        self.post_message(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件卸载预览", text=text)
+        self._notify_or_console(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件卸载预览", text=text)
         self._save_task_result("插件卸载预览", bool(data.get("success", True)), 0 if data.get("success", True) else 1, text)
         return bool(data.get("success", True))
 
@@ -1475,19 +1784,28 @@ class AgentOpsAssistant(_PluginBase):
         ok, _ = self._run_plugin_uninstall_clean(override=override)
         return ok
 
+    def run_plugin_uninstall_confirm_required(self) -> bool:
+        ok, _ = self._guard_task("插件卸载")
+        if not ok:
+            return False
+        text = "插件卸载属于高风险操作，请在配置页选择目标插件并打开显式确认后点击执行；远程命令不会直接卸载插件。"
+        self._save_task_result("插件卸载", False, 2, text)
+        self._notify_or_console(mtype=NotificationType.Plugin, title="MP 运维助手 - 插件卸载需确认", text=text)
+        return False
+
     def _run_plugin_uninstall_clean(self, override: Optional[Dict[str, Any]] = None) -> Tuple[bool, Dict[str, Any]]:
         options = self._plugin_uninstall_options(override)
         if not options["raw_ids"]:
             text = "未执行：请先在配置页选择目标插件。"
             self._save_task_result("插件卸载", False, 2, text)
             if options["notify"]:
-                self.post_message(mtype=self._notification_type(options["notify_type"]), title="MP 运维助手 - 插件卸载未执行", text=text)
+                self._notify_or_console(mtype=self._notification_type(options["notify_type"]), title="MP 运维助手 - 插件卸载未执行", text=text)
             return False, {"success": False, "dry_run": False, "plugin_id": "", "uninstalled": [], "errors": [], "blocked": "请先在配置页选择目标插件。"}
         try:
             data = self._build_plugin_uninstall_status(clean=True, override=override)
             text = self._format_plugin_uninstall_text(data)
             if options["notify"]:
-                self.post_message(mtype=self._notification_type(options["notify_type"]), title="MP 运维助手 - 插件卸载结果", text=text)
+                self._notify_or_console(mtype=self._notification_type(options["notify_type"]), title="MP 运维助手 - 插件卸载结果", text=text)
             self._save_task_result("插件卸载", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success")), data
         except Exception as err:
@@ -1516,14 +1834,41 @@ class AgentOpsAssistant(_PluginBase):
         if mp.get("version_error"):
             errors.append(f"本地版本：{mp.get('version_error')}")
         success = bool(checks) and not errors
-        if mp.get("has_update") and self._mp_update_restart_confirm:
-            self._dispatch_moviepilot_restart(data)
-        if self._mp_update_notify and (mp.get("has_update") or errors):
+        if self._mp_update_notify and errors:
             title = "MP 运维助手 - MoviePilot更新检查"
             if errors and not mp.get("has_update"):
                 title = "MP 运维助手 - MoviePilot更新检查异常"
-            self.post_message(mtype=self._notification_type(self._mp_update_notify_type), title=title, text=text)
+            self._notify_or_console(mtype=self._notification_type(self._mp_update_notify_type), title=title, text=text)
         self._save_task_result("主程序更新检查", success, 0 if success else 1, text)
+        return success
+
+    def run_mp_update_apply(self) -> bool:
+        ok, _ = self._guard_task("主程序更新执行", "mp_update")
+        if not ok:
+            return False
+        data = self._build_update_status()
+        text = self._format_update_status_text(data)
+        mp = data.get("moviepilot") or {}
+        checks = mp.get("checks") or []
+        errors = [f"{item.get('type') or '未知'}：{item.get('error')}" for item in checks if item.get("error")]
+        if mp.get("version_error"):
+            errors.append(f"本地版本：{mp.get('version_error')}")
+        if errors:
+            self._save_task_result("主程序更新执行", False, 1, text)
+            if self._mp_update_notify:
+                self._notify_or_console(mtype=self._notification_type(self._mp_update_notify_type), title="MP 运维助手 - MoviePilot更新执行异常", text=text)
+            return False
+        if not mp.get("has_update"):
+            self._save_task_result("主程序更新执行", True, 0, text)
+            return True
+        self._dispatch_moviepilot_upgrade(data)
+        text = self._format_update_status_text(data)
+        dispatched = bool(mp.get("upgrade_dispatched") or mp.get("restart_dispatched"))
+        success = dispatched and not mp.get("upgrade_error") and not mp.get("restart_error")
+        self._save_task_result("主程序更新执行", success, 0 if success else 1, text)
+        if self._mp_update_notify:
+            title = "MP 运维助手 - MoviePilot更新执行" if success else "MP 运维助手 - MoviePilot更新执行异常"
+            self._notify_or_console(mtype=self._notification_type(self._mp_update_notify_type), title=title, text=text)
         return success
 
     def run_market_update(self) -> bool:
@@ -1537,7 +1882,7 @@ class AgentOpsAssistant(_PluginBase):
             pu = data.get("plugin_update") or {}
             notify_needed = data.get("has_update") or pu.get("updated") or pu.get("updatable") or pu.get("failed")
             if self._market_update_notify and notify_needed:
-                self.post_message(mtype=self._notification_type(self._market_update_notify_type), title="MP 运维助手 - 插件库更新检查", text=text)
+                self._notify_or_console(mtype=self._notification_type(self._market_update_notify_type), title="MP 运维助手 - 插件库更新检查", text=text)
             self._save_task_result("插件库更新", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
         except Exception as err:
@@ -1553,7 +1898,7 @@ class AgentOpsAssistant(_PluginBase):
             data = self._create_agentops_backup()
             text = self._format_backup_status_text(data)
             if self._backup_notify:
-                self.post_message(mtype=self._notification_type(self._backup_notify_type), title="MP 运维助手 - 自动备份完成", text=text)
+                self._notify_or_console(mtype=self._notification_type(self._backup_notify_type), title="MP 运维助手 - 自动备份完成", text=text)
             self._save_task_result("自动备份", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
         except Exception as err:
@@ -1619,7 +1964,7 @@ class AgentOpsAssistant(_PluginBase):
         if token and chat_id:
             return token, chat_id, "插件配置"
 
-        global_token, global_chat_id, name = self._find_moviepilot_telegram_config()
+        global_token, global_chat_id, name = self._find_moviepilot_telegram_config(self._fusion_notify_msgtype)
         if global_token and global_chat_id:
             return global_token, global_chat_id, f"MoviePilot 通知配置：{name or 'Telegram'}"
         return token, chat_id, ""
@@ -1630,7 +1975,7 @@ class AgentOpsAssistant(_PluginBase):
             return value.get(key, default)
         return getattr(value, key, default)
 
-    def _find_moviepilot_telegram_config(self) -> Tuple[str, str, str]:
+    def _find_moviepilot_telegram_config(self, msgtype: str = "") -> Tuple[str, str, str]:
         try:
             from app.db.systemconfig_oper import SystemConfigOper
             from app.schemas.types import SystemConfigKey
@@ -1639,6 +1984,7 @@ class AgentOpsAssistant(_PluginBase):
             logger.warning(f"AgentOpsAssistant 读取 MoviePilot Telegram 通知配置失败：{err}")
             return "", "", ""
 
+        preferred_switches = self._notification_switch_labels(msgtype or "Plugin")
         candidates: List[Tuple[int, str, str, str]] = []
         for item in notifications or []:
             ntype = str(self._dict_or_attr(item, "type", "") or "").strip().lower()
@@ -1654,6 +2000,8 @@ class AgentOpsAssistant(_PluginBase):
                 continue
             switches = self._parse_csv(self._dict_or_attr(item, "switchs", []) or [])
             score = 1
+            if preferred_switches and any(str(x) in preferred_switches for x in switches):
+                score += 100
             if any(x in switches for x in ("插件", "Plugin")):
                 score += 20
             if any(x in switches for x in ("其它", "其他", "Other")):
@@ -1666,6 +2014,27 @@ class AgentOpsAssistant(_PluginBase):
         candidates.sort(key=lambda x: x[0], reverse=True)
         _, token, chat_id, name = candidates[0]
         return token, chat_id, name
+
+    @classmethod
+    def _notification_switch_labels(cls, value: Any) -> set:
+        item = cls._notification_type(value, "Plugin")
+        name = str(getattr(item, "name", "") or value or "").strip()
+        raw_value = str(getattr(item, "value", "") or value or "").strip()
+        labels = {x for x in (name, raw_value, str(value or "").strip()) if x}
+        cn_labels = {
+            "Download": ("下载", "资源下载"),
+            "Organize": ("整理", "整理入库"),
+            "Subscribe": ("订阅",),
+            "SiteMessage": ("站点", "站点消息"),
+            "MediaServer": ("媒体服务器",),
+            "Manual": ("手动", "手动处理"),
+            "Plugin": ("插件",),
+            "Agent": ("智能体",),
+            "Other": ("其他", "其它"),
+        }
+        labels.update(cn_labels.get(name, ()))
+        labels.update(cn_labels.get(raw_value, ()))
+        return labels
 
     def _post_telegram_rich_message(self, rich_message: Dict[str, Any], token: Optional[str] = None, chat_id: Optional[str] = None) -> bool:
         bot_token = str(token or self._daily_report_telegram_bot_token or "").strip()
@@ -1767,6 +2136,1998 @@ class AgentOpsAssistant(_PluginBase):
         logger.warning(f"AgentOpsAssistant {self._daily_report_telegram_last_error}")
         return False
 
+    def _telegram_response_data(self, response: Any, action: str) -> Tuple[bool, Dict[str, Any]]:
+        if not getattr(response, "ok", False):
+            self._tg_console_last_error = f"Telegram {action} HTTP {getattr(response, 'status_code', '')}：{self._telegram_safe_error(getattr(response, 'text', ''), limit=200)}"
+            logger.warning(f"AgentOpsAssistant {self._tg_console_last_error}")
+            return False, {}
+        try:
+            data = response.json()
+        except Exception:
+            self._tg_console_last_error = f"Telegram {action} 返回非 JSON：{self._telegram_safe_error(getattr(response, 'text', ''), limit=200)}"
+            logger.warning(f"AgentOpsAssistant {self._tg_console_last_error}")
+            return False, {}
+        if isinstance(data, dict) and data.get("ok") is True:
+            return True, data
+        description = (data or {}).get("description") if isinstance(data, dict) else data
+        self._tg_console_last_error = f"Telegram {action} 返回失败：{self._telegram_safe_error(description, limit=200)}"
+        logger.warning(f"AgentOpsAssistant {self._tg_console_last_error}")
+        return False, data if isinstance(data, dict) else {}
+
+    def _notify_or_console(self, mtype: Any = None, title: str = "", text: str = "", image: Any = None, **kwargs) -> bool:
+        console_ok = self._emit_console_notice(title=title, text=text)
+        if self._fusion_notify_enabled and self._tg_console_suppress_individual_notifications:
+            return console_ok
+        payload = {"mtype": mtype or NotificationType.Plugin, "title": title, "text": text}
+        if image:
+            payload["image"] = image
+        payload.update(kwargs)
+        self.post_message(**payload)
+        return console_ok
+
+    def _emit_fusion_notice(self, column_key: str, title: str, text: str = "", level: str = "info", payload: Optional[Dict[str, Any]] = None) -> bool:
+        if not self._fusion_notify_enabled:
+            return False
+        raw_key = str(column_key or self._fusion_column_for_title(title) or "").strip()
+        key = self._normalize_fusion_column(raw_key)
+        if key not in set(self._fusion_notify_columns or [x["key"] for x in self._fusion_column_registry()]):
+            return False
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        if not token or not chat_id:
+            self._tg_console_last_error = "Telegram 融合通知 Bot Token/Chat ID 未配置"
+            state = self._tg_console_state(chat_id=chat_id)
+            state["last_error"] = self._tg_console_last_error
+            self._save_tg_console_state(state)
+            return False
+        state = self._tg_console_state(chat_id=chat_id)
+        item = {
+            "title": str(title or key).strip()[:120],
+            "text": str(text or "").strip()[:20000],
+            "level": str(level or "info"),
+            "payload": payload or {},
+            "time": datetime.now().strftime("%H:%M:%S"),
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        report_key = raw_key or key
+        if report_key == "health" and "健康巡查" in str(title or ""):
+            report_key = "health_check"
+        if report_key:
+            reports = state.setdefault("reports", {})
+            reports[report_key] = {k: v for k, v in item.items() if k != "payload"}
+        notices = list(state.get("notices") or [])
+        notices.insert(0, {k: v for k, v in item.items() if k != "payload"})
+        state["notices"] = notices[:self._tg_console_max_notices]
+        columns = state.setdefault("columns", {})
+        items = list((columns.get(key) or {}).get("items") or [])
+        items.insert(0, item)
+        columns[key] = {"items": items[:self._tg_console_max_notices], "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        try:
+            ok = self._tg_console_upsert_card(token, chat_id, state)
+        except Exception as err:
+            self._tg_console_last_error = f"Telegram 融合通知更新异常：{self._telegram_safe_error(err, limit=500)}"
+            state["last_error"] = self._tg_console_last_error
+            self._save_tg_console_state(state)
+            logger.warning(f"AgentOpsAssistant {self._tg_console_last_error}")
+            return False
+        self._save_tg_console_state(state)
+        return ok
+
+    def _emit_console_notice(self, title: str, text: str = "", level: str = "info") -> bool:
+        if not self._fusion_notify_enabled:
+            return False
+        return self._emit_fusion_notice(self._fusion_column_for_title(title), title, text, level=level)
+
+    def _emit_console_report(self, section_key: str, title: str, text: str = "", level: str = "info") -> bool:
+        return self._emit_fusion_notice(section_key, title, text, level=level)
+
+    def _refresh_fusion_card(self, daily_text: str = "", live_result: Optional[Dict[str, Any]] = None) -> bool:
+        if not self._fusion_notify_enabled:
+            return False
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        if not token or not chat_id:
+            self._tg_console_last_error = "Telegram 融合通知 Bot Token/Chat ID 未配置"
+            state = self._tg_console_state(chat_id=chat_id)
+            state["last_error"] = self._tg_console_last_error
+            self._save_tg_console_state(state)
+            return False
+        state = self._tg_console_state(chat_id=chat_id)
+        self._tg_console_set_report_section(state, "daily_report", "立即刷新", daily_text, level="success")
+        previous_context = getattr(self, "_fusion_refresh_context", None)
+        self._fusion_refresh_context = {"live_result": live_result or {}}
+        try:
+            self._refresh_fusion_columns(state)
+        finally:
+            if previous_context is None:
+                try:
+                    delattr(self, "_fusion_refresh_context")
+                except Exception:
+                    pass
+            else:
+                self._fusion_refresh_context = previous_context
+        try:
+            ok = self._tg_console_upsert_card(token, chat_id, state)
+        except Exception as err:
+            self._tg_console_last_error = f"Telegram 融合通知全量刷新异常：{self._telegram_safe_error(err, limit=500)}"
+            state["last_error"] = self._tg_console_last_error
+            self._save_tg_console_state(state)
+            logger.warning(f"AgentOpsAssistant {self._tg_console_last_error}")
+            return False
+        self._save_tg_console_state(state)
+        return ok
+
+    def _refresh_fusion_columns(self, state: Dict[str, Any]) -> bool:
+        enabled = set(self._fusion_notify_columns or [x["key"] for x in self._fusion_column_registry()])
+        ok = True
+        for item in self._fusion_column_registry():
+            key = item["key"]
+            if key not in enabled:
+                continue
+            try:
+                ok = bool(self._refresh_fusion_column(key, state)) and ok
+            except Exception as err:
+                ok = False
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                state.setdefault("columns", {})[key] = {
+                    "items": [{
+                        "title": item.get("label") or key,
+                        "text": f"栏目刷新失败：{err}",
+                        "level": "error",
+                        "time": now[11:],
+                        "updated_at": now,
+                    }],
+                    "updated_at": now,
+                }
+        return ok
+
+    def _refresh_fusion_column(self, key: str, state: Dict[str, Any]) -> bool:
+        column_key = self._normalize_fusion_column(key)
+        meta = next((x for x in self._fusion_column_registry() if x["key"] == column_key), None)
+        if not meta:
+            return False
+        title, text, level = self._fusion_column_snapshot(column_key, state)
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        item = {
+            "title": title or meta.get("label") or column_key,
+            "text": text or f"暂无{meta.get('label') or column_key}数据",
+            "level": level or "info",
+            "time": now[11:],
+            "updated_at": now,
+        }
+        columns = state.setdefault("columns", {})
+        columns[column_key] = {"items": [item], "updated_at": now}
+        reports = state.setdefault("reports", {})
+        reports[self._fusion_report_key(column_key)] = dict(item)
+        return True
+
+    def _refresh_fusion_category(self, key: str, state: Dict[str, Any]) -> bool:
+        enabled = set(self._fusion_notify_columns or [x["key"] for x in self._fusion_column_registry()])
+        children = [child for child in self._fusion_category_children(key) if child in enabled]
+        if not children:
+            return False
+        ok = True
+        for child in children:
+            ok = bool(self._refresh_fusion_column(child, state)) and ok
+        return ok
+
+    def _fusion_column_snapshot(self, key: str, state: Dict[str, Any]) -> Tuple[str, str, str]:
+        if key == "site_stats":
+            return "站点增量", "\n".join(self._fusion_site_stat_lines()), "success"
+        if key == "download_transfer":
+            return "下载入库", self._build_today_transfer_report_text(), "success"
+        if key == "subscribe":
+            items = self._get_today_subscribe_updates_locked()
+            text = "\n".join(f"⦁ {x}" for x in items) if items else "⦁ 今日暂无订阅追新"
+            return "订阅追新", text, "success"
+        if key == "storage":
+            return "存储空间", "\n".join(self._get_storage_health_locked()), "success"
+        if key == "media":
+            media = self._fusion_media_activity_report(state)
+            if media:
+                return "媒体动态", str(media.get("text") or ""), str(media.get("level") or "info")
+            stats = self._get_media_stats_locked()
+            text = "\n".join(stats or [])
+            return "媒体统计", text or "⦁ 暂无媒体统计数据", "success" if stats else "idle"
+        if key == "health":
+            context = getattr(self, "_fusion_refresh_context", {}) or {}
+            live_result = context.get("live_result") or {}
+            data = live_result.get("health_summary") if isinstance(live_result, dict) else None
+            if not isinstance(data, dict):
+                data = self._build_health_summary(persist=True)
+            return "健康巡查", "\n".join(self._format_health_report_lines(data)), "success" if data.get("success") else "warning"
+        if key == "maintenance":
+            return "维护任务", "\n".join(self._fusion_recent_task_lines(["backup", "log_clean", "plugin_uninstall", "seed_clean", "downloader_tag"])), "info"
+        if key == "updates":
+            return "更新检查", "\n".join(self._fusion_recent_task_lines(["update_preview", "market_update"])), "info"
+        return "融合通知", "", "info"
+
+    def _fusion_site_stat_lines(self) -> List[str]:
+        rows = self._get_site_increment_locked()
+        return rows[:8] if rows else ["⦁ 已刷新站点数据，暂无可用增量"]
+
+    @staticmethod
+    def _filter_fusion_health_lines(lines: List[str]) -> List[str]:
+        rows = []
+        for raw in lines or []:
+            text = str(raw or "").strip()
+            if not text:
+                continue
+            if "存储空间" in text or "storage" in text.lower():
+                continue
+            rows.append(text)
+        return rows or ["⦁ 暂无健康巡查数据"]
+
+    def _fusion_recent_task_lines(self, keys: List[str]) -> List[str]:
+        labels = {
+            "backup": "配置备份",
+            "log_clean": "日志清理",
+            "plugin_uninstall": "插件卸载",
+            "seed_clean": "自动删种",
+            "downloader_tag": "种子标签",
+            "update_preview": "MP 更新",
+            "market_update": "插件更新",
+        }
+        rows = []
+        for key in keys:
+            data = self.get_data(f"last_{key}") or {}
+            label = labels.get(key, key)
+            if not data:
+                rows.append(f"⦁ {label}：暂无记录")
+                continue
+            if key in {"update_preview", "market_update"}:
+                status = self._fusion_update_task_status(key, data)
+                summary = self._fusion_update_task_summary(key, data)
+            else:
+                status = "成功" if data.get("success") is True else ("失败" if data.get("success") is False else "待确认")
+                summary = self._fusion_task_result_summary(label, data)
+            rows.append(f"⦁ {label}：{status}" + (f"｜{summary}" if summary else ""))
+        return rows
+
+    @classmethod
+    def _fusion_update_task_status(cls, key: str, data: Dict[str, Any]) -> str:
+        raw = cls._fusion_task_raw_text(data)
+        raw_lower = raw.lower()
+        if data.get("success") is False or data.get("error"):
+            return "检查失败"
+        if any(word in raw for word in ("失败", "异常", "错误")) or any(word in raw_lower for word in ("error", "timeout", "failed")):
+            return "检查失败"
+        if key == "update_preview":
+            if data.get("upgrade_dispatched") or any(word in raw for word in ("已触发 MoviePilot 升级", "已触发 MoviePilot 重启", "更新执行：已触发")):
+                return "已触发更新"
+            if re.search(r"有更新|has_update['\"]?\s*[:=]\s*True", raw, re.I):
+                return "有更新"
+            if any(word in raw for word in ("无更新", "已是最新")):
+                return "已是最新"
+            return "检查完成" if data.get("success") is True else "待确认"
+        if key == "market_update":
+            plugin_update = data.get("plugin_update") if isinstance(data.get("plugin_update"), dict) else {}
+            if plugin_update.get("updated"):
+                return "已更新"
+            if plugin_update.get("failed"):
+                return "部分失败"
+            if plugin_update.get("updatable") or data.get("has_update") or data.get("new_markets"):
+                return "有更新"
+            if re.search(r"(?:新发现|发现可更新插件)\s*[：:]\s*[1-9]\d*", raw) or "发现可更新插件" in raw:
+                return "有更新"
+            if any(word in raw for word in ("无更新", "未发现", "新发现：0", "新发现:0", "新发现： 0")):
+                return "无更新"
+            return "检查完成" if data.get("success") is True else "待确认"
+        return "成功" if data.get("success") is True else ("失败" if data.get("success") is False else "待确认")
+
+    @classmethod
+    def _fusion_update_task_summary(cls, key: str, data: Dict[str, Any]) -> str:
+        raw = cls._fusion_sanitize_update_task_text(cls._fusion_task_raw_text(data))
+        if not raw:
+            return ""
+        if key == "update_preview":
+            versions = re.findall(r"(?:本地|当前|最新)\s*[：:]\s*(v?\d+(?:\.\d+){1,4})", raw, re.I)
+            if versions:
+                return f"版本 {versions[-1]}"
+            match = re.search(r"(?:后端|前端|backend|frontend)[^；。\n]*(?:无更新|已是最新|有更新)[^；。\n]*", raw, re.I)
+            if match:
+                return match.group(0).strip(" ⦁-")
+        if key == "market_update":
+            plugin_update = data.get("plugin_update") if isinstance(data.get("plugin_update"), dict) else {}
+            if plugin_update.get("updated") is not None:
+                return f"已更新 {len(plugin_update.get('updated') or [])} 个，失败 {len(plugin_update.get('failed') or [])} 个"
+            match = re.search(r"新发现\s*[：:]\s*\d+\s*个", raw)
+            if match:
+                return match.group(0)
+        return cls._summarize_fusion_task_text("", raw)
+
+    @staticmethod
+    def _fusion_task_raw_text(data: Dict[str, Any]) -> str:
+        return str(data.get("error") or data.get("message") or data.get("output") or "").strip()
+
+    @staticmethod
+    def _fusion_sanitize_update_task_text(text: str) -> str:
+        lines = []
+        for raw in str(text or "").splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            if "MP运维助手直接接替" in line or "MP 運維助手直接接替" in line:
+                continue
+            line = re.sub(r"^[🔄🧩]\s*", "", line).strip()
+            lines.append(line)
+        clean = "\n".join(lines)
+        clean = clean.replace("MP运维助手直接接替", "").replace("（MP运维助手直接接替）", "")
+        return clean.strip()
+
+    @classmethod
+    def _fusion_task_result_summary(cls, label: str, data: Dict[str, Any]) -> str:
+        raw = cls._fusion_task_raw_text(data)
+        if not raw:
+            return ""
+        return cls._summarize_fusion_task_text(label, raw)
+
+    @classmethod
+    def _summarize_fusion_task_text(cls, label: str, text: str) -> str:
+        clean = re.sub(r"\s+", " ", str(text or "").replace("\n", "；")).strip(" ；。")
+        clean = re.sub(r"^(?:成功|失败|OK|ERROR|Error|error)\s*[：:；。\-\s]*", "", clean).strip(" ；。")
+        if not clean:
+            return ""
+        match = re.search(r"扫描文件\s*[：:]?\s*(\d+)\s*个.*?候选文件\s*[：:]?\s*(\d+)\s*个", clean)
+        if match:
+            return f"扫描 {match.group(1)} 个，候选 {match.group(2)} 个"
+        match = re.search(r"已为\s*(\d+)\s*个种子.*?标签", clean)
+        if match:
+            return f"已为 {match.group(1)} 个种子按站点打标签"
+        match = re.search(r"(?:处理|命中|暂停|删除)\s*(\d+)\s*个(?:种子|任务|项目)?", clean)
+        if match:
+            return f"处理 {match.group(1)} 个项目"
+        match = re.search(r"模式\s*[：:]\s*([^；。|｜]+)", clean)
+        if match:
+            return f"模式：{match.group(1).strip()}"
+        if any(key in clean for key in ("暂无记录", "无记录", "暂无可", "没有符合条件", "未发现")):
+            return clean.split("；", 1)[0].strip()
+        first = re.split(r"[；。]", clean, maxsplit=1)[0].strip()
+        if first and len(first) <= 72:
+            return first
+        return "结果较长，详情请看任务记录"
+
+    @staticmethod
+    def _fusion_report_key(column_key: str) -> str:
+        return {
+            "site_stats": "site_stat",
+            "download_transfer": "today_transfer",
+            "subscribe": "subscribe_reminder",
+            "storage": "storage",
+            "media": "media_stat",
+            "health": "health_check",
+            "maintenance": "maintenance",
+            "updates": "updates",
+        }.get(column_key, column_key)
+
+    def _tg_console_set_report_section(self, state: Dict[str, Any], section_key: str, title: str, text: str = "", level: str = "info") -> None:
+        key = str(section_key or "").strip() or "general"
+        reports = state.setdefault("reports", {})
+        reports[key] = {
+            "title": str(title or key).strip()[:120],
+            "text": str(text or "").strip()[:20000],
+            "level": str(level or "info"),
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "time": datetime.now().strftime("%H:%M:%S"),
+        }
+        if key == "daily_report":
+            return
+        column_key = self._normalize_fusion_column(key)
+        columns = state.setdefault("columns", {})
+        columns[column_key] = {
+            "items": [{
+                "title": str(title or key).strip()[:120],
+                "text": str(text or "").strip()[:20000],
+                "level": str(level or "info"),
+                "time": datetime.now().strftime("%H:%M:%S"),
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }],
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+    def _tg_console_record_notice_section(self, state: Dict[str, Any], notice: Dict[str, Any]) -> None:
+        title = str((notice or {}).get("title") or "")
+        if title.startswith("TG 远控") or title.startswith("TG 指令"):
+            return
+        section_map = [
+            ("订阅追新", "subscribe_reminder", "订阅追新"),
+            ("站点统计", "site_stat", "站点统计"),
+            ("健康巡查", "health_check", "健康巡查"),
+        ]
+        for needle, key, label in section_map:
+            if needle in title:
+                self._tg_console_set_report_section(state, key, label, str((notice or {}).get("text") or ""), level=str((notice or {}).get("level") or "info"))
+                return
+
+    def poll_tg_console_updates(self) -> bool:
+        if not (self._tg_console_enabled and self._tg_console_poll_enabled):
+            return False
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        if not token or not chat_id:
+            self._tg_console_last_error = "Telegram 融合汇报卡轮询缺少 Bot Token/Chat ID"
+            return False
+        state = self._tg_console_state(chat_id=chat_id)
+        base_url = f"https://api.telegram.org/bot{token}"
+        payload: Dict[str, Any] = {"timeout": 0, "allowed_updates": ["callback_query", "message"]}
+        last_update_id = self._safe_int(state.get("last_update_id"), 0, 0)
+        if last_update_id:
+            payload["offset"] = last_update_id + 1
+        res = self._telegram_http_post_json(f"{base_url}/getUpdates", payload, timeout=max(5, self._tg_console_poll_interval))
+        ok, data = self._telegram_response_data(res, "getUpdates")
+        if not ok:
+            state["last_error"] = self._tg_console_last_error
+            self._save_tg_console_state(state)
+            return False
+        seen: set = set()
+        for update in data.get("result") or []:
+            if not isinstance(update, dict):
+                continue
+            update_id = self._safe_int(update.get("update_id"), 0, 0)
+            callback = update.get("callback_query") or {}
+            if update_id in seen:
+                if callback.get("id"):
+                    self._tg_console_answer_callback(callback.get("id"), "重复回调已忽略")
+                continue
+            seen.add(update_id)
+            if update_id and update_id <= last_update_id:
+                if callback.get("id"):
+                    self._tg_console_answer_callback(callback.get("id"), "重复回调已忽略")
+                continue
+            if callback:
+                self._handle_tg_console_callback(callback, update_id=update_id)
+            message = update.get("message") or {}
+            if message:
+                self._handle_tg_console_message(message, update_id=update_id)
+            if update_id:
+                last_update_id = max(last_update_id, update_id)
+        state = self._tg_console_state(chat_id=chat_id)
+        state["last_update_id"] = last_update_id
+        self._save_tg_console_state(state)
+        return True
+
+    def _handle_tg_console_message(self, message: Dict[str, Any], update_id: int = 0) -> bool:
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        state = self._tg_console_state(chat_id=chat_id)
+        if update_id:
+            state["last_update_id"] = max(self._safe_int(state.get("last_update_id"), 0, 0), int(update_id))
+        msg_chat = ((message or {}).get("chat") or {}).get("id")
+        user_id = str(((message or {}).get("from") or {}).get("id") or "")
+        text = str((message or {}).get("text") or "").strip()
+        if not self._tg_console_same_chat(msg_chat, chat_id):
+            self._save_tg_console_state(state)
+            return False
+        if self._tg_console_allowed_user_ids and user_id not in self._tg_console_allowed_user_ids:
+            self._save_tg_console_state(state)
+            return False
+        command = text.split()[0].split("@", 1)[0].lower() if text else ""
+        command_map = {
+            "/aoa_create": "create_tg_console_card",
+            "/aoa_daily": "run_daily_report",
+            "/aoa_report": "run_daily_report",
+            "/aoa_subscribe": "run_subscribe_reminder",
+            "/aoa_site": "run_site_stat",
+            "/aoa_transfer": "run_today_transfer",
+            "/aoa_health": "run_health_check",
+        }
+        action_key = command_map.get(command)
+        if not action_key:
+            self._save_tg_console_state(state)
+            return False
+        ok, result = self._tg_console_execute_action(action_key, user_id=user_id)
+        self._save_tg_console_state(self._tg_console_state(chat_id=chat_id))
+        self._emit_console_notice(f"TG 指令 - {self._tg_console_action_registry().get(action_key, {}).get('label') or action_key}", result, "success" if ok else "error")
+        return ok
+
+    def _handle_tg_console_callback(self, callback: Dict[str, Any], update_id: int = 0) -> bool:
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        state = self._tg_console_state(chat_id=chat_id)
+        callback_id = str((callback or {}).get("id") or "")
+        user_id = str(((callback or {}).get("from") or {}).get("id") or "")
+        cb_chat = ((((callback or {}).get("message") or {}).get("chat") or {}).get("id"))
+        data = str((callback or {}).get("data") or "")
+        if update_id:
+            state["last_update_id"] = max(self._safe_int(state.get("last_update_id"), 0, 0), int(update_id))
+        processed = [str(x) for x in list(state.get("processed_callbacks") or []) if str(x)]
+        if callback_id and callback_id in set(processed):
+            self._save_tg_console_state(state)
+            self._tg_console_answer_callback(callback_id, "重复回调已忽略")
+            return True
+        if callback_id:
+            processed.append(callback_id)
+            state["processed_callbacks"] = processed[-100:]
+        tab_key = self._tg_console_callback_tab_key(data)
+        if tab_key is not None:
+            enabled_columns = set(self._fusion_notify_columns or [x["key"] for x in self._fusion_column_registry()])
+            category_keys = {x["key"] for x in self._fusion_category_registry()}
+            column_keys = {x["key"] for x in self._fusion_column_registry()}
+            if tab_key not in category_keys and tab_key not in column_keys:
+                self._save_tg_console_state(state)
+                self._tg_console_answer_callback(callback_id, "未知栏目")
+                return False
+            active_tab = self._normalize_fusion_tab(tab_key)
+            if not self._tg_console_same_chat(cb_chat, chat_id):
+                self._save_tg_console_state(state)
+                self._tg_console_answer_callback(callback_id, "会话不匹配")
+                return False
+            if self._tg_console_allowed_user_ids and user_id not in self._tg_console_allowed_user_ids:
+                self._save_tg_console_state(state)
+                self._tg_console_answer_callback(callback_id, "未授权的 Telegram 用户")
+                return False
+            if not any(child in enabled_columns for child in self._fusion_category_children(active_tab)):
+                self._save_tg_console_state(state)
+                self._tg_console_answer_callback(callback_id, "栏目未启用")
+                return False
+            state["active_tab"] = active_tab
+            state["tab_touched"] = True
+            try:
+                refreshed = self._refresh_fusion_category(active_tab, state)
+                ok = bool(refreshed) and self._tg_console_upsert_card(token, chat_id, state)
+            except Exception as err:
+                ok = False
+                state["last_error"] = f"Telegram 融合通知栏目切换异常：{self._telegram_safe_error(err, limit=500)}"
+            self._save_tg_console_state(state)
+            self._tg_console_answer_callback(callback_id, "已刷新" if ok else "刷新失败")
+            return bool(ok)
+        nonce = self._tg_console_callback_action_nonce(data)
+        if nonce is None:
+            self._save_tg_console_state(state)
+            self._tg_console_answer_callback(callback_id, "未知操作")
+            return False
+        if not self._tg_console_same_chat(cb_chat, chat_id):
+            self._save_tg_console_state(state)
+            self._tg_console_answer_callback(callback_id, "会话不匹配")
+            return False
+        if self._tg_console_allowed_user_ids and user_id not in self._tg_console_allowed_user_ids:
+            self._save_tg_console_state(state)
+            self._tg_console_answer_callback(callback_id, "未授权的 Telegram 用户")
+            return False
+        actions = state.setdefault("pending_actions", {})
+        action = actions.get(nonce) or {}
+        if not action or action.get("done"):
+            self._save_tg_console_state(state)
+            self._tg_console_answer_callback(callback_id, "操作已过期")
+            return False
+        now = datetime.now().timestamp()
+        if action.get("expires_at") and float(action.get("expires_at") or 0) < now:
+            action["done"] = True
+            self._save_tg_console_state(state)
+            self._tg_console_answer_callback(callback_id, "确认已过期")
+            return False
+        registry = self._tg_console_action_registry()
+        if action.get("confirm_for"):
+            original = actions.get(action.get("confirm_for")) or {}
+            original_key = str(original.get("action") or "")
+            if original_key not in registry:
+                action["done"] = True
+                original["done"] = True
+                self._save_tg_console_state(state)
+                self._tg_console_answer_callback(callback_id, "未知操作")
+                return False
+            if str(original.get("user_id") or "") != user_id:
+                self._save_tg_console_state(state)
+                self._tg_console_answer_callback(callback_id, "只能由发起人确认")
+                return False
+            ok, message = self._tg_console_execute_action(str(original.get("action") or ""), user_id=user_id)
+            action["done"] = True
+            original["done"] = True
+            self._save_tg_console_state(state)
+            self._emit_console_notice(f"TG 远控 - {original.get('label') or original.get('action')}", message, "success" if ok else "error")
+            self._tg_console_answer_callback(callback_id, "已执行" if ok else "执行失败")
+            return ok
+        action_key = str(action.get("action") or "")
+        if action_key not in registry:
+            action["done"] = True
+            self._save_tg_console_state(state)
+            self._tg_console_answer_callback(callback_id, "未知操作")
+            return False
+        if action.get("destructive"):
+            confirm_nonce = self._tg_console_new_nonce(actions)
+            actions[confirm_nonce] = {
+                "action": action.get("action"),
+                "label": f"确认 {action.get('label') or action.get('action')}",
+                "user_id": user_id,
+                "confirm_for": nonce,
+                "expires_at": now + 60,
+                "destructive": False,
+                "created_at": now,
+            }
+            action["user_id"] = user_id
+            self._save_tg_console_state(state)
+            self._emit_console_notice("TG 远控等待确认", f"{action.get('label')} 需要 60 秒内二次确认", "warning")
+            self._tg_console_answer_callback(callback_id, "请在 60 秒内再次确认")
+            return True
+        ok, message = self._tg_console_execute_action(action_key, user_id=user_id)
+        action["done"] = True
+        self._save_tg_console_state(state)
+        self._emit_console_notice(f"TG 远控 - {action.get('label') or action.get('action')}", message, "success" if ok else "error")
+        self._tg_console_answer_callback(callback_id, "已执行" if ok else "执行失败")
+        return ok
+
+    def _tg_console_execute_action(self, action_key: str, user_id: Optional[str] = None) -> Tuple[bool, str]:
+        registry = self._tg_console_action_registry()
+        action = registry.get(action_key)
+        if not action:
+            return False, "未知操作"
+        if not self._enabled:
+            return False, "插件未启用"
+        component = action.get("component")
+        if component and not self._component_enabled(component):
+            return False, f"{action.get('label')} 未启用"
+        try:
+            result = action["runner"]()
+            if isinstance(result, dict):
+                ok = result.get("code") == 0
+                return ok, str(result.get("msg") or ("执行成功" if ok else "执行失败"))
+            ok = bool(result)
+            return ok, f"{action.get('label')}执行{'成功' if ok else '失败'}"
+        except Exception as err:
+            logger.error(f"AgentOpsAssistant TG 远控 {action_key} 执行失败：{err}")
+            return False, str(err)
+
+    def _tg_console_action_registry(self) -> Dict[str, Dict[str, Any]]:
+        return {
+            "create_tg_console_card": {"label": "立即建卡", "runner": self.api_create_tg_console_card, "component": "", "destructive": False},
+            "run_daily_report": {"label": "立即刷新", "runner": self.api_run_daily_report, "component": "", "destructive": False},
+            "run_subscribe_reminder": {"label": "订阅追新", "runner": self.api_run_subscribe_reminder, "component": "subscribe_reminder", "destructive": False},
+            "run_site_stat": {"label": "站点统计", "runner": self.api_run_site_stat, "component": "site_stat", "destructive": False},
+            "run_today_transfer": {"label": "今日入库", "runner": self.api_run_today_transfer, "component": "", "destructive": False},
+            "run_health_check": {"label": "健康巡查", "runner": self.api_run_health_check, "component": "health_check", "destructive": False},
+            "run_mp_update_apply": {"label": "立即更新", "runner": self.api_run_mp_update_apply, "component": "mp_update", "destructive": True},
+        }
+
+    def _tg_console_action_groups(self) -> List[List[str]]:
+        return [
+            ["create_tg_console_card", "run_daily_report"],
+            ["run_site_stat", "run_today_transfer"],
+        ]
+
+    @classmethod
+    def _tg_console_callback_tab_key(cls, data: str) -> Optional[str]:
+        raw = cls._tg_console_unwrap_plugin_callback(data)
+        if raw.startswith("aoatab:"):
+            key = raw.split(":", 1)[1].split("?", 1)[0].strip()
+            return "system_health" if key == "health" else key
+        if raw.startswith("aoa:tab:"):
+            key = raw.split(":", 2)[-1].split("?", 1)[0].strip()
+            return "system_health" if key == "health" else key
+        return None
+
+    @classmethod
+    def _tg_console_callback_action_nonce(cls, data: str) -> Optional[str]:
+        raw = cls._tg_console_unwrap_plugin_callback(data)
+        if raw.startswith("aoav1:"):
+            return raw.split(":", 1)[1].split("?", 1)[0].strip()
+        if raw.startswith("aoa:v1:"):
+            return raw.split(":", 2)[-1].split("?", 1)[0].strip()
+        return None
+
+    @classmethod
+    def _tg_console_plugin_callback_data(cls, payload: str) -> str:
+        return f"[PLUGIN]{cls.__name__}|{str(payload or '').strip()}"
+
+    @classmethod
+    def _tg_console_unwrap_plugin_callback(cls, data: str) -> str:
+        raw = str(data or "").strip()
+        if raw.startswith("[PLUGIN]"):
+            try:
+                plugin_id, payload = raw.split("|", 1)
+            except ValueError:
+                return raw
+            plugin_name = plugin_id.replace("[PLUGIN]", "").strip()
+            if plugin_name.lower() in {cls.__name__.lower(), "agentopsassistant"}:
+                return payload.strip()
+        return raw
+
+    @staticmethod
+    def _fusion_column_registry() -> List[Dict[str, str]]:
+        return [
+            {"key": "site_stats", "label": "站点统计", "icon": "📊", "component": "站点数据统计"},
+            {"key": "download_transfer", "label": "下载入库", "icon": "📥", "component": "下载器管理"},
+            {"key": "subscribe", "label": "订阅追新", "icon": "📺", "component": "订阅管理"},
+            {"key": "storage", "label": "存储空间", "icon": "💾", "component": "健康巡查"},
+            {"key": "media", "label": "媒体动态", "icon": "🎬", "component": "媒体通知"},
+            {"key": "health", "label": "健康巡查", "icon": "🩺", "component": "健康巡查"},
+            {"key": "maintenance", "label": "维护任务", "icon": "🧰", "component": "系统维护"},
+            {"key": "updates", "label": "更新检查", "icon": "🆙", "component": "更新检查"},
+        ]
+
+    @staticmethod
+    def _fusion_category_registry() -> List[Dict[str, Any]]:
+        return [
+            {"key": "subscribe_site", "label": "订阅与站点", "icon": "📊", "children": ["site_stats", "subscribe"]},
+            {"key": "download_media", "label": "下载与媒体", "icon": "📥", "children": ["download_transfer", "media"]},
+            {"key": "system_health", "label": "健康巡查", "icon": "🩺", "children": ["health"]},
+            {"key": "system_maintenance", "label": "系统维护", "icon": "🧰", "children": ["storage", "maintenance", "updates"]},
+        ]
+
+    @classmethod
+    def _fusion_category_for_column(cls, key: str) -> Optional[str]:
+        column_key = cls._normalize_fusion_column(key)
+        for category in cls._fusion_category_registry():
+            if column_key in list(category.get("children") or []):
+                return str(category.get("key") or "")
+        return None
+
+    @classmethod
+    def _normalize_fusion_tab(cls, key: str) -> str:
+        raw = str(key or "").strip()
+        category_keys = {x["key"] for x in cls._fusion_category_registry()}
+        if raw in category_keys:
+            return raw
+        return cls._fusion_category_for_column(raw) or "subscribe_site"
+
+    @classmethod
+    def _fusion_category_children(cls, key: str) -> List[str]:
+        category_key = cls._normalize_fusion_tab(key)
+        category = next((x for x in cls._fusion_category_registry() if x["key"] == category_key), None)
+        return [str(x) for x in ((category or {}).get("children") or []) if str(x)]
+
+    @classmethod
+    def _fusion_enabled_categories(cls, enabled_columns: set) -> List[Dict[str, Any]]:
+        enabled = set(enabled_columns or [])
+        return [
+            category for category in cls._fusion_category_registry()
+            if any(child in enabled for child in (category.get("children") or []))
+        ]
+
+    @classmethod
+    def _normalize_fusion_column(cls, key: str) -> str:
+        aliases = {
+            "daily_report": "site_stats",
+            "site_stat": "site_stats",
+            "today_transfer": "download_transfer",
+            "run_today_transfer": "download_transfer",
+            "subscribe_reminder": "subscribe",
+            "subfill": "subscribe",
+            "media_activity": "media",
+            "media_stat": "media",
+            "health_check": "health",
+            "mp_update": "updates",
+            "market_update": "updates",
+            "update_preview": "updates",
+            "backup": "maintenance",
+            "log_clean": "maintenance",
+            "plugin_uninstall": "maintenance",
+            "seed_clean": "maintenance",
+            "downloader_tag": "maintenance",
+        }
+        raw = str(key or "").strip()
+        known = {x["key"] for x in cls._fusion_column_registry()}
+        return raw if raw in known else aliases.get(raw, "maintenance")
+
+    @classmethod
+    def _fusion_column_for_title(cls, title: str) -> str:
+        text = str(title or "")
+        checks = [
+            ("站点", "site_stats"),
+            ("今日入库", "download_transfer"),
+            ("入库", "download_transfer"),
+            ("下载", "download_transfer"),
+            ("订阅", "subscribe"),
+            ("存储", "storage"),
+            ("媒体", "media"),
+            ("播放", "media"),
+            ("健康巡查", "health"),
+            ("更新", "updates"),
+            ("备份", "maintenance"),
+            ("日志", "maintenance"),
+            ("插件卸载", "maintenance"),
+            ("自动删种", "maintenance"),
+            ("种子打标签", "maintenance"),
+        ]
+        for needle, key in checks:
+            if needle in text:
+                return key
+        return "maintenance"
+
+    def _tg_console_upsert_card(self, token: str, chat_id: str, state: Dict[str, Any]) -> bool:
+        base_url = f"https://api.telegram.org/bot{token}"
+        rich_message = {"html": self._build_tg_console_html(state), "skip_entity_detection": True}
+        reply_markup = self._build_tg_console_reply_markup(state)
+        if state.get("message_id"):
+            payload = {"chat_id": chat_id, "message_id": state.get("message_id"), "rich_message": rich_message, "reply_markup": reply_markup}
+            res = self._telegram_http_post_json(f"{base_url}/editMessageText", payload, timeout=15)
+            ok, _ = self._telegram_response_data(res, "editMessageText")
+            if ok:
+                state["last_error"] = ""
+                return True
+            state["message_id"] = 0
+        payload = {"chat_id": chat_id, "rich_message": rich_message, "reply_markup": reply_markup}
+        res = self._telegram_http_post_json(f"{base_url}/sendRichMessage", payload, timeout=15)
+        ok, data = self._telegram_response_data(res, "sendRichMessage")
+        if ok:
+            result = data.get("result") or {}
+            if isinstance(result, dict):
+                state["message_id"] = self._safe_int(result.get("message_id"), 0, 0)
+            state["last_error"] = ""
+            return True
+        state["last_error"] = self._tg_console_last_error
+        return False
+
+    def _build_tg_console_reply_markup(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        keyboard = []
+        enabled = set(self._fusion_notify_columns or [x["key"] for x in self._fusion_column_registry()])
+        tabs = self._fusion_enabled_categories(enabled)
+        for i in range(0, len(tabs), 2):
+            row = []
+            for item in tabs[i:i + 2]:
+                row.append({"text": f"{item['icon']} {item['label']}"[:20], "callback_data": self._tg_console_plugin_callback_data(f"aoatab:{item['key']}")})
+            if row:
+                keyboard.append(row)
+        if self._fusion_has_pending_moviepilot_update(state):
+            nonce = self._tg_console_ensure_action(state, "run_mp_update_apply", "🆙 立即更新", destructive=True)
+            keyboard.append([{"text": "🆙 立即更新", "callback_data": self._tg_console_plugin_callback_data(f"aoav1:{nonce}")}])
+        confirm_row = []
+        for nonce, action in (state.get("pending_actions") or {}).items():
+            if action.get("confirm_for") and not action.get("done"):
+                confirm_row.append({"text": str(action.get("label") or "确认")[:20], "callback_data": self._tg_console_plugin_callback_data(f"aoav1:{nonce}")})
+        if confirm_row:
+            keyboard.append(confirm_row[:3])
+        return {"inline_keyboard": keyboard}
+
+    def _build_tg_console_html(self, state: Dict[str, Any]) -> str:
+        self._sanitize_fusion_media_activity_state(state)
+        now_label = datetime.now().strftime("%H:%M:%S")
+        reports = state.get("reports") or {}
+        daily_report = reports.get("daily_report") or {}
+        daily_text = str(daily_report.get("text") or "")
+        chunks = self._build_fusion_console_chunks(state, daily_text, now_label)
+
+        running = state.get("running_actions") or {}
+        if running:
+            chunks.append(self._telegram_quote_html("运行中", [f"{v.get('label') or k}：{v.get('time') or ''}" for k, v in running.items()], max_items=5))
+        pending = [
+            f"{v.get('label') or v.get('action')}（60 秒内确认）"
+            for v in (state.get("pending_actions") or {}).values()
+            if v.get("confirm_for") and not v.get("done")
+        ]
+        if pending:
+            chunks.append(self._telegram_details_html("待确认动作", self._telegram_list_html(pending)))
+        if state.get("last_error"):
+            chunks.append(self._telegram_quote_html("最近错误", [str(state.get("last_error"))], max_items=1))
+        return self._clip_telegram_html("\n".join(chunks))
+
+    def _build_fusion_console_chunks(self, state: Dict[str, Any], daily_text: str, now_label: str) -> List[str]:
+        stamp = datetime.now().strftime("%Y-%m-%d") + f" {now_label}"
+        greeting = self._daily_greeting_locked()
+        chunks = [
+            f"<h2>📮 MP 运维日报｜🕒 {self._html_escape(stamp)}</h2>",
+            f"<p>{self._html_escape(greeting)}</p>",
+            self._build_fusion_system_line(daily_text, state),
+        ]
+        media_html = self._build_fusion_media_headline(state)
+        if media_html:
+            chunks.append(media_html)
+        update_html = self._build_fusion_update_headline(state)
+        if update_html:
+            chunks.append(update_html)
+        chunks.append("<p>───────────────────<br><i>💡 请点击下方的横向分类按钮，查阅今日具体运行指标。</i></p>")
+        has_stream_data = bool((state.get("reports") or {}) or (state.get("columns") or {}) or daily_text.strip() or state.get("tab_touched"))
+        if has_stream_data:
+            active_tab = self._normalize_fusion_tab(str(state.get("active_tab") or "subscribe_site"))
+            chunks.append(self._build_fusion_tab_html(active_tab, state, daily_text))
+        return [x for x in chunks if x]
+
+    @staticmethod
+    def _daypart_label() -> str:
+        hour = datetime.now().hour
+        if hour < 6:
+            return "凌晨"
+        if hour < 12:
+            return "早上"
+        if hour < 14:
+            return "中午"
+        if hour < 18:
+            return "下午"
+        return "晚上"
+
+    def _build_fusion_system_line(self, daily_text: str, state: Optional[Dict[str, Any]] = None) -> str:
+        if not str(daily_text or "").strip() and state:
+            daily_text = str(((state.get("reports") or {}).get("daily_report") or {}).get("text") or "")
+        version = self._fusion_version_label(daily_text)
+        normal, stale, failed, total = self._fusion_site_counts(daily_text)
+        if (not total or (total and normal == 0 and failed == 0 and stale == 0)) and state:
+            normal, stale, failed, total = self._fusion_site_counts_from_state(state)
+        pending_version = self._fusion_pending_update_label(state, daily_text) if state else ""
+        parts = [f"🟢 正常 ({normal}/{total})"]
+        if stale:
+            parts.append(f"🟡 过期 ({stale}/{total})")
+        parts.append(f"🔴 失败 ({failed}/{total})")
+        system_tail = f" ｜ <b>待更新：</b> <code>{self._telegram_text_html(pending_version)}</code>" if pending_version else ""
+        return (
+            "<p>"
+            f"<b>🤖 系统：</b> <code>{self._telegram_text_html(version)}</code>{system_tail}<br>"
+            f"<b>🩺 站点：</b> {' ｜ '.join(self._html_escape(x) for x in parts)}"
+            "</p>"
+        )
+
+    def _fusion_version_label(self, daily_text: str) -> str:
+        line = self._match_text(r"当前版本[:：]\s*([^\n]+)", daily_text)
+        if line:
+            backend = self._match_text(r"后端\s*([vV]?\d+(?:\.\d+){1,3}(?:[-\w.]*)?)", line)
+            frontend = self._match_text(r"前端\s*([vV]?\d+(?:\.\d+){1,3}(?:[-\w.]*)?)", line)
+            return backend or frontend or line
+        local = self._get_local_versions()
+        return str(local.get("backend_version") or local.get("frontend_version") or "MoviePilot")
+
+    def _fusion_site_counts(self, daily_text: str) -> Tuple[int, int, int, int]:
+        items = self._extract_report_section_items(daily_text, ("站点状态",))
+        if not items:
+            text = str(daily_text or "")
+            match = re.search(r"全部\s*(\d+)\s*个站点正常", text)
+            if match:
+                total = int(match.group(1))
+                return total, 0, 0, total
+            match = re.search(r"站点[:：]\s*(?:共\s*)?(\d+)\s*个(?:[，,｜|]\s*启用\s*(\d+)\s*个)?", text)
+            if match:
+                total = int(match.group(2) or match.group(1))
+                return total, 0, 0, total
+            return 0, 0, 0, 0
+        normal = stale = failed = 0
+        for item in items:
+            text = str(item or "")
+            all_normal = re.search(r"全部\s*(\d+)\s*个站点正常", text)
+            if all_normal:
+                normal += int(all_normal.group(1))
+            elif match := re.search(r"正常\s*(\d+)\s*个站点", text):
+                normal += int(match.group(1))
+            elif "异常" in text or "失败" in text or "Cookie" in text or "失联" in text:
+                failed += 1
+            elif "过期" in text:
+                stale += 1
+            else:
+                normal += 1
+        total = normal + stale + failed
+        return normal, stale, failed, total
+
+    def _fusion_site_counts_from_state(self, state: Dict[str, Any]) -> Tuple[int, int, int, int]:
+        candidates: List[str] = []
+        reports = (state or {}).get("reports") or {}
+        report_site = reports.get("site_status") or reports.get("daily_report") or {}
+        if isinstance(report_site, dict):
+            candidates.append(str(report_site.get("text") or ""))
+        for key in ("health_check", "health"):
+            report = reports.get(key) or {}
+            if isinstance(report, dict):
+                candidates.append(str(report.get("text") or ""))
+        for key in ("health", "health_check"):
+            items = (((state or {}).get("columns") or {}).get(key) or {}).get("items") or []
+            for item in items:
+                if isinstance(item, dict):
+                    candidates.append(str(item.get("text") or item.get("title") or ""))
+        try:
+            health_state = self.get_data("last_health_check") or {}
+        except Exception:
+            health_state = {}
+        if isinstance(health_state, dict):
+            candidates.append(str(health_state.get("output") or ""))
+            candidates.append(str(health_state.get("text") or ""))
+            for check in health_state.get("checks") or []:
+                if not isinstance(check, dict):
+                    continue
+                name = str(check.get("name") or check.get("title") or "")
+                detail = str(check.get("detail") or check.get("text") or "")
+                if name == "sites" or "站点" in name:
+                    candidates.append(f"站点：{detail}")
+        try:
+            last_report = self.get_data("last_daily_report") or {}
+        except Exception:
+            last_report = {}
+        if isinstance(last_report, dict):
+            candidates.append(str(last_report.get("preview") or last_report.get("text") or ""))
+        for text in candidates:
+            parsed = self._fusion_site_counts(text)
+            if parsed[3]:
+                return parsed
+        return 0, 0, 0, 0
+
+    def _fusion_has_pending_moviepilot_update(self, state: Optional[Dict[str, Any]]) -> bool:
+        return bool(self._fusion_pending_update_label(state, ""))
+
+    def _fusion_pending_update_label(self, state: Optional[Dict[str, Any]], daily_text: str = "") -> str:
+        if not isinstance(state, dict):
+            return ""
+        candidates: List[Any] = []
+        reports = state.get("reports") or {}
+        columns = state.get("columns") or {}
+        for container in (reports, columns):
+            if not isinstance(container, dict):
+                continue
+            update = container.get("updates") or container.get("update_preview") or {}
+            if isinstance(update, dict):
+                candidates.append(update)
+                for item in update.get("items") or []:
+                    candidates.append(item)
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            data = candidate.get("data") if isinstance(candidate.get("data"), dict) else candidate
+            mp = data.get("moviepilot") if isinstance(data, dict) else {}
+            if isinstance(mp, dict) and mp.get("has_update"):
+                checks = mp.get("checks") or []
+                versions = [str(x.get("latest_version") or "").strip() for x in checks if isinstance(x, dict) and x.get("has_update") and x.get("latest_version")]
+                return " / ".join(self._unique_keep_order(versions)) or "有新版"
+            text = "\n".join(str(candidate.get(k) or "") for k in ("title", "text", "msg", "message"))
+            if any(key in text for key in ("有更新", "新版", "可更新")):
+                versions = re.findall(r"v\d+(?:\.\d+){1,3}(?:[-\w.]*)?", text, re.I)
+                return versions[-1] if versions else "有新版"
+        text = str(daily_text or "")
+        if any(key in text for key in ("有更新", "新版", "可更新")):
+            versions = re.findall(r"v\d+(?:\.\d+){1,3}(?:[-\w.]*)?", text, re.I)
+            return versions[-1] if versions else "有新版"
+        return ""
+
+    def _build_fusion_media_headline(self, state: Dict[str, Any]) -> str:
+        self._prune_fusion_media_activity_state(state)
+        media = self._fusion_media_activity_report(state)
+        text = str((media or {}).get("text") or "")
+        if not text:
+            return ""
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if not lines:
+            return ""
+        headline = lines[0]
+        detail = lines[1:4]
+        body = f"<b>🎬 {self._html_escape(headline)}</b>"
+        if detail:
+            body += "<br>" + "<br>".join(f"  {self._html_escape(x)}" for x in detail)
+        return f"<blockquote>{body}</blockquote>"
+
+    def prune_fusion_media_activity(self) -> bool:
+        if not self._tg_console_enabled:
+            return False
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        state = self._tg_console_state(chat_id=chat_id)
+        if not self._prune_fusion_media_activity_state(state):
+            return False
+        self._save_tg_console_state(state)
+        if not token or not chat_id or not state.get("message_id"):
+            return True
+        try:
+            return bool(self._tg_console_upsert_card(token, chat_id, state))
+        except Exception as err:
+            self._tg_console_last_error = f"Telegram 融合通知媒体动态清理异常：{self._telegram_safe_error(err, limit=500)}"
+            state["last_error"] = self._tg_console_last_error
+            self._save_tg_console_state(state)
+            logger.warning(f"AgentOpsAssistant {self._tg_console_last_error}")
+            return False
+
+    @classmethod
+    def _fusion_media_activity_report(cls, state: Dict[str, Any]) -> Dict[str, Any]:
+        reports = (state or {}).get("reports") or {}
+        media = reports.get("media_activity") or {}
+        if cls._is_fusion_media_activity(media):
+            return media
+        items = (((state or {}).get("columns") or {}).get("media") or {}).get("items") or []
+        for item in items:
+            if cls._is_fusion_media_activity(item):
+                return item
+        return {}
+
+    @classmethod
+    def _sanitize_fusion_media_activity_state(cls, state: Dict[str, Any]) -> bool:
+        if not isinstance(state, dict):
+            return False
+        changed = False
+        reports = state.get("reports") or {}
+        removed_invalid_report = False
+        if isinstance(reports, dict):
+            media = reports.get("media_activity")
+            if media is not None and not cls._is_fusion_media_activity(media):
+                reports.pop("media_activity", None)
+                removed_invalid_report = True
+                changed = True
+        columns = state.get("columns") or {}
+        if isinstance(columns, dict):
+            media_col = columns.get("media") or {}
+            items = media_col.get("items") if isinstance(media_col, dict) else None
+            if removed_invalid_report and items and not any(cls._is_fusion_media_activity(item) for item in items):
+                columns.pop("media", None)
+                changed = True
+        return changed
+
+    @classmethod
+    def _prune_fusion_media_activity_state(cls, state: Dict[str, Any], ttl_seconds: int = 300) -> bool:
+        if not isinstance(state, dict):
+            return False
+        media = cls._fusion_media_activity_report(state)
+        if not media or not cls._fusion_media_activity_expired(media, ttl_seconds=ttl_seconds):
+            return False
+        reports = state.get("reports") or {}
+        if isinstance(reports, dict):
+            reports.pop("media_activity", None)
+        columns = state.get("columns") or {}
+        if isinstance(columns, dict):
+            media_col = columns.get("media") or {}
+            items = media_col.get("items") if isinstance(media_col, dict) else []
+            if isinstance(items, list):
+                media_col["items"] = [item for item in items if not cls._is_fusion_media_activity(item)]
+                if not media_col.get("items"):
+                    columns.pop("media", None)
+            else:
+                columns.pop("media", None)
+        return True
+
+    @classmethod
+    def _fusion_media_activity_expired(cls, media: Dict[str, Any], ttl_seconds: int = 300) -> bool:
+        raw = (media or {}).get("updated_at") or (media or {}).get("created_at")
+        if raw in (None, ""):
+            return False
+        try:
+            if isinstance(raw, (int, float)):
+                updated = datetime.fromtimestamp(float(raw))
+            else:
+                text = str(raw).strip().replace("T", " ").split("+", 1)[0].split(".", 1)[0]
+                updated = datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return False
+        if str((media or {}).get("group") or "") not in {"暂停播放", "停止播放"} and str((media or {}).get("level") or "") != "idle":
+            return False
+        return (datetime.now() - updated).total_seconds() > ttl_seconds
+
+    @staticmethod
+    def _is_fusion_media_activity(media: Any) -> bool:
+        if not isinstance(media, dict):
+            return False
+        text = str(media.get("text") or "").strip()
+        if not text:
+            return False
+        if media.get("group") or media.get("raw_title"):
+            return True
+        first = next((line.strip() for line in text.splitlines() if line.strip()), "")
+        return first.startswith(("开始播放", "正在播放：", "停止播放", "新入库：", "登录成功：", "登录失败：", "媒体事件："))
+
+    def _build_fusion_update_headline(self, state: Dict[str, Any]) -> str:
+        items = ((state.get("columns") or {}).get("updates") or {}).get("items") or []
+        merged = "\n".join(str(x.get("text") or x.get("title") or "") for x in items[:3])
+        if not merged or not any(x in merged for x in ("有更新", "新版", "可更新", "异常")):
+            return ""
+        lines = [x.strip() for x in merged.splitlines() if x.strip()][:4]
+        return self._telegram_quote_html("🆙 更新提醒", lines, max_items=4)
+
+    @classmethod
+    def _fusion_line_icon(cls, column_key: str, line: str = "") -> str:
+        text = str(line or "")
+        if column_key == "health":
+            if any(key in text for key in ("异常", "失败", "错误", "失联", "过期")) and "0 项异常" not in text:
+                return "⚠️"
+            if any(key in text for key in ("全部正常", "正常项", "状态：正常", "状态:正常")):
+                return "✅"
+            if text.startswith(("状态：", "状态:")):
+                return "✅"
+            return "🩺"
+        icons = {
+            "site_stats": "📈",
+            "download_transfer": "📥",
+            "subscribe": "📺",
+            "storage": "💾",
+            "media": "🎬",
+            "maintenance": "🧰",
+            "updates": "🆙",
+        }
+        return icons.get(column_key, "•")
+
+    @classmethod
+    def _fusion_line_body(cls, line: str) -> str:
+        text = re.sub(r"^[\s⦁•·*\-]+", "", str(line or "").strip()).strip()
+        for icon in ("📊", "📈", "📥", "📺", "💾", "🎬", "🩺", "🧰", "🆙", "✅", "⚠️", "⚠", "⏳"):
+            if text.startswith(icon):
+                text = text[len(icon):].strip()
+                text = re.sub(r"^[\s:：|｜\-]+", "", text).strip()
+                break
+        return text or "无"
+
+    def _fusion_line_html(self, column_key: str, line: str, show_chips: bool = True) -> str:
+        if show_chips and column_key == "site_stats":
+            return self._fusion_site_metric_html(line)
+        if show_chips and column_key == "storage":
+            return self._fusion_storage_metric_html(line)
+        if show_chips and column_key in {"health", "maintenance", "updates", "subscribe"}:
+            return self._fusion_compact_metric_html(column_key, line)
+        icon = self._fusion_line_icon(column_key, line)
+        body = self._fusion_line_body(line)
+        title, chips, note = self._fusion_line_layout(body)
+        title_html = self._telegram_text_html(title)
+        head = f"<b>{self._html_escape(icon)} {title_html}</b>"
+        if not show_chips:
+            return head
+        if chips:
+            chip_rows = [self._telegram_text_html(item) for item in chips[:6]]
+            if len(chip_rows) == 1 and not note and len(self._strip_html_tags(chip_rows[0])) <= 28:
+                return f"{head}：{chip_rows[0]}"
+            note_rows = [self._telegram_text_html(note)] if note else []
+            return f"{head}<br>{'<br>'.join(chip_rows + note_rows)}"
+        if note:
+            return f"{head}<br>{self._telegram_text_html(note)}"
+        return head
+
+    def _fusion_site_metric_html(self, line: str) -> str:
+        body = self._fusion_line_body(line)
+        title, detail = self._split_fusion_line_title(body)
+        source = detail or body
+        metrics = [
+            ("⬆️", self._fusion_match_metric(source, r"(?:↑|⬆️?|上传[：:]?)\s*([\d,.]+\s*(?:[KMGTPE]?i?B|[KMGTPE]?B|[KMGTPE]?|B)?)")),
+            ("⬇️", self._fusion_match_metric(source, r"(?:↓|⬇️?|下载[：:]?)\s*([\d,.]+\s*(?:[KMGTPE]?i?B|[KMGTPE]?B|[KMGTPE]?|B)?)")),
+            ("📊", self._fusion_match_metric(source, r"(?:分享率|分享|📊)\s*[：:]?\s*([\d,.]+)")),
+            ("🪙", self._fusion_match_metric(source, r"(?:魔力|🪙|💰)\s*[：:]?\s*([\d,.]+)")),
+        ]
+        metric_parts = [f"{icon} {self._format_fusion_metric_value(value)}" for icon, value in metrics if value]
+        if not metric_parts:
+            return self._fusion_compact_metric_html("site_stats", line)
+        return self._fusion_bullet_html("📈", title, [" | ".join(metric_parts)])
+
+    def _fusion_storage_metric_html(self, line: str) -> str:
+        body = self._fusion_line_body(line)
+        title, detail = self._split_fusion_line_title(body)
+        source = detail or body
+        usage_match = re.search(
+            r"(?P<used>[\d.]+\s*[KMGTPE]?i?B?|[\d.]+\s*[KMGTPE])\s*/\s*"
+            r"(?P<total>[\d.]+\s*[KMGTPE]?i?B?|[\d.]+\s*[KMGTPE]).*?"
+            r"(?P<icon>[🟢🟠🔴])?\s*已用\s*(?P<pct>\d{1,3})%",
+            source,
+            re.I,
+        )
+        if not usage_match:
+            usage_match = re.search(
+                r"已用\s*(?P<pct>\d{1,3})%.*?"
+                r"(?P<used>[\d.]+\s*[KMGTPE]?i?B?|[\d.]+\s*[KMGTPE])\s*/\s*"
+                r"(?P<total>[\d.]+\s*[KMGTPE]?i?B?|[\d.]+\s*[KMGTPE]).*?"
+                r"(?P<icon>[🟢🟠🔴])?",
+                source,
+                re.I,
+            )
+        if usage_match:
+            pct = int(usage_match.group("pct"))
+            icon = usage_match.group("icon") or ("🔴" if pct >= 85 else ("🟠" if pct >= 70 else "🟢"))
+            used = self._format_fusion_metric_value(usage_match.group("used"))
+            total = self._format_fusion_metric_value(usage_match.group("total"))
+            bar = self._fusion_usage_bar(float(pct), width=8)
+            return self._fusion_bullet_html("💾", title, [f"{used}/{total}", f"{bar} {icon} 已用 {pct}%"])
+        simple = self._format_fusion_metric_value(source)
+        return self._fusion_bullet_html("💾", title, [simple] if simple else [])
+
+    def _fusion_compact_metric_html(self, column_key: str, line: str) -> str:
+        body = self._fusion_line_body(line)
+        title, detail = self._split_fusion_line_title(body)
+        icon = self._fusion_compact_icon(column_key, title, detail or body)
+        if not detail:
+            return f"<b>{self._html_escape(icon)} {self._telegram_text_html(title)}</b>"
+        return self._fusion_bullet_html(icon, title, self._fusion_compact_detail_lines(column_key, title, detail))
+
+    @classmethod
+    def _fusion_compact_icon(cls, column_key: str, title: str, detail: str = "") -> str:
+        text = f"{title} {detail}"
+        if column_key == "health":
+            if str(title).startswith("状态"):
+                return "⚠️" if any(key in text for key in ("异常", "失败", "错误")) and "异常 0" not in text else "✅"
+            if str(title).startswith("巡查项"):
+                return "🩺"
+            if str(title).startswith("正常项"):
+                return "✅"
+            return "⚠️" if any(key in text for key in ("异常", "失败", "错误")) and "异常 0" not in text else "🩺"
+        return {
+            "site_stats": "📈",
+            "subscribe": "📺",
+            "maintenance": "🧰",
+            "updates": "🆙",
+        }.get(column_key, cls._fusion_line_icon(column_key, text))
+
+    @classmethod
+    def _fusion_compact_detail_lines(cls, column_key: str, title: str, detail: str) -> List[str]:
+        text = str(detail or "").strip()
+        if column_key == "health" and str(title).startswith("巡查项"):
+            return [text]
+        if column_key == "maintenance":
+            summarized = cls._summarize_fusion_maintenance_line(f"{title}：{text}" if title else text)
+            _, text = cls._split_fusion_line_title(summarized)
+        parts = re.split(r"\s*[｜|]\s*|[；;]\s*|\n+", text)
+        cleaned = [cls._format_fusion_metric_value(part.strip()) for part in parts if part and part.strip()]
+        return cleaned or [cls._format_fusion_metric_value(text)]
+
+    def _fusion_bullet_html(self, icon: str, title: str, details: List[str]) -> str:
+        head = f"<b>{self._html_escape(icon)} {self._telegram_text_html(title)}</b>"
+        rows = [self._html_escape(str(item or "").strip()) for item in (details or []) if str(item or "").strip()]
+        if not rows:
+            return head
+        return f"{head}<br>{'<br>'.join(rows)}"
+
+    @staticmethod
+    def _fusion_match_metric(text: str, pattern: str) -> str:
+        match = re.search(pattern, str(text or ""), re.I)
+        return match.group(1).strip() if match else ""
+
+    @staticmethod
+    def _format_fusion_metric_value(value: str) -> str:
+        text = re.sub(r"\s+", " ", str(value or "").strip())
+        if not text:
+            return ""
+        def repl(match: re.Match) -> str:
+            number = match.group(1)
+            unit = match.group(2).upper()
+            if unit in {"K", "M", "G", "T", "P", "E"}:
+                unit = f"{unit}B"
+            return f"{number} {unit}"
+        return re.sub(r"(\d(?:[\d,.]*\d)?)(?:\s*)([KMGTPE]i?B|[KMGTPE]B|[KMGTPE]\b|B\b)", repl, text, flags=re.I)
+
+    @staticmethod
+    def _strip_html_tags(value: str) -> str:
+        return re.sub(r"<[^>]+>", "", str(value or ""))
+
+    @classmethod
+    def _fusion_line_layout(cls, body: str) -> Tuple[str, List[str], str]:
+        text = str(body or "").strip()
+        if not text:
+            return "无数据", [], ""
+        title, detail = cls._split_fusion_line_title(text)
+        if not detail:
+            return title, [], ""
+        parts = cls._split_fusion_detail_parts(detail)
+        chips = [cls._normalize_fusion_chip(part) for part in parts]
+        chips = [part for part in chips if part]
+        long_parts = [part for part in chips if len(part) > 26]
+        if long_parts and len(chips) <= 2:
+            return title, [], "；".join(chips)
+        compact = [part for part in chips if len(part) <= 32]
+        overflow = [part for part in chips if len(part) > 32]
+        return title, compact[:5], "；".join(overflow[:2])
+
+    @classmethod
+    def _split_fusion_line_title(cls, text: str) -> Tuple[str, str]:
+        normalized = re.sub(r"\s+", " ", str(text or "").strip())
+        for sep in ("：", ":"):
+            if sep in normalized:
+                head, tail = normalized.split(sep, 1)
+                head = head.strip(" -｜|·")
+                tail = tail.strip(" -｜|·")
+                if head and tail:
+                    return head, tail
+        return normalized, ""
+
+    @classmethod
+    def _split_fusion_detail_parts(cls, detail: str) -> List[str]:
+        raw = str(detail or "").strip()
+        if not raw:
+            return []
+        parts = re.split(r"\s*[｜|]\s*|\s*/\s*|\s+·\s+|；|;|，(?=\S)", raw)
+        return [part.strip(" -") for part in parts if part and part.strip(" -")]
+
+    @classmethod
+    def _normalize_fusion_chip(cls, text: str) -> str:
+        item = str(text or "").strip()
+        replacements = [
+            (r"^(?:上传[：:]?|[⬆↑])\s*", "⬆ 上传："),
+            (r"^(?:下载[：:]?|[⬇↓])\s*", "⬇ 下载："),
+            (r"^(?:分享率|📊)\s*[：:]?\s*", "📊 分享："),
+            (r"^[🪙💰]\s*", "🪙 魔力："),
+            (r"^✅\s*", "✅ 通过："),
+            (r"^⚠️?\s*", "⚠️ 异常："),
+            (r"^🆙\s*", "🆙 更新："),
+            (r"^💾\s*", "💾 存储："),
+            (r"^📥\s*", "📥 入库："),
+            (r"^🎬\s*", "🎬 媒体："),
+        ]
+        for pattern, repl in replacements:
+            item = re.sub(pattern, repl, item).strip()
+        label_icons = {
+            "季集": "📦",
+            "时间": "🕘",
+            "类别": "🎭",
+            "站点": "🌐",
+            "质量": "🌟",
+            "大小": "💾",
+            "做种": "🌱",
+            "标签": "🏷️",
+            "名称": "🧾",
+            "设备": "📺",
+            "用户": "👤",
+            "IP地址": "🌐",
+            "巡查项": "🩺",
+            "状态": "✅",
+        }
+        for label, prefix in label_icons.items():
+            if re.match(rf"^{re.escape(label)}\s*[：:]", item) and not item.startswith(prefix):
+                item = f"{prefix} {item}"
+                break
+        item = re.sub(r"\s+", " ", item)
+        item = re.sub(r"(\d)([KMGTPE]i?B\b)", r"\1 \2", item, flags=re.I)
+        return item.strip(" -｜|·")
+
+    @classmethod
+    def _fusion_metric_codes(cls, column_key: str, lines: List[str]) -> List[str]:
+        merged = " ｜ ".join(cls._fusion_line_body(line) for line in (lines or []) if str(line or "").strip())
+        if not merged:
+            return []
+        specs = {
+            "site_stats": [
+                ("↑", r"(?:↑|⬆|上传[：:]?)\s*([\d,.]+\s*(?:[KMGTPE]?B|[KMGTPE]?iB)?)"),
+                ("↓", r"(?:↓|⬇|下载[：:]?)\s*([\d,.]+\s*(?:[KMGTPE]?B|[KMGTPE]?iB)?)"),
+                ("分享", r"(?:分享率|📊)\s*[：:]?\s*([\d,.]+)"),
+                ("魔力", r"(?:魔力|🪙)\s*[：:]?\s*([\d,.]+)"),
+            ],
+            "media": [
+                ("电影", r"电影\s*([\d,.]+)"),
+                ("电视剧", r"电视剧\s*([\d,.]+)"),
+                ("剧集", r"剧集\s*([\d,.]+)"),
+                ("用户", r"用户\s*([\d,.]+)"),
+            ],
+            "health": [
+                ("通过", r"通过\s*([\d,.]+)\s*项"),
+                ("异常", r"异常\s*([\d,.]+)\s*项"),
+            ],
+            "storage": [
+                ("已用", r"(\d{1,3})\s*%"),
+            ],
+        }
+        result = []
+        for label, pattern in specs.get(column_key, []):
+            match = re.search(pattern, merged, re.I)
+            if not match:
+                continue
+            value = match.group(1).strip()
+            if label == "已用":
+                value = f"{value}%"
+            result.append(f"{label} {value}")
+        if column_key == "subscribe":
+            count = len([x for x in lines or [] if str(x or "").strip() and "暂无" not in str(x)])
+            if count:
+                result.append(f"今日 {count} 项")
+        if column_key == "download_transfer":
+            if "无" in merged and len(merged) <= 8:
+                return []
+            count = len([x for x in lines or [] if str(x or "").strip() and str(x).strip() != "无"])
+            if count:
+                result.append(f"今日 {count} 项")
+        return result[:4]
+
+    def _fusion_prepare_section_lines(self, column_key: str, lines: List[str]) -> List[str]:
+        if column_key == "health":
+            return self._summarize_fusion_health_lines(lines)
+        if column_key == "maintenance":
+            return [self._summarize_fusion_maintenance_line(line) for line in (lines or [])]
+        return lines
+
+    @classmethod
+    def _summarize_fusion_health_lines(cls, lines: List[str]) -> List[str]:
+        cleaned = [re.sub(r"^[\s⦁•·*\-]+", "", str(line or "").strip()).strip() for line in (lines or [])]
+        cleaned = [line for line in cleaned if line]
+        if not cleaned:
+            return []
+
+        known_labels = set(cls._health_name_map().values())
+        status_line = ""
+        count_line = ""
+        ok_labels: List[str] = []
+        failures: List[str] = []
+        passthrough: List[str] = []
+
+        for line in cleaned:
+            body = re.sub(r"^(?:✅|⚠️|⚠|🩺)\s*", "", line).strip()
+            if body.startswith("状态：") or body.startswith("状态:"):
+                status_line = body
+                continue
+            if body.startswith("巡查项：") or body.startswith("巡查项:"):
+                count_line = body
+                continue
+            if body.startswith("正常项：") or body.startswith("正常项:"):
+                _, detail = cls._split_fusion_line_title(body)
+                ok_labels.extend([x.strip() for x in re.split(r"[、,，]\s*", detail) if x.strip()])
+                continue
+
+            label, detail = cls._split_fusion_line_title(body)
+            is_failure = any(key in body for key in ("异常", "失败", "错误", "超时", "不存在", "权限不足", "超过", "偏紧", "无法", "无响应")) and "异常 0" not in body
+            if is_failure:
+                compact = cls._compact_health_detail(detail or body)
+                failures.append(f"异常：{label} - {compact}" if compact and label else f"异常：{compact or body}")
+            elif label in known_labels:
+                ok_labels.append(label)
+            else:
+                passthrough.append(body)
+
+        output: List[str] = []
+        if status_line:
+            output.append(status_line)
+        elif failures:
+            output.append(f"状态：发现 {len(failures)} 项异常")
+        else:
+            output.append("状态：全部正常")
+        if count_line:
+            output.append(count_line)
+        if ok_labels:
+            unique_ok = cls._unique_keep_order(ok_labels)
+            output.append(f"正常项：{'、'.join(unique_ok)}")
+        output.extend(failures)
+        if len(output) <= 1 and passthrough:
+            output.extend(passthrough[:3])
+        return output
+
+    @classmethod
+    def _summarize_fusion_maintenance_line(cls, line: str) -> str:
+        body = cls._fusion_line_body(line)
+        title, detail = cls._split_fusion_line_title(body)
+        if not detail:
+            return body
+        parts = [part.strip() for part in re.split(r"\s*[｜|]\s*|[；;]\s*", detail) if part and part.strip()]
+        if not parts:
+            return body
+        status = parts[0]
+        tail = "；".join(parts[1:])
+        summary = cls._summarize_fusion_task_text(title, tail) if tail else ""
+        if summary and summary != status:
+            return f"{title}：{status}｜{summary}"
+        return f"{title}：{status}"
+
+    def _fusion_section_html(self, column_key: str, title: str, lines: List[str], max_items: int = 12) -> str:
+        all_lines = [str(x or "").strip() for x in (lines or []) if str(x or "").strip()]
+        all_lines = self._fusion_prepare_section_lines(column_key, all_lines)
+        visible = all_lines[:max_items]
+        if not visible:
+            label = re.sub(r"^[^\w\u4e00-\u9fff]+\s*", "", title) or "栏目"
+            visible = [f"今日暂无{label}数据"]
+        line_html = [self._fusion_line_html(column_key, line, show_chips=True) for line in visible]
+        body = "<ul>" + "".join(f"<li>{item}</li>" for item in line_html) + "</ul>" if line_html else "<p>📭 无</p>"
+        total = len(all_lines)
+        if total > max_items:
+            more = f"<b>{self._html_escape(self._fusion_line_icon(column_key))} {self._html_escape(f'另 {total - max_items} 项')}</b>"
+            body = body.replace("</ul>", f"<li>{more}</li></ul>")
+        return self._telegram_details_html(title, body)
+
+    def _build_fusion_tab_html(self, tab_key: str, state: Dict[str, Any], daily_text: str) -> str:
+        category_key = self._normalize_fusion_tab(tab_key)
+        category = next((x for x in self._fusion_category_registry() if x["key"] == category_key), None)
+        if category:
+            column_meta = {x["key"]: x for x in self._fusion_column_registry()}
+            sections = []
+            for child in self._fusion_category_children(category_key):
+                meta = column_meta.get(child) or {}
+                if child == "download_transfer":
+                    today_lines, library_lines = self._fusion_download_transfer_groups(state, daily_text)
+                    sections.append(self._fusion_section_html("download_transfer", "📥 今日下载", today_lines))
+                    sections.append(self._fusion_section_html("download_transfer", "📦 入库整理", library_lines))
+                    continue
+                lines = self._fusion_tab_lines(child, state, daily_text)
+                if child == "site_stats":
+                    title = "📈 站点增量"
+                elif child == "media":
+                    title = "🎬 媒体统计"
+                else:
+                    title = f"{meta.get('icon') or ''} {meta.get('label') or child}".strip()
+                sections.append(self._fusion_section_html(child, title, lines))
+            body = "".join(sections) if sections else "暂无数据"
+            return body
+        meta = next((x for x in self._fusion_column_registry() if x["key"] == tab_key), self._fusion_column_registry()[0])
+        lines = self._fusion_tab_lines(tab_key, state, daily_text)
+        if not lines:
+            lines = [f"暂无{meta['label']}数据"]
+        title = f"{meta.get('icon') or ''} {meta.get('label') or tab_key}".strip()
+        return self._fusion_section_html(tab_key, title, lines)
+
+    def _fusion_download_transfer_groups(self, state: Dict[str, Any], daily_text: str) -> Tuple[List[str], List[str]]:
+        today = self._extract_report_section_items(daily_text, ("今日下载",))
+        library = self._extract_report_section_items(daily_text, ("入库整理",))
+        if today or library:
+            return today, library
+        lines = self._fusion_tab_lines("download_transfer", state, daily_text)
+        today_lines: List[str] = []
+        library_lines: List[str] = []
+        for line in lines:
+            text = str(line or "")
+            if "入库" in text or "整理" in text or "转移" in text:
+                library_lines.append(text)
+            else:
+                today_lines.append(text)
+        return today_lines, library_lines
+
+    def _fusion_tab_lines(self, tab_key: str, state: Dict[str, Any], daily_text: str) -> List[str]:
+        items = ((state.get("columns") or {}).get(tab_key) or {}).get("items") or []
+        if items:
+            rows = []
+            for item in items[:8]:
+                if tab_key == "media" and self._is_fusion_media_activity(item):
+                    continue
+                title = str(item.get("title") or "").strip()
+                text = str(item.get("text") or "").strip()
+                text_lines = self._clean_fusion_item_text_lines(text)
+                rows.extend(text_lines or ([title] if title else []))
+            return rows
+        if tab_key == "site_stats":
+            return self._extract_report_section_items(daily_text, ("站点状态", "站点增量"))
+        if tab_key == "download_transfer":
+            return self._extract_report_section_items(daily_text, ("今日下载", "入库整理"))
+        if tab_key == "subscribe":
+            return self._extract_report_section_items(daily_text, ("订阅追新",))
+        if tab_key == "storage":
+            return self._format_fusion_storage_items(self._extract_report_section_items(daily_text, ("存储空间",)))
+        if tab_key == "media":
+            report = (state.get("reports") or {}).get("media_stat") or {}
+            return self._clean_fusion_item_text_lines(str(report.get("text") or ""))
+        if tab_key == "health":
+            return self._extract_report_section_items(daily_text, ("健康巡查",))
+        return []
+
+    @staticmethod
+    def _clean_fusion_item_text_lines(text: str) -> List[str]:
+        rows = []
+        for raw in str(text or "").splitlines():
+            line = re.sub(r"^[\s⦁•·*-]+", "", str(raw or "").strip()).strip()
+            if line:
+                rows.append(line)
+        return rows
+
+    def _build_tg_console_daily_chunks(self, daily_text: str) -> List[str]:
+        parts = self._split_daily_report_text(daily_text)
+        chunks = [f"<h2>{self._html_escape(parts.get('title') or 'MP 运维日报')}</h2>"]
+        intro = [self._html_escape(line) for line in (parts.get("intro") or []) if str(line or "").strip()]
+        if intro:
+            chunks.append("<p>" + "<br>".join(intro) + "</p>")
+        overview = self._telegram_overview_table(parts)
+        if overview:
+            chunks.append(overview)
+
+        appended_site = False
+        appended_storage = False
+        for section in parts.get("sections") or []:
+            header = str(section.get("title") or "").strip()
+            lines = section.get("lines") or []
+            if header.startswith("🤖"):
+                chunks.append(self._telegram_quote_html(header, self._telegram_section_items(lines), max_items=3))
+            elif header.startswith("📡"):
+                if not appended_site:
+                    site_html = self._build_tg_console_site_lights(daily_text)
+                    if site_html:
+                        chunks.append(site_html)
+                    appended_site = True
+            elif header.startswith("📈"):
+                chunks.append(self._telegram_details_html(header, self._telegram_increment_table("", lines)))
+            elif header.startswith("📥") or header.startswith("📦") or header.startswith("📺"):
+                chunks.append(self._telegram_details_html(header, self._telegram_general_list_html(header, self._telegram_section_items(lines))))
+            elif header.startswith("💾"):
+                if not appended_storage:
+                    storage_html = self._build_tg_console_storage_matrix(daily_text)
+                    chunks.append(storage_html or self._telegram_details_html(header, self._telegram_storage_table("", lines)))
+                    appended_storage = True
+            elif header.startswith("🎬"):
+                continue
+            elif header.startswith("🩺"):
+                chunks.append(self._telegram_details_html(header, self._telegram_health_list_html(self._telegram_section_items(lines))))
+            elif header.startswith("🧾") or header.startswith("⚠️"):
+                continue
+            else:
+                chunks.append(f"<h3>{self._html_escape(header)}</h3>{self._telegram_list_html(self._telegram_section_items(lines))}")
+
+        if not appended_site:
+            site_html = self._build_tg_console_site_lights(daily_text)
+            if site_html:
+                chunks.append(site_html)
+        if not appended_storage:
+            storage_html = self._build_tg_console_storage_matrix(daily_text)
+            if storage_html:
+                chunks.append(storage_html)
+        return chunks
+
+    def _build_tg_console_core_badges(self, reports: Dict[str, Any], daily_text: str = "") -> str:
+        version = self._match_text(r"(?:当前版本|版本)[:：]\s*([^\n]+)", daily_text) or "MoviePilot"
+        update_status = self._match_text(r"(?:最新版本|更新状态)[:：]\s*([^\n]+)", daily_text) or "记录抽空更新"
+        health_section = reports.get("health_check") or {}
+        health_text = str(health_section.get("text") or "")
+        health_line = self._match_text(r"状态[:：]\s*([^\n]+)", health_text) or self._match_text(r"健康巡查[:：]\s*([^\n]+)", daily_text) or "等待巡查"
+        health_icon = "🟢" if ("全部正常" in health_text or "异常 0" in health_text or "全部正常" in daily_text) else "🟡"
+        health_count = self._tg_console_health_count_label(health_text)
+        health_count_html = f" <code>{self._telegram_text_html(health_count)}</code>" if health_count else ""
+        return (
+            "<blockquote>"
+            f"<b>🤖 核心系统：</b> <code>{self._telegram_text_html(version)}</code><br>"
+            f"<b>🆙 更新状态：</b> <code>{self._telegram_text_html(update_status)}</code><br>"
+            f"<b>🩺 健康巡查：</b> {self._html_escape(health_icon)} {self._telegram_text_html(health_line)}{health_count_html}"
+            "</blockquote>"
+        )
+
+    @classmethod
+    def _tg_console_health_count_label(cls, health_text: str) -> str:
+        match = re.search(r"共\s*(\d+)\s*项[，,]\s*通过\s*(\d+)\s*项[，,]\s*异常\s*(\d+)\s*项", str(health_text or ""))
+        if not match:
+            return ""
+        total, passed, _failed = match.groups()
+        return f"{passed}/{total}"
+
+    def _build_tg_console_storage_matrix(self, daily_text: str) -> str:
+        items = self._extract_report_section_items(daily_text, ("存储空间",))
+        if not items:
+            return ""
+        normalized = []
+        for item in items[:8]:
+            text = re.sub(r"^\s*[•\-\s]+", "", str(item or "").strip())
+            if text:
+                normalized.append(f"📁 {text}")
+        return self._telegram_details_html("💾 存储空间", self._telegram_list_html(normalized))
+
+    def _build_tg_console_site_lights(self, daily_text: str) -> str:
+        items = self._extract_report_section_items(daily_text, ("站点状态",))
+        if not items:
+            return ""
+        green: List[Tuple[str, str]] = []
+        amber: List[Tuple[str, str]] = []
+        red: List[Tuple[str, str]] = []
+        for item in items:
+            text = re.sub(r"^\s*[•\-\s]+", "", str(item or "").strip())
+            if not text:
+                continue
+            name, detail = self._tg_console_site_name_detail(text)
+            if "异常" in text or "Cookie" in text or "失联" in text or "失败" in text:
+                red.append((name, detail))
+            elif "过期" in text:
+                amber.append((name, detail))
+            else:
+                green.append((name, detail))
+        rows = [
+            self._tg_console_site_group_html("🟢 同步正常", green, "暂无正常站点"),
+            self._tg_console_site_group_html("🟡 数据过期", amber, "暂无过期站点"),
+            self._tg_console_site_group_html("🔴 失联故障", red, "无严重故障断连站点"),
+        ]
+        body = "<ul>" + "".join(f"<li>{row}</li>" for row in rows if row) + "</ul>"
+        return f"<details open><summary>📊 站点统计</summary>{body}</details>"
+
+    @staticmethod
+    def _tg_console_site_name_detail(text: str) -> Tuple[str, str]:
+        clean = str(text or "").strip()
+        parts = re.split(r"\s*(?:\||：|:)\s*", clean, maxsplit=1)
+        name = parts[0].strip() if parts else clean
+        detail = parts[1].strip() if len(parts) > 1 else ""
+        return name or clean, detail
+
+    @classmethod
+    def _tg_console_site_group_html(cls, label: str, sites: List[Tuple[str, str]], empty_text: str) -> str:
+        title = f"{cls._html_escape(label)} ({len(sites)})"
+        if not sites:
+            return f"{title}：{cls._html_escape(empty_text)}"
+        chips = []
+        for name, detail in sites[:12]:
+            chip = f"<code>{cls._telegram_text_html(name)}</code>"
+            if detail:
+                chip += f" {cls._telegram_text_html(detail)}"
+            chips.append(chip)
+        if len(sites) > 12:
+            chips.append(cls._html_escape(f"另 {len(sites) - 12} 个"))
+        return f"{title}：" + "、".join(chips)
+
+    def _build_tg_console_footer(self, daily_text: str, time_label: str = "") -> str:
+        media_items = self._extract_report_section_items(daily_text, ("媒体统计",))
+        stats = self._tg_console_media_footer_parts(media_items)
+        if not stats and not time_label:
+            return ""
+        lines = []
+        if stats:
+            lines.append(" ｜ ".join(stats))
+        if time_label:
+            lines.append(f"🕓 {self._html_escape(time_label)}")
+        return "<blockquote>" + "<br>".join(lines) + "</blockquote>"
+
+    @classmethod
+    def _tg_console_media_footer_parts(cls, media_items: List[str]) -> List[str]:
+        label_icons = {"电影": "🎬", "电视剧": "📺", "剧集": "📺", "用户": "👤"}
+        found: Dict[str, str] = {}
+        for item in media_items or []:
+            for label, value in re.findall(r"(电影|电视剧|剧集|用户)\s+(\d+)", str(item or "")):
+                found[label] = value
+        parts = []
+        for label in ("电影", "剧集"):
+            if label in found:
+                parts.append(f"{label_icons[label]} {cls._html_escape(found[label])} {cls._html_escape(label)}")
+        if "剧集" not in found and "电视剧" in found:
+            parts.append(f"{label_icons['电视剧']} {cls._html_escape(found['电视剧'])} 电视剧")
+        if "用户" in found:
+            parts.append(f"{label_icons['用户']} {cls._html_escape(found['用户'])} 用户")
+        return parts
+
+    @staticmethod
+    def _extract_report_section_items(text: str, needles: Tuple[str, ...]) -> List[str]:
+        lines = [str(line or "").strip() for line in str(text or "").splitlines()]
+        items: List[str] = []
+        collecting = False
+        for line in lines:
+            if not line:
+                continue
+            is_header = not re.match(r"^[•\-\s]", line) and any(ch in line for ch in ("🤖", "📡", "📈", "📥", "📦", "📺", "💾", "🎬", "🩺", "🧾", "⚠️", "📗", "📊", "📜", "💱"))
+            if is_header and any(needle in line for needle in needles):
+                collecting = True
+                continue
+            if collecting and is_header:
+                break
+            if collecting:
+                items.append(line)
+        return items
+
+    def _build_media_activity_html(self, section: Dict[str, Any]) -> str:
+        text = str((section or {}).get("text") or "")
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if not lines:
+            return ""
+        title = f"媒体动态｜{(section or {}).get('time') or ''}".rstrip("｜")
+        level = str((section or {}).get("level") or "")
+        headline = "当前暂无媒体播放" if level == "idle" else lines[0]
+        detail = ([lines[0]] + lines[2:]) if level == "idle" and len(lines) > 1 else (lines[1:] if len(lines) > 1 else [])
+        body = f"<b>{self._telegram_text_html(headline)}</b>"
+        if detail:
+            body += self._telegram_list_html(detail)
+        return f"<blockquote><b>{self._html_escape(title)}</b><br>{body}</blockquote>"
+
+    def _tg_console_state(self, chat_id: str = "") -> Dict[str, Any]:
+        today = self._today_prefix()
+        state = self.get_data("tg_console_state") or {}
+        if not isinstance(state, dict):
+            state = {}
+        state_chat_id = str(state.get("chat_id") or "")
+        if state.get("date") != today or (chat_id and state_chat_id and state_chat_id != str(chat_id)):
+            state = {
+                "date": today,
+                "chat_id": str(chat_id or state.get("chat_id") or ""),
+                "message_id": 0,
+                "last_update_id": self._safe_int(state.get("last_update_id"), 0, 0),
+                "processed_callbacks": [],
+                "notices": [],
+                "reports": {},
+                "columns": {},
+                "active_tab": "subscribe_site",
+                "tab_touched": False,
+                "running_actions": {},
+                "pending_actions": {},
+                "last_error": "",
+            }
+        else:
+            state["chat_id"] = str(chat_id or state.get("chat_id") or "")
+            state.setdefault("message_id", 0)
+            state.setdefault("last_update_id", 0)
+            state.setdefault("processed_callbacks", [])
+            state.setdefault("notices", [])
+            state.setdefault("reports", {})
+            state.setdefault("columns", {})
+            state["active_tab"] = self._normalize_fusion_tab(state.get("active_tab") or "subscribe_site")
+            state.setdefault("tab_touched", False)
+            state.setdefault("running_actions", {})
+            state.setdefault("pending_actions", {})
+            state.setdefault("last_error", "")
+        self._tg_console_prune_actions(state)
+        return state
+
+    def _new_tg_console_card_state(self, chat_id: str = "") -> Dict[str, Any]:
+        previous = self._tg_console_state(chat_id=chat_id)
+        return {
+            "date": self._today_prefix(),
+            "chat_id": str(chat_id or previous.get("chat_id") or ""),
+            "message_id": 0,
+            "last_update_id": self._safe_int(previous.get("last_update_id"), 0, 0),
+            "processed_callbacks": list(previous.get("processed_callbacks") or [])[-100:],
+            "notices": [],
+            "reports": {},
+            "columns": {},
+            "active_tab": "subscribe_site",
+            "tab_touched": False,
+            "running_actions": {},
+            "pending_actions": {},
+            "last_error": "",
+        }
+
+    def _save_tg_console_state(self, state: Dict[str, Any]) -> None:
+        notices = list((state or {}).get("notices") or [])
+        state["notices"] = notices[:self._tg_console_max_notices]
+        callbacks = [str(x) for x in list((state or {}).get("processed_callbacks") or []) if str(x)]
+        state["processed_callbacks"] = callbacks[-100:]
+        reports = state.get("reports") or {}
+        state["reports"] = reports if isinstance(reports, dict) else {}
+        columns = state.get("columns") or {}
+        state["columns"] = columns if isinstance(columns, dict) else {}
+        self.save_data("tg_console_state", state)
+
+    def _tg_console_prune_actions(self, state: Dict[str, Any]) -> None:
+        actions = state.setdefault("pending_actions", {})
+        now = datetime.now().timestamp()
+        for nonce in list(actions.keys()):
+            item = actions.get(nonce) or {}
+            if item.get("done"):
+                actions.pop(nonce, None)
+                continue
+            expires_at = float(item.get("expires_at") or 0)
+            if expires_at and expires_at < now:
+                actions.pop(nonce, None)
+
+    def _tg_console_register_action(self, action_key: str, label: str, user_id: Optional[Any] = None, destructive: bool = False) -> str:
+        state = self._tg_console_state()
+        nonce = self._tg_console_ensure_action(state, action_key, label, destructive)
+        action = state.setdefault("pending_actions", {}).get(nonce) or {}
+        if user_id is not None:
+            action["user_id"] = str(user_id)
+        state["pending_actions"][nonce] = action
+        self._save_tg_console_state(state)
+        return nonce
+
+    def _tg_console_ensure_action(self, state: Dict[str, Any], action_key: str, label: str, destructive: bool = False) -> str:
+        actions = state.setdefault("pending_actions", {})
+        for nonce, action in actions.items():
+            if action.get("action") == action_key and not action.get("confirm_for") and not action.get("done"):
+                return nonce
+        nonce = self._tg_console_new_nonce(actions)
+        actions[nonce] = {
+            "action": action_key,
+            "label": label,
+            "destructive": bool(destructive),
+            "created_at": datetime.now().timestamp(),
+        }
+        return nonce
+
+    @staticmethod
+    def _tg_console_new_nonce(actions: Dict[str, Any]) -> str:
+        for _ in range(20):
+            nonce = os.urandom(5).hex()
+            if nonce not in actions:
+                return nonce
+        return str(int(datetime.now().timestamp() * 1000))[-10:]
+
+    def _tg_console_answer_callback(self, callback_query_id: str, text: str = "") -> bool:
+        if not callback_query_id:
+            return False
+        token, _chat_id, _source = self._resolve_daily_report_telegram_config()
+        if not token:
+            return False
+        payload = {"callback_query_id": callback_query_id}
+        if text:
+            payload["text"] = str(text)[:180]
+        res = self._telegram_http_post_json(f"https://api.telegram.org/bot{token}/answerCallbackQuery", payload, timeout=10)
+        ok, _ = self._telegram_response_data(res, "answerCallbackQuery")
+        return ok
+
+    @staticmethod
+    def _tg_console_same_chat(callback_chat_id: Any, expected_chat_id: Any) -> bool:
+        if expected_chat_id in (None, ""):
+            return True
+        return str(callback_chat_id or "").strip() == str(expected_chat_id or "").strip()
+
+    def _tg_console_status_data(self) -> Dict[str, Any]:
+        token, chat_id, source = self._resolve_daily_report_telegram_config()
+        state = self._tg_console_state(chat_id=chat_id)
+        return {
+            "enabled": bool(self._tg_console_enabled),
+            "poll_enabled": bool(self._tg_console_poll_enabled),
+            "poll_interval": self._tg_console_poll_interval,
+            "suppress_individual_notifications": bool(self._tg_console_suppress_individual_notifications),
+            "chat_configured": bool(token and chat_id),
+            "config_source": source,
+            "date": state.get("date") or "",
+            "chat_id": state.get("chat_id") or "",
+            "message_id": state.get("message_id") or 0,
+            "last_update_id": state.get("last_update_id") or 0,
+            "notice_count": len(state.get("notices") or []),
+            "pending_count": len([x for x in (state.get("pending_actions") or {}).values() if x.get("confirm_for")]),
+            "last_error": state.get("last_error") or self._tg_console_last_error,
+            "notices": (state.get("notices") or [])[:5],
+        }
+
+    def _tg_console_action_status_data(self, code: int, msg: str) -> Dict[str, Any]:
+        data = self._tg_console_status_data()
+        data["code"] = int(code)
+        data["msg"] = str(msg or "")
+        data["success"] = int(code) == 0
+        if int(code) != 0 and msg and not data.get("last_error"):
+            data["last_error"] = str(msg)
+        return data
+
+    def api_tg_console_status(self) -> Dict[str, Any]:
+        return {"code": 0, "data": self._tg_console_status_data()}
+
+    def api_preview_tg_console(self) -> Dict[str, Any]:
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        state = self._tg_console_state(chat_id=chat_id)
+        html_text = self._build_tg_console_html(state)
+        return {"code": 0, "msg": "TG 融合汇报卡预览已生成", "data": {"telegram_rich_message": {"html": html_text, "skip_entity_detection": True}}}
+
+    def api_reset_tg_console_card(self) -> Dict[str, Any]:
+        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        state = self._tg_console_state(chat_id=chat_id)
+        state["message_id"] = 0
+        state["notices"] = []
+        state["reports"] = {}
+        state["pending_actions"] = {}
+        state["running_actions"] = {}
+        state["last_error"] = ""
+        self._save_tg_console_state(state)
+        return {"code": 0, "msg": "TG 融合汇报卡状态已重置", "data": self._tg_console_status_data()}
+
     def _build_daily_report_telegram_html(self, preview: bool = False, text: Optional[str] = None) -> str:
         report_text = text if text is not None else self._build_daily_report_message(preview=preview)
         parts = self._split_daily_report_text(report_text)
@@ -1802,6 +4163,9 @@ class AgentOpsAssistant(_PluginBase):
             else:
                 chunks.append(f"<h3>{self._html_escape(header)}</h3>{self._telegram_list_html(self._telegram_section_items(lines))}")
         return self._clip_telegram_html("\n".join(chunks))
+
+    def _build_daily_report_telegram_body_html(self, text: str) -> str:
+        return self._build_daily_report_telegram_html(text=text)
 
     @staticmethod
     def _html_escape(value: Any) -> str:
@@ -1977,6 +4341,11 @@ class AgentOpsAssistant(_PluginBase):
         if not items:
             return "<p>无</p>"
         return "<ul>" + "".join(f"<li>{cls._telegram_text_html(item)}</li>" for item in items) + "</ul>"
+
+    @classmethod
+    def _telegram_compact_lines_html(cls, items: List[str]) -> str:
+        visible = [str(x or "").strip() for x in (items or []) if str(x or "").strip()]
+        return "<br>".join(cls._telegram_text_html(item) for item in visible) if visible else "无"
 
     @classmethod
     def _telegram_general_list_html(cls, title: str, items: List[str]) -> str:
@@ -2496,6 +4865,20 @@ class AgentOpsAssistant(_PluginBase):
             items.append(f"⦁ 失败：{title} - {errmsg[:36]}" if errmsg else f"⦁ 失败：{title}")
         return items
 
+    def _build_today_transfer_report_text(self) -> str:
+        success_items = [str(x or "").strip() for x in self._get_today_downloads_locked() if str(x or "").strip()]
+        failed_items = [str(x or "").strip() for x in self._get_transfer_health_locked() if str(x or "").strip()]
+        success_items = [x for x in success_items if x not in {"⦁ 无", "• 无", "无"}]
+        failed_items = [x for x in failed_items if x not in {"⦁ 无", "• 无", "无"}]
+        lines: List[str] = []
+        if success_items:
+            lines.append(f"✅ 成功入库 {len(success_items)} 项")
+            lines.extend(success_items[:20])
+        if failed_items:
+            lines.append(f"⚠️ 入库异常 {len(failed_items)} 项")
+            lines.extend(failed_items[:20])
+        return "\n".join(lines or ["⦁ 无"])
+
     @staticmethod
     def _find_site_userdata_snapshot(rows: List[Any], name: str, domain: Optional[str] = None) -> Optional[Any]:
         valid_rows = [row for row in (rows or []) if row and not str(getattr(row, "err_msg", None) or "").strip()]
@@ -2866,7 +5249,7 @@ class AgentOpsAssistant(_PluginBase):
             text = f"已为 {tagged} 个种子按站点补打标签" if tagged else "没有需要补打标签的种子（均已打标签或无 tracker 站点信息）"
             self._save_task_result(name, True, 0, text)
             if self._dltag_notify and tagged:
-                self.post_message(mtype=self._notification_type(self._dltag_notify_type), title="MP 运维助手 - 种子打标签", text=text)
+                self._notify_or_console(mtype=self._notification_type(self._dltag_notify_type), title="MP 运维助手 - 种子打标签", text=text)
             return True
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
@@ -3113,6 +5496,8 @@ class AgentOpsAssistant(_PluginBase):
             label = "今日" if payload.get("basis") != "latest" else f"最近快照 {payload.get('date') or ''}".strip()
             text = f"已刷新 {site_count} 个站点｜{label}｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无可用增量"
             self._save_task_result("站点数据统计", True, 0, text)
+            if self._tg_console_enabled:
+                self._emit_console_report("site_stat", "站点统计", text, level="success")
             return {"code": 0, "msg": text, "data": payload}
         except Exception as err:
             self._save_task_result("站点数据统计", False, -1, str(err))
@@ -3138,20 +5523,20 @@ class AgentOpsAssistant(_PluginBase):
             text = "未执行：请先在配置页选择下载器。"
             self._save_task_result(name, False, 2, text)
             if self._seedclean_notify:
-                self.post_message(mtype=self._notification_type(self._seedclean_notify_type), title="MP 运维助手 - 自动删种未执行", text=text)
+                self._notify_or_console(mtype=self._notification_type(self._seedclean_notify_type), title="MP 运维助手 - 自动删种未执行", text=text)
             return False
         # 安全：未设置任何筛选条件时不处理，避免误伤全部种子
         if not self._seedclean_has_any_condition():
             text = "未执行：未设置任何筛选条件（大小/分享率/做种时间/上传速度/标签/路径/Tracker/状态/分类），为避免误删已跳过。"
             self._save_task_result(name, False, 2, text)
             if self._seedclean_notify:
-                self.post_message(mtype=self._notification_type(self._seedclean_notify_type), title="MP 运维助手 - 自动删种未执行", text=text)
+                self._notify_or_console(mtype=self._notification_type(self._seedclean_notify_type), title="MP 运维助手 - 自动删种未执行", text=text)
             return False
         try:
             summary = self._seed_clean_run()
             text = "\n".join(summary) if summary else "本次没有符合条件的种子。"
             if self._seedclean_notify and summary:
-                self.post_message(mtype=self._notification_type(self._seedclean_notify_type), title="MP 运维助手 - 自动删种", text=text)
+                self._notify_or_console(mtype=self._notification_type(self._seedclean_notify_type), title="MP 运维助手 - 自动删种", text=text)
             self._save_task_result(name, True, 0, text)
             return True
         except Exception as err:
@@ -3398,10 +5783,54 @@ class AgentOpsAssistant(_PluginBase):
             pct = used / total * 100 if total else 0
             icon = "🔴" if pct >= 85 else ("🟠" if pct >= 70 else "🟢")
             risk = " 空间偏紧" if pct >= 85 else ""
-            items.append(f"⦁ {name}：💽 {self._format_bytes(used)}/{self._format_bytes(total)} ｜ {icon} 已用 {pct:.0f}%{risk}")
+            items.append(f"⦁ {name}：已用 {pct:.0f}% ｜ {self._format_compact_bytes(used)}/{self._format_compact_bytes(total)} {icon}{risk}")
             return True
         except Exception:
             return False
+
+    @staticmethod
+    def _fusion_usage_bar(pct: float, width: int = 8) -> str:
+        pct = max(0.0, min(100.0, float(pct or 0)))
+        filled = int(round((pct / 100) * width))
+        filled = max(0, min(width, filled))
+        return "[" + ("█" * filled) + ("░" * (width - filled)) + "]"
+
+    @staticmethod
+    def _format_compact_bytes(size: Any) -> str:
+        try:
+            value = float(size or 0)
+        except Exception:
+            return str(size)
+        units = ["B", "K", "M", "G", "T", "P"]
+        unit = 0
+        while abs(value) >= 1024 and unit < len(units) - 1:
+            value /= 1024
+            unit += 1
+        if unit == 0:
+            return f"{value:.0f}B"
+        return f"{value:.2f}{units[unit]}"
+
+    def _format_fusion_storage_items(self, items: List[str]) -> List[str]:
+        rows: List[str] = []
+        for raw in items or []:
+            text = re.sub(r"^\s*[•⦁\-\s]+", "", str(raw or "").strip())
+            if not text:
+                continue
+            match = re.search(r"^(?P<name>[^：:]+)[：:]\s*(?:💽\s*)?(?P<used>[\d.]+)\s*(?P<uunit>[KMGTPE]?B?)\s*/\s*(?P<total>[\d.]+)\s*(?P<tunit>[KMGTPE]?B?).*?已用\s*(?P<pct>\d+)%", text, re.I)
+            if match:
+                name = match.group("name").strip()
+                pct = float(match.group("pct"))
+                used = f"{match.group('used')}{self._normalize_compact_unit(match.group('uunit'))}"
+                total = f"{match.group('total')}{self._normalize_compact_unit(match.group('tunit'))}"
+                rows.append(f"{name}：已用 {pct:.0f}% ｜ {used}/{total}")
+            else:
+                rows.append(re.sub(r"\[[█░]+\]\s*", "", text))
+        return rows
+
+    @staticmethod
+    def _normalize_compact_unit(unit: str) -> str:
+        raw = str(unit or "").upper().replace("B", "")
+        return raw or "B"
 
     def _add_storage_item(self, items: List[str], path: str, label: str, storage_type: str):
         """添加存储项到列表"""
@@ -3490,7 +5919,7 @@ class AgentOpsAssistant(_PluginBase):
             sub_type = str(getattr(subscribe, "type", "") or "").strip().lower()
             year = getattr(subscribe, "year", None) or "????"
             name = getattr(subscribe, "name", None) or "?????"
-            if sub_type in {"???", "tv"}:
+            if sub_type in {"电视剧", "剧集", "tv", "series"}:
                 tmdbid = getattr(subscribe, "tmdbid", None); season = getattr(subscribe, "season", None)
                 if not tmdbid or season in (None, ""):
                     continue
@@ -3508,7 +5937,7 @@ class AgentOpsAssistant(_PluginBase):
                 if episodes:
                     items.append(f"{name} ({year}) S{season_num:02d}{self._episode_ranges(sorted(set(episodes)))}")
                 continue
-            if sub_type in {"??", "movie"}:
+            if sub_type in {"电影", "movie"}:
                 tmdbid = getattr(subscribe, "tmdbid", None)
                 if not tmdbid:
                     continue
@@ -3541,6 +5970,24 @@ class AgentOpsAssistant(_PluginBase):
             mp["restart_dispatched"] = True
         except Exception as err:
             mp["restart_error"] = str(err)
+
+    @staticmethod
+    def _dispatch_moviepilot_upgrade(data: Dict[str, Any]) -> None:
+        mp = data.setdefault("moviepilot", {})
+        try:
+            from app.helper.system import SystemHelper
+            result = SystemHelper.upgrade(mode="release")
+            if isinstance(result, tuple):
+                ok, message = result
+            else:
+                ok, message = bool(result), ""
+            mp["upgrade_dispatched"] = bool(ok)
+            if message:
+                mp["upgrade_message"] = str(message)
+            if not ok:
+                mp["upgrade_error"] = str(message or "MoviePilot 升级请求失败")
+        except Exception as err:
+            mp["upgrade_error"] = str(err)
 
     @staticmethod
     def _get_local_versions() -> Dict[str, Any]:
@@ -3580,12 +6027,20 @@ class AgentOpsAssistant(_PluginBase):
     @staticmethod
     def _format_update_status_text(data: Dict[str, Any]) -> str:
         mp = data.get("moviepilot") or {}
-        lines = ["🔄 MoviePilot 更新检查（MP运维助手直接接替）", f"⦁ 后端本地：{mp.get('backend_version', '未知')}", f"⦁ 前端本地：{mp.get('frontend_version', '未知')}"]
+        lines = ["🔄 MoviePilot 更新检查", f"⦁ 后端本地：{mp.get('backend_version', '未知')}", f"⦁ 前端本地：{mp.get('frontend_version', '未知')}"]
         for item in mp.get("checks") or []:
             status = "有更新" if item.get("has_update") else "无更新"
             if item.get("error"):
                 status = f"异常：{item.get('error')}"
             lines.append(f"⦁ {item.get('type')}：{status}｜最新 {item.get('latest_version') or '未知'}")
+        if mp.get("upgrade_dispatched"):
+            lines.append(f"⦁ 更新执行：已触发 MoviePilot 升级重启{('｜' + str(mp.get('upgrade_message'))) if mp.get('upgrade_message') else ''}")
+        elif mp.get("upgrade_error"):
+            lines.append(f"⦁ 更新执行：失败｜{mp.get('upgrade_error')}")
+        elif mp.get("restart_dispatched"):
+            lines.append("⦁ 更新执行：已触发 MoviePilot 重启")
+        elif mp.get("restart_error"):
+            lines.append(f"⦁ 更新执行：失败｜{mp.get('restart_error')}")
         if data.get("plugin_market"):
             lines.append(f"⦁ 插件库更新：{data['plugin_market'].get('note')}")
         return "\n".join(lines)
@@ -3680,7 +6135,7 @@ class AgentOpsAssistant(_PluginBase):
     @staticmethod
     def _format_market_update_text(data: Dict[str, Any]) -> str:
         lines = [
-            "🧩 插件库更新检查（MP运维助手直接接替）",
+            "🧩 插件库更新检查",
             f"⦁ Wiki记录：{len(data.get('wiki_markets') or [])} 个",
             f"⦁ 当前配置：{len(data.get('settings_markets') or [])} 个",
             f"⦁ 第三方保留：{len(data.get('other_markets') or [])} 个",
@@ -4002,7 +6457,7 @@ class AgentOpsAssistant(_PluginBase):
         text = self._format_backup_restore_text(data)
         self._save_task_result("备份恢复", bool(data.get("success")), 0 if data.get("success") else 1, text)
         if self._backup_notify:
-            self.post_message(mtype=self._notification_type(self._backup_notify_type), title="MP 运维助手 - 备份恢复结果", text=text)
+            self._notify_or_console(mtype=self._notification_type(self._backup_notify_type), title="MP 运维助手 - 备份恢复结果", text=text)
         return data
 
     def _restore_postgresql_backup(self, sql_path: Path) -> Tuple[bool, str]:
@@ -4240,7 +6695,7 @@ class AgentOpsAssistant(_PluginBase):
                 logger.warning(f"清理远端旧备份失败：{e}")
 
             if self._backup_webdav_notify:
-                self.post_message(
+                self._notify_or_console(
                     mtype=self._notification_type(self._backup_webdav_notify_type),
                     title="MP 运维助手 - WebDAV 备份成功",
                     text=f"⦁ 已上传：{remote_path}\n⦁ 目标：{self._backup_webdav_hostname}"
@@ -5101,7 +7556,7 @@ class AgentOpsAssistant(_PluginBase):
             return
         failed = data.get("fail") or len(failures)
         text = "\n".join([f"发现 {failed} 项异常", *failures])
-        self.post_message(mtype=self._notification_type(self._health_check_notify_type), title=f"MP 运维助手 - 健康巡查发现 {failed} 项异常", text=text)
+        self._notify_or_console(mtype=self._notification_type(self._health_check_notify_type), title=f"MP 运维助手 - 健康巡查发现 {failed} 项异常", text=text)
 
     @staticmethod
     def _format_health_summary(data: Dict[str, Any]) -> str:
@@ -5448,4 +7903,4 @@ class AgentOpsAssistant(_PluginBase):
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
-        return {"enabled": False, "sidebar_nav_enabled": True, "daily_report_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_telegram_rich_enabled": True, "daily_report_telegram_bot_token": "", "daily_report_telegram_chat_id": "", "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "health_check_database_targets": ["current"], "health_check_storage_targets": ["storages", "config", "download", "library"], "health_check_directory_targets": ["config", "plugin", "download", "library"], "health_check_storage_threshold": 85, "health_check_notify_type": "Plugin", "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": [], "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": [], "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_remove_plugin": True, "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "msgnotify_notify_type": "MediaServer", "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}
+        return {"enabled": False, "sidebar_nav_enabled": True, "fusion_notify_enabled": True, "fusion_notify_schedule_enabled": True, "fusion_notify_cron": "0 * * * *", "fusion_notify_msgtype": "Plugin", "fusion_notify_columns": ["site_stats", "download_transfer", "subscribe", "storage", "media", "health", "maintenance", "updates"], "report_storage_targets": ["config", "download", "library", "storages"], "daily_report_enabled": True, "daily_report_schedule_enabled": True, "daily_report_cron": "0 22 * * *", "daily_report_greeting": "少爷", "daily_report_telegram_rich_enabled": True, "daily_report_telegram_bot_token": "", "daily_report_telegram_chat_id": "", "tg_console_enabled": True, "tg_console_poll_enabled": False, "tg_console_poll_interval": 15, "tg_console_allowed_user_ids": [], "tg_console_full_remote_enabled": False, "tg_console_suppress_individual_notifications": True, "tg_console_max_notices": 20, "health_in_report": True, "subscribe_in_report": True, "site_stat_in_report": True, "report_version": True, "report_site_status": True, "report_site_increment": True, "report_today_download": True, "report_transfer": True, "report_subscribe": True, "report_storage": True, "report_media_stat": True, "report_summary": True, "health_check_enabled": True, "health_check_schedule_enabled": True, "health_check_cron": "0 */6 * * *", "health_check_items": [], "health_check_database_targets": ["current"], "health_check_storage_targets": ["storages", "config", "download", "library"], "health_check_directory_targets": ["config", "plugin", "download", "library"], "health_check_storage_threshold": 85, "health_check_notify_type": "Plugin", "report_health": True, "subscribe_reminder_enabled": True, "subscribe_reminder_schedule_enabled": True, "subscribe_reminder_onlyonce": False, "subscribe_reminder_time": "9", "subscribe_reminder_cron": "0 9 * * *", "subscribe_reminder_subtype": ["movie", "tv"], "subscribe_reminder_msgtype": "Subscribe", "site_stat_enabled": True, "site_stat_onlyonce": False, "site_stat_dashboard_type": "today", "site_stat_notify_type": "inc", "log_clean_enabled": False, "log_clean_schedule_enabled": False, "log_clean_cron": "0 3 * * 1", "log_clean_rows": 300, "log_clean_selected_ids": [], "log_clean_notify": True, "log_clean_notify_type": "Plugin", "log_clean_onlyonce": False, "backup_enabled": False, "backup_schedule_enabled": False, "backup_onlyonce": False, "backup_cron": "0 4 * * 1", "backup_keep_count": 5, "backup_path": "/config/plugins/AgentOpsAssistant/Backup", "backup_notify": True, "backup_notify_type": "Plugin", "backup_webdav_enabled": False, "backup_webdav_notify": False, "backup_webdav_notify_type": "Plugin", "backup_webdav_digest_auth": False, "backup_webdav_disable_check": False, "backup_webdav_hostname": "", "backup_webdav_login": "", "backup_webdav_password": "", "backup_webdav_max_count": 5, "mp_update_enabled": False, "mp_update_schedule_enabled": False, "mp_update_cron": "0 9 * * *", "mp_update_notify": True, "mp_update_notify_type": "Plugin", "mp_update_restart_confirm": False, "mp_update_types": ["后端", "前端"], "market_update_enabled": False, "market_update_schedule_enabled": False, "market_update_onlyonce": False, "market_update_interval": 86400, "market_update_notify": True, "market_update_write_notify": False, "market_update_notify_type": "Plugin", "market_update_write_settings": False, "market_update_write_env": False, "market_update_blacklist_enabled": False, "market_update_blacklist": [], "market_update_auto_install": False, "market_update_install_ids": [], "market_update_exclude_ids": [], "market_update_skip_running": True, "market_update_auto_get": False, "market_update_proxy": True, "market_update_timeout": 5, "market_update_wiki_url": "https://wiki.movie-pilot.org/zh/plugin", "market_update_wiki_xpath": '//pre[@class="prismjs line-numbers" and @v-pre="true"]/code/text()', "plugin_uninstall_id": "", "plugin_uninstall_ids": [], "plugin_uninstall_remove_plugin": True, "plugin_uninstall_clear_config": True, "plugin_uninstall_clear_data": True, "plugin_uninstall_delete_source": False, "plugin_uninstall_notify": True, "plugin_uninstall_notify_type": "Plugin", "seedclean_enabled": False, "seedclean_schedule_enabled": False, "seedclean_cron": "0 */12 * * *", "seedclean_action": "pause", "seedclean_downloaders": [], "seedclean_size": "", "seedclean_ratio": "", "seedclean_time": "", "seedclean_upspeed": "", "seedclean_labels": "", "seedclean_pathkeywords": "", "seedclean_trackerkeywords": "", "seedclean_errorkeywords": "", "seedclean_torrentstates": "", "seedclean_torrentcategorys": "", "seedclean_samedata": False, "seedclean_mponly": False, "seedclean_notify": True, "seedclean_notify_type": "Plugin", "subfill_enabled": False, "subfill_details": [], "subfill_notify": False, "subfill_notify_type": "Plugin", "subfill_category_enabled": False, "subfill_category_confs": "", "msgnotify_enabled": False, "msgnotify_types": [], "msgnotify_servers": [], "msgnotify_notify_type": "MediaServer", "dltag_enabled": False, "dltag_downloaders": [], "dltag_prefix": "", "dltag_notify": True, "dltag_notify_type": "Plugin"}

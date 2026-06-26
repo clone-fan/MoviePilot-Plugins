@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { _ as _export_sfc, g as getPluginApi, p as postPluginApi } from './_plugin-vue_export-helper-BRN2mpKk.js';
+import { _ as _export_sfc, g as getPluginApi, p as postPluginApi, a as actionMessageFromResponse } from './_plugin-vue_export-helper-DVCctbmq.js';
 
-const {resolveComponent:_resolveComponent$1,createVNode:_createVNode$1,createElementVNode:_createElementVNode$1,toDisplayString:_toDisplayString$1,openBlock:_openBlock$2,createBlock:_createBlock$2,createCommentVNode:_createCommentVNode$1,normalizeClass:_normalizeClass$1,normalizeStyle:_normalizeStyle,renderList:_renderList$1,Fragment:_Fragment$1,createElementBlock:_createElementBlock$2} = await importShared('vue');
+const {resolveComponent:_resolveComponent$1,createVNode:_createVNode$1,createElementVNode:_createElementVNode$1,toDisplayString:_toDisplayString$1,openBlock:_openBlock$2,createBlock:_createBlock$2,createCommentVNode:_createCommentVNode$1,normalizeClass:_normalizeClass,normalizeStyle:_normalizeStyle,renderList:_renderList$1,Fragment:_Fragment$1,createElementBlock:_createElementBlock$2} = await importShared('vue');
 
 
 const _hoisted_1$2 = { class: "mp-site-panel" };
@@ -11,22 +11,24 @@ const _hoisted_4$1 = { class: "mp-donut-zone" };
 const _hoisted_5$1 = { class: "mp-donut-core" };
 const _hoisted_6$1 = { class: "mp-site-data" };
 const _hoisted_7 = { class: "mp-site-stats" };
-const _hoisted_8 = { class: "mp-site-stat" };
-const _hoisted_9 = { class: "mp-site-stat" };
-const _hoisted_10 = { class: "mp-site-stat" };
+const _hoisted_8 = { class: "mp-site-stat mp-site-stat--upload" };
+const _hoisted_9 = { class: "mp-site-stat mp-site-stat--download" };
+const _hoisted_10 = { class: "mp-site-stat mp-site-stat--date" };
 const _hoisted_11 = {
   key: 0,
-  class: "mp-site-table"
+  class: "mp-site-list"
 };
-const _hoisted_12 = { class: "mp-site-row-cell mp-site-name" };
-const _hoisted_13 = { class: "mp-site-row-cell" };
-const _hoisted_14 = { class: "mp-site-row-cell" };
-const _hoisted_15 = { class: "mp-site-row-cell" };
-const _hoisted_16 = {
+const _hoisted_12 = { class: "mp-site-card-head" };
+const _hoisted_13 = { class: "mp-site-name" };
+const _hoisted_14 = { class: "mp-site-percent" };
+const _hoisted_15 = { class: "mp-site-card-metrics" };
+const _hoisted_16 = { class: "mp-site-row-cell mp-site-upload" };
+const _hoisted_17 = { class: "mp-site-row-cell mp-site-download" };
+const _hoisted_18 = {
   key: 1,
-  class: "mp-site-table mp-site-table--empty"
+  class: "mp-site-list mp-site-list--empty"
 };
-const _hoisted_17 = { class: "mp-site-row-cell mp-site-empty-row" };
+const _hoisted_19 = { class: "mp-site-row-cell mp-site-empty-row" };
 
 
 const _sfc_main$2 = {
@@ -93,11 +95,11 @@ return (_ctx, _cache) => {
         }, null, 8, ["text"]))
       : (_openBlock$2(), _createElementBlock$2("div", {
           key: 1,
-          class: _normalizeClass$1(["mp-site-body", { 'is-empty': !__props.hasSiteChart }])
+          class: _normalizeClass(["mp-site-body", { 'is-empty': !__props.hasSiteChart }])
         }, [
           _createElementVNode$1("div", _hoisted_4$1, [
             _createElementVNode$1("div", {
-              class: _normalizeClass$1(["mp-donut", { 'mp-donut--empty': !__props.hasSiteChart }]),
+              class: _normalizeClass(["mp-donut", { 'mp-donut--empty': !__props.hasSiteChart }]),
               style: _normalizeStyle(__props.sitePieStyle)
             }, [
               _createElementVNode$1("div", _hoisted_5$1, [
@@ -123,38 +125,33 @@ return (_ctx, _cache) => {
             ]),
             (__props.hasSiteChart)
               ? (_openBlock$2(), _createElementBlock$2("div", _hoisted_11, [
-                  _cache[5] || (_cache[5] = _createElementVNode$1("div", { class: "th" }, "站点", -1)),
-                  _cache[6] || (_cache[6] = _createElementVNode$1("div", { class: "th" }, "上传", -1)),
-                  _cache[7] || (_cache[7] = _createElementVNode$1("div", { class: "th" }, "下载", -1)),
-                  _cache[8] || (_cache[8] = _createElementVNode$1("div", { class: "th" }, "占比", -1)),
                   (_openBlock$2(true), _createElementBlock$2(_Fragment$1, null, _renderList$1(__props.siteTableRows, (site) => {
-                    return (_openBlock$2(), _createElementBlock$2(_Fragment$1, {
-                      key: site.name
+                    return (_openBlock$2(), _createElementBlock$2("article", {
+                      key: site.name,
+                      class: "mp-site-card"
                     }, [
                       _createElementVNode$1("div", _hoisted_12, [
                         _createElementVNode$1("i", {
                           class: "mp-dot",
                           style: _normalizeStyle({ background: site.color, boxShadow: `0 0 8px ${site.glow}` })
                         }, null, 4),
-                        _createElementVNode$1("span", null, _toDisplayString$1(site.name), 1)
+                        _createElementVNode$1("span", _hoisted_13, _toDisplayString$1(site.name), 1),
+                        _createElementVNode$1("strong", _hoisted_14, _toDisplayString$1(__props.sitePercent(site.value)), 1)
                       ]),
-                      _createElementVNode$1("div", _hoisted_13, "↑ " + _toDisplayString$1(__props.formatBytes(site.upload)), 1),
-                      _createElementVNode$1("div", _hoisted_14, "↓ " + _toDisplayString$1(__props.formatBytes(site.download)), 1),
-                      _createElementVNode$1("div", _hoisted_15, _toDisplayString$1(__props.sitePercent(site.value)), 1)
-                    ], 64))
+                      _createElementVNode$1("div", _hoisted_15, [
+                        _createElementVNode$1("span", _hoisted_16, "↑ " + _toDisplayString$1(__props.formatBytes(site.upload)), 1),
+                        _createElementVNode$1("span", _hoisted_17, "↓ " + _toDisplayString$1(__props.formatBytes(site.download)), 1)
+                      ])
+                    ]))
                   }), 128))
                 ]))
-              : (_openBlock$2(), _createElementBlock$2("div", _hoisted_16, [
-                  _cache[10] || (_cache[10] = _createElementVNode$1("div", { class: "th" }, "站点", -1)),
-                  _cache[11] || (_cache[11] = _createElementVNode$1("div", { class: "th" }, "上传", -1)),
-                  _cache[12] || (_cache[12] = _createElementVNode$1("div", { class: "th" }, "下载", -1)),
-                  _cache[13] || (_cache[13] = _createElementVNode$1("div", { class: "th" }, "占比", -1)),
-                  _createElementVNode$1("div", _hoisted_17, [
+              : (_openBlock$2(), _createElementBlock$2("div", _hoisted_18, [
+                  _createElementVNode$1("div", _hoisted_19, [
                     _createVNode$1(_component_VIcon, {
                       icon: "mdi-chart-pie",
                       size: "18"
                     }),
-                    _cache[9] || (_cache[9] = _createElementVNode$1("div", null, [
+                    _cache[5] || (_cache[5] = _createElementVNode$1("div", null, [
                       _createElementVNode$1("strong", null, "暂无站点增量"),
                       _createElementVNode$1("span", null, "刷新后显示最近可用快照")
                     ], -1))
@@ -167,9 +164,9 @@ return (_ctx, _cache) => {
 }
 
 };
-const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-9fa01bb1"]]);
+const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-cb0ec46c"]]);
 
-const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,toDisplayString:_toDisplayString,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1,normalizeClass:_normalizeClass,withCtx:_withCtx,createBlock:_createBlock$1,createCommentVNode:_createCommentVNode} = await importShared('vue');
+const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,toDisplayString:_toDisplayString,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1,withCtx:_withCtx,createBlock:_createBlock$1,createCommentVNode:_createCommentVNode} = await importShared('vue');
 
 
 const _hoisted_1$1 = { class: "mp-actions-panel" };
@@ -219,7 +216,7 @@ return (_ctx, _cache) => {
         return (_openBlock$1(), _createBlock$1(_component_VBtn, {
           key: action.path,
           variant: "text",
-          class: _normalizeClass(["mp-action-btn text-none", [`mp-action-btn--${action.tone}`]]),
+          class: "mp-action-btn text-none",
           loading: __props.actionRunning === action.path,
           disabled: action.disabled || (!!__props.actionRunning && __props.actionRunning !== action.path),
           title: action.reason || action.desc,
@@ -243,26 +240,25 @@ return (_ctx, _cache) => {
             })
           ]),
           _: 2
-        }, 1032, ["class", "loading", "disabled", "title", "onClick"]))
+        }, 1032, ["loading", "disabled", "title", "onClick"]))
       }), 128))
     ]),
     (__props.actionMessage)
       ? (_openBlock$1(), _createBlock$1(_component_VAlert, {
           key: 0,
-          type: __props.actionOk ? 'success' : 'error',
           variant: "tonal",
           density: "compact",
           class: "mp-action-message",
           icon: false,
           text: __props.actionMessage
-        }, null, 8, ["type", "text"]))
+        }, null, 8, ["text"]))
       : _createCommentVNode("", true)
   ]))
 }
 }
 
 };
-const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-46a84ff1"]]);
+const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-162dce6c"]]);
 
 const {resolveDynamicComponent:_resolveDynamicComponent,openBlock:_openBlock,createBlock:_createBlock,createElementBlock:_createElementBlock} = await importShared('vue');
 
@@ -302,10 +298,11 @@ const siteChart = reactive({
 });
 
 const actionItems = [
-  { path: 'run_site_stat', component: 'site_stat', label: '站点统计', desc: '刷新站点增量', icon: 'mdi-chart-pie', tone: 'blue' },
-  { path: 'run_daily_report', component: 'daily_report', label: '每日汇报', desc: '发送运维摘要', icon: 'mdi-send-clock-outline', tone: 'green' },
-  { path: 'run_subscribe_reminder', component: 'subscribe_reminder', label: '订阅追新', desc: '推送今日追新', icon: 'mdi-bell-badge-outline', tone: 'cyan' },
-  { path: 'run_health_check', component: 'health_check', label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse', tone: 'violet' },
+  { path: 'run_site_stat', component: 'site_stat', label: '站点统计', desc: '刷新站点增量', icon: 'mdi-chart-pie' },
+  { path: 'create_tg_console_card', component: '', label: '立即建卡', desc: '创建融合汇报卡', icon: 'mdi-card-plus-outline' },
+  { path: 'run_daily_report', component: 'daily_report', label: '立即刷新', desc: '刷新融合汇报', icon: 'mdi-refresh' },
+  { path: 'run_subscribe_reminder', component: 'subscribe_reminder', label: '订阅追新', desc: '推送今日追新', icon: 'mdi-bell-badge-outline' },
+  { path: 'run_health_check', component: 'health_check', label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse' },
 ];
 
 const componentKey = computed(() => props.config?.attrs?.component || props.config?.key || 'site');
@@ -330,11 +327,12 @@ const widgetActions = computed(() => actionItems.map(action => {
 }));
 
 const sitePieColors = [
-  { color: 'rgba(var(--v-theme-success), 0.94)', glow: 'rgba(var(--v-theme-success), 0.28)' },
-  { color: 'rgba(var(--v-theme-info), 0.90)', glow: 'rgba(var(--v-theme-info), 0.26)' },
-  { color: 'rgba(var(--v-theme-warning), 0.88)', glow: 'rgba(var(--v-theme-warning), 0.24)' },
-  { color: 'rgba(var(--v-theme-primary), 0.88)', glow: 'rgba(var(--v-theme-primary), 0.24)' },
-  { color: 'rgba(var(--v-theme-error), 0.84)', glow: 'rgba(var(--v-theme-error), 0.22)' },
+  { color: 'rgba(88, 204, 118, 0.95)', glow: 'rgba(88, 204, 118, 0.30)' },
+  { color: 'rgba(45, 212, 191, 0.92)', glow: 'rgba(45, 212, 191, 0.28)' },
+  { color: 'rgba(96, 165, 250, 0.92)', glow: 'rgba(96, 165, 250, 0.28)' },
+  { color: 'rgba(251, 191, 36, 0.90)', glow: 'rgba(251, 191, 36, 0.26)' },
+  { color: 'rgba(248, 113, 113, 0.88)', glow: 'rgba(248, 113, 113, 0.24)' },
+  { color: 'rgba(167, 139, 250, 0.90)', glow: 'rgba(167, 139, 250, 0.25)' },
 ];
 
 const siteRows = computed(() => [...(siteChart.sites || [])].sort((a, b) => {
@@ -434,11 +432,11 @@ async function runAction(action) {
     const res = await postPluginApi(props.api, action.path);
     const ok = !!res && res.code === 0;
     actionOk.value = ok;
-    actionMessage.value = (res && res.msg) || `${action.label}已${ok ? '完成' : '失败'}`;
+    actionMessage.value = actionMessageFromResponse(res, action.label);
     if (ok && action.path === 'run_site_stat') await loadSiteChart();
   } catch (err) {
     actionOk.value = false;
-    actionMessage.value = err?.message || `${action.label}失败`;
+    actionMessage.value = actionMessageFromResponse({ code: 1, msg: err?.message }, action.label);
   } finally {
     actionRunning.value = '';
     window.setTimeout(() => { actionMessage.value = ''; }, 5000);
@@ -478,6 +476,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-6d8d4930"]]);
+const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-918b5563"]]);
 
 export { Dashboard as default };

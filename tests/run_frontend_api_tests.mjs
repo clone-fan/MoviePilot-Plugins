@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 
-import { getPluginApi, getPluginApiRaw, postPluginApi, postPluginApiRaw } from '../plugins.v2/agentopsassistant/src/components/api.js'
+import { actionMessageFromResponse, getPluginApi, getPluginApiRaw, postPluginApi, postPluginApiRaw } from '../plugins.v2/agentopsassistant/src/components/api.js'
 
 async function main() {
   const api = {
@@ -34,6 +34,18 @@ async function main() {
   assert.equal(action.msg, '自动备份执行失败', 'POST helpers must preserve action message')
   assert.deepEqual(action.data, { reason: 'disk full' }, 'POST helpers must keep the response payload under data')
 
+  const directEnvelopeApi = {
+    async post(path) {
+      if (path.endsWith('/create_tg_console_card')) {
+        return { code: 0, msg: '融合通知卡已创建 #38834', data: { enabled: true, message_id: 38834, last_error: '' } }
+      }
+      throw new Error(`unexpected POST ${path}`)
+    },
+  }
+  const directEnvelopeAction = await postPluginApi(directEnvelopeApi, 'create_tg_console_card')
+  assert.equal(directEnvelopeAction.code, 0, 'POST helpers must preserve top-level MoviePilot action envelopes')
+  assert.equal(directEnvelopeAction.msg, '融合通知卡已创建 #38834', 'POST helpers must not unwrap successful action envelopes into status data')
+
   const unwrappedFailureApi = {
     async post(path) {
       if (path.endsWith('/run_backup')) {
@@ -47,6 +59,95 @@ async function main() {
 
   const raw = await postPluginApiRaw(api, 'run_backup')
   assert.deepEqual(raw, action, 'postPluginApiRaw remains compatible with the full action envelope')
+  const directEnvelopeRaw = await postPluginApiRaw(directEnvelopeApi, 'create_tg_console_card')
+  assert.deepEqual(directEnvelopeRaw, directEnvelopeAction, 'postPluginApiRaw must also preserve top-level action envelopes')
+  const unwrappedCardStatusApi = {
+    async post(path) {
+      if (path.endsWith('/create_tg_console_card')) {
+        return { enabled: true, chat_configured: true, message_id: 38843, last_error: '' }
+      }
+      throw new Error(`unexpected POST ${path}`)
+    },
+  }
+  const unwrappedCardStatus = await postPluginApi(unwrappedCardStatusApi, 'create_tg_console_card')
+  assert.equal(unwrappedCardStatus.code, 0, 'create card should infer success from an unwrapped healthy status payload')
+  assert.equal(unwrappedCardStatus.msg, '融合通知卡已创建 #38843', 'create card should show a useful success message when MoviePilot unwraps data')
+  assert.deepEqual(
+    unwrappedCardStatus.data,
+    { enabled: true, chat_configured: true, message_id: 38843, last_error: '' },
+    'create card should preserve unwrapped status payload under data',
+  )
+  const unwrappedCardErrorApi = {
+    async post(path) {
+      if (path.endsWith('/create_tg_console_card')) {
+        return { enabled: true, chat_configured: true, message_id: 0, last_error: 'Telegram sendRichMessage 返回失败：Bad Request' }
+      }
+      throw new Error(`unexpected POST ${path}`)
+    },
+  }
+  const unwrappedCardError = await postPluginApi(unwrappedCardErrorApi, 'create_tg_console_card')
+  assert.equal(unwrappedCardError.code, 1, 'create card should infer failure from an unwrapped status payload with last_error')
+  assert.equal(
+    actionMessageFromResponse(unwrappedCardError, '立即建卡'),
+    'Telegram sendRichMessage 返回失败：Bad Request',
+    'create card should surface last_error instead of the generic failed toast when MoviePilot unwraps data',
+  )
+  assert.equal(
+    actionMessageFromResponse(
+      { code: 1, msg: '', data: { last_error: 'Telegram sendRichMessage 返回失败：Bad Request: rich_message html is invalid' } },
+      '立即建卡',
+    ),
+    'Telegram sendRichMessage 返回失败：Bad Request: rich_message html is invalid',
+    'manual action messages should surface backend data.last_error when msg is empty',
+  )
+  assert.equal(
+    actionMessageFromResponse(
+      { code: 1, msg: '融合通知卡创建失败', data: { last_error: 'Telegram sendRichMessage 返回失败：Bad Request: rich_message html is invalid' } },
+      '立即建卡',
+    ),
+    'Telegram sendRichMessage 返回失败：Bad Request: rich_message html is invalid',
+    'manual action messages should prefer backend data.last_error over generic failure messages',
+  )
+  assert.equal(
+    actionMessageFromResponse(
+      { enabled: true, last_error: 'Telegram sendRichMessage 返回失败：Bad Request: rich_message html is invalid' },
+      '立即建卡',
+    ),
+    'Telegram sendRichMessage 返回失败：Bad Request: rich_message html is invalid',
+    'manual action messages should surface top-level last_error when MoviePilot returns an unwrapped status payload',
+  )
+  assert.equal(
+    actionMessageFromResponse(
+      { data: { code: 0, msg: '融合通知卡已创建 #38831', data: { message_id: 38831, last_error: '' } } },
+      '立即建卡',
+    ),
+    '融合通知卡已创建 #38831',
+    'manual action messages should unwrap MoviePilot response.data action envelopes before deciding success',
+  )
+  assert.equal(
+    actionMessageFromResponse(
+      {
+        data: {
+          code: 1,
+          msg: '融合通知卡创建失败',
+          data: { last_error: 'Telegram sendRichMessage 返回失败：Bad Request: rich_message html is invalid' },
+        },
+      },
+      '立即建卡',
+    ),
+    'Telegram sendRichMessage 返回失败：Bad Request: rich_message html is invalid',
+    'manual action messages should unwrap MoviePilot response.data failure envelopes before showing details',
+  )
+  assert.equal(
+    actionMessageFromResponse({ code: 1, msg: '', data: { message: '后端任务返回了详细失败原因' } }, '立即执行'),
+    '后端任务返回了详细失败原因',
+    'manual action messages should surface backend data.message when msg is empty',
+  )
+  assert.equal(
+    actionMessageFromResponse({ code: 1, msg: '', text: '纯文本失败原因' }, '立即执行'),
+    '纯文本失败原因',
+    'manual action messages should surface backend text when msg and data detail are empty',
+  )
 
   const slowApi = {
     async post(path) {
@@ -104,6 +205,12 @@ async function main() {
     /postPluginApi\(\s*props\.api\s*,\s*path\s*,\s*buildActionPayload\(path\)\s*\)/,
     'Config.vue runAction should send the current form payload for manual actions',
   )
+  assert.ok(
+    config.includes('actionMessageFromResponse') &&
+      pageSource.includes('actionMessageFromResponse') &&
+      dashboardSource.includes('actionMessageFromResponse'),
+    'Config/Page/Dashboard manual actions should use the shared response message helper',
+  )
   for (const field of [
     'plugin_uninstall_ids',
     'plugin_uninstall_remove_plugin',
@@ -132,6 +239,7 @@ async function main() {
     'restore_database',
     '确认覆盖当前配置',
     ':disabled="backupRestoreUnavailable || !backupRestore.archive"',
+    'confirm: !!backupRestore.confirm',
   ]) {
     assert.ok(config.includes(fragment), `Config.vue should expose backup restore UI/API fragment: ${fragment}`)
   }
@@ -147,6 +255,7 @@ async function main() {
     'run_webdav_backup_restore',
     'webdavBackupRestoreUnavailable',
     'webdavBackupRestoreUnavailableMessage',
+    'confirm: !!webdavBackupRestore.confirm',
   ]) {
     assert.ok(config.includes(fragment), `Config.vue should expose WebDAV backup restore UI/API fragment: ${fragment}`)
   }

@@ -157,7 +157,8 @@ class _StubDirectoryHelper:
 
 # 订阅规则填充桩：_SUB 配置下载历史/订阅列表，并记录 update 调用
 _SUB = {"history": None, "subs": [], "updates": [], "sub_get": None, "sites": [], "site_latest": [],
-        "site_refresh_calls": 0, "site_refresh_result": {}, "site_refresh_error": None}
+        "site_refresh_calls": 0, "site_refresh_result": {}, "site_refresh_error": None,
+        "tmdb_episodes": [], "movie_mediainfo": None}
 
 
 class _StubDownloadHistoryOper:
@@ -165,6 +166,7 @@ class _StubDownloadHistoryOper:
 
 
 class _StubSubscribeOper:
+    def list(self): return list(_SUB["subs"])
     def list_by_tmdbid(self, tmdbid=None, season=None): return list(_SUB["subs"])
     def update(self, sid, payload): _SUB["updates"].append((sid, payload))
     def get(self, sid): return _SUB.get("sub_get")
@@ -186,6 +188,16 @@ class _StubSiteChain:
         if _SUB.get("site_refresh_error"):
             raise RuntimeError(_SUB.get("site_refresh_error"))
         return _SUB.get("site_refresh_result")
+
+
+class _StubTmdbChain:
+    def tmdb_episodes(self, *a, **k):
+        return list(_SUB.get("tmdb_episodes") or [])
+
+
+class _StubMediaChain:
+    def recognize_media(self, *a, **k):
+        return _SUB.get("movie_mediainfo")
 
 
 def install_stubs():
@@ -210,7 +222,7 @@ def install_stubs():
     sch.ServiceInfo = object
     scht = _mod("app.schemas.types")
     scht.EventType = types.SimpleNamespace(
-        PluginAction="PluginAction", WebhookMessage="WebhookMessage",
+        PluginAction="PluginAction", MessageAction="MessageAction", WebhookMessage="WebhookMessage",
         SubscribeAdded="SubscribeAdded", DownloadAdded="DownloadAdded",
     )
     scht.SystemConfigKey = types.SimpleNamespace(Storages="Storages", UserInstalledPlugins="UserInstalledPlugins", RssSites="RssSites", Notifications="Notifications")
@@ -238,6 +250,11 @@ def install_stubs():
     chain = _mod("app.chain")
     chain_site = _mod("app.chain.site")
     chain_site.SiteChain = _StubSiteChain
+    chain_tmdb = _mod("app.chain.tmdb")
+    chain_tmdb.TmdbChain = _StubTmdbChain
+    chain_media = _mod("app.chain.media")
+    chain_media.MediaChain = _StubMediaChain
+    scht.MediaType = types.SimpleNamespace(MOVIE="电影", TV="电视剧")
     # apscheduler
     _mod("apscheduler")
     _mod("apscheduler.triggers")
@@ -334,7 +351,9 @@ def main():
     print("== 存储行（_append_usage_line）==")
     items = []
     ok = p._append_usage_line(items, "本地", 100, None, 40)  # total=100, free=40 -> used=60
-    check(ok is True and len(items) == 1 and "💽 60 B/100 B" in items[0] and "🟢 已用 60%" in items[0], "存储输出已用/总量与已用百分比")
+    check(ok is True and len(items) == 1 and "本地：已用 60% ｜ 60B/100B" in items[0] and "🟢" in items[0]
+          and "█" not in items[0] and "░" not in items[0] and "[" not in items[0],
+          "存储输出使用文字指标格式，避免 Telegram 渲染成黑块")
     check("剩余" not in items[0], "存储输出不重复展示剩余空间")
     items2 = []
     ok2 = p._append_usage_line(items2, "空盘", 0, None, 0)  # total<=0 -> skip
@@ -346,7 +365,7 @@ def main():
     check(p._seedclean_has_any_condition() is True, "设了大小后=True")
     p._seedclean_size = ""
 
-    g = make_plugin(mod, seedclean_enabled=True, seedclean_downloaders=[])
+    g = make_plugin(mod, fusion_notify_enabled=False, seedclean_enabled=True, seedclean_downloaders=[])
     check(g.run_seed_clean() is False, "无下载器 -> 不执行返回 False")
     check(g._stub_messages and "选择下载器" in g._stub_messages[-1].get("text", ""), "无下载器时按通知配置提醒用户")
     g2 = make_plugin(mod, seedclean_enabled=True, seedclean_downloaders=["qb1"])  # 无任何条件
@@ -492,7 +511,11 @@ def main():
         bad_slip = p_restore.api_preview_backup_restore({"archive": slip_zip.name})
         check(bad_slip.get("code") == 1 and "非法路径" in bad_slip.get("msg", ""),
               "备份恢复拒绝 zip slip 条目")
-        run_restore = p_restore.api_run_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": True, "restore_database": True})
+        unconfirmed_restore = p_restore.api_run_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": True, "restore_database": True})
+        check(unconfirmed_restore.get("code") == 1 and "确认" in unconfirmed_restore.get("msg", "")
+              and (config_dir / "category.yaml").read_text(encoding="utf-8") == "old-category",
+              "备份恢复执行接口缺少 confirm 时拒绝覆盖配置")
+        run_restore = p_restore.api_run_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": True, "restore_database": True, "confirm": True})
         data_restore = run_restore.get("data", {})
         check(run_restore.get("code") == 0 and data_restore.get("emergency_backup") and Path(data_restore["emergency_backup"]).exists(),
               "执行恢复前强制生成 emergency backup")
@@ -510,7 +533,7 @@ def main():
             zf.writestr("manifest.json", json.dumps({"created_at": "2026-06-21 04:04:04", "db_type": "postgresql"}, ensure_ascii=False))
             zf.writestr("postgresql_backup.sql", "select 1;")
         p_restore._find_psql = lambda: ""
-        pg_restore = p_restore.api_run_backup_restore({"archive": pg_zip.name, "restore_config": False, "restore_cookies": False, "restore_database": True})
+        pg_restore = p_restore.api_run_backup_restore({"archive": pg_zip.name, "restore_config": False, "restore_cookies": False, "restore_database": True, "confirm": True})
         check(pg_restore.get("code") == 1 and "psql" in pg_restore.get("msg", "").lower(),
               "PostgreSQL 恢复缺少 psql 时可读失败且不执行破坏性动作")
 
@@ -540,7 +563,12 @@ def main():
               and webdav_preview.get("data", {}).get("source") == "webdav"
               and fake_webdav.downloads[-1][0] == valid_zip.name,
               "WebDAV 恢复预览会下载远端备份并复用本地预览链路")
-        webdav_run = p_restore.api_run_webdav_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": False, "restore_database": False})
+        before_unconfirmed_webdav_downloads = len(fake_webdav.downloads)
+        webdav_unconfirmed = p_restore.api_run_webdav_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": False, "restore_database": False})
+        check(webdav_unconfirmed.get("code") == 1 and "确认" in webdav_unconfirmed.get("msg", "")
+              and len(fake_webdav.downloads) == before_unconfirmed_webdav_downloads,
+              "WebDAV 恢复执行接口缺少 confirm 时拒绝下载和覆盖")
+        webdav_run = p_restore.api_run_webdav_backup_restore({"archive": valid_zip.name, "restore_config": True, "restore_cookies": False, "restore_database": False, "confirm": True})
         check(webdav_run.get("code") == 0
               and webdav_run.get("data", {}).get("source") == "webdav"
               and webdav_run.get("data", {}).get("remote_archive") == valid_zip.name,
@@ -685,20 +713,109 @@ def main():
     check(AOA._msg_group_of("playback.start") == "开始播放", "事件归类 playback.start->开始播放")
     check(AOA._msg_group_of("ItemAdded") == "新入库", "ItemAdded->新入库")
     check(AOA._msg_group_of("unknown.x") is None, "未知事件 -> None")
-    info = types.SimpleNamespace(event="playback.start", item_type="TV", item_name="剧A", user_name="张三",
-                                 device_name="客厅", client="Emby", ip=None, percentage=None, overview=None,
+    info = types.SimpleNamespace(event="playback.start", item_type="TV", item_name="入青云 S1E5 纪伯宰亲自为明意上药", user_name="卓",
+                                 device_name="AfuseKt", client="", ip="172.17.0.1", percentage=None, overview=None,
                                  item_id="i1", server_name="Emby1", channel="emby", image_url=None)
-    pm = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="开始播放,新入库")
+    pm = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="开始播放,新入库",
+                     daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    media_upserts = []
+    pm._tg_console_upsert_card = lambda token, chat_id, state: media_upserts.append(sorted((state.get("reports") or {}).keys())) or True
     pm.on_webhook_message(types.SimpleNamespace(event_data=info))
-    check(len(pm._stub_messages) == 1 and "开始播放剧集 剧A" in pm._stub_messages[0]["title"], "开始播放 -> 发通知，标题正确")
-    check("用户：张三" in pm._stub_messages[0]["text"], "正文含用户")
-    check(getattr(pm._stub_messages[0].get("mtype"), "name", "") == "MediaServer", "媒体通知默认走媒体服务器消息类型")
-    pm_other = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="开始播放", msgnotify_notify_type="Other")
+    check(media_upserts == [["media_activity"]] and not pm._stub_messages, "开始播放 -> 只流式写入融合卡，不发独立 MP 通知")
+    media_state = pm.get_data("tg_console_state") or {}
+    media_text = (((media_state.get("reports") or {}).get("media_activity") or {}).get("text") or "")
+    check("卓" in media_text and "AfuseKt" in media_text and "172.17.0.1 本地局域网" in media_text,
+          "融合卡媒体活动正文含用户、设备和局域网 IP")
+    media_headline = pm._build_fusion_media_headline(media_state)
+    check("开始播放剧集 入青云 S1E5 纪伯宰亲自为明意上药" in media_headline
+          and "设备：AfuseKt" in media_headline
+          and "用户：卓" in media_headline
+          and "IP地址：172.17.0.1 本地局域网" in media_headline
+          and "───────────────────" not in media_headline
+          and media_headline.startswith("<blockquote>")
+          and media_headline.endswith("</blockquote>"),
+          "融合通知顶部媒体块应在系统行下展示播放状态、设备、用户和 IP，并用引用框隔开")
+    media_full_html = pm._build_tg_console_html(media_state)
+    system_idx = media_full_html.find("🤖 系统：")
+    media_idx = media_full_html.find("开始播放剧集 入青云 S1E5")
+    hint_idx = media_full_html.find("请点击下方的横向分类按钮")
+    check(0 <= system_idx < media_idx < hint_idx,
+          "媒体播放流必须显示在系统行下方、栏目提示语上方")
+    pm_fusion_default = make_plugin(mod, msgnotify_enabled=False, msgnotify_types=[],
+                                    daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    default_media_upserts = []
+    pm_fusion_default._tg_console_upsert_card = lambda token, chat_id, state: default_media_upserts.append(state) or True
+    default_info_data = vars(info).copy()
+    default_info_data["item_id"] = "i-default"
+    pm_fusion_default.on_webhook_message(types.SimpleNamespace(event_data=types.SimpleNamespace(**default_info_data)))
+    default_media_state = pm_fusion_default.get_data("tg_console_state") or {}
+    check(default_media_upserts
+          and "开始播放剧集 入青云 S1E5" in pm_fusion_default._build_tg_console_html(default_media_state)
+          and not pm_fusion_default._stub_messages,
+          "融合通知开启且媒体栏目启用时，播放 webhook 必须绕过旧媒体通知开关流式更新顶部卡片")
+    default_media_state["active_tab"] = "download_media"
+    default_media_state["tab_touched"] = True
+    download_media_html = pm_fusion_default._build_tg_console_html(default_media_state)
+    check(download_media_html.count("开始播放剧集 入青云 S1E5") == 1
+          and "<summary>🎬 媒体动态</summary>" not in download_media_html,
+          "播放动态只属于顶部实时区，下载与媒体栏目内不重复渲染播放事件")
+    stale_stop_state = {
+        "reports": {
+            "media_activity": {
+                "title": "媒体动态",
+                "group": "停止播放",
+                "raw_title": "停止播放剧集 入青云",
+                "text": "停止播放剧集 入青云 S1E5\n设备：AfuseKt\n用户：卓",
+                "level": "idle",
+                "updated_at": "2000-01-01 00:00:00",
+            }
+        },
+        "columns": {"media": {"items": []}},
+    }
+    check(pm._build_fusion_media_headline(stale_stop_state) == ""
+          and "media_activity" not in (stale_stop_state.get("reports") or {}),
+          "停止播放状态超过 5 分钟后必须从融合卡顶部消失")
+    media_stats_state = {
+        "reports": {
+            "media_activity": {
+                "title": "媒体动态",
+                "text": "⦁ 电影 636 ｜ 电视剧 71 ｜ 剧集 2624 ｜ 用户 6",
+                "level": "success",
+            }
+        },
+        "columns": {
+            "media": {
+                "items": [{
+                    "title": "媒体动态",
+                    "text": "⦁ 电影 636 ｜ 电视剧 71 ｜ 剧集 2624 ｜ 用户 6",
+                    "level": "success",
+                }]
+            }
+        },
+    }
+    check(pm._build_fusion_media_headline(media_stats_state) == "",
+          "融合通知顶部媒体块不能用媒体统计占位，媒体统计只属于日报统计栏目")
+    media_stats_html = pm._build_tg_console_html(media_stats_state)
+    check("电影 636" not in media_stats_html
+          and "media_activity" not in (media_stats_state.get("reports") or {})
+          and "media" not in (media_stats_state.get("columns") or {}),
+          "融合通知渲染时要主动清理旧状态里的媒体统计占位，避免旧卡继续显示")
+    check(not any("电影 636" in line for line in pm._fusion_tab_lines("media", media_stats_state, "🎬 媒体统计\n\n• 电影 636 ｜ 电视剧 71 ｜ 剧集 2624 ｜ 用户 6")),
+          "融合通知媒体分类不能从日报媒体统计兜底，媒体通知只展示 webhook 事件")
+    pm_other = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="开始播放", msgnotify_notify_type="Other",
+                           daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    other_upserts = []
+    pm_other._tg_console_upsert_card = lambda token, chat_id, state: other_upserts.append(True) or True
     pm_other.on_webhook_message(types.SimpleNamespace(event_data=info))
-    check(pm_other._stub_messages and pm_other._stub_messages[0].get("mtype") == mod.NotificationType.Other,
-          "媒体通知消息类型支持 其他")
+    check(other_upserts and not pm_other._stub_messages,
+          "融合卡开启后媒体通知不因 MP 消息类型回退")
     pm.on_webhook_message(types.SimpleNamespace(event_data=info))
-    check(len(pm._stub_messages) == 1, "同 item 重复事件 30s 内去重")
+    check(len(media_upserts) == 1, "同 item 重复事件 30s 内去重")
+    pm_media_fail = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="开始播放",
+                                daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    pm_media_fail._tg_console_upsert_card = lambda token, chat_id, state: False
+    pm_media_fail.on_webhook_message(types.SimpleNamespace(event_data=info))
+    check(not pm_media_fail._stub_messages, "媒体活动融合卡更新失败时不准降级 MP 通知")
     pm2 = make_plugin(mod, msgnotify_enabled=True, msgnotify_types="新入库")
     pm2.on_webhook_message(types.SimpleNamespace(event_data=info))
     check(len(pm2._stub_messages) == 0, "未勾选事件类型 -> 不通知")
@@ -759,6 +876,634 @@ def main():
     preview_rich = preview_data.get("telegram_rich_message") or {}
     check("<h2>" in (preview_rich.get("html") or "") and preview_rich.get("skip_entity_detection") is True and "markdown" not in preview_rich,
           "每日汇报 API 预览只返回 Telegram RichMessage HTML 载荷")
+    p_fused_card = make_plugin(mod, tg_console_enabled=True, tg_console_suppress_individual_notifications=True)
+    fused_state = p_fused_card._tg_console_state(chat_id="chat")
+    p_fused_card._tg_console_set_report_section(
+        fused_state,
+        "daily_report",
+        "立即刷新",
+        "\n".join([
+            "📮 MP 运维日报｜2026-06-22 周一",
+            "少爷，今天的系统观察如下。",
+            "🕒 2026-06-22 04:12:35",
+            "",
+            "🤖 MoviePilot",
+            "",
+            "• 当前版本：前端 1.0 / 后端 2.0",
+            "• 最新版本：已是最新",
+            "",
+            "📡 站点状态",
+            "",
+            "• 馒头 | 正常",
+            "• 红叶 | 异常（Cookie 失效）",
+            "",
+            "💾 存储空间",
+            "",
+            "• 本地：66.16 GB/283.75 GB ｜ 已用 23%",
+            "• 115网盘：36.32 TB/70.00 TB ｜ 已用 52%",
+            "",
+            "🎬 媒体统计",
+            "",
+            "• 电影 643 ｜ 剧集 2581",
+        ]),
+        level="success",
+    )
+    p_fused_card._tg_console_set_report_section(fused_state, "health_check", "health", "状态：全部正常\n巡查项目：共 7 项，通过 7 项，异常 0 项", level="success")
+    fused_state["notices"] = [{"time": "04:12:35", "title": "站点统计", "text": "已刷新 3 个站点", "level": "success"}]
+    fused_html = p_fused_card._build_tg_console_html(fused_state)
+    check("📮 MP 运维日报｜🕒" in fused_html
+          and "给你送上今天的心跳播报" in fused_html
+          and "🤖 系统：" in fused_html
+          and "<br><b>🩺 站点：</b>" in fused_html
+          and "MP 运维简报" not in fused_html
+          and "<summary>今日汇报</summary>" not in fused_html,
+          "融合通知不再套旧日报壳，系统/站点头部按两排展示")
+    check(fused_html.count(p_fused_card._daily_greeting_locked()) == 1,
+          "fusion TG card should render the greeting only once")
+    system_line_from_daily = p_fused_card._build_fusion_system_line("", fused_state)
+    check("0/0" not in system_line_from_daily and "1/2" in system_line_from_daily,
+          "融合通知站点顶栏应优先从日报站点状态统计，避免新卡显示 0/0")
+    fused_state_health_fallback = p_fused_card._tg_console_state(chat_id="chat")
+    fused_state_health_fallback["reports"] = {
+        "health_check": {
+            "title": "健康巡查",
+            "text": "⦁ 状态：全部正常\n⦁ 巡查项：共 7 项，通过 7 项，异常 0 项\n⦁ 正常项：订阅、站点、下载器、本插件任务、数据库、存储空间、目录权限",
+            "level": "success",
+        },
+        "site_stat": {
+            "title": "站点增量",
+            "text": "⦁ 馒头：⬆ 10.00 GB ｜ ⬇ 2.00 GB｜📊 3.405｜🪙 18,619.5",
+            "level": "success",
+        },
+    }
+    fused_state_health_fallback["columns"] = {
+        "site_stats": {
+            "items": [{
+                "title": "站点增量",
+                "text": "⦁ 馒头：⬆ 10.00 GB ｜ ⬇ 2.00 GB｜📊 3.405｜🪙 18,619.5",
+                "level": "success",
+            }]
+        }
+    }
+    p_fused_card.save_data("last_health_check", {
+        "success": True,
+        "checks": [{"name": "sites", "ok": True, "detail": "共 7 个，启用 7 个"}],
+        "output": "⦁ 状态：全部正常\n⦁ ✅ 站点：共 7 个，启用 7 个",
+    })
+    system_line_from_health = p_fused_card._build_fusion_system_line("", fused_state_health_fallback)
+    check("7/7" in system_line_from_health and "1/1" not in system_line_from_health,
+          "融合通知站点顶栏在健康巡查摘要丢失数量时，应读取 last_health_check 的站点数量，不能把站点增量的一条记录当作 1/1")
+    p_fused_no_site_health = make_plugin(mod, tg_console_enabled=True, tg_console_suppress_individual_notifications=True)
+    fused_state_site_columns = p_fused_no_site_health._tg_console_state(chat_id="chat")
+    fused_state_site_columns["reports"] = {"daily_report": {"text": ""}}
+    fused_state_site_columns["columns"] = {
+        "site_stats": {
+            "items": [
+                {"title": "馒头", "text": "馒头：⬆ 10.00 GB ｜ ⬇ 2.00 GB", "level": "success"},
+                {"title": "红叶", "text": "红叶：⬆ 1.00 GB ｜ ⬇ 500 MB", "level": "success"},
+            ]
+        }
+    }
+    system_line_from_site_columns = p_fused_no_site_health._build_fusion_system_line("", fused_state_site_columns)
+    check("正常 (2/2)" not in system_line_from_site_columns and "失败 (0/2)" not in system_line_from_site_columns,
+          "融合通知站点顶栏没有真实站点状态时不能从站点增量栏目推导在线站点，避免把增量条数误算成站点健康数")
+    check("\u5b58\u50a8\u7a7a\u95f4\u76d1\u63a7\u77e9\u9635" not in fused_html
+          and "\u7ad9\u70b9\u7ea2\u7eff\u706f\u72b6\u6001\u8231" not in fused_html
+          and "\u66f4\u65b0\u8bb0\u5f55" not in fused_html
+          and "🆙 更新提醒" not in fused_html,
+          "融合通知隐藏旧错误标题，且无更新时不展示更新提醒")
+    check("卡片内交互" not in fused_html
+          and "/aoa_daily" not in fused_html
+          and "/aoa_site" not in fused_html,
+          "TG 日报卡不再渲染不可点击的卡片内 slash command 说明")
+    check("📊 订阅与站点" not in fused_html
+          and "📊 订阅与站点详情" not in fused_html
+          and "<summary>📈 站点增量</summary>" in fused_html
+          and "<summary>📺 订阅追新</summary>" in fused_html
+          and "馒头 | 正常" in fused_html and "红叶 | 异常" in fused_html
+          and "站点红绿灯状态舱" not in fused_html,
+          "融合通知默认卡取消大分类标题，直接展示站点统计及订阅追新小栏目")
+    fused_state_with_increment = p_fused_card._tg_console_state(chat_id="chat")
+    fused_state_with_increment["columns"] = {
+        "site_stats": {
+            "items": [{
+                "title": "站点统计",
+                "text": "⦁ 馒头：⬆ 10.00 GB ｜ ⬇ 2.00 GB｜📊 3.405｜🪙 18,619.5",
+                "level": "success",
+                "time": "04:12:35",
+                "updated_at": "2026-06-22 04:12:35",
+            }]
+        },
+        "subscribe": {
+            "items": [{
+                "title": "订阅追新",
+                "text": "⦁ 今日暂无订阅追新",
+                "level": "success",
+                "time": "04:12:35",
+                "updated_at": "2026-06-22 04:12:35",
+            }]
+        },
+    }
+    fused_increment_html = p_fused_card._build_tg_console_html(fused_state_with_increment)
+    fused_increment_visible = fused_increment_html.replace("\u200b", "")
+    check("📈 站点增量" in fused_increment_visible
+          and "站点统计：⦁" not in fused_increment_visible
+          and "订阅追新：⦁" not in fused_increment_visible
+          and "<ul>" in fused_increment_visible
+          and "<li><b>📈 馒头</b>" in fused_increment_visible
+          and "馒头" in fused_increment_visible
+          and "3.405" in fused_increment_visible
+          and "18,619" in fused_increment_visible,
+          "融合通知站点栏目按增量口径展示，使用紧凑行距并去掉重复话术")
+    check("<table" not in fused_html and "&nbsp;" not in fused_html and "🕓" not in fused_html,
+          "融合通知卡片不再渲染旧 footer 或桌面表格布局")
+    p_fused_empty = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    empty_state = p_fused_empty._tg_console_state(chat_id="chat")
+    empty_html = p_fused_empty._build_tg_console_html(empty_state)
+    check("💡 请点击下方的横向分类按钮，查阅今日具体运行指标。" in empty_html
+          and "📊 站点统计详情" not in empty_html
+          and "暂无站点统计数据" not in empty_html
+          and "暂无站点统计" not in empty_html,
+          "新建融合通知卡初始态只显示头部和横向栏目提示，不渲染默认站点空详情")
+    reply_markup = p_fused_card._build_tg_console_reply_markup(fused_state)
+    tg_button_labels = [btn.get("text") for row in reply_markup.get("inline_keyboard", []) for btn in row]
+    tg_callback_data = [btn.get("callback_data") for row in reply_markup.get("inline_keyboard", []) for btn in row]
+    expected_fusion_tabs = [f"{x['icon']} {x['label']}"[:20] for x in p_fused_card._fusion_category_registry()]
+    check(tg_button_labels == expected_fusion_tabs
+          and "立即建卡" not in tg_button_labels
+          and "立即刷新" not in tg_button_labels,
+          "融合通知 inline keyboard 只展示大分类横向按钮")
+    check(len(reply_markup.get("inline_keyboard", [])) == 2
+          and [len(row) for row in reply_markup.get("inline_keyboard", [])] == [2, 2],
+          "融合通知大分类按钮按两行收束，避免信息过散")
+    check(all(str(x or "").startswith("[PLUGIN]AgentOpsAssistant|aoatab:") and not str(x or "").startswith("aoa:tab:") and len(str(x or "").encode("utf-8")) <= 64 for x in tg_callback_data),
+          "融合通知大分类 callback_data 使用 MP [PLUGIN] 通道，避免 MoviePilot 报回调数据格式错误")
+    update_button_state = p_fused_card._tg_console_state(chat_id="chat")
+    update_button_state["reports"] = {
+        "updates": {
+            "title": "更新检查",
+            "text": "MoviePilot：有更新｜后端 v2.13.12 -> v2.13.14",
+            "level": "warning",
+            "data": {"moviepilot": {"has_update": True}},
+        }
+    }
+    update_reply_markup = p_fused_card._build_tg_console_reply_markup(update_button_state)
+    update_button_labels = [btn.get("text") for row in update_reply_markup.get("inline_keyboard", []) for btn in row]
+    check("🆙 立即更新" in update_button_labels,
+          "融合通知检测到 MoviePilot 有新版时应在 TG 交互按钮中追加立即更新")
+    fusion_default = p_fused_card._build_tg_console_html(fused_state)
+    check("📮 MP 运维日报｜🕒" in fusion_default
+          and "给你送上今天的心跳播报" in fusion_default
+          and "💡 请点击下方的横向分类按钮，查阅今日具体运行指标。" in fusion_default
+          and "🤖 系统：" in fusion_default
+          and "📊 订阅与站点" not in fusion_default
+          and "📊 订阅与站点详情" not in fusion_default
+          and "<summary>📈 站点增量</summary>" in fusion_default
+          and "<summary>📺 订阅追新</summary>" in fusion_default
+          and "🩺 站点：" in fusion_default
+          and "站点红绿灯状态舱" not in fusion_default
+          and "存储空间监控矩阵" not in fusion_default,
+          "融合通知默认卡使用订阅与站点小栏目，合并展示站点统计及订阅追新")
+    fusion_columns_state = p_fused_card._tg_console_state(chat_id="chat")
+    fusion_columns_state["reports"] = {"daily_report": {"text": ""}}
+    fusion_columns_state["columns"] = {
+        "site_stats": {"items": [{"title": "馒头", "text": "馒头：↑ 3.405GB / ↓ 18,619MB", "level": "success"}]},
+        "subscribe": {"items": [{"title": "订阅追新", "text": "凡人修仙传 S01E50 已入库", "level": "success"}]},
+        "download_transfer": {"items": [{"title": "今日入库", "text": "成功片 2026 已入库", "level": "success"}]},
+        "media": {"items": [{"title": "媒体统计", "text": "⦁ 电影 120 ｜ 电视剧 46 ｜ 剧集 2300 ｜ 用户 3", "level": "success"}]},
+        "health": {"items": [{"title": "健康巡查", "text": "状态：全部正常\n巡查项：数据库、存储空间", "level": "success"}]},
+        "storage": {"items": [{"title": "存储空间", "text": "配置目录：可用 86GB", "level": "success"}]},
+        "maintenance": {"items": [{"title": "维护任务", "text": "备份：最近一次成功", "level": "success"}]},
+        "updates": {"items": [{"title": "更新检查", "text": "MoviePilot：当前已是最新", "level": "success"}]},
+    }
+    fusion_category_expectations = {
+        "subscribe_site": ("<summary>📈 站点增量</summary>", "<ul>", "<li><b>📈 馒头</b>", "⬆️ 3.405 GB | ⬇️ 18,619 MB", "<summary>📺 订阅追新</summary>", "<li><b>📺 凡人修仙传"),
+        "download_media": ("<summary>📥 今日下载</summary>", "今日暂无今日下载数据", "<summary>📦 入库整理</summary>", "<b>📥 成功片 2026 已入库</b>", "<summary>🎬 媒体统计</summary>", "电影 120"),
+        "system_health": ("<summary>🩺 健康巡查</summary>", "<li><b>✅ 状态</b><br>全部正常</li>", "<li><b>🩺 巡查项</b><br>数据库、存储空间</li>"),
+        "system_maintenance": ("<summary>💾 存储空间</summary>", "<li><b>💾 配置目录</b><br>可用 86 GB</li>", "<summary>🧰 维护任务</summary>", "<li><b>🧰 备份</b><br>最近一次成功</li>", "<summary>🆙 更新检查</summary>", "<li><b>🆙 MoviePilot</b><br>当前已是最新</li>"),
+    }
+    section_template_html = p_fused_card._fusion_section_html(
+        "site_stats",
+        "📈 站点增量",
+        ["馒头：↑ 28.23 GB ｜ ↓ 7.35 GB ｜ 分享率 6.943 ｜ 魔力 69,686.7"],
+    )
+    check("<ul>" in section_template_html
+          and "<li><b>📈 馒头</b>" in section_template_html
+          and "⬆️ 28.23 GB | ⬇️ 7.35 GB | 📊 6.943 | 🪙 69,686.7" in section_template_html
+          and "上传：" not in section_template_html
+          and "下载：" not in section_template_html
+          and "馒头" in section_template_html
+          and "<code>" not in section_template_html
+          and "核心指标" not in section_template_html
+          and "明细" not in section_template_html,
+          "融合通知通用模板必须使用图5式列表模板，不再输出代码胶囊或散点日志")
+    storage_template_html = p_fused_card._fusion_section_html(
+        "storage",
+        "💾 存储空间",
+        ["媒体库：244.65 GB/931.51 GB ｜ 🟢 已用 26%"],
+    )
+    check("<li><b>💾 媒体库</b>" in storage_template_html
+          and "244.65 GB/931.51 GB" in storage_template_html
+          and "[██░░░░░░] 🟢 已用 26%" in storage_template_html
+          and "存储：" not in storage_template_html,
+          "融合通知存储空间必须恢复进度条样式，展示用量/总量和已用百分比")
+    p_fused_card.save_data("last_update_preview", {
+        "success": True,
+        "output": "🔄 MoviePilot 更新检查（MP运维助手直接接替）\n⦁ 后端本地：v2.13.14\n⦁ backend：无更新｜最新 v2.13.14",
+    })
+    p_fused_card.save_data("last_market_update", {
+        "success": True,
+        "output": "🧩 插件库更新检查（MP运维助手直接接替）\n⦁ 新发现：0 个\n⦁ 写入当前配置：未执行",
+    })
+    update_template_html = p_fused_card._fusion_section_html(
+        "updates",
+        "🆙 更新检查",
+        p_fused_card._fusion_recent_task_lines(["update_preview", "market_update"]),
+    )
+    check("<li><b>🆙 MP 更新</b><br>已是最新" in update_template_html
+          and "<li><b>🆙 插件更新</b><br>无更新" in update_template_html
+          and "直接接替" not in update_template_html
+          and "<br>成功<br>MoviePilot 更新检查" not in update_template_html
+          and "<br>成功<br>插件库更新检查" not in update_template_html,
+          "融合通知更新检查必须展示业务结论，不能把检查执行成功和接替说明当正文")
+    health_template_html = p_fused_card._fusion_section_html(
+        "health",
+        "🩺 健康巡查",
+        ["状态：全部正常", "巡查项：共 7 项，通过 7 项，异常 0 项", "数据库：PostgreSQL 主库连接正常；SQLite 主库 user.db 连接正常"],
+    )
+    check("<li><b>✅ 状态</b><br>全部正常</li>" in health_template_html
+          and "<li><b>🩺 巡查项</b><br>共 7 项，通过 7 项，异常 0 项</li>" in health_template_html
+          and "<li><b>✅ 正常项</b><br>数据库</li>" in health_template_html
+          and "PostgreSQL 主库连接正常" not in health_template_html,
+          "融合通知健康巡查必须输出摘要文字，正常详情不能直接铺开")
+    maintenance_template_html = p_fused_card._fusion_section_html(
+        "maintenance",
+        "🧰 维护任务",
+        ["日志清理：成功｜插件日志清理结果：扫描文件 37 个，候选文件 20 个"],
+    )
+    check("<li><b>🧰 日志清理</b><br>成功<br>扫描 37 个，候选 20 个</li>" in maintenance_template_html
+          and "插件日志清理结果" not in maintenance_template_html,
+          "融合通知维护任务必须输出状态和关键数字摘要，不能直接铺日志原文")
+    p_media_fallback = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_media_fallback._get_media_stats_locked = lambda: ["⦁ 电影 636 ｜ 电视剧 71 ｜ 剧集 2,624"]
+    media_title, media_text, media_level = p_media_fallback._fusion_column_snapshot(
+        "media", p_media_fallback._tg_console_state(chat_id="chat")
+    )
+    check(media_title == "媒体统计"
+          and media_level == "success"
+          and "电影 636" in media_text
+          and "电视剧 71" in media_text
+          and "剧集 2,624" in media_text
+          and "暂无媒体" not in media_text,
+          "下载与媒体栏目无播放动态时必须回退展示 MoviePilot 媒体统计，而不是暂无媒体动态")
+    today = datetime.now().date().strftime("%Y-%m-%d")
+    _SUB.update({
+        "subs": [types.SimpleNamespace(name="完美世界", year="2021", type="电视剧", tmdbid=1001, season=1, episode_group=None)],
+        "tmdb_episodes": [types.SimpleNamespace(air_date=today, episode_number=275)],
+        "movie_mediainfo": None,
+    })
+    subscribe_items = p_fused_card._get_today_subscribe_updates_locked()
+    check(any("完美世界" in item and "E275" in item for item in subscribe_items),
+          "订阅追新必须识别 MoviePilot 日历同口径的今日剧集更新")
+    _SUB.update({"subs": [], "tmdb_episodes": [], "movie_mediainfo": None})
+    for category_key, fragments in fusion_category_expectations.items():
+        fusion_columns_state["active_tab"] = category_key
+        category_html = p_fused_card._build_tg_console_html(fusion_columns_state)
+        check(all(fragment in category_html for fragment in fragments)
+              and "<table" not in category_html
+              and "<ul>" in category_html
+              and "<li>" in category_html
+              and "详情" not in category_html
+              and "核心指标" not in category_html
+              and "明细" not in category_html
+              and not category_html.strip().startswith("<blockquote>"),
+              f"融合通知 {category_key} 大分类使用清晰分组、图标行首和移动端友好的换行模板")
+    p_fused_card._handle_tg_console_callback({
+        "id": "cb-tab",
+        "from": {"id": "u1"},
+        "message": {"chat": {"id": "chat"}},
+        "data": "aoa:tab:storage",
+    }, update_id=100)
+    switched_state = p_fused_card.get_data("tg_console_state") or {}
+    check(switched_state.get("active_tab") == "system_maintenance", "旧三段式子栏目 callback 会兼容切换到所属大分类")
+    storage_html = p_fused_card._build_tg_console_html(switched_state)
+    check("🧰 系统维护" not in storage_html
+          and "<summary>💾 存储空间</summary>" in storage_html
+          and "<summary>🧰 维护任务</summary>" in storage_html
+          and "<summary>🆙 更新检查</summary>" in storage_html
+          and "💾 存储空间" in storage_html
+          and "🩺 健康巡查" not in storage_html,
+          "active_tab=system_maintenance 时取消大分类标题，直接用可折叠小栏目展示存储、维护和更新")
+    p_fused_card._handle_tg_console_callback({
+        "id": "cb-tab-new",
+        "from": {"id": "u1"},
+        "message": {"chat": {"id": "chat"}},
+        "data": "aoatab:health",
+    }, update_id=101)
+    switched_new_state = p_fused_card.get_data("tg_console_state") or {}
+    health_html = p_fused_card._build_tg_console_html(switched_new_state)
+    check(switched_new_state.get("active_tab") == "system_health"
+          and "<summary>🩺 健康巡查</summary>" in health_html
+          and "💾 存储空间" not in health_html,
+          "两段式健康子栏目 callback 会兼容切换到独立健康巡查大分类")
+    callback_upserts = []
+    p_dedupe = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_dedupe._tg_console_upsert_card = lambda token, chat_id, state: callback_upserts.append(state.get("active_tab")) or True
+    p_dedupe._tg_console_answer_callback = lambda callback_id, text="": True
+    cb = {"id": "cb-repeat", "from": {"id": "u1"}, "message": {"chat": {"id": "chat"}}, "data": "aoatab:system_maintenance"}
+    check(p_dedupe._handle_tg_console_callback(cb, update_id=200) is True
+          and p_dedupe._handle_tg_console_callback(cb, update_id=201) is True
+          and callback_upserts == ["system_maintenance"],
+          "重复 callback_query.id 只处理一次，避免横向栏目重复刷新")
+    p_callback_refresh = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    refresh_calls = []
+    refresh_html = []
+    def _fake_refresh_column(key, state):
+        refresh_calls.append(key)
+        state.setdefault("columns", {})[key] = {
+            "items": [{"title": "存储刷新", "text": "容量已更新", "level": "success", "time": "10:00", "updated_at": "2026-06-24 10:00:00"}],
+            "updated_at": "2026-06-24 10:00:00",
+        }
+        return True
+    p_callback_refresh._refresh_fusion_column = _fake_refresh_column
+    p_callback_refresh._tg_console_upsert_card = lambda token, chat_id, state: refresh_html.append(p_callback_refresh._build_tg_console_html(state)) or True
+    p_callback_refresh._tg_console_answer_callback = lambda callback_id, text="": True
+    check(p_callback_refresh._handle_tg_console_callback({
+        "id": "cb-refresh-tab",
+        "from": {"id": "u1"},
+        "message": {"chat": {"id": "chat"}},
+        "data": "aoatab:system_maintenance",
+    }, update_id=203) is True
+          and refresh_calls == ["storage", "maintenance", "updates"]
+          and refresh_html
+          and "容量已更新" in refresh_html[-1],
+          "点击融合大分类 callback 必须立即刷新所属子栏目数据并编辑同一张卡")
+    p_message_action = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    message_action_refreshes = []
+    p_message_action._refresh_fusion_column = lambda key, state: message_action_refreshes.append(key) or True
+    p_message_action._tg_console_upsert_card = lambda token, chat_id, state: True
+    message_action_handler = getattr(p_message_action, "on_message_action", None)
+    if callable(message_action_handler):
+        message_action_handler(types.SimpleNamespace(event_data={
+            "plugin_id": "AgentOpsAssistant",
+            "text": "aoatab:download_media",
+            "userid": "u1",
+            "original_chat_id": "chat",
+            "original_message_id": 456,
+        }))
+    check(callable(message_action_handler)
+          and p_message_action.get_data("tg_console_state").get("active_tab") == "download_media"
+          and message_action_refreshes == ["download_transfer", "media"],
+          "MoviePilot [PLUGIN] MessageAction 回调必须由插件接管并刷新对应大分类")
+    invalid_answers = []
+    p_invalid_tab = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_invalid_tab._tg_console_answer_callback = lambda callback_id, text="": invalid_answers.append(text) or True
+    check(p_invalid_tab._handle_tg_console_callback({
+        "id": "cb-bad-tab",
+        "from": {"id": "u1"},
+        "message": {"chat": {"id": "chat"}},
+        "data": "aoa:tab:not_exists",
+    }, update_id=202) is False and invalid_answers == ["未知栏目"],
+          "未知融合栏目 callback 必须被拒绝并答复未知栏目")
+    p_new_card = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    old_state = p_new_card._tg_console_state(chat_id="chat")
+    old_state["message_id"] = 123
+    old_state["reports"] = {"daily_report": {"text": "旧日报"}}
+    p_new_card._save_tg_console_state(old_state)
+    sent_payloads = []
+    p_new_card._telegram_http_post_json = lambda url, payload, timeout=15: sent_payloads.append((url, payload)) or types.SimpleNamespace(
+        ok=True,
+        json=lambda: {"ok": True, "result": {"message_id": 456}},
+        text='{"ok":true,"result":{"message_id":456}}',
+    )
+    new_card_res = p_new_card.api_create_tg_console_card()
+    new_card_state = p_new_card.get_data("tg_console_state") or {}
+    check(new_card_res.get("code") == 0
+          and (new_card_res.get("data") or {}).get("code") == 0
+          and (new_card_res.get("data") or {}).get("success") is True
+          and "456" in ((new_card_res.get("data") or {}).get("msg") or "")
+          and new_card_state.get("message_id") == 456
+          and "sendRichMessage" in sent_payloads[-1][0]
+          and not any("editMessageText" in x[0] for x in sent_payloads)
+          and new_card_state.get("columns")
+          and new_card_state.get("reports"),
+          "立即建卡必须新发融合卡并预先刷新本次站点/订阅等栏目数据")
+    leak_card_token = "123456:AAABBBCCCDDDEEEFFFGGGHHHIIIJJJ"
+    p_new_card_fail = make_plugin(mod, daily_report_telegram_bot_token=leak_card_token, daily_report_telegram_chat_id="chat")
+    p_new_card_fail._refresh_fusion_columns = lambda state: None
+    p_new_card_fail._telegram_http_post_json = lambda url, payload, timeout=15: types.SimpleNamespace(
+        ok=True,
+        json=lambda: {"ok": False, "description": f"Bad Request: rich_message html is invalid for bot{leak_card_token}"},
+        text=f'{{"ok":false,"description":"Bad Request: rich_message html is invalid for bot{leak_card_token}"}}',
+    )
+    failed_card_res = p_new_card_fail.api_create_tg_console_card()
+    failed_card_state = p_new_card_fail.get_data("tg_console_state") or {}
+    failed_card_text = json.dumps(failed_card_res, ensure_ascii=False) + json.dumps(failed_card_state, ensure_ascii=False)
+    check(failed_card_res.get("code") == 1
+          and (failed_card_res.get("data") or {}).get("code") == 1
+          and (failed_card_res.get("data") or {}).get("success") is False
+          and "sendRichMessage" in failed_card_res.get("msg", "")
+          and "Bad Request" in failed_card_res.get("msg", "")
+          and "Bad Request" in ((failed_card_res.get("data") or {}).get("last_error") or "")
+          and leak_card_token not in failed_card_text
+          and "bot***" in failed_card_text,
+          "立即建卡失败时 API 必须透出 Telegram sendRichMessage 原因并脱敏 Bot Token")
+    p_markup_send = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    markup_state = p_markup_send._tg_console_state(chat_id="chat")
+    markup_payloads = []
+    p_markup_send._build_tg_console_html = lambda state: "<h2>📮 MP 运维日报｜按钮测试</h2>"
+    p_markup_send._telegram_http_post_json = lambda url, payload, timeout=15: markup_payloads.append((url, payload)) or types.SimpleNamespace(
+        ok=True,
+        json=lambda: {"ok": True, "result": {"message_id": 7001}},
+        text='{"ok":true,"result":{"message_id":7001}}',
+    )
+    check(p_markup_send._tg_console_upsert_card("token", "chat", markup_state) is True
+          and markup_payloads
+          and "sendRichMessage" in markup_payloads[-1][0]
+          and "reply_markup" in markup_payloads[-1][1],
+          "sendRichMessage 创建日报卡时携带 TG inline keyboard")
+    markup_payloads.clear()
+    check(p_markup_send._tg_console_upsert_card("token", "chat", markup_state) is True
+          and markup_payloads
+          and "editMessageText" in markup_payloads[-1][0]
+          and "reply_markup" in markup_payloads[-1][1],
+          "editMessageText 更新日报卡时继续携带 TG inline keyboard")
+    p_fused_defaults = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_fused_defaults._refresh_daily_report_live_data = lambda: {"success": True}
+    p_fused_defaults._build_daily_report_message = lambda preview=False: "\U0001f4e6 MP 运维日报｜默认融合卡"
+    default_fused_upserts = []
+    p_fused_defaults._tg_console_upsert_card = lambda token, chat_id, state: default_fused_upserts.append(sorted((state.get("reports") or {}).keys())) or True
+    p_fused_defaults._post_telegram_rich_message = lambda *a, **k: (_ for _ in ()).throw(AssertionError("daily report must not use standalone RichMessage"))
+    check(p_fused_defaults._tg_console_enabled is True
+          and p_fused_defaults._tg_console_suppress_individual_notifications is True,
+          "fused card should be enabled by default and suppress standalone notifications")
+    expected_fusion_report_keys = {
+        "daily_report", "site_stat", "today_transfer", "subscribe_reminder",
+        "storage", "media_stat", "health_check", "maintenance", "updates",
+    }
+    fusion_categories = {item["key"]: item["children"] for item in p_fused_defaults._fusion_category_registry()}
+    check(fusion_categories.get("system_health") == ["health"]
+          and fusion_categories.get("system_maintenance") == ["storage", "maintenance", "updates"]
+          and p_fused_defaults._normalize_fusion_tab("health") == "system_health"
+          and p_fused_defaults._normalize_fusion_tab("storage") == "system_maintenance",
+          "TG 融合卡要拆分系统类目：健康巡查独立，系统维护只放存储空间和维护/更新任务")
+    check(p_fused_defaults.run_daily_report() is True
+          and default_fused_upserts
+          and set(default_fused_upserts[-1]) == expected_fusion_report_keys
+          and (p_fused_defaults._stub_data.get("last_daily_report") or {}).get("message") == "OK tg_console_card",
+          "daily report without legacy tg_console config should stream into the fused card")
+    _PU["notifications"] = [
+        {
+            "name": "订阅 Telegram",
+            "type": "telegram",
+            "enabled": True,
+            "switchs": ["订阅"],
+            "config": {"TELEGRAM_TOKEN": "sub-token", "TELEGRAM_CHAT_ID": "-100sub"},
+        },
+        {
+            "name": "插件 Telegram",
+            "type": "telegram",
+            "enabled": True,
+            "switchs": ["插件"],
+            "config": {"TELEGRAM_TOKEN": "plugin-token", "TELEGRAM_CHAT_ID": "-100plugin"},
+        },
+    ]
+    p_fused_sub_channel = make_plugin(mod, fusion_notify_msgtype="Subscribe")
+    sub_token, sub_chat, sub_source = p_fused_sub_channel._resolve_daily_report_telegram_config()
+    check((sub_token, sub_chat) == ("sub-token", "-100sub") and "订阅 Telegram" in sub_source,
+          "融合通知消息类型选择订阅时，应从 MP 订阅通知通道读取 Telegram 配置")
+    p_fused_plugin_channel = make_plugin(mod, fusion_notify_msgtype="Plugin")
+    plugin_token, plugin_chat, plugin_source = p_fused_plugin_channel._resolve_daily_report_telegram_config()
+    check((plugin_token, plugin_chat) == ("plugin-token", "-100plugin") and "插件 Telegram" in plugin_source,
+          "融合通知消息类型默认插件时，应从 MP 插件通知通道读取 Telegram 配置")
+    p_fused_forced = make_plugin(mod, tg_console_enabled=False, tg_console_suppress_individual_notifications=False,
+                                 daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    check(p_fused_forced._tg_console_enabled is True
+          and p_fused_forced._tg_console_suppress_individual_notifications is True,
+          "legacy false fused-card flags should be upgraded to streaming-only mode")
+    p_schedule_off = make_plugin(
+        mod,
+        daily_report_enabled=True,
+        daily_report_schedule_enabled=False,
+        subscribe_reminder_enabled=True,
+        subscribe_reminder_schedule_enabled=False,
+        health_check_enabled=True,
+        health_check_schedule_enabled=False,
+        backup_enabled=True,
+        backup_schedule_enabled=False,
+        log_clean_enabled=True,
+        log_clean_schedule_enabled=False,
+        mp_update_enabled=True,
+        mp_update_schedule_enabled=False,
+        market_update_enabled=True,
+        market_update_schedule_enabled=False,
+        seedclean_enabled=True,
+        seedclean_schedule_enabled=False,
+        seedclean_downloaders=["qb"],
+    )
+    service_ids = {svc.get("id") for svc in p_schedule_off.get_service()}
+    check(not any(x in service_ids for x in {
+        "AgentOpsAssistant.DailyReport",
+        "AgentOpsAssistant.SubscribeReminder",
+        "AgentOpsAssistant.HealthCheck",
+        "AgentOpsAssistant.Backup",
+        "AgentOpsAssistant.LogClean",
+        "AgentOpsAssistant.MPUpdate",
+        "AgentOpsAssistant.MarketUpdate",
+        "AgentOpsAssistant.SeedClean",
+    }) and p_schedule_off._can_run_task("每日汇报", "daily_report")[0] is True,
+          "独立定时开关关闭时不注册服务，但组件手动动作仍可运行")
+    p_fusion_schedule = make_plugin(
+        mod,
+        fusion_notify_enabled=True,
+        fusion_notify_schedule_enabled=True,
+        fusion_notify_cron="0 * * * *",
+        daily_report_enabled=True,
+        daily_report_schedule_enabled=True,
+        subscribe_reminder_enabled=True,
+        subscribe_reminder_schedule_enabled=True,
+        health_check_enabled=True,
+        health_check_schedule_enabled=True,
+        log_clean_enabled=True,
+        log_clean_schedule_enabled=True,
+        backup_enabled=True,
+        backup_schedule_enabled=True,
+        mp_update_enabled=True,
+        mp_update_schedule_enabled=True,
+        market_update_enabled=True,
+        market_update_schedule_enabled=True,
+        seedclean_enabled=True,
+        seedclean_schedule_enabled=True,
+        seedclean_downloaders=["qb"],
+    )
+    fusion_service_ids = {svc.get("id") for svc in p_fusion_schedule.get_service()}
+    fusion_blocked_service_ids = {
+        "AgentOpsAssistant.DailyReport",
+        "AgentOpsAssistant.SubscribeReminder",
+        "AgentOpsAssistant.HealthCheck",
+        "AgentOpsAssistant.LogClean",
+        "AgentOpsAssistant.Backup",
+        "AgentOpsAssistant.MPUpdate",
+        "AgentOpsAssistant.MarketUpdate",
+        "AgentOpsAssistant.SeedClean",
+    }
+    check("AgentOpsAssistant.FusionNotify" in fusion_service_ids
+          and not (fusion_service_ids & fusion_blocked_service_ids),
+          "融合通知开启时定时服务只注册融合刷新，不再注册组件级定时任务")
+    p_full_fusion = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_full_fusion._refresh_daily_report_live_data = lambda: {"success": True}
+    p_full_fusion._build_daily_report_message = lambda preview=False: "daily"
+    refreshed_columns = []
+    p_full_fusion._refresh_fusion_column = lambda key, state: refreshed_columns.append(key) or True
+    p_full_fusion._tg_console_upsert_card = lambda token, chat_id, state: True
+    check(p_full_fusion.run_daily_report() is True
+          and refreshed_columns == ["site_stats", "download_transfer", "subscribe", "storage", "media", "health", "maintenance", "updates"],
+          "立即刷新融合通知时必须覆盖 8 个融合栏目")
+    p_fused_flow = make_plugin(mod, tg_console_enabled=True, tg_console_suppress_individual_notifications=True,
+                               daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_fused_flow._refresh_daily_report_live_data = lambda: {"success": True}
+    p_fused_flow._build_daily_report_message = lambda preview=False: "\U0001f4e6 MP 运维日报｜单卡\n\n\U0001f4d7 站点状态\n\n• 馒头 | 正常"
+    fused_upserts = []
+    def _fake_fused_upsert(token, chat_id, state):
+        action = "edit" if state.get("message_id") else "send"
+        if action == "send":
+            state["message_id"] = 9001
+        fused_upserts.append((action, state.get("message_id"), sorted((state.get("reports") or {}).keys()), len(state.get("notices") or [])))
+        return True
+    p_fused_flow._tg_console_upsert_card = _fake_fused_upsert
+    check(p_fused_flow.run_daily_report() is True, "fused card initial daily report should create the card")
+    p_fused_flow._notify_or_console(title="MP 运维助手 - 健康巡查", text="状态：全部正常\n巡查项目：共 7 项，通过 7 项，异常 0 项")
+    check([x[0] for x in fused_upserts] == ["send", "edit"]
+          and fused_upserts[0][1] == fused_upserts[1][1] == 9001
+          and "daily_report" in fused_upserts[1][2]
+          and "health_check" in fused_upserts[1][2]
+          and not p_fused_flow._stub_messages,
+          "fused card should stream follow-up notifications into the same RichMessage")
+    p_fused_no_downgrade = make_plugin(mod, tg_console_enabled=True, tg_console_suppress_individual_notifications=True,
+                                        daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_fused_no_downgrade._tg_console_upsert_card = lambda token, chat_id, state: False
+    check(p_fused_no_downgrade._notify_or_console(title="MP 运维助手 - 健康巡查", text="状态：全部正常") is False
+          and not p_fused_no_downgrade._stub_messages,
+          "fused card should not downgrade suppressed notifications to MP messages when stream update fails")
+    fused_leak_token = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi"
+    p_fused_notice_exception = make_plugin(mod, tg_console_enabled=True, tg_console_suppress_individual_notifications=True,
+                                           daily_report_telegram_bot_token=fused_leak_token, daily_report_telegram_chat_id="chat")
+    p_fused_notice_exception._tg_console_upsert_card = (
+        lambda token, chat_id, state: (_ for _ in ()).throw(
+            RuntimeError(f"boom https://api.telegram.org/bot{fused_leak_token}/editMessageText")
+        )
+    )
+    check(p_fused_notice_exception._notify_or_console(title="MP 运维助手 - 健康巡查", text="状态：全部正常") is False
+          and not p_fused_notice_exception._stub_messages
+          and fused_leak_token not in (p_fused_notice_exception._tg_console_last_error or "")
+          and "bot***" in (p_fused_notice_exception._tg_console_last_error or ""),
+          "fused card notice update exceptions should be sanitized and must not downgrade to MP messages")
+    p_individual_notice = make_plugin(mod, fusion_notify_enabled=False, health_check_enabled=True)
+    check(p_individual_notice._tg_console_enabled is False
+          and p_individual_notice._tg_console_suppress_individual_notifications is False
+          and p_individual_notice._notify_or_console(title="MP 运维助手 - 健康巡查", text="状态：全部正常") is False
+          and len(p_individual_notice._stub_messages) == 1,
+          "关闭融合通知时才恢复组件自身通知设置")
     pr_pack = make_plugin(mod)
     packed = pr_pack._report_body_lines(["⦁ A", "⦁ B", "⦁ 这是一条比较长的内容，用来确认长信息不会被强行横向挤压而影响阅读"])
     check(packed[0] == "• A ｜ • B" and packed[1].startswith("• 这是一条比较长"), "短信息横向并排，长信息独占一行")
@@ -924,12 +1669,13 @@ def main():
     _SUB["site_refresh_result"] = {"馒头": object()}
     p_tg_send = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                             daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
-    sent_rich_payloads = []
-    p_tg_send._post_telegram_rich_message = lambda rich, token=None, chat_id=None: sent_rich_payloads.append(rich) or True
-    check(p_tg_send.run_daily_report() is True and sent_rich_payloads and not p_tg_send._stub_messages,
+    fused_send_payloads = []
+    p_tg_send._tg_console_upsert_card = lambda token, chat_id, state: fused_send_payloads.append(sorted((state.get("reports") or {}).keys())) or True
+    p_tg_send._post_telegram_rich_message = lambda *a, **k: (_ for _ in ()).throw(AssertionError("daily report must use fused card"))
+    check(p_tg_send.run_daily_report() is True and fused_send_payloads and set(fused_send_payloads[-1]) == expected_fusion_report_keys and not p_tg_send._stub_messages,
           "每日汇报只发送 Telegram RichMessage，不再发飞书或 MP 纯文本通知")
-    check((p_tg_send._stub_data.get("last_daily_report") or {}).get("message") == "OK telegram_rich_message",
-          "每日汇报成功状态明确记录 telegram_rich_message")
+    check((p_tg_send._stub_data.get("last_daily_report") or {}).get("message") == "OK tg_console_card",
+          "每日汇报成功状态明确记录融合通知卡已刷新")
     _SUB["site_refresh_calls"] = 0
     _SUB["site_refresh_result"] = {"馒头": object()}
     p_live_report = make_plugin(mod, daily_report_telegram_rich_enabled=True,
@@ -940,7 +1686,7 @@ def main():
         "success": True, "checks": [], "total": 0, "pass": 0, "fail": 0
     }
     p_live_report._build_daily_report_message = lambda preview=False: build_order.append(_SUB["site_refresh_calls"]) or "📮 MP 运维日报｜刷新后\n\n📡 站点状态\n\n• 全部 1 个站点正常"
-    p_live_report._post_telegram_rich_message = lambda rich, token=None, chat_id=None: True
+    p_live_report._tg_console_upsert_card = lambda token, chat_id, state: True
     check(p_live_report.run_daily_report() is True and _SUB["site_refresh_calls"] == 1 and health_order == [1] and build_order == [1],
           "手动/定时每日汇报必须先刷新当时站点用户数据和健康巡查，再生成日报内容")
     _SUB["site_refresh_calls"] = 0
@@ -984,12 +1730,12 @@ def main():
                                          daily_report_telegram_bot_token="token",
                                          daily_report_telegram_chat_id="chat")
     p_summary_site_refresh._build_daily_report_message = lambda preview=False: "📮 MP 运维日报｜摘要"
-    p_summary_site_refresh._post_telegram_rich_message = lambda rich, token=None, chat_id=None: True
+    p_summary_site_refresh._tg_console_upsert_card = lambda token, chat_id, state: True
     check(p_summary_site_refresh.run_daily_report() is True and _SUB["site_refresh_calls"] == 1,
           "即使关闭站点栏目，只要日报摘要会读取站点状态，也必须先刷新当时站点数据")
     p_tg_fallback = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                                 daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
-    p_tg_fallback._post_telegram_rich_message = lambda rich, token=None, chat_id=None: False
+    p_tg_fallback._tg_console_upsert_card = lambda token, chat_id, state: False
     check(p_tg_fallback.run_daily_report() is False and not p_tg_fallback._stub_messages,
           "Telegram RichMessage 发送失败时日报任务失败，不回退 MP post_message 纯文本")
     check((p_tg_fallback._stub_data.get("last_daily_report") or {}).get("success") is False,
@@ -1004,8 +1750,8 @@ def main():
     p_tg_global = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                               daily_report_telegram_bot_token="", daily_report_telegram_chat_id="")
     global_send = {}
-    p_tg_global._post_telegram_rich_message = (
-        lambda rich, token=None, chat_id=None: global_send.update(token=token, chat_id=chat_id) or True
+    p_tg_global._tg_console_upsert_card = (
+        lambda token, chat_id, state: global_send.update(token=token, chat_id=chat_id) or True
     )
     check(p_tg_global.run_daily_report() is True
           and global_send == {"token": "global-token", "chat_id": "-100123"},
@@ -1013,8 +1759,8 @@ def main():
     p_tg_explicit = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                                 daily_report_telegram_bot_token="plugin-token", daily_report_telegram_chat_id="67890")
     explicit_send = {}
-    p_tg_explicit._post_telegram_rich_message = (
-        lambda rich, token=None, chat_id=None: explicit_send.update(token=token, chat_id=chat_id) or True
+    p_tg_explicit._tg_console_upsert_card = (
+        lambda token, chat_id, state: explicit_send.update(token=token, chat_id=chat_id) or True
     )
     check(p_tg_explicit.run_daily_report() is True
           and explicit_send == {"token": "plugin-token", "chat_id": "67890"},
@@ -1028,9 +1774,9 @@ def main():
           "缺少插件 TG 且无全局 Telegram 时，日报失败原因要明确落盘")
     p_tg_detail = make_plugin(mod, daily_report_telegram_rich_enabled=True,
                               daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
-    p_tg_detail._post_telegram_rich_message = (
-        lambda rich, token=None, chat_id=None:
-        setattr(p_tg_detail, "_daily_report_telegram_last_error", "Telegram RichMessage 返回失败：Bad Request") or False
+    p_tg_detail._tg_console_upsert_card = (
+        lambda token, chat_id, state:
+        setattr(p_tg_detail, "_tg_console_last_error", "Telegram RichMessage 返回失败：Bad Request") or False
     )
     check(p_tg_detail.run_daily_report() is False
           and "Bad Request" in ((p_tg_detail._stub_data.get("last_daily_report") or {}).get("error") or ""),
@@ -1064,10 +1810,64 @@ def main():
           and leak_token not in p_tg_http_error._daily_report_telegram_last_error
           and "bot***" in p_tg_http_error._daily_report_telegram_last_error,
           "Telegram API 错误详情写入 last_daily_report 前必须脱敏 Bot Token")
+    p_tg_console_leak = make_plugin(mod, tg_console_enabled=True,
+                                    daily_report_telegram_bot_token=leak_token, daily_report_telegram_chat_id="12345")
+    p_tg_console_leak._build_daily_report_message = lambda preview=False: "daily report"
+    p_tg_console_leak._tg_console_upsert_card = (
+        lambda token, chat_id, state: (_ for _ in ()).throw(
+            RuntimeError(f"boom https://api.telegram.org/bot{leak_token}/editMessageText")
+        )
+    )
+    check(p_tg_console_leak.run_daily_report() is False,
+          "TG 控制台卡片异常时日报任务失败")
+    console_leak_last = p_tg_console_leak._stub_data.get("last_daily_report") or {}
+    console_leak_error = (console_leak_last.get("error") or "") + (console_leak_last.get("message") or "")
+    check(leak_token not in console_leak_error and f"bot{leak_token}" not in console_leak_error and "bot***" in console_leak_error,
+          "TG 控制台卡片异常写入 last_daily_report 前必须脱敏 Bot Token")
     config_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "Config.vue").read_text(encoding="utf-8")
     check('label="Bot Token"' not in config_vue and 'label="Chat ID"' not in config_vue
           and 'label="Telegram RichMessage"' not in config_vue,
           "日报设置页不暴露插件私有 TG Bot Token/Chat ID，默认复用 MoviePilot 全局 Telegram 通知配置")
+    check("preview_daily_report" not in config_vue and "预览完整日报" not in config_vue,
+          "配置页不再暴露误导性的完整日报预览入口")
+    check("quickCardActions" not in config_vue
+          and "aoa-quick-card-actions" not in config_vue
+          and "立即发送汇报" not in config_vue
+          and "预览融合卡" not in config_vue
+          and "立即健康巡查" not in config_vue,
+          "配置页保持通用模板，不再渲染立即建卡/立即刷新快捷条")
+    check("tg_console_status" in config_vue
+          and "tgConsoleStatus" in config_vue
+          and "最后更新" in config_vue
+          and "最近错误" in config_vue,
+          "Telegram 日报卡配置页要展示当前卡片状态、更新时间和错误")
+    page_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "Page.vue").read_text(encoding="utf-8")
+    check("{ path: 'create_tg_console_card', component: '', label: '立即建卡'" in page_vue
+          and "{ path: 'run_daily_report', component: 'daily_report', label: '立即刷新'" in page_vue
+          and "{ path: 'run_daily_report', label: '每日汇报'" not in page_vue,
+          "仪表盘提供立即建卡，并把手动日报按钮改为立即刷新")
+    check("actionComponentEnabled" in page_vue
+          and "actionComponentDisabledMessage" in page_vue
+          and "{ path: 'run_site_stat', component: 'site_stat'" in page_vue
+          and "{ path: 'run_seed_clean', component: 'seed_clean'" in page_vue
+          and "{ path: 'run_downloader_tag', component: 'downloader_tag'" in page_vue,
+          "Page 仪表盘命令面板按组件启用状态禁用手动动作")
+    dashboard_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "Dashboard.vue").read_text(encoding="utf-8")
+    check("{ path: 'create_tg_console_card', component: '', label: '立即建卡'" in dashboard_vue
+          and "{ path: 'run_daily_report', component: 'daily_report', label: '立即刷新'" in dashboard_vue
+          and "{ path: 'run_daily_report', component: 'daily_report', label: '每日汇报'" not in dashboard_vue,
+          "独立 Dashboard 动作组件也提供立即建卡，并把每日汇报按钮改为立即刷新")
+    check("MoviePilot 版本" not in config_vue
+          and "今日摘要" not in config_vue
+          and "fusion_notify_columns" in config_vue
+          and "fusion_notify_msgtype" in config_vue
+          and "融合通知消息类型" in config_vue
+          and "下载器管理 > 下载入库" not in config_vue
+          and "健康巡查 > 存储空间" not in config_vue
+          and "对应插件" in config_vue
+          and "数据范围" in config_vue
+          and "媒体通知" in config_vue,
+          "配置页融合通知栏目合并二级路径后按通用模板展示，并暴露融合通知消息类型")
     _PU["notifications"] = [{
         "name": "默认 Telegram",
         "type": "telegram",
@@ -1078,8 +1878,8 @@ def main():
     p_tg_disabled_legacy = make_plugin(mod, daily_report_telegram_rich_enabled=False,
                                        daily_report_telegram_bot_token="", daily_report_telegram_chat_id="")
     legacy_send = {}
-    p_tg_disabled_legacy._post_telegram_rich_message = (
-        lambda rich, token=None, chat_id=None: legacy_send.update(token=token, chat_id=chat_id) or True
+    p_tg_disabled_legacy._tg_console_upsert_card = (
+        lambda token, chat_id, state: legacy_send.update(token=token, chat_id=chat_id) or True
     )
     check(p_tg_disabled_legacy.run_daily_report() is True
           and legacy_send == {"token": "global-token", "chat_id": "-100123"},
@@ -1099,6 +1899,21 @@ def main():
     transfers = p_report._get_transfer_health_locked()
     check(all("今日下载：" not in x for x in downloads) and any("成功片" in x for x in downloads), "今日下载有内容时直接列片名，不展示数量摘要")
     check(transfers == ["⦁ 失败：失败片 - 硬链接失败"], "入库整理只列失败明细")
+    p_today_transfer = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    p_today_transfer._today_transfer_rows_locked = lambda: [
+        types.SimpleNamespace(status=True, title="成功片", year="2026", type="电影"),
+        types.SimpleNamespace(status=False, title="失败片", errmsg="硬链接失败"),
+    ]
+    transfer_reports = []
+    p_today_transfer._emit_console_report = lambda key, title, text, level="info": transfer_reports.append((key, title, text, level)) or True
+    transfer_result = p_today_transfer.api_run_today_transfer()
+    check(transfer_result.get("code") == 0
+          and transfer_reports
+          and transfer_reports[-1][0] == "today_transfer"
+          and transfer_reports[-1][1] == "今日入库"
+          and "成功片" in transfer_reports[-1][2]
+          and "失败片" in transfer_reports[-1][2],
+          "今日入库 TG 按钮/API 立即读取当前入库历史并写入同一张日报卡")
 
     print("== 站点数据统计饼图数据 ==")
     _today = datetime.now().strftime("%Y-%m-%d")
@@ -1245,7 +2060,7 @@ def main():
     check(p_old._subscribe_reminder_cron == "0 9 * * *", "无 cron 时由小时 9 迁移为 '0 9 * * *'")
     p_cron = make_plugin(mod, subscribe_reminder_cron="30 8 * * *", subscribe_reminder_time="9")
     check(p_cron._subscribe_reminder_cron == "30 8 * * *", "显式 cron 优先于小时")
-    p_sr = make_plugin(mod, enabled=True, subscribe_reminder_enabled=True, subscribe_reminder_cron="0 9 * * *")
+    p_sr = make_plugin(mod, fusion_notify_enabled=False, enabled=True, subscribe_reminder_enabled=True, subscribe_reminder_cron="0 9 * * *")
     sr_ids = [s.get("id") for s in (p_sr.get_service() or [])]
     check("AgentOpsAssistant.SubscribeReminder" in sr_ids, "启用后注册独立订阅追新定时服务")
     p_sr._get_today_subscribe_updates_locked = lambda: ["凡人修仙传 S01E50"]
@@ -1253,7 +2068,7 @@ def main():
     p_sr.post_message = lambda **kw: sr_sent.update(kw)
     ok_sr = p_sr.run_subscribe_reminder()
     check(ok_sr is True and "凡人修仙传" in str(sr_sent.get("text", "")), "run_subscribe_reminder 推送今日追新并返回 True")
-    p_sr_other = make_plugin(mod, subscribe_reminder_msgtype="其他")
+    p_sr_other = make_plugin(mod, fusion_notify_enabled=False, subscribe_reminder_msgtype="其他")
     p_sr_other._get_today_subscribe_updates_locked = lambda: ["凡人修仙传 S01E51"]
     sr_other_sent = {}
     p_sr_other.post_message = lambda **kw: sr_other_sent.update(kw)
@@ -1263,7 +2078,7 @@ def main():
     check("AgentOpsAssistant.SubscribeReminder" not in [s.get("id") for s in (p_off.get_service() or [])], "关闭时不注册订阅追新服务")
 
     print("== 通知类型统一 ==")
-    p_market = make_plugin(mod, market_update_enabled=True, market_update_notify=True, market_update_notify_type="Other")
+    p_market = make_plugin(mod, fusion_notify_enabled=False, market_update_enabled=True, market_update_notify=True, market_update_notify_type="Other")
     p_market._build_market_update_status = lambda apply=False: {"success": True, "has_update": True}
     p_market._auto_update_installed_plugins = lambda apply=True: {}
     p_market._format_market_update_text = lambda data: "market update"
@@ -1294,7 +2109,7 @@ def main():
     check(api_task_error.get("code") == 1 and "save_data failed" in api_task_error.get("msg", ""), "通用手动任务异常时返回失败信封而不是硬抛")
 
     print("== 更新检查：通知去重 ==")
-    p_update = make_plugin(mod, enabled=True, mp_update_enabled=True, mp_update_notify=True, mp_update_notify_type="Other")
+    p_update = make_plugin(mod, fusion_notify_enabled=False, enabled=True, mp_update_enabled=True, mp_update_notify=True, mp_update_notify_type="Other")
     p_update._get_local_versions = lambda: {"backend_version": "v2.13.10", "frontend_version": "v2.13.10"}
     p_update._check_one_release = lambda label, url, local: {
         "type": label,
@@ -1306,10 +2121,22 @@ def main():
     p_update._build_market_status = lambda: {"note": "本插件直接检查插件库记录"}
     mp_update_service = next(s for s in p_update.get_service() if s.get("id") == "AgentOpsAssistant.MPUpdate")
     check(mp_update_service["func"]() is True, "MP 更新定时服务执行成功")
-    update_titles = [m.get("title") for m in p_update._stub_messages]
-    check(len(p_update._stub_messages) == 1, "MP 更新有新版时只发送一条通知")
-    check(update_titles == ["MP 运维助手 - MoviePilot更新检查"], "MP 更新通知标题不是预览标题")
-    check(getattr(p_update._stub_messages[0].get("mtype"), "name", "") == "Other", "MP 更新通知使用所选消息类型")
+    check(not p_update._stub_messages, "MP 更新检查发现新版时不单独推送 TG，只更新状态供融合卡按钮使用")
+    update_task = p_update.get_data("last_update_preview") or {}
+    check(update_task.get("success") is True and "有更新" in update_task.get("output", ""),
+          "MP 更新检查发现新版时仍记录可读状态")
+
+    p_apply_update = make_plugin(mod, fusion_notify_enabled=False, enabled=True, mp_update_enabled=True, mp_update_notify=True, mp_update_notify_type="Other")
+    p_apply_update._get_local_versions = p_update._get_local_versions
+    p_apply_update._check_one_release = p_update._check_one_release
+    p_apply_update._build_market_status = p_update._build_market_status
+    upgrade_calls = []
+    p_apply_update._dispatch_moviepilot_upgrade = lambda data: (upgrade_calls.append(data), data.setdefault("moviepilot", {}).update({"upgrade_dispatched": True, "upgrade_message": "queued"}))
+    check(p_apply_update.run_mp_update_apply() is True and upgrade_calls, "TG 立即更新动作应触发 MoviePilot 升级")
+    apply_titles = [m.get("title") for m in p_apply_update._stub_messages]
+    check(apply_titles == ["MP 运维助手 - MoviePilot更新执行"]
+          and getattr(p_apply_update._stub_messages[0].get("mtype"), "name", "") == "Other",
+          "只有执行 MoviePilot 更新后才发送 TG 推送，并使用所选消息类型")
 
     p_update_preview = make_plugin(mod, enabled=True, mp_update_enabled=True, mp_update_notify=True)
     p_update_preview._get_local_versions = p_update._get_local_versions
@@ -1345,13 +2172,13 @@ def main():
     check(update_error_api.get("code") == 1, "MP 更新检查 API 遇到 release 异常时返回失败信封")
 
     print("== 命令入口：通知去重 ==")
-    p_cmd_notify = make_plugin(mod, subscribe_reminder_enabled=True, subscribe_reminder_msgtype="Plugin")
+    p_cmd_notify = make_plugin(mod, fusion_notify_enabled=False, subscribe_reminder_enabled=True, subscribe_reminder_msgtype="Plugin")
     p_cmd_notify._get_today_subscribe_updates_locked = lambda: ["凡人修仙传 S01E52"]
     p_cmd_notify.handle_command(types.SimpleNamespace(event_data={"action": "mpops_subscribe"}))
     cmd_titles = [m.get("title") for m in p_cmd_notify._stub_messages]
     check(cmd_titles == ["MP 运维助手 - 订阅追新"], "命令触发的任务已发送业务通知时，不再补发命令执行结果")
 
-    p_cmd_feedback = make_plugin(mod, health_check_enabled=True)
+    p_cmd_feedback = make_plugin(mod, fusion_notify_enabled=False, health_check_enabled=True)
     p_cmd_feedback._build_health_summary = lambda: {
         "success": True,
         "checks": [{"name": "database", "ok": True, "detail": "连接正常"}],
@@ -1363,13 +2190,21 @@ def main():
     feedback_titles = [m.get("title") for m in p_cmd_feedback._stub_messages]
     check(feedback_titles == ["MP 运维助手命令执行结果"], "命令触发的任务未发送业务通知时，仍保留命令反馈")
 
-    p_cmd_failure = make_plugin(mod)
+    p_cmd_failure = make_plugin(mod, fusion_notify_enabled=False)
     p_cmd_failure.run_daily_report = lambda: p_cmd_failure.post_message(mtype=mod.NotificationType.Plugin, title="业务通知", text="日报已发送") or True
     p_cmd_failure.run_health_check = lambda: False
     p_cmd_failure.handle_command(types.SimpleNamespace(event_data={"action": "mpops_run_all"}))
     failure_titles = [m.get("title") for m in p_cmd_failure._stub_messages]
     check(failure_titles == ["业务通知", "MP 运维助手命令执行结果"] and "健康巡查：失败" in p_cmd_failure._stub_messages[-1].get("text", ""),
           "组合命令已有业务通知但存在失败任务时，仍补发失败汇总")
+
+    p_cmd_uninstall = make_plugin(mod, fusion_notify_enabled=False, plugin_uninstall_ids=["AutoBackup"])
+    uninstall_command_calls = []
+    p_cmd_uninstall.run_plugin_uninstall_clean = lambda: uninstall_command_calls.append("clean") or True
+    p_cmd_uninstall.handle_command(types.SimpleNamespace(event_data={"action": "mpops_plugin_clean"}))
+    uninstall_command_text = "\n".join(str(m.get("text", "")) for m in p_cmd_uninstall._stub_messages)
+    check(not uninstall_command_calls and "配置页" in uninstall_command_text and "确认" in uninstall_command_text,
+          "远程插件卸载命令不能绕过配置页显式确认直接执行")
 
     print("== onlyonce 保存后立即运行一次（修复死开关）==")
     p_once = make_plugin(mod, enabled=True, backup_enabled=True, log_clean_enabled=True,
@@ -1445,8 +2280,8 @@ def main():
           "总开关关闭时仪表盘不把单组件配置开关或历史跳过结果算作当前启用/异常")
     p_disabled._build_daily_report_message = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("daily preview should not run"))
     disabled_preview = p_disabled.api_preview_daily_report()
-    check(disabled_preview.get("code") == 1 and "插件未启用" in disabled_preview.get("msg", ""),
-          "总开关关闭时日报预览跳过实时构建链路")
+    check(disabled_preview.get("code") == 1,
+          "plugin-off daily preview skips live build")
     disabled_preview_calls = []
     p_disabled._build_log_preview = lambda: disabled_preview_calls.append("log") or (_ for _ in ()).throw(RuntimeError("log preview should not run"))
     p_disabled._build_plugin_uninstall_status = lambda **kwargs: disabled_preview_calls.append("uninstall") or (_ for _ in ()).throw(RuntimeError("plugin uninstall preview should not run"))
@@ -1458,6 +2293,9 @@ def main():
           and "插件未启用" in disabled_log_preview.get("msg", "")
           and "插件未启用" in disabled_uninstall_preview.get("msg", ""),
           "总开关关闭时日志清理/插件卸载预览不触发业务扫描")
+    p_disabled._fusion_notify_enabled = False
+    p_disabled._tg_console_enabled = False
+    p_disabled._tg_console_suppress_individual_notifications = False
     p_disabled.handle_command(types.SimpleNamespace(event_data={"action": "mpops_backup"}))
     check(any("插件未启用" in (m.get("text", "") + m.get("title", "")) for m in p_disabled._stub_messages),
           "总开关关闭时远程命令只提示跳过")
@@ -1488,9 +2326,9 @@ def main():
     p_components_off._build_health_summary = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("health should not run"))
     check("健康巡查未启用" in p_components_off.api_run_health_check().get("msg", ""),
           "健康巡查组件关闭时手动 API 跳过")
-    p_components_off._build_daily_report_message = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("daily preview should not run"))
-    check("每日汇报未启用" in p_components_off.api_preview_daily_report().get("msg", ""),
-          "每日汇报组件关闭时预览 API 跳过")
+    p_components_off._build_daily_report_message = lambda *a, **k: "daily preview ok"
+    check(p_components_off.api_preview_daily_report().get("code") == 0,
+          "manual daily preview remains available when the schedule switch is off")
     p_components_off._build_update_status = lambda: (_ for _ in ()).throw(RuntimeError("update should not run"))
     check("主程序更新检查未启用" in p_components_off.api_preview_updates().get("msg", ""),
           "主程序更新组件关闭时预览 API 跳过")
@@ -1527,8 +2365,8 @@ def main():
     api_paths = {str(a.get("path") or "").lstrip("/") for a in apis}
     frontend_api_calls = {
         "dashboard", "site_stat_chart", "downloader_overview",
-        "run_daily_report", "run_subscribe_reminder", "run_site_stat",
-        "run_downloader_tag", "run_backup", "run_log_clean", "run_mp_update",
+        "create_tg_console_card", "run_daily_report", "run_subscribe_reminder", "run_site_stat",
+        "run_today_transfer", "run_downloader_tag", "run_backup", "run_log_clean", "run_mp_update",
         "run_market_update", "run_health_check", "run_seed_clean",
         "preview_updates",
         "installed_plugins", "plugin_markets", "downloaders", "mediaservers",
@@ -1549,7 +2387,7 @@ def main():
     check("🩺 健康巡查" in msg_health and "状态：全部正常" in msg_health, "report_health=True -> 日报包含健康巡查结果")
 
     print("== 健康巡查范围与兜底 ==")
-    hc_service = make_plugin(mod, enabled=True, health_check_enabled=True, health_check_cron="0 */6 * * *")
+    hc_service = make_plugin(mod, fusion_notify_enabled=False, enabled=True, health_check_enabled=True, health_check_cron="0 */6 * * *")
     hc_service_ids = {s.get("id") for s in (hc_service.get_service() or [])}
     check("AgentOpsAssistant.HealthCheck" in hc_service_ids, "启用健康巡查后注册独立定时服务")
     task_keys = {t.get("key") for t in hc_service._task_definitions()}
@@ -1607,7 +2445,7 @@ def main():
     api_result = hc_api.api_run_health_check()
     check(api_result.get("code") == 0 and "异常" in api_result.get("msg", ""), "健康巡查 API 完成但发现异常时返回可读提示")
 
-    hc_notify = make_plugin(mod, health_check_notify_type="Other")
+    hc_notify = make_plugin(mod, fusion_notify_enabled=False, health_check_notify_type="Other")
     hc_notify._build_health_summary = lambda: {
         "success": False,
         "checks": [
