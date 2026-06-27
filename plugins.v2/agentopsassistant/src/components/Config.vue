@@ -68,6 +68,13 @@ const ModuleHero = defineComponent({
   },
 })
 
+const FusionTakeoverNote = defineComponent({
+  name: 'FusionTakeoverNote',
+  setup() {
+    return () => h('span', { class: 'aoa-fusion-takeover-note' }, '融合通知已接管')
+  },
+})
+
 const SettingSection = defineComponent({
   name: 'SettingSection',
   props: {
@@ -224,7 +231,7 @@ const tgConsoleChatLabel = computed(() => {
 const tgConsoleLastError = computed(() => {
   const data = tgConsoleStatus.data || {}
   const err = tgConsoleStatus.error || data.last_error || ''
-  const oldInstallHint = ['Bot Token', 'Chat ID', '未配置'].every(key => String(err).includes(key))
+  const oldInstallHint = ['Bot', 'Token', 'Chat', 'ID', '未配置'].every(key => String(err).includes(key))
   if (!data.chat_configured && oldInstallHint) return ''
   return err
 })
@@ -1053,6 +1060,7 @@ onBeforeUnmount(() => {
                   desc="融合通知开启：插件内部通知统一写入 TG 融合卡；关闭后各组件通知渠道恢复生效。|任务调度仍由健康巡查、备份、日志清理等组件自己的开关控制。"
                   :count-label="`${reportEnabledCount} / ${reportSections.length} 个栏目`"
                 />
+                <FusionTakeoverNote />
 
                 <SettingSection title="定时刷新卡片" note="融合刷新负责 TG 卡和订阅追新等通知输出；任务类调度仍看各组件开关">
                   <VRow class="aoa-setting-grid">
@@ -2193,8 +2201,8 @@ onBeforeUnmount(() => {
   --aoa-grid-gutter-x: 18px;
   --aoa-grid-gutter-y: 14px;
   --aoa-scrollbar-size: 1px;
-  --aoa-scrollbar-alpha: 0.14;
-  --aoa-scrollbar-hover-alpha: 0.22;
+  --aoa-scrollbar-alpha: 0.08;
+  --aoa-scrollbar-hover-alpha: 0.14;
   /* 外框：直连 MP 官方 surface（与 v-card 一致） */
   --aoa-surface-radius: var(--app-surface-radius, 12px);
   --aoa-field-radius: var(--app-field-radius, var(--aoa-surface-radius));
@@ -2221,8 +2229,8 @@ onBeforeUnmount(() => {
 
 :global(html[data-theme="transparent"]) .aoa-config {
   --aoa-native-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
-  --aoa-native-field-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-light));
-  --aoa-native-hover-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-heavy));
+  --aoa-native-field-surface: rgba(var(--v-theme-on-surface), 0.05);
+  --aoa-native-hover-surface: rgba(var(--v-theme-on-surface), 0.09);
   --aoa-config-backdrop: blur(var(--transparent-blur));
   --aoa-surface-alpha: var(--transparent-opacity);
   --aoa-surface-alpha-hi: var(--transparent-opacity);
@@ -3064,6 +3072,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 .aoa-columns-form {
+  position: relative;
   width: 100%;
   max-width: 100%;
   min-height: auto;
@@ -3080,6 +3089,21 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: 100%;
   min-height: auto;
+}
+.aoa-fusion-takeover-note {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 1;
+  pointer-events: none;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: rgba(var(--v-theme-on-surface), 0.62);
+  background: var(--aoa-native-field-surface);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), calc(var(--aoa-border-alpha) * 0.72));
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 650;
 }
 .aoa-report-table-scroll {
   flex: 1 1 auto;

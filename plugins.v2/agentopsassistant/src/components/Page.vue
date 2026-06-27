@@ -462,21 +462,17 @@ onMounted(() => {
                 </div>
               </div>
               <div class="site-list site-legend">
-                <div class="site-table">
-                  <div class="site-table-head">
-                    <span>站点</span>
-                    <span>上传</span>
-                    <span>下载</span>
-                    <span>占比</span>
-                  </div>
-                  <div v-for="site in siteTableRows" :key="site.name" class="site-table-row">
+                <div v-for="site in siteTableRows" :key="site.name" class="site-card">
+                  <div class="site-card-head">
                     <span class="site-table-name">
                       <i class="dot" :style="{ background: site.color, boxShadow: `0 0 8px ${site.glow}` }"></i>
                       <span class="site-name">{{ site.name }}</span>
                     </span>
-                    <span class="site-table-number site-upload">↑ {{ formatGB(site.upload) }}</span>
-                    <span class="site-table-number site-download">↓ {{ formatGB(site.download) }}</span>
-                    <strong class="site-table-percent">{{ sitePercent(site.value) }}</strong>
+                    <strong class="site-percent">{{ sitePercent(site.value) }}</strong>
+                  </div>
+                  <div class="site-card-metrics">
+                    <span class="site-row-cell site-upload">↑ {{ formatGB(site.upload) }}</span>
+                    <span class="site-row-cell site-download">↓ {{ formatGB(site.download) }}</span>
                   </div>
                 </div>
               </div>
@@ -629,6 +625,7 @@ onMounted(() => {
 <style scoped>
 .agentops-dashboard {
   /* 外框：MP 官方 surface */
+  --aoa-dashboard-radius: var(--v-card-border-radius, var(--app-surface-radius, 12px));
   --mp-panel-radius: var(--app-surface-radius, 12px);
   --mp-cell-radius: var(--app-field-radius, 10px);
   --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
@@ -829,6 +826,11 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
+:global(.v-overlay:has(.agentops-dashboard) .v-overlay__scrim) {
+  background: rgba(var(--v-theme-on-surface), 0.18) !important;
+  opacity: 1 !important;
+}
+
 .agentops-dashboard::-webkit-scrollbar,
 .agentops-dashboard :deep(*)::-webkit-scrollbar {
   width: 1px !important;
@@ -860,7 +862,7 @@ onMounted(() => {
 }
 
 .dashboard-shell {
-  border-radius: var(--mp-panel-radius);
+  border-radius: var(--aoa-dashboard-radius);
   padding: 26px clamp(18px, 3vw, 40px) 34px;
   border: 0;
   background: transparent;
@@ -945,7 +947,7 @@ onMounted(() => {
   min-height: 790px;
   margin: 0 auto;
   overflow: visible;
-  border-radius: var(--mp-panel-radius);
+  border-radius: var(--aoa-dashboard-radius);
   border: 0;
   background: transparent;
   background-color: transparent !important;
@@ -1311,7 +1313,7 @@ onMounted(() => {
   height: calc(100% - 38px);
   display: grid;
   grid-template-columns: clamp(160px, 22%, 230px) minmax(0, 1fr);
-  gap: clamp(10px, 1.4vw, 18px);
+  gap: 18px;
   padding: 14px 18px 18px;
 }
 .donut-zone {
@@ -1426,7 +1428,7 @@ onMounted(() => {
 .site-list {
   min-height: 0;
   display: grid;
-  gap: 0;
+  gap: 8px;
   align-content: start;
   overflow: auto;
   padding-right: 2px;
@@ -1435,10 +1437,11 @@ onMounted(() => {
   font-weight: 700;
   scrollbar-width: thin;
 }
-.site-table {
+.site-card {
   min-width: 0;
   display: grid;
-  gap: 6px;
+  grid-template-rows: 18px 30px;
+  gap: 7px;
   border-radius: 12px;
   border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
   padding: 8px;
@@ -1449,34 +1452,21 @@ onMounted(() => {
   overflow: hidden;
   contain: layout paint;
 }
-.site-table-head,
-.site-table-row {
+.site-card-head,
+.site-card-metrics {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(74px, 0.85fr) minmax(74px, 0.85fr) minmax(48px, 0.48fr);
   align-items: center;
-  gap: 8px;
   overflow: hidden;
 }
-.site-table-head {
-  min-height: 24px;
-  padding: 0 8px;
-  color: rgba(var(--muted), 0.66);
-  font-size: 11px;
+.site-card-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
   line-height: 1;
-  font-weight: 760;
 }
-.site-table-head span:nth-child(n+2) {
-  text-align: right;
-}
-.site-table-row {
-  min-height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
-  padding: 0 8px;
-  background:
-    linear-gradient(180deg, rgba(var(--line), var(--site-cell-line-alpha)), rgba(var(--line), var(--site-cell-line-low-alpha))),
-    rgba(var(--panel), var(--site-cell-fill-alpha));
+.site-card-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
 }
 .site-table-name {
   min-width: 0;
@@ -1485,8 +1475,7 @@ onMounted(() => {
   gap: 8px;
   overflow: hidden;
 }
-.site-table-number,
-.site-table-percent {
+.site-percent {
   min-width: 0;
   display: block;
   text-align: right;
@@ -1494,6 +1483,11 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1;
+}
+.site-percent {
+  color: rgba(var(--ink), 0.84);
+  font-size: 12px;
+  font-weight: 820;
 }
 .site-list--empty {
   grid-auto-rows: auto;

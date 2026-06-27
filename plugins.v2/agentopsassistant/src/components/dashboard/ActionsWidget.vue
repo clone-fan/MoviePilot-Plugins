@@ -54,19 +54,34 @@ const emit = defineEmits(['runAction'])
 <style scoped>
 .mp-actions-panel {
   /* 外框：贴 MP 官方 surface（跟 v-card 一致） */
-  --mp-panel-radius: var(--app-surface-radius, 12px);
+  --mp-widget-radius: var(--v-card-border-radius, var(--app-surface-radius, 12px));
+  --mp-widget-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
+  --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
+  --mp-widget-panel-fill-hi: linear-gradient(
+    180deg,
+    rgba(var(--v-theme-surface), var(--mp-widget-mp-surface-opacity)),
+    rgba(var(--v-theme-on-surface), 0.035)
+  );
+  --mp-widget-cell-fill: linear-gradient(
+    180deg,
+    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity)),
+    rgba(var(--v-theme-on-surface), 0.045)
+  );
+  --mp-widget-shadow-panel: var(--app-surface-shadow, none);
+  --mp-widget-shadow-cell: 0 10px 24px rgba(var(--v-theme-on-surface), 0.08);
+  --mp-widget-blur: 10px;
+  --mp-panel-radius: var(--mp-widget-radius);
   --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
-  --mp-panel-shadow: var(--app-surface-shadow, none);
-  --mp-panel-surface: rgb(var(--v-theme-surface));
+  --mp-panel-shadow: var(--mp-widget-shadow-panel);
+  --mp-panel-surface: var(--mp-widget-panel-fill-hi);
   /* 内框：on-surface 透白叠在外框上，做液态玻璃层次 */
   --mp-cell-radius: var(--app-field-radius, 10px);
   --mp-cell-border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.10));
-  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.04);
+  --mp-cell-surface: var(--mp-widget-cell-fill);
   --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.08);
   --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.045);
-  --mp-cell-shadow: none;
+  --mp-cell-shadow: var(--mp-widget-shadow-cell);
   --mp-cell-hover-shadow: var(--app-surface-hover-shadow, none);
-  --mp-blur: none;
   container-type: inline-size;
   display: flex;
   flex-direction: column;
@@ -77,15 +92,48 @@ const emit = defineEmits(['runAction'])
   border: var(--mp-panel-border);
   background: var(--mp-panel-surface);
   box-shadow: var(--mp-panel-shadow);
-  backdrop-filter: var(--mp-blur);
-  -webkit-backdrop-filter: var(--mp-blur);
+  backdrop-filter: blur(var(--mp-widget-blur));
+  -webkit-backdrop-filter: blur(var(--mp-widget-blur));
 }
 
 :global(html[data-theme="transparent"]) .mp-actions-panel {
-  --mp-panel-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
-  --mp-cell-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-light));
-  --mp-cell-hover-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-heavy));
-  --mp-blur: blur(var(--transparent-blur));
+  --mp-panel-surface: var(--mp-widget-panel-fill-hi);
+  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.05);
+  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.09);
+  --mp-widget-blur: var(--transparent-blur);
+}
+
+.mp-actions-panel::-webkit-scrollbar,
+.mp-action-list::-webkit-scrollbar {
+  width: 1px !important;
+  height: 1px !important;
+  background: transparent !important;
+}
+
+.mp-actions-panel::-webkit-scrollbar-track,
+.mp-action-list::-webkit-scrollbar-track,
+.mp-actions-panel::-webkit-scrollbar-track-piece,
+.mp-action-list::-webkit-scrollbar-track-piece {
+  background: transparent !important;
+}
+
+.mp-actions-panel::-webkit-scrollbar-thumb,
+.mp-action-list::-webkit-scrollbar-thumb {
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: rgba(var(--v-theme-on-surface), 0.08) !important;
+}
+
+.mp-actions-panel::-webkit-scrollbar-button,
+.mp-action-list::-webkit-scrollbar-button,
+.mp-actions-panel::-webkit-scrollbar-corner,
+.mp-action-list::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  appearance: none !important;
+  background: transparent !important;
+  opacity: 0 !important;
 }
 
 .mp-panel-head {
@@ -141,11 +189,12 @@ const emit = defineEmits(['runAction'])
 
 .mp-action-btn.v-btn,
 :deep(.mp-action-btn.v-btn) {
-  box-shadow: var(--mp-cell-shadow) !important;
+  box-shadow: var(--mp-widget-shadow-cell) !important;
+  filter: drop-shadow(0 6px 14px rgba(var(--v-theme-on-surface), 0.06));
 }
 
 .mp-action-btn:hover {
-  border-color: rgba(var(--v-theme-primary), 0.28);
+  border-color: rgba(var(--v-theme-on-surface), 0.18);
   background: var(--mp-cell-hover-surface);
   box-shadow: var(--mp-cell-hover-shadow) !important;
 }

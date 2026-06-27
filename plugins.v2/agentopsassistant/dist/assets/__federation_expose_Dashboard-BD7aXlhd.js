@@ -19,20 +19,21 @@ const _hoisted_9 = { class: "mp-site-stat mp-site-stat--upload" };
 const _hoisted_10 = { class: "mp-site-stat mp-site-stat--download" };
 const _hoisted_11 = { class: "mp-site-stat mp-site-stat--date" };
 const _hoisted_12 = { class: "mp-site-list" };
-const _hoisted_13 = { class: "mp-site-table" };
+const _hoisted_13 = { class: "mp-site-card-head" };
 const _hoisted_14 = { class: "mp-site-table-name" };
 const _hoisted_15 = { class: "mp-site-name" };
-const _hoisted_16 = { class: "mp-site-table-number mp-site-upload" };
-const _hoisted_17 = { class: "mp-site-table-number mp-site-download" };
-const _hoisted_18 = { class: "mp-site-table-percent" };
-const _hoisted_19 = {
+const _hoisted_16 = { class: "mp-site-percent" };
+const _hoisted_17 = { class: "mp-site-card-metrics" };
+const _hoisted_18 = { class: "mp-site-row-cell mp-site-upload" };
+const _hoisted_19 = { class: "mp-site-row-cell mp-site-download" };
+const _hoisted_26 = {
   key: 2,
   class: "mp-site-empty-state"
 };
-const _hoisted_20 = { class: "mp-empty-main" };
-const _hoisted_21 = { class: "mp-empty-icon" };
-const _hoisted_22 = { class: "mp-empty-stats" };
-const _hoisted_23 = { class: "mp-site-stat mp-site-stat--date" };
+const _hoisted_27 = { class: "mp-empty-main" };
+const _hoisted_28 = { class: "mp-empty-icon" };
+const _hoisted_29 = { class: "mp-empty-stats" };
+const _hoisted_30 = { class: "mp-site-stat mp-site-stat--date" };
 
 
 const _sfc_main$2 = {
@@ -126,18 +127,12 @@ return (_ctx, _cache) => {
                 ])
               ]),
               _createElementVNode$1("div", _hoisted_12, [
-                _createElementVNode$1("div", _hoisted_13, [
-                  _cache[6] || (_cache[6] = _createElementVNode$1("div", { class: "mp-site-table-head" }, [
-                    _createElementVNode$1("span", null, "站点"),
-                    _createElementVNode$1("span", null, "上传"),
-                    _createElementVNode$1("span", null, "下载"),
-                    _createElementVNode$1("span", null, "占比")
-                  ], -1)),
-                  (_openBlock$2(true), _createElementBlock$2(_Fragment$1, null, _renderList$1(__props.siteTableRows, (site) => {
-                    return (_openBlock$2(), _createElementBlock$2("div", {
-                      key: site.name,
-                      class: "mp-site-table-row"
-                    }, [
+                (_openBlock$2(true), _createElementBlock$2(_Fragment$1, null, _renderList$1(__props.siteTableRows, (site) => {
+                  return (_openBlock$2(), _createElementBlock$2("div", {
+                    key: site.name,
+                    class: "mp-site-card"
+                  }, [
+                    _createElementVNode$1("div", _hoisted_13, [
                       _createElementVNode$1("span", _hoisted_14, [
                         _createElementVNode$1("i", {
                           class: "mp-dot",
@@ -145,18 +140,21 @@ return (_ctx, _cache) => {
                         }, null, 4),
                         _createElementVNode$1("span", _hoisted_15, _toDisplayString$1(site.name), 1)
                       ]),
-                      _createElementVNode$1("span", _hoisted_16, "↑ " + _toDisplayString$1(__props.formatBytes(site.upload)), 1),
-                      _createElementVNode$1("span", _hoisted_17, "↓ " + _toDisplayString$1(__props.formatBytes(site.download)), 1),
-                      _createElementVNode$1("strong", _hoisted_18, _toDisplayString$1(__props.sitePercent(site.value)), 1)
-                    ]))
-                  }), 128))
-                ])
+                      _createElementVNode$1("strong", _hoisted_16, _toDisplayString$1(__props.sitePercent(site.value)), 1)
+                    ]),
+                    _createElementVNode$1("div", _hoisted_17, [
+                      _createElementVNode$1("span", _hoisted_18, "↑ " + _toDisplayString$1(__props.formatBytes(site.upload)), 1),
+                      _createElementVNode$1("span", _hoisted_19, "↓ " + _toDisplayString$1(__props.formatBytes(site.download)), 1)
+                    ])
+                  ]))
+                }), 128)),
+                _createCommentVNode$1("", true)
               ])
             ])
           ]))
-        : (_openBlock$2(), _createElementBlock$2("div", _hoisted_19, [
-            _createElementVNode$1("div", _hoisted_20, [
-              _createElementVNode$1("span", _hoisted_21, [
+        : (_openBlock$2(), _createElementBlock$2("div", _hoisted_26, [
+            _createElementVNode$1("div", _hoisted_27, [
+              _createElementVNode$1("span", _hoisted_28, [
                 _createVNode$1(_component_VIcon, {
                   icon: "mdi-chart-pie",
                   size: "19"
@@ -167,7 +165,7 @@ return (_ctx, _cache) => {
                 _createElementVNode$1("span", null, "刷新后显示最近可用快照")
               ], -1))
             ]),
-            _createElementVNode$1("div", _hoisted_22, [
+            _createElementVNode$1("div", _hoisted_29, [
               _cache[9] || (_cache[9] = _createElementVNode$1("div", { class: "mp-site-stat mp-site-stat--upload" }, [
                 _createElementVNode$1("span", null, "上传增量"),
                 _createElementVNode$1("strong", null, "0.0 MB")
@@ -176,7 +174,7 @@ return (_ctx, _cache) => {
                 _createElementVNode$1("span", null, "下载增量"),
                 _createElementVNode$1("strong", null, "0.0 MB")
               ], -1)),
-              _createElementVNode$1("div", _hoisted_23, [
+              _createElementVNode$1("div", _hoisted_30, [
                 _cache[8] || (_cache[8] = _createElementVNode$1("span", null, "统计日期", -1)),
                 _createElementVNode$1("strong", null, _toDisplayString$1(__props.siteDateLabel), 1)
               ])
@@ -187,7 +185,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-dd7b6d79"]]);
+const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-9b18e8c5"]]);
 
 const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,toDisplayString:_toDisplayString,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1,withCtx:_withCtx,createBlock:_createBlock$1,createCommentVNode:_createCommentVNode} = await importShared('vue');
 
@@ -281,7 +279,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-36bd6f57"]]);
+const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-faaef314"]]);
 
 const {resolveDynamicComponent:_resolveDynamicComponent,openBlock:_openBlock,createBlock:_createBlock,createElementBlock:_createElementBlock} = await importShared('vue');
 
@@ -499,6 +497,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-c5aac60c"]]);
+const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-f416de9c"]]);
 
 export { Dashboard as default };

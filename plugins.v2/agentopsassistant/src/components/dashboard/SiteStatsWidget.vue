@@ -66,7 +66,20 @@ const emit = defineEmits(['refresh'])
         </div>
 
         <div class="mp-site-list">
-          <div class="mp-site-table">
+          <div v-for="site in siteTableRows" :key="site.name" class="mp-site-card">
+            <div class="mp-site-card-head">
+              <span class="mp-site-table-name">
+                <i class="mp-dot" :style="{ background: site.color, boxShadow: `0 0 8px ${site.glow}` }"></i>
+                <span class="mp-site-name">{{ site.name }}</span>
+              </span>
+              <strong class="mp-site-percent">{{ sitePercent(site.value) }}</strong>
+            </div>
+            <div class="mp-site-card-metrics">
+              <span class="mp-site-row-cell mp-site-upload">↑ {{ formatBytes(site.upload) }}</span>
+              <span class="mp-site-row-cell mp-site-download">↓ {{ formatBytes(site.download) }}</span>
+            </div>
+          </div>
+          <div v-if="false" class="mp-site-table">
             <div class="mp-site-table-head">
               <span>站点</span>
               <span>上传</span>
@@ -115,18 +128,33 @@ const emit = defineEmits(['refresh'])
 <style scoped>
 .mp-site-panel {
   /* 外框：贴 MP 官方 surface */
-  --mp-panel-radius: var(--app-surface-radius, 12px);
+  --mp-widget-radius: var(--v-card-border-radius, var(--app-surface-radius, 12px));
+  --mp-widget-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
+  --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
+  --mp-widget-panel-fill-hi: linear-gradient(
+    180deg,
+    rgba(var(--v-theme-surface), var(--mp-widget-mp-surface-opacity)),
+    rgba(var(--v-theme-on-surface), 0.035)
+  );
+  --mp-widget-cell-fill: linear-gradient(
+    180deg,
+    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity)),
+    rgba(var(--v-theme-on-surface), 0.045)
+  );
+  --mp-widget-shadow-panel: var(--app-surface-shadow, none);
+  --mp-widget-shadow-cell: 0 10px 24px rgba(var(--v-theme-on-surface), 0.08);
+  --mp-widget-blur: 10px;
+  --mp-panel-radius: var(--mp-widget-radius);
   --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
-  --mp-panel-shadow: var(--app-surface-shadow, none);
-  --mp-panel-surface: rgb(var(--v-theme-surface));
+  --mp-panel-shadow: var(--mp-widget-shadow-panel);
+  --mp-panel-surface: var(--mp-widget-panel-fill-hi);
   /* 内框：on-surface 透白做层次 */
   --mp-cell-radius: var(--app-field-radius, 10px);
   --mp-cell-border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.10));
-  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.04);
+  --mp-cell-surface: var(--mp-widget-cell-fill);
   --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.08);
   --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.045);
-  --mp-cell-shadow: none;
-  --mp-blur: none;
+  --mp-cell-shadow: var(--mp-widget-shadow-cell);
   --mp-empty-min: 132px;
   container-type: inline-size;
   display: flex;
@@ -141,15 +169,48 @@ const emit = defineEmits(['refresh'])
   border: var(--mp-panel-border);
   background: var(--mp-panel-surface);
   box-shadow: var(--mp-panel-shadow);
-  backdrop-filter: var(--mp-blur);
-  -webkit-backdrop-filter: var(--mp-blur);
+  backdrop-filter: blur(var(--mp-widget-blur));
+  -webkit-backdrop-filter: blur(var(--mp-widget-blur));
 }
 
 :global(html[data-theme="transparent"]) .mp-site-panel {
-  --mp-panel-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
-  --mp-cell-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-light));
-  --mp-cell-hover-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-heavy));
-  --mp-blur: blur(var(--transparent-blur));
+  --mp-panel-surface: var(--mp-widget-panel-fill-hi);
+  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.05);
+  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.09);
+  --mp-widget-blur: var(--transparent-blur);
+}
+
+.mp-site-panel::-webkit-scrollbar,
+.mp-site-list::-webkit-scrollbar {
+  width: 1px !important;
+  height: 1px !important;
+  background: transparent !important;
+}
+
+.mp-site-panel::-webkit-scrollbar-track,
+.mp-site-list::-webkit-scrollbar-track,
+.mp-site-panel::-webkit-scrollbar-track-piece,
+.mp-site-list::-webkit-scrollbar-track-piece {
+  background: transparent !important;
+}
+
+.mp-site-panel::-webkit-scrollbar-thumb,
+.mp-site-list::-webkit-scrollbar-thumb {
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: rgba(var(--v-theme-on-surface), 0.08) !important;
+}
+
+.mp-site-panel::-webkit-scrollbar-button,
+.mp-site-list::-webkit-scrollbar-button,
+.mp-site-panel::-webkit-scrollbar-corner,
+.mp-site-list::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  appearance: none !important;
+  background: transparent !important;
+  opacity: 0 !important;
 }
 
 .mp-panel-head {
@@ -290,6 +351,12 @@ const emit = defineEmits(['refresh'])
   contain: layout paint;
 }
 
+.mp-site-stat--date {
+  grid-column: 1 / -1;
+  min-height: 30px;
+  height: 30px;
+}
+
 .mp-site-stat span {
   color: rgba(var(--v-theme-on-surface), 0.58);
   overflow: hidden;
@@ -316,7 +383,7 @@ const emit = defineEmits(['refresh'])
 .mp-site-list {
   min-height: 0;
   display: grid;
-  gap: 0;
+  gap: 8px;
   align-content: start;
   overflow: auto;
   padding-right: 2px;
@@ -324,6 +391,39 @@ const emit = defineEmits(['refresh'])
   font-size: 13px;
   font-weight: 650;
   scrollbar-width: thin;
+}
+
+.mp-site-card {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 18px 30px;
+  gap: 7px;
+  border-radius: var(--mp-cell-radius);
+  border: var(--mp-cell-border);
+  padding: 8px;
+  background: var(--mp-cell-surface);
+  box-shadow: var(--mp-cell-shadow);
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.mp-site-card-head,
+.mp-site-card-metrics {
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  overflow: hidden;
+}
+
+.mp-site-card-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  line-height: 1;
+}
+
+.mp-site-card-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
 }
 
 .mp-site-table {
@@ -419,6 +519,19 @@ const emit = defineEmits(['refresh'])
   font-size: 13px;
   line-height: 1;
   font-weight: 780;
+}
+
+.mp-site-percent {
+  min-width: 0;
+  display: block;
+  color: rgba(var(--v-theme-on-surface), 0.84);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 820;
 }
 
 .mp-site-list--empty {
@@ -529,8 +642,12 @@ const emit = defineEmits(['refresh'])
   }
 
   .mp-site-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
+  }
+
+  .mp-site-card-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .mp-site-stat {
@@ -618,8 +735,12 @@ const emit = defineEmits(['refresh'])
   }
 
   .mp-site-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
+  }
+
+  .mp-site-card-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .mp-site-stat {

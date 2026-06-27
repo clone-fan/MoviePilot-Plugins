@@ -215,6 +215,21 @@ onMounted(loadSiteChart)
   --aoa-dashboard-radius: var(--app-surface-radius, 12px);
   --aoa-dashboard-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
   --aoa-dashboard-shadow: var(--app-surface-shadow, none);
+  --mp-widget-radius: var(--v-card-border-radius, var(--aoa-dashboard-radius));
+  --mp-widget-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
+  --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
+  --mp-widget-panel-fill-hi: linear-gradient(
+    180deg,
+    rgba(var(--v-theme-surface), var(--mp-widget-mp-surface-opacity)),
+    rgba(var(--v-theme-on-surface), 0.035)
+  );
+  --mp-widget-cell-fill: linear-gradient(
+    180deg,
+    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity)),
+    rgba(var(--v-theme-on-surface), 0.045)
+  );
+  --mp-widget-shadow-panel: var(--app-surface-shadow, none);
+  --mp-widget-shadow-cell: 0 10px 24px rgba(var(--v-theme-on-surface), 0.08);
   width: 100%;
   height: 100%;
   min-height: 100%;

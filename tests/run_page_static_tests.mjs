@@ -170,6 +170,61 @@ assert.ok(
     config.includes('数据范围'),
   'Config.vue should remove second-level component breadcrumbs and explain unified fusion takeover for component notification settings',
 )
+
+const themeEntrySources = {
+  'Page.vue': page,
+  'Config.vue': config,
+  'Dashboard.vue': fs.readFileSync(dashboardPath, 'utf8'),
+  'SiteStatsWidget.vue': fs.readFileSync(dashboardSitePath, 'utf8'),
+  'ActionsWidget.vue': fs.readFileSync(dashboardActionsPath, 'utf8'),
+}
+
+for (const [name, content] of Object.entries(themeEntrySources)) {
+  assert.ok(
+    content.includes('var(--app-surface-radius') &&
+      content.includes('var(--app-surface-border') &&
+      content.includes('var(--app-surface-shadow'),
+    `${name} should keep every public MP surface aligned to official MoviePilot tokens`,
+  )
+  assert.ok(
+    content.includes('--transparent-opacity') && content.includes('--transparent-blur'),
+    `${name} should keep transparent theme tied to MoviePilot transparent tokens`,
+  )
+  assert.ok(
+    !/background(?:-color)?:\s*(?:#000|black|rgb\(0,\s*0,\s*0\))/i.test(content),
+    `${name} should not hard-code black backgrounds instead of MoviePilot theme variables`,
+  )
+}
+
+for (const [name, content] of Object.entries({
+  'Page.vue': page,
+  'Config.vue': config,
+  'SiteStatsWidget.vue': themeEntrySources['SiteStatsWidget.vue'],
+  'ActionsWidget.vue': themeEntrySources['ActionsWidget.vue'],
+})) {
+  assert.ok(
+    /--(?:mp-cell|aoa-native-field)-surface:\s*rgba\(var\(--v-theme-on-surface\),\s*0\.0[4-7]\)/.test(content),
+    `${name} transparent theme should keep inner cards as low-opacity on-surface glass instead of blending into the MP surface`,
+  )
+}
+
+assert.ok(
+  /--aoa-scrollbar-alpha:\s*0\.0[6-9]/.test(config) &&
+    /--aoa-scrollbar-hover-alpha:\s*0\.1[0-6]/.test(config),
+  'Config.vue scrollbar feedback should be nearly hidden, not a visible thick line',
+)
+
+for (const [name, content] of Object.entries({
+  'SiteStatsWidget.vue': themeEntrySources['SiteStatsWidget.vue'],
+  'ActionsWidget.vue': themeEntrySources['ActionsWidget.vue'],
+})) {
+  assert.ok(
+    /::-webkit-scrollbar[\s\S]*width:\s*1px\s*!important[\s\S]*height:\s*1px\s*!important/.test(content) &&
+      /::-webkit-scrollbar-track[\s\S]*background:\s*transparent\s*!important/.test(content) &&
+      /::-webkit-scrollbar-button[\s\S]*display:\s*none\s*!important/.test(content),
+    `${name} should hide WebKit scrollbar tracks/buttons with the same low-visibility rule as the main dashboard`,
+  )
+}
 assert.ok(
   config.includes('fusionColumnGroups') &&
     config.includes('activeFusionGroup') &&

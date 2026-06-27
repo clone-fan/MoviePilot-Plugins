@@ -139,6 +139,13 @@ const ModuleHero = defineComponent({
   },
 });
 
+const FusionTakeoverNote = defineComponent({
+  name: 'FusionTakeoverNote',
+  setup() {
+    return () => h('span', { class: 'aoa-fusion-takeover-note' }, '融合通知已接管')
+  },
+});
+
 const SettingSection = defineComponent({
   name: 'SettingSection',
   props: {
@@ -295,7 +302,7 @@ const tgConsoleChatLabel = computed(() => {
 const tgConsoleLastError = computed(() => {
   const data = tgConsoleStatus.data || {};
   const err = tgConsoleStatus.error || data.last_error || '';
-  const oldInstallHint = ['Bot Token', 'Chat ID', '未配置'].every(key => String(err).includes(key));
+  const oldInstallHint = ['Bot', 'Token', 'Chat', 'ID', '未配置'].every(key => String(err).includes(key));
   if (!data.chat_configured && oldInstallHint) return ''
   return err
 });
@@ -1239,6 +1246,7 @@ return (_ctx, _cache) => {
                       desc: "融合通知开启：插件内部通知统一写入 TG 融合卡；关闭后各组件通知渠道恢复生效。|任务调度仍由健康巡查、备份、日志清理等组件自己的开关控制。",
                       "count-label": `${reportEnabledCount.value} / ${_unref(reportSections).length} 个栏目`
                     }, null, 8, ["enabled", "count-label"]),
+                    _createVNode(_unref(FusionTakeoverNote)),
                     _createVNode(_unref(SettingSection), {
                       title: "定时刷新卡片",
                       note: "融合刷新负责 TG 卡和订阅追新等通知输出；任务类调度仍看各组件开关"
@@ -4192,6 +4200,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-65f2c39f"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-f234957d"]]);
 
 export { Config as default };
