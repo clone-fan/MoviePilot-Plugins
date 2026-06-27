@@ -207,32 +207,24 @@ onMounted(loadSiteChart)
 </template>
 
 <style scoped>
+/* Dashboard.vue 是 MP 仪表盘自由组件的外壳：
+ * - 外框跟随 MP 官方 v-card token，子 widget 内部再叠 on-surface 透白做液态玻璃层次
+ * - 透明主题下直连 --transparent-opacity / --transparent-blur
+ */
 .aoa-dashboard-widget {
-  --mp-widget-radius: 16px;
-  --mp-widget-inner-radius: 14px;
-  --mp-widget-cell-radius: 12px;
-  --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--mp-dashboard-card-opacity, 0.28));
-  --mp-widget-surface-opacity: var(--mp-widget-mp-surface-opacity);
-  --mp-widget-panel-fill-hi: clamp(0.04, calc(var(--mp-widget-mp-surface-opacity) + 0.06), 0.42);
-  --mp-widget-panel-fill-lo: clamp(0.02, calc(var(--mp-widget-mp-surface-opacity) - 0.04), 0.30);
-  --mp-widget-panel-line: 0.12;
-  --mp-widget-cell-fill: clamp(0.02, calc(var(--mp-widget-mp-surface-opacity) * 0.48), 0.22);
-  --mp-widget-cell-fill-strong: clamp(0.04, calc(var(--mp-widget-mp-surface-opacity) * 0.62), 0.28);
-  --mp-widget-cell-line: 0.12;
-  --mp-widget-cell-line-soft: 0.04;
-  --mp-widget-shadow-panel:
-    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.045),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.07),
-    0 12px 30px rgba(0, 0, 0, 0.075),
-    0 3px 10px rgba(0, 0, 0, 0.045);
-  --mp-widget-shadow-cell:
-    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.06),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
-    0 7px 18px rgba(0, 0, 0, 0.055),
-    0 2px 6px rgba(0, 0, 0, 0.035);
+  --aoa-dashboard-radius: var(--app-surface-radius, 12px);
+  --aoa-dashboard-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
+  --aoa-dashboard-shadow: var(--app-surface-shadow, none);
   width: 100%;
   height: 100%;
   min-height: 100%;
+  border-radius: var(--aoa-dashboard-radius);
   color: rgba(var(--v-theme-on-surface), 0.92);
+}
+
+:global(html[data-theme="transparent"]) .aoa-dashboard-widget {
+  /* 透明主题下子 widget 自己处理 backdrop-filter，这里只透传 token 给后代 */
+  --aoa-dashboard-opacity: var(--transparent-opacity);
+  --aoa-dashboard-blur: var(--transparent-blur);
 }
 </style>

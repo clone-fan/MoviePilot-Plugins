@@ -8,7 +8,6 @@ const props = defineProps({
   surface: { type: String, default: 'dialog' },
 })
 const emit = defineEmits(['close', 'switch'])
-const dialogBackdropStyleId = 'agentops-dashboard-dialog-backdrop-style'
 
 const loading = ref(true)
 const error = ref('')
@@ -380,23 +379,7 @@ const actionGroups = [
 ]
 const actionItems = computed(() => actionGroups.flatMap(group => group.actions))
 
-function ensureDialogBackdropStyle() {
-  if (typeof document === 'undefined' || document.getElementById(dialogBackdropStyleId)) return
-  const style = document.createElement('style')
-  style.id = dialogBackdropStyleId
-  style.textContent = `
-.v-overlay:has(.agentops-dashboard) .v-overlay__scrim {
-  opacity: 0.70 !important;
-  background: rgb(var(--v-theme-background)) !important;
-  backdrop-filter: blur(10px) saturate(112%);
-  -webkit-backdrop-filter: blur(10px) saturate(112%);
-}
-`
-  document.head.appendChild(style)
-}
-
 onMounted(() => {
-  ensureDialogBackdropStyle()
   loadDashboard()
   loadSiteChart()
   loadDownloaderOverview()
@@ -479,31 +462,35 @@ onMounted(() => {
                 </div>
               </div>
               <div class="site-list site-legend">
-                <article v-for="site in siteTableRows" :key="site.name" class="site-card">
-                  <div class="site-card-head">
-                    <i class="dot" :style="{ background: site.color, boxShadow: `0 0 8px ${site.glow}` }"></i>
-                    <span class="site-name">{{ site.name }}</span>
-                    <strong class="site-percent">{{ sitePercent(site.value) }}</strong>
+                <div class="site-table">
+                  <div class="site-table-head">
+                    <span>站点</span>
+                    <span>上传</span>
+                    <span>下载</span>
+                    <span>占比</span>
                   </div>
-                  <div class="site-card-metrics">
-                    <span class="site-row-cell site-upload">↑ {{ formatGB(site.upload) }}</span>
-                    <span class="site-row-cell site-download">↓ {{ formatGB(site.download) }}</span>
+                  <div v-for="site in siteTableRows" :key="site.name" class="site-table-row">
+                    <span class="site-table-name">
+                      <i class="dot" :style="{ background: site.color, boxShadow: `0 0 8px ${site.glow}` }"></i>
+                      <span class="site-name">{{ site.name }}</span>
+                    </span>
+                    <span class="site-table-number site-upload">↑ {{ formatGB(site.upload) }}</span>
+                    <span class="site-table-number site-download">↓ {{ formatGB(site.download) }}</span>
+                    <strong class="site-table-percent">{{ sitePercent(site.value) }}</strong>
                   </div>
-                </article>
-              </div>
-            </div>
-          </div>
-          <div v-else class="site-body site-body--empty">
-            <div class="donut-zone">
-              <div class="donut donut--empty" :style="sitePieStyle">
-                <div class="donut-core">
-                  <strong>0</strong>
-                  <span>待刷新</span>
                 </div>
               </div>
             </div>
-            <div class="site-data">
-              <div class="site-stats">
+          </div>
+          <div v-else class="site-empty-state">
+            <div class="site-empty-main">
+              <span class="site-empty-icon"><VIcon icon="mdi-chart-pie" size="19" /></span>
+              <div>
+                <strong>{{ siteEmptyTitle }}</strong>
+                <span>{{ siteEmptyDesc }}</span>
+              </div>
+            </div>
+            <div class="site-empty-stats">
                 <div class="site-stat">
                   <span>上传增量</span>
                   <strong>0.0 MB</strong>
@@ -516,16 +503,6 @@ onMounted(() => {
                   <span>统计日期</span>
                   <strong>等待统计</strong>
                 </div>
-              </div>
-              <div class="site-list site-list--empty">
-                <div class="site-row-cell site-empty-row">
-                  <VIcon icon="mdi-chart-pie" size="18" />
-                  <div>
-                    <strong>{{ siteEmptyTitle }}</strong>
-                    <span>{{ siteEmptyDesc }}</span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </article>
@@ -651,7 +628,18 @@ onMounted(() => {
 
 <style scoped>
 .agentops-dashboard {
-  --aoa-dashboard-radius: var(--v-card-border-radius, var(--v-border-radius-root, 8px));
+  /* 外框：MP 官方 surface */
+  --mp-panel-radius: var(--app-surface-radius, 12px);
+  --mp-cell-radius: var(--app-field-radius, 10px);
+  --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
+  --mp-panel-shadow: var(--app-surface-shadow, none);
+  --mp-cell-hover-shadow: var(--app-surface-hover-shadow, none);
+  --mp-panel-surface: rgb(var(--v-theme-surface));
+  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.04);
+  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.08);
+  --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.045);
+  --mp-blur: none;
+  /* 主题着色 token */
   --ink: var(--v-theme-on-surface, 240, 247, 255);
   --muted: var(--v-theme-on-surface, 151, 171, 201);
   --faint: var(--v-theme-on-surface, 111, 131, 163);
@@ -664,40 +652,41 @@ onMounted(() => {
   --amber: var(--v-theme-warning, 218, 179, 93);
   --red: var(--v-theme-error, 232, 104, 124);
   --violet: var(--v-theme-primary, 162, 151, 211);
-  --shell-panel-hi: 0.48;
-  --shell-panel-lo: 0.22;
-  --shell-stage-alpha: 0.18;
-  --frame-panel-hi: 0.66;
-  --frame-panel-lo: 0.42;
-  --frame-stage-alpha: 0.14;
-  --toolbar-panel-hi: 0.54;
-  --toolbar-panel-lo: 0.28;
-  --panel-glass-hi: 0.62;
-  --panel-glass-lo: 0.34;
-  --panel-fill-alpha: 0.010;
-  --panel-inner-alpha: 0.18;
-  --panel-inner-strong-alpha: 0.22;
-  --status-panel-alpha: 0.40;
-  --shell-cyan-alpha: 0.13;
-  --shell-blue-alpha: 0.11;
-  --frame-cyan-alpha: 0.060;
-  --frame-violet-alpha: 0.052;
-  --top-button-alpha: 0.18;
-  --top-button-primary-alpha: 0.20;
-  --status-red-glow-alpha: 0.16;
-  --status-green-glow-alpha: 0.13;
-  --status-mix-alpha: 0.38;
-  --alert-line-alpha: 0.44;
-  --metric-accent-alpha: 0.060;
-  --site-cyan-alpha: 0.070;
-  --site-blue-alpha: 0.055;
-  --soft-line-alpha: 0.075;
-  --donut-core-line-alpha: 0.060;
-  --donut-core-panel-alpha: 0.96;
-  --site-cell-line-alpha: 0.092;
-  --site-cell-line-low-alpha: 0.030;
-  --site-cell-border-alpha: 0.090;
-  --site-cell-fill-alpha: 0.26;
+  /* 默认主题：外框不叠玻璃，内框用 on-surface 透白做层次 */
+  --shell-panel-hi: 0.00;
+  --shell-panel-lo: 0.00;
+  --shell-stage-alpha: 0.00;
+  --frame-panel-hi: 0.00;
+  --frame-panel-lo: 0.00;
+  --frame-stage-alpha: 0.00;
+  --toolbar-panel-hi: 0.00;
+  --toolbar-panel-lo: 0.00;
+  --panel-glass-hi: 0.00;
+  --panel-glass-lo: 0.00;
+  --panel-fill-alpha: 0.00;
+  --panel-inner-alpha: 0.04;
+  --panel-inner-strong-alpha: 0.08;
+  --status-panel-alpha: 0.00;
+  --shell-cyan-alpha: 0.00;
+  --shell-blue-alpha: 0.00;
+  --frame-cyan-alpha: 0.00;
+  --frame-violet-alpha: 0.00;
+  --top-button-alpha: 0.04;
+  --top-button-primary-alpha: 0.06;
+  --status-red-glow-alpha: 0.06;
+  --status-green-glow-alpha: 0.05;
+  --status-mix-alpha: 0.00;
+  --alert-line-alpha: 0.04;
+  --metric-accent-alpha: 0.04;
+  --site-cyan-alpha: 0.00;
+  --site-blue-alpha: 0.00;
+  --soft-line-alpha: 0.04;
+  --donut-core-line-alpha: 0.04;
+  --donut-core-panel-alpha: 0.85;
+  --site-cell-line-alpha: 0.04;
+  --site-cell-line-low-alpha: 0.02;
+  --site-cell-border-alpha: var(--v-border-opacity, 0.12);
+  --site-cell-fill-alpha: 0.04;
   --site-cell-shadow:
     inset 0 1px 0 rgba(var(--line), 0.10),
     inset 0 -1px 0 rgba(0, 0, 0, 0.08),
@@ -732,25 +721,21 @@ onMounted(() => {
   font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
 }
 
+:global(html[data-theme="transparent"]) .agentops-dashboard {
+  --mp-panel-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
+  --mp-cell-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-light));
+  --mp-cell-hover-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-heavy));
+  --mp-blur: blur(var(--transparent-blur));
+}
+
 .agentops-dashboard.agentops-theme--light {
-  --shell-panel-hi: 0.34;
-  --shell-panel-lo: 0.16;
-  --shell-stage-alpha: 0.30;
-  --frame-panel-hi: 0.50;
-  --frame-panel-lo: 0.30;
-  --frame-stage-alpha: 0.26;
-  --toolbar-panel-hi: 0.38;
-  --toolbar-panel-lo: 0.20;
-  --panel-glass-hi: 0.48;
-  --panel-glass-lo: 0.25;
-  --panel-fill-alpha: 0.018;
-  --panel-inner-alpha: 0.12;
-  --panel-inner-strong-alpha: 0.16;
-  --status-panel-alpha: 0.32;
-  --site-cell-line-alpha: 0.115;
-  --site-cell-line-low-alpha: 0.038;
-  --site-cell-border-alpha: 0.105;
-  --site-cell-fill-alpha: 0.40;
+  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.05);
+  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.09);
+  --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.055);
+  --panel-inner-alpha: 0.05;
+  --panel-inner-strong-alpha: 0.09;
+  --site-cell-fill-alpha: 0.05;
+  --donut-core-panel-alpha: 0.90;
   --site-cell-shadow:
     inset 0 1px 0 rgba(var(--line), 0.10),
     inset 0 -1px 0 rgba(var(--line), 0.030),
@@ -774,40 +759,46 @@ onMounted(() => {
 }
 
 .agentops-dashboard.agentops-theme--transparent {
-  --shell-panel-hi: 0.026;
-  --shell-panel-lo: 0.006;
-  --shell-stage-alpha: 0.002;
-  --frame-panel-hi: 0.032;
-  --frame-panel-lo: 0.008;
-  --frame-stage-alpha: 0.002;
-  --toolbar-panel-hi: 0.034;
-  --toolbar-panel-lo: 0.010;
-  --panel-glass-hi: 0.040;
-  --panel-glass-lo: 0.010;
-  --panel-fill-alpha: 0.002;
-  --panel-inner-alpha: 0.012;
-  --panel-inner-strong-alpha: 0.018;
-  --status-panel-alpha: 0.030;
-  --shell-cyan-alpha: 0.012;
-  --shell-blue-alpha: 0.010;
-  --frame-cyan-alpha: 0.010;
-  --frame-violet-alpha: 0.009;
-  --top-button-alpha: 0.018;
-  --top-button-primary-alpha: 0.028;
-  --status-red-glow-alpha: 0.038;
-  --status-green-glow-alpha: 0.032;
-  --status-mix-alpha: 0.022;
-  --alert-line-alpha: 0.024;
-  --metric-accent-alpha: 0.014;
-  --site-cyan-alpha: 0.012;
-  --site-blue-alpha: 0.010;
-  --soft-line-alpha: 0.012;
-  --donut-core-line-alpha: 0.010;
-  --donut-core-panel-alpha: 0.040;
-  --site-cell-line-alpha: 0.030;
-  --site-cell-line-low-alpha: 0.010;
-  --site-cell-border-alpha: 0.060;
-  --site-cell-fill-alpha: 0.006;
+  /* 透明主题：外框跟 v-card 一致用 transparent-opacity，内框继续 on-surface 透白做层次 */
+  --mp-panel-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
+  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.05);
+  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.09);
+  --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.055);
+  --mp-blur: blur(var(--transparent-blur));
+  --shell-panel-hi: 0.00;
+  --shell-panel-lo: 0.00;
+  --shell-stage-alpha: 0.00;
+  --frame-panel-hi: 0.00;
+  --frame-panel-lo: 0.00;
+  --frame-stage-alpha: 0.00;
+  --toolbar-panel-hi: 0.00;
+  --toolbar-panel-lo: 0.00;
+  --panel-glass-hi: 0.00;
+  --panel-glass-lo: 0.00;
+  --panel-fill-alpha: 0.00;
+  --panel-inner-alpha: 0.05;
+  --panel-inner-strong-alpha: 0.09;
+  --status-panel-alpha: 0.00;
+  --shell-cyan-alpha: 0.00;
+  --shell-blue-alpha: 0.00;
+  --frame-cyan-alpha: 0.00;
+  --frame-violet-alpha: 0.00;
+  --top-button-alpha: 0.04;
+  --top-button-primary-alpha: 0.06;
+  --status-red-glow-alpha: 0.04;
+  --status-green-glow-alpha: 0.04;
+  --status-mix-alpha: 0.00;
+  --alert-line-alpha: 0.04;
+  --metric-accent-alpha: 0.04;
+  --site-cyan-alpha: 0.00;
+  --site-blue-alpha: 0.00;
+  --soft-line-alpha: 0.03;
+  --donut-core-line-alpha: 0.03;
+  --donut-core-panel-alpha: var(--transparent-opacity-heavy, 0.55);
+  --site-cell-line-alpha: 0.04;
+  --site-cell-line-low-alpha: 0.02;
+  --site-cell-border-alpha: var(--v-border-opacity, 0.12);
+  --site-cell-fill-alpha: 0.05;
   --site-cell-shadow:
     inset 0 1px 0 rgba(var(--line), 0.050),
     inset 0 -1px 0 rgba(0, 0, 0, 0.014),
@@ -869,7 +860,7 @@ onMounted(() => {
 }
 
 .dashboard-shell {
-  border-radius: var(--aoa-dashboard-radius);
+  border-radius: var(--mp-panel-radius);
   padding: 26px clamp(18px, 3vw, 40px) 34px;
   border: 0;
   background: transparent;
@@ -954,7 +945,7 @@ onMounted(() => {
   min-height: 790px;
   margin: 0 auto;
   overflow: visible;
-  border-radius: var(--aoa-dashboard-radius);
+  border-radius: var(--mp-panel-radius);
   border: 0;
   background: transparent;
   background-color: transparent !important;
@@ -1055,13 +1046,12 @@ onMounted(() => {
   position: relative;
   min-width: 0;
   overflow: hidden;
-  border-radius: 18px;
-  border: 1px solid rgba(var(--line), 0.092);
-  background:
-    linear-gradient(180deg, rgba(var(--panel), var(--panel-glass-hi)), rgba(var(--panel), var(--panel-glass-lo))),
-    rgba(var(--line), var(--panel-fill-alpha));
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(24px) saturate(150%);
+  border-radius: var(--mp-panel-radius);
+  border: var(--mp-panel-border);
+  background: var(--mp-panel-surface);
+  box-shadow: var(--mp-panel-shadow);
+  backdrop-filter: var(--mp-blur);
+  -webkit-backdrop-filter: var(--mp-blur);
 }
 .panel::before {
   content: "";
@@ -1256,19 +1246,17 @@ onMounted(() => {
 }
 .metric-card {
   min-width: 0;
-  border-radius: 18px;
+  border-radius: var(--mp-panel-radius);
   padding: 16px 14px;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
-  border: 1px solid rgba(var(--line), 0.085);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(var(--accent), var(--metric-accent-alpha)), transparent 52%),
-    linear-gradient(180deg, rgba(var(--panel), var(--panel-glass-hi)), rgba(var(--panel), var(--panel-glass-lo))),
-    rgba(var(--line), var(--panel-fill-alpha));
-  box-shadow: var(--shadow-block);
-  backdrop-filter: blur(22px) saturate(145%);
+  border: var(--mp-panel-border);
+  background: var(--mp-panel-surface);
+  box-shadow: var(--mp-panel-shadow);
+  backdrop-filter: var(--mp-blur);
+  -webkit-backdrop-filter: var(--mp-blur);
 }
 .metric-card--green { --accent: var(--green); }
 .metric-card--blue { --accent: var(--blue); }
@@ -1322,8 +1310,8 @@ onMounted(() => {
 .site-body {
   height: calc(100% - 38px);
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: clamp(160px, 22%, 230px) minmax(0, 1fr);
+  gap: clamp(10px, 1.4vw, 18px);
   padding: 14px 18px 18px;
 }
 .donut-zone {
@@ -1349,7 +1337,7 @@ onMounted(() => {
     0 7px 18px rgba(0, 0, 0, 0.055);
 }
 .donut--empty {
-  filter: saturate(82%);
+  opacity: 0.72;
 }
 .donut::after {
   content: "";
@@ -1392,7 +1380,7 @@ onMounted(() => {
 .site-stats {
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   overflow: hidden;
 }
@@ -1413,11 +1401,6 @@ onMounted(() => {
   box-shadow: var(--site-cell-shadow);
   overflow: hidden;
   contain: layout paint;
-}
-.site-stat:nth-child(3) {
-  grid-column: 1 / -1;
-  min-height: 30px;
-  height: 30px;
 }
 .site-stat span {
   color: rgba(var(--muted), 0.70);
@@ -1443,7 +1426,7 @@ onMounted(() => {
 .site-list {
   min-height: 0;
   display: grid;
-  gap: 9px;
+  gap: 0;
   align-content: start;
   overflow: auto;
   padding-right: 2px;
@@ -1452,14 +1435,13 @@ onMounted(() => {
   font-weight: 700;
   scrollbar-width: thin;
 }
-.site-card {
+.site-table {
   min-width: 0;
   display: grid;
-  grid-template-rows: 18px 30px;
-  gap: 8px;
+  gap: 6px;
   border-radius: 12px;
   border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
-  padding: 10px 11px;
+  padding: 8px;
   background:
     linear-gradient(180deg, rgba(var(--line), var(--site-cell-line-alpha)), rgba(var(--line), var(--site-cell-line-low-alpha))),
     rgba(var(--panel), var(--site-cell-fill-alpha));
@@ -1467,19 +1449,121 @@ onMounted(() => {
   overflow: hidden;
   contain: layout paint;
 }
-.site-card-head {
+.site-table-head,
+.site-table-row {
   min-width: 0;
-  min-height: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(74px, 0.85fr) minmax(74px, 0.85fr) minmax(48px, 0.48fr);
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+.site-table-head {
+  min-height: 24px;
+  padding: 0 8px;
+  color: rgba(var(--muted), 0.66);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 760;
+}
+.site-table-head span:nth-child(n+2) {
+  text-align: right;
+}
+.site-table-row {
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
+  padding: 0 8px;
+  background:
+    linear-gradient(180deg, rgba(var(--line), var(--site-cell-line-alpha)), rgba(var(--line), var(--site-cell-line-low-alpha))),
+    rgba(var(--panel), var(--site-cell-fill-alpha));
+}
+.site-table-name {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
   overflow: hidden;
+}
+.site-table-number,
+.site-table-percent {
+  min-width: 0;
+  display: block;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1;
 }
-.site-card-metrics {
+.site-list--empty {
+  grid-auto-rows: auto;
+}
+.site-empty-state {
+  min-height: 136px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(190px, 0.72fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px 18px 18px;
+  overflow: hidden;
+}
+.site-empty-main,
+.site-empty-stats {
+  min-width: 0;
+  border-radius: var(--mp-cell-radius);
+  border: 1px solid rgba(var(--line), var(--site-cell-border-alpha));
+  background: var(--mp-cell-surface);
+  box-shadow: var(--site-cell-shadow);
+}
+.site-empty-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  color: rgba(var(--muted), 0.78);
+}
+.site-empty-icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: var(--mp-cell-radius);
+  color: rgba(var(--ink), 0.72);
+  background: var(--mp-cell-muted-surface);
+}
+.site-empty-main > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.site-empty-main strong {
+  color: rgba(var(--ink), 0.90);
+  font-size: 13px;
+  line-height: 1.15;
+}
+.site-empty-main span {
+  font-size: 12px;
+  line-height: 1.2;
+}
+.site-empty-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: center;
   gap: 8px;
+  padding: 10px;
+}
+.site-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.site-table-percent {
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 820;
 }
 .site-row-cell {
   min-width: 0;
@@ -1498,22 +1582,6 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1;
-}
-.site-list--empty {
-  grid-auto-rows: auto;
-}
-.site-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.site-percent {
-  flex: 0 0 auto;
-  font-size: 13px;
-  line-height: 1;
-  font-weight: 820;
 }
 .site-empty-row {
   grid-column: 1 / -1;
@@ -1539,9 +1607,6 @@ onMounted(() => {
 .site-empty-row span {
   font-size: 12px;
   line-height: 1;
-}
-.site-card-head {
-  gap: 8px;
 }
 .dot {
   width: 8px;
@@ -2196,6 +2261,10 @@ onMounted(() => {
     gap: 14px;
     padding: 12px 16px 16px;
   }
+  .site-empty-state {
+    min-height: 118px;
+    padding: 12px 16px 16px;
+  }
   .donut-zone {
     min-height: 180px;
   }
@@ -2204,7 +2273,7 @@ onMounted(() => {
     gap: 8px;
   }
   .site-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
   .site-stat {
@@ -2324,7 +2393,7 @@ onMounted(() => {
   }
   .dashboard-shell {
     padding: 0;
-    border-radius: var(--aoa-dashboard-radius);
+    border-radius: var(--mp-panel-radius);
   }
   .dashboard-shell--sidebar {
     padding: 16px 10px calc(116px + env(safe-area-inset-bottom));
@@ -2369,6 +2438,7 @@ onMounted(() => {
   .dashboard-canvas,
   .metrics-panel,
   .site-body,
+  .site-empty-state,
   .site-stats,
   .cmd-grid,
   .runtime-track {
@@ -2459,16 +2529,31 @@ onMounted(() => {
   .runtime-track {
     height: auto;
   }
+  .site-empty-state {
+    min-height: 0;
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+  .site-empty-stats {
+    grid-template-columns: 1fr;
+  }
   .site-list {
-    gap: 8px;
     padding-right: 0;
   }
-  .site-card {
-    padding: 9px 10px;
-    gap: 7px;
+  .site-table {
+    padding: 7px;
   }
-  .site-card-metrics {
-    gap: 7px;
+  .site-table-head,
+  .site-table-row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(70px, 0.8fr) minmax(70px, 0.8fr) 46px;
+    gap: 6px;
+    padding-inline: 7px;
+  }
+  .site-table-head {
+    font-size: 10px;
+  }
+  .site-table-row {
+    min-height: 32px;
   }
   .site-row-cell {
     min-height: 30px;
@@ -2563,6 +2648,13 @@ onMounted(() => {
   .site-body {
     gap: 12px;
     padding: 12px;
+  }
+  .site-empty-state {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+  .site-empty-stats {
+    grid-template-columns: 1fr;
   }
 
   .site-list {
@@ -2667,4 +2759,87 @@ onMounted(() => {
   }
 }
 
+/* MP native theme alignment: keep layout custom, let material follow MoviePilot tokens. */
+.agentops-dashboard .panel,
+.agentops-dashboard .metric-card,
+.agentops-dashboard .site-panel,
+.agentops-dashboard .command-panel,
+.agentops-dashboard .download-panel,
+.agentops-dashboard .runtime-panel {
+  border: var(--mp-panel-border);
+  border-radius: var(--mp-panel-radius);
+  background: var(--mp-panel-surface);
+  box-shadow: var(--mp-panel-shadow);
+  backdrop-filter: var(--mp-blur);
+  -webkit-backdrop-filter: var(--mp-blur);
+}
+
+.agentops-dashboard .top-button,
+.agentops-dashboard .alert-line,
+.agentops-dashboard .site-stat,
+.agentops-dashboard .site-table,
+.agentops-dashboard .site-table-row,
+.agentops-dashboard .site-empty-row,
+.agentops-dashboard .command-quick-card,
+.agentops-dashboard .command-group,
+.agentops-dashboard .cmd-btn,
+.agentops-dashboard .downloader-card,
+.agentops-dashboard .module {
+  border: var(--mp-panel-border);
+  border-radius: var(--mp-cell-radius);
+  background: var(--mp-cell-surface);
+  box-shadow: var(--mp-panel-shadow);
+}
+
+.agentops-dashboard .top-button:hover,
+.agentops-dashboard .command-quick-btn:hover,
+.agentops-dashboard .cmd-btn:hover {
+  background: var(--mp-cell-hover-surface);
+  box-shadow: var(--mp-cell-hover-shadow);
+}
+
+.agentops-dashboard .alert-icon,
+.agentops-dashboard .metric-symbol,
+.agentops-dashboard .donut-zone,
+.agentops-dashboard .command-quick-btn,
+.agentops-dashboard .cmd-icon {
+  border-radius: var(--mp-cell-radius);
+  background: var(--mp-cell-muted-surface);
+  box-shadow: var(--mp-panel-shadow);
+}
+
+.agentops-dashboard .donut::after {
+  background: var(--mp-panel-surface);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--v-border-opacity, 0.12));
+}
+
+.dashboard-shell--sidebar .top-button,
+.dashboard-shell--sidebar .top-button:hover,
+.dashboard-shell--sidebar .top-button:focus,
+.dashboard-shell--sidebar .top-button:focus-visible,
+.dashboard-shell--sidebar .top-button:active {
+  --v-hover-opacity: 0;
+  --v-focus-opacity: 0;
+  --v-activated-opacity: 0;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.dashboard-shell--sidebar .top-button :deep(.v-btn__overlay),
+.dashboard-shell--sidebar .top-button :deep(.v-btn__underlay) {
+  display: none !important;
+  opacity: 0 !important;
+  background: transparent !important;
+}
+
+</style>
+
+<style>
+.dashboard-shell--sidebar .top-button [class~="v-btn__overlay"],
+.dashboard-shell--sidebar .top-button [class~="v-btn__underlay"] {
+  display: none !important;
+  opacity: 0 !important;
+  background: transparent !important;
+}
 </style>

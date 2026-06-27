@@ -53,23 +53,39 @@ const emit = defineEmits(['runAction'])
 
 <style scoped>
 .mp-actions-panel {
-  --mp-widget-panel-source-opacity: var(--mp-widget-surface-opacity, var(--mp-widget-mp-surface-opacity));
+  /* 外框：贴 MP 官方 surface（跟 v-card 一致） */
+  --mp-panel-radius: var(--app-surface-radius, 12px);
+  --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
+  --mp-panel-shadow: var(--app-surface-shadow, none);
+  --mp-panel-surface: rgb(var(--v-theme-surface));
+  /* 内框：on-surface 透白叠在外框上，做液态玻璃层次 */
+  --mp-cell-radius: var(--app-field-radius, 10px);
+  --mp-cell-border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.10));
+  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.04);
+  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.08);
+  --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.045);
+  --mp-cell-shadow: none;
+  --mp-cell-hover-shadow: var(--app-surface-hover-shadow, none);
+  --mp-blur: none;
   container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-height: 100%;
   padding: 18px;
-  border-radius: var(--mp-widget-radius);
-  border: 1px solid rgba(var(--v-border-color), var(--mp-widget-panel-line));
-  background:
-    radial-gradient(circle at 14% 0%, rgba(var(--v-theme-on-surface), 0.048), transparent 34%),
-    radial-gradient(circle at 92% 12%, rgba(var(--v-theme-on-surface), 0.034), transparent 32%),
-    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-hi)), rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-lo))),
-    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity));
-  box-shadow: var(--mp-widget-shadow-panel);
-  backdrop-filter: blur(18px) saturate(145%);
-  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  border-radius: var(--mp-panel-radius);
+  border: var(--mp-panel-border);
+  background: var(--mp-panel-surface);
+  box-shadow: var(--mp-panel-shadow);
+  backdrop-filter: var(--mp-blur);
+  -webkit-backdrop-filter: var(--mp-blur);
+}
+
+:global(html[data-theme="transparent"]) .mp-actions-panel {
+  --mp-panel-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
+  --mp-cell-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-light));
+  --mp-cell-hover-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-heavy));
+  --mp-blur: blur(var(--transparent-blur));
 }
 
 .mp-panel-head {
@@ -86,8 +102,8 @@ const emit = defineEmits(['runAction'])
   place-items: center;
   border-radius: 12px;
   color: rgba(var(--v-theme-on-surface), 0.76);
-  background: rgba(var(--v-theme-on-surface), 0.075);
-  box-shadow: var(--mp-widget-shadow-cell) !important;
+  background: var(--mp-cell-muted-surface);
+  box-shadow: var(--mp-cell-shadow) !important;
 }
 
 .mp-panel-head h3 {
@@ -114,31 +130,24 @@ const emit = defineEmits(['runAction'])
   min-width: 0;
   min-height: 60px;
   justify-content: stretch;
-  border-radius: var(--mp-widget-cell-radius);
-  border: 1px solid rgba(var(--v-border-color), var(--mp-widget-cell-line));
+  border-radius: var(--mp-cell-radius);
+  border: var(--mp-cell-border);
   color: rgba(var(--v-theme-on-surface), 0.90);
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-on-surface), var(--mp-widget-cell-line-soft)), rgba(var(--v-theme-on-surface), 0.012)),
-    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill)),
-    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity));
-  box-shadow: var(--mp-widget-shadow-cell) !important;
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.055));
+  background: var(--mp-cell-surface);
+  box-shadow: var(--mp-cell-shadow) !important;
   cursor: pointer;
-  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
 }
 
 .mp-action-btn.v-btn,
 :deep(.mp-action-btn.v-btn) {
-  box-shadow: var(--mp-widget-shadow-cell) !important;
+  box-shadow: var(--mp-cell-shadow) !important;
 }
 
 .mp-action-btn:hover {
-  border-color: rgba(var(--v-theme-on-surface), 0.18);
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-on-surface), 0.065), rgba(var(--v-theme-on-surface), 0.020)),
-    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill-strong)),
-    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity));
-  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.07));
+  border-color: rgba(var(--v-theme-primary), 0.28);
+  background: var(--mp-cell-hover-surface);
+  box-shadow: var(--mp-cell-hover-shadow) !important;
 }
 
 .mp-action-btn:focus-visible {
@@ -162,8 +171,8 @@ const emit = defineEmits(['runAction'])
   place-items: center;
   border-radius: 12px;
   color: rgba(var(--v-theme-on-surface), 0.78);
-  background: rgba(var(--v-theme-on-surface), 0.075);
-  box-shadow: var(--mp-widget-shadow-cell);
+  background: var(--mp-cell-muted-surface);
+  box-shadow: var(--mp-cell-shadow);
 }
 
 .mp-action-copy {
@@ -202,7 +211,7 @@ const emit = defineEmits(['runAction'])
 .mp-action-message {
   margin-top: auto;
   color: rgba(var(--v-theme-on-surface), 0.74);
-  background: rgba(var(--v-theme-on-surface), 0.055);
+  background: var(--mp-cell-surface);
 }
 
 @container (max-width: 420px) {

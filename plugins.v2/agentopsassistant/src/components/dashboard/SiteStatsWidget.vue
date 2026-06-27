@@ -39,12 +39,12 @@ const emit = defineEmits(['refresh'])
     </header>
 
     <VAlert v-if="error" type="error" density="compact" variant="tonal" :text="error" />
-    <div v-else class="mp-site-body" :class="{ 'is-empty': !hasSiteChart }">
+    <div v-else-if="hasSiteChart" class="mp-site-body">
       <div class="mp-donut-zone">
         <div class="mp-donut" :class="{ 'mp-donut--empty': !hasSiteChart }" :style="sitePieStyle">
           <div class="mp-donut-core">
-            <strong>{{ hasSiteChart ? siteRows.length : 0 }}</strong>
-            <span>{{ hasSiteChart ? '站点' : '待刷新' }}</span>
+            <strong>{{ siteRows.length }}</strong>
+            <span>站点</span>
           </div>
         </div>
       </div>
@@ -65,27 +65,47 @@ const emit = defineEmits(['refresh'])
           </div>
         </div>
 
-        <div v-if="hasSiteChart" class="mp-site-list">
-          <article v-for="site in siteTableRows" :key="site.name" class="mp-site-card">
-            <div class="mp-site-card-head">
-              <i class="mp-dot" :style="{ background: site.color, boxShadow: `0 0 8px ${site.glow}` }"></i>
-              <span class="mp-site-name">{{ site.name }}</span>
-              <strong class="mp-site-percent">{{ sitePercent(site.value) }}</strong>
+        <div class="mp-site-list">
+          <div class="mp-site-table">
+            <div class="mp-site-table-head">
+              <span>站点</span>
+              <span>上传</span>
+              <span>下载</span>
+              <span>占比</span>
             </div>
-            <div class="mp-site-card-metrics">
-              <span class="mp-site-row-cell mp-site-upload">↑ {{ formatBytes(site.upload) }}</span>
-              <span class="mp-site-row-cell mp-site-download">↓ {{ formatBytes(site.download) }}</span>
-            </div>
-          </article>
-        </div>
-        <div v-else class="mp-site-list mp-site-list--empty">
-          <div class="mp-site-row-cell mp-site-empty-row">
-            <VIcon icon="mdi-chart-pie" size="18" />
-            <div>
-              <strong>暂无站点增量</strong>
-              <span>刷新后显示最近可用快照</span>
+            <div v-for="site in siteTableRows" :key="site.name" class="mp-site-table-row">
+              <span class="mp-site-table-name">
+                <i class="mp-dot" :style="{ background: site.color, boxShadow: `0 0 8px ${site.glow}` }"></i>
+                <span class="mp-site-name">{{ site.name }}</span>
+              </span>
+              <span class="mp-site-table-number mp-site-upload">↑ {{ formatBytes(site.upload) }}</span>
+              <span class="mp-site-table-number mp-site-download">↓ {{ formatBytes(site.download) }}</span>
+              <strong class="mp-site-table-percent">{{ sitePercent(site.value) }}</strong>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+    <div v-else class="mp-site-empty-state">
+      <div class="mp-empty-main">
+        <span class="mp-empty-icon"><VIcon icon="mdi-chart-pie" size="19" /></span>
+        <div>
+          <strong>暂无站点增量</strong>
+          <span>刷新后显示最近可用快照</span>
+        </div>
+      </div>
+      <div class="mp-empty-stats">
+        <div class="mp-site-stat mp-site-stat--upload">
+          <span>上传增量</span>
+          <strong>0.0 MB</strong>
+        </div>
+        <div class="mp-site-stat mp-site-stat--download">
+          <span>下载增量</span>
+          <strong>0.0 MB</strong>
+        </div>
+        <div class="mp-site-stat mp-site-stat--date">
+          <span>统计日期</span>
+          <strong>{{ siteDateLabel }}</strong>
         </div>
       </div>
     </div>
@@ -94,26 +114,42 @@ const emit = defineEmits(['refresh'])
 
 <style scoped>
 .mp-site-panel {
-  --mp-widget-panel-source-opacity: var(--mp-widget-surface-opacity, var(--mp-widget-mp-surface-opacity));
+  /* 外框：贴 MP 官方 surface */
+  --mp-panel-radius: var(--app-surface-radius, 12px);
+  --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
+  --mp-panel-shadow: var(--app-surface-shadow, none);
+  --mp-panel-surface: rgb(var(--v-theme-surface));
+  /* 内框：on-surface 透白做层次 */
+  --mp-cell-radius: var(--app-field-radius, 10px);
+  --mp-cell-border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.10));
+  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.04);
+  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.08);
+  --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.045);
+  --mp-cell-shadow: none;
+  --mp-blur: none;
+  --mp-empty-min: 132px;
   container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   box-sizing: border-box;
   height: 100%;
   min-height: 100%;
   padding: 18px;
   overflow: hidden;
-  border-radius: var(--mp-widget-radius);
-  border: 1px solid rgba(var(--v-border-color), var(--mp-widget-panel-line));
-  background:
-    radial-gradient(circle at 13% 10%, rgba(var(--v-theme-on-surface), 0.046), transparent 36%),
-    radial-gradient(circle at 76% 20%, rgba(var(--v-theme-on-surface), 0.032), transparent 34%),
-    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-hi)), rgba(var(--v-theme-surface), var(--mp-widget-panel-fill-lo))),
-    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity));
-  box-shadow: var(--mp-widget-shadow-panel);
-  backdrop-filter: blur(18px) saturate(145%);
-  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  border-radius: var(--mp-panel-radius);
+  border: var(--mp-panel-border);
+  background: var(--mp-panel-surface);
+  box-shadow: var(--mp-panel-shadow);
+  backdrop-filter: var(--mp-blur);
+  -webkit-backdrop-filter: var(--mp-blur);
+}
+
+:global(html[data-theme="transparent"]) .mp-site-panel {
+  --mp-panel-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
+  --mp-cell-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-light));
+  --mp-cell-hover-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-heavy));
+  --mp-blur: blur(var(--transparent-blur));
 }
 
 .mp-panel-head {
@@ -130,8 +166,8 @@ const emit = defineEmits(['refresh'])
   place-items: center;
   border-radius: 12px;
   color: rgba(var(--v-theme-on-surface), 0.76);
-  background: rgba(var(--v-theme-on-surface), 0.075);
-  box-shadow: var(--mp-widget-shadow-cell);
+  background: var(--mp-cell-muted-surface);
+  box-shadow: var(--mp-cell-shadow);
 }
 
 .mp-panel-head h3 {
@@ -157,39 +193,33 @@ const emit = defineEmits(['refresh'])
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: clamp(150px, 24%, 190px) minmax(0, 1fr);
+  gap: clamp(10px, 1.4vw, 16px);
   overflow: hidden;
 }
 
 .mp-donut-zone {
-  min-height: 210px;
+  min-height: clamp(136px, 100%, 190px);
   display: grid;
   place-items: center;
-  border-radius: var(--mp-widget-inner-radius);
-  border: 1px solid rgba(var(--v-border-color), var(--mp-widget-cell-line));
-  background:
-    radial-gradient(circle at 50% 44%, rgba(var(--v-theme-on-surface), 0.055), transparent 54%),
-    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill)),
-    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity));
-  box-shadow: var(--mp-widget-shadow-cell);
+  border-radius: var(--mp-cell-radius);
+  border: var(--mp-cell-border);
+  background: var(--mp-cell-surface);
+  box-shadow: var(--mp-cell-shadow);
 }
 
 .mp-donut {
   position: relative;
-  width: 142px;
-  height: 142px;
+  width: clamp(112px, 10.4vw, 142px);
+  height: clamp(112px, 10.4vw, 142px);
   display: grid;
   place-items: center;
   border-radius: 50%;
-  box-shadow:
-    inset 0 1px 16px rgba(var(--v-theme-on-surface), 0.16),
-    inset 0 -12px 22px rgba(0, 0, 0, 0.08),
-    0 7px 18px rgba(16, 24, 40, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--v-border-opacity, 0.12));
 }
 
 .mp-donut--empty {
-  filter: saturate(82%);
+  opacity: 0.72;
 }
 
 .mp-donut::after {
@@ -197,12 +227,8 @@ const emit = defineEmits(['refresh'])
   position: absolute;
   inset: 30px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 18%, rgba(var(--v-theme-on-surface), 0.10), transparent 48%),
-    rgba(var(--v-theme-surface), clamp(0.16, calc(var(--mp-widget-surface-opacity) + 0.24), 0.92));
-  box-shadow:
-    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.08),
-    0 0 0 1px rgba(var(--v-border-color), 0.12);
+  background: var(--mp-panel-surface);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--v-border-opacity, 0.12));
 }
 
 .mp-donut-core {
@@ -238,22 +264,18 @@ const emit = defineEmits(['refresh'])
 .mp-site-stats {
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   overflow: hidden;
 }
 
 .mp-site-stat,
-.mp-site-card,
 .mp-site-row-cell {
   min-width: 0;
-  border-radius: var(--mp-widget-cell-radius);
-  border: 1px solid rgba(var(--v-border-color), var(--mp-widget-cell-line));
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-on-surface), var(--mp-widget-cell-line-soft)), rgba(var(--v-theme-on-surface), 0.012)),
-    rgba(var(--v-theme-surface), var(--mp-widget-cell-fill)),
-    rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity));
-  box-shadow: var(--mp-widget-shadow-cell);
+  border-radius: var(--mp-cell-radius);
+  border: var(--mp-cell-border);
+  background: var(--mp-cell-surface);
+  box-shadow: var(--mp-cell-shadow);
 }
 
 .mp-site-stat {
@@ -266,13 +288,6 @@ const emit = defineEmits(['refresh'])
   padding: 0 10px;
   overflow: hidden;
   contain: layout paint;
-}
-
-.mp-site-stat--date {
-  grid-column: 1 / -1;
-  grid-template-columns: auto minmax(0, 1fr);
-  min-height: 30px;
-  height: 30px;
 }
 
 .mp-site-stat span {
@@ -301,7 +316,7 @@ const emit = defineEmits(['refresh'])
 .mp-site-list {
   min-height: 0;
   display: grid;
-  gap: 9px;
+  gap: 0;
   align-content: start;
   overflow: auto;
   padding-right: 2px;
@@ -311,29 +326,47 @@ const emit = defineEmits(['refresh'])
   scrollbar-width: thin;
 }
 
-.mp-site-card {
+.mp-site-table {
+  min-width: 0;
   display: grid;
-  grid-template-rows: 18px 30px;
-  gap: 8px;
-  padding: 10px 11px;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--mp-cell-radius);
+  border: var(--mp-cell-border);
+  background: var(--mp-cell-surface);
   overflow: hidden;
   contain: layout paint;
 }
 
-.mp-site-card-head {
+.mp-site-table-head,
+.mp-site-table-row {
   min-width: 0;
-  min-height: 18px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(72px, 0.82fr) minmax(72px, 0.82fr) minmax(46px, 0.46fr);
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   overflow: hidden;
   line-height: 1;
 }
 
-.mp-site-card-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+.mp-site-table-head {
+  min-height: 24px;
+  padding: 0 8px;
+  color: rgba(var(--v-theme-on-surface), 0.58);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.mp-site-table-head span:nth-child(n+2) {
+  text-align: right;
+}
+
+.mp-site-table-row {
+  min-height: 33px;
+  border-radius: calc(var(--mp-cell-radius) - 2px);
+  border: var(--mp-cell-border);
+  padding: 0 8px;
+  background: var(--mp-panel-surface);
 }
 
 .mp-site-row-cell {
@@ -356,6 +389,24 @@ const emit = defineEmits(['refresh'])
   white-space: nowrap;
 }
 
+.mp-site-table-name {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.mp-site-table-number,
+.mp-site-table-percent {
+  min-width: 0;
+  display: block;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .mp-dot {
   width: 8px;
   height: 8px;
@@ -363,8 +414,7 @@ const emit = defineEmits(['refresh'])
   border-radius: 999px;
 }
 
-.mp-site-percent {
-  flex: 0 0 auto;
+.mp-site-table-percent {
   color: rgba(var(--v-theme-on-surface), 0.88);
   font-size: 13px;
   line-height: 1;
@@ -375,30 +425,66 @@ const emit = defineEmits(['refresh'])
   grid-auto-rows: auto;
 }
 
-.mp-site-empty-row {
-  grid-column: 1 / -1;
-  min-height: 72px;
-  justify-content: center;
-  gap: 12px;
-  color: rgba(var(--v-theme-on-surface), 0.62);
-  white-space: normal;
+.mp-site-empty-state {
+  min-height: var(--mp-empty-min);
+  display: grid;
+  grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+  overflow: hidden;
 }
 
-.mp-site-empty-row > div {
+.mp-empty-main,
+.mp-empty-stats {
+  min-width: 0;
+  border-radius: var(--mp-cell-radius);
+  border: var(--mp-cell-border);
+  background: var(--mp-cell-surface);
+  box-shadow: var(--mp-cell-shadow);
+}
+
+.mp-empty-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  color: rgba(var(--v-theme-on-surface), 0.62);
+}
+
+.mp-empty-icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: var(--mp-cell-radius);
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  background: var(--mp-cell-muted-surface);
+}
+
+.mp-empty-main > div {
   min-width: 0;
   display: grid;
   gap: 4px;
 }
 
-.mp-site-empty-row strong {
+.mp-empty-main strong {
   color: rgba(var(--v-theme-on-surface), 0.90);
   font-size: 13px;
-  line-height: 1;
+  line-height: 1.15;
 }
 
-.mp-site-empty-row span {
+.mp-empty-main span {
   font-size: 12px;
-  line-height: 1;
+  line-height: 1.2;
+}
+
+.mp-empty-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: center;
+  gap: 8px;
+  padding: 10px;
 }
 
 @media (max-width: 760px) {
@@ -410,6 +496,10 @@ const emit = defineEmits(['refresh'])
   .mp-site-body {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .mp-site-empty-state {
+    grid-template-columns: 1fr;
   }
 
   .mp-donut-zone {
@@ -439,7 +529,7 @@ const emit = defineEmits(['refresh'])
   }
 
   .mp-site-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
 
@@ -460,8 +550,15 @@ const emit = defineEmits(['refresh'])
     line-height: 1;
   }
 
-  .mp-site-row-cell {
-    min-height: 30px;
+  .mp-site-table {
+    padding: 7px;
+  }
+
+  .mp-site-table-head,
+  .mp-site-table-row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(70px, 0.8fr) minmax(70px, 0.8fr) 46px;
+    gap: 6px;
+    padding-inline: 7px;
   }
 }
 
@@ -490,6 +587,10 @@ const emit = defineEmits(['refresh'])
     gap: 10px;
   }
 
+  .mp-site-empty-state {
+    grid-template-columns: 1fr;
+  }
+
   .mp-donut-zone {
     min-height: 132px;
   }
@@ -517,7 +618,7 @@ const emit = defineEmits(['refresh'])
   }
 
   .mp-site-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
 
@@ -543,20 +644,49 @@ const emit = defineEmits(['refresh'])
   }
 
   .mp-site-list {
-    gap: 8px;
     padding-right: 0;
   }
 
-  .mp-site-row-cell {
-    min-height: 30px;
-    padding-inline: 9px;
-    white-space: nowrap;
-    line-height: 1.25;
+  .mp-site-table {
+    padding: 7px;
+  }
+
+  .mp-site-table-head,
+  .mp-site-table-row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(70px, 0.8fr) minmax(70px, 0.8fr) 46px;
+    gap: 6px;
+    padding-inline: 7px;
   }
 
   .mp-site-upload,
   .mp-site-download {
-    justify-content: center;
+    text-align: right;
+  }
+}
+
+@container (max-width: 390px) {
+  .mp-site-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .mp-empty-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .mp-site-table-head,
+  .mp-site-table-row {
+    grid-template-columns: minmax(0, 1fr) minmax(64px, 0.72fr) minmax(64px, 0.72fr) 42px;
+    gap: 5px;
+    padding-inline: 6px;
+  }
+
+  .mp-site-table-head {
+    font-size: 10px;
+  }
+
+  .mp-site-table-number,
+  .mp-site-table-percent {
+    font-size: 11px;
   }
 }
 </style>
