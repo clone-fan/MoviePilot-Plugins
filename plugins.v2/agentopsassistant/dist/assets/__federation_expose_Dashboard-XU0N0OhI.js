@@ -185,7 +185,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-7ae7a77e"]]);
+const SiteStatsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-07b98042"]]);
 
 const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,toDisplayString:_toDisplayString,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1,withCtx:_withCtx,createBlock:_createBlock$1,createCommentVNode:_createCommentVNode} = await importShared('vue');
 
@@ -279,7 +279,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-d2a1372b"]]);
+const ActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-2e9574a4"]]);
 
 const {resolveDynamicComponent:_resolveDynamicComponent,openBlock:_openBlock,createBlock:_createBlock,createElementBlock:_createElementBlock} = await importShared('vue');
 
@@ -497,6 +497,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-fc096e98"]]);
+const Dashboard = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-32dc5616"]]);
 
 export { Dashboard as default };

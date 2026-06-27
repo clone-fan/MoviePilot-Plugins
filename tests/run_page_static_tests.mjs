@@ -215,6 +215,47 @@ for (const [name, content] of Object.entries({
     !/--(?:mp-cell|aoa-native-field)-surface:\s*rgba\(var\(--v-theme-on-surface\),\s*0\.0[4-7]\)/.test(content),
     `${name} should not keep ultra-low-opacity inner cards that disappear on transparent MP themes`,
   )
+  assert.ok(
+    content.includes('--aoa-outer-surface') && content.includes('rgba(var(--v-theme-surface), var(--transparent-opacity'),
+    `${name} should expose an outer surface that follows MoviePilot transparent opacity directly`,
+  )
+  assert.ok(
+    !/max\(var\(--transparent-opacity[^)]*\),\s*0\.[3-9]/.test(content),
+    `${name} should not clamp MoviePilot transparent opacity upward with hard-coded minimums`,
+  )
+}
+
+for (const [name, content] of Object.entries({
+  'Page.vue': page,
+  'Config.vue': config,
+  'Dashboard.vue': themeEntrySources['Dashboard.vue'],
+  'SiteStatsWidget.vue': themeEntrySources['SiteStatsWidget.vue'],
+  'ActionsWidget.vue': themeEntrySources['ActionsWidget.vue'],
+})) {
+  assert.ok(
+    !/--(?:mp-panel|aoa-native)-surface:\s*var\(--aoa-inner-surface\)/.test(content) &&
+      !/--mp-widget-panel-fill-hi:\s*[\s\S]*?var\(--aoa-inner-surface\)[\s\S]*?;/.test(content),
+    `${name} outer panel surfaces should not consume the stronger inner glass surface`,
+  )
+}
+
+assert.ok(
+  page.includes('--mp-panel-surface: var(--aoa-outer-surface)'),
+  'Page.vue outer dashboard panels should follow the MP outer transparent surface',
+)
+assert.ok(
+  config.includes('--aoa-native-surface: var(--aoa-outer-surface)'),
+  'Config.vue module shells should keep the MP outer transparent surface while fields use inner glass',
+)
+for (const [name, content] of Object.entries({
+  'Dashboard.vue': themeEntrySources['Dashboard.vue'],
+  'SiteStatsWidget.vue': themeEntrySources['SiteStatsWidget.vue'],
+  'ActionsWidget.vue': themeEntrySources['ActionsWidget.vue'],
+})) {
+  assert.ok(
+    content.includes('--mp-widget-panel-fill-hi: var(--aoa-outer-surface)'),
+    `${name} public widget shell should use the MP outer transparent surface`,
+  )
 }
 
 assert.ok(
@@ -475,10 +516,11 @@ for (const fragment of [
 }
 
 assert.ok(
-  dashboard.includes('var(--mp-widget-mp-surface-opacity)') &&
+  dashboard.includes('--mp-widget-panel-fill-hi: var(--aoa-outer-surface)') &&
+    dashboard.includes('--aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity') &&
     dashboard.includes('--mp-widget-mp-surface-opacity: var(--v-card-opacity') &&
     !dashboard.includes('var(--v-medium-emphasis-opacity, 0.68)'),
-  'Dashboard.vue should derive widget opacity from MP/Vuetify card opacity instead of text emphasis opacity',
+  'Dashboard.vue should derive public widget shell opacity from MP/Vuetify outer surface instead of text emphasis opacity',
 )
 
 const dashboardPiePalette = dashboard.slice(

@@ -218,6 +218,7 @@ onMounted(loadSiteChart)
   --mp-widget-radius: var(--v-card-border-radius, var(--aoa-dashboard-radius));
   --mp-widget-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
   --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
+  --aoa-outer-surface: rgb(var(--v-theme-surface));
   --aoa-inner-surface-alpha-hi: 0.56;
   --aoa-inner-surface-alpha-lo: 0.42;
   --aoa-inner-surface-tint: 0.10;
@@ -242,11 +243,7 @@ onMounted(loadSiteChart)
     inset 0 -1px 0 rgba(0, 0, 0, 0.10),
     0 10px 26px rgba(0, 0, 0, 0.14);
   --aoa-inner-blur: 12px;
-  --mp-widget-panel-fill-hi: linear-gradient(
-    180deg,
-    rgba(var(--v-theme-surface), var(--mp-widget-mp-surface-opacity)),
-    rgba(var(--v-theme-on-surface), 0.035)
-  ), var(--aoa-inner-surface);
+  --mp-widget-panel-fill-hi: var(--aoa-outer-surface);
   --mp-widget-cell-fill: linear-gradient(
     180deg,
     rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity)),
@@ -263,14 +260,15 @@ onMounted(loadSiteChart)
 
 :global(html[data-theme="transparent"]) .aoa-dashboard-widget {
   /* 透明主题下子 widget 自己处理 backdrop-filter，这里只透传 token 给后代 */
-  --aoa-inner-surface-alpha-hi: max(var(--transparent-opacity-heavy, 0.58), 0.50);
-  --aoa-inner-surface-alpha-lo: max(var(--transparent-opacity, 0.42), 0.36);
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 1));
+  --aoa-inner-surface-alpha-hi: var(--transparent-opacity-heavy, 0.58);
+  --aoa-inner-surface-alpha-lo: var(--transparent-opacity, 0.42);
   --aoa-inner-surface-tint: 0.13;
-  --aoa-inner-strong-alpha-hi: max(var(--transparent-opacity-heavy, 0.66), 0.58);
-  --aoa-inner-strong-alpha-lo: max(var(--transparent-opacity, 0.48), 0.42);
+  --aoa-inner-strong-alpha-hi: var(--transparent-opacity-heavy, 0.66);
+  --aoa-inner-strong-alpha-lo: var(--transparent-opacity, 0.48);
   --aoa-inner-strong-tint: 0.17;
-  --aoa-inner-muted-alpha-hi: max(var(--transparent-opacity, 0.48), 0.40);
-  --aoa-inner-muted-alpha-lo: max(var(--transparent-opacity-light, 0.34), 0.30);
+  --aoa-inner-muted-alpha-hi: var(--transparent-opacity, 0.48);
+  --aoa-inner-muted-alpha-lo: var(--transparent-opacity-light, 0.34);
   --aoa-inner-muted-tint: 0.12;
   --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.22);
   --aoa-inner-blur: var(--transparent-blur, 12px);

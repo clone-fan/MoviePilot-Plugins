@@ -631,6 +631,7 @@ onMounted(() => {
   --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
   --mp-panel-shadow: var(--app-surface-shadow, none);
   --mp-cell-hover-shadow: var(--app-surface-hover-shadow, none);
+  --aoa-outer-surface: rgb(var(--v-theme-surface));
   --aoa-inner-surface-alpha-hi: 0.56;
   --aoa-inner-surface-alpha-lo: 0.42;
   --aoa-inner-surface-tint: 0.10;
@@ -655,11 +656,11 @@ onMounted(() => {
     inset 0 -1px 0 rgba(0, 0, 0, 0.10),
     0 10px 26px rgba(0, 0, 0, 0.14);
   --aoa-inner-blur: 12px;
-  --mp-panel-surface: var(--aoa-inner-surface);
+  --mp-panel-surface: var(--aoa-outer-surface);
   --mp-cell-surface: var(--aoa-inner-surface-strong);
   --mp-cell-hover-surface: var(--aoa-inner-surface-strong);
   --mp-cell-muted-surface: var(--aoa-inner-surface-muted);
-  --mp-panel-shadow: var(--aoa-inner-shadow);
+  --mp-cell-shadow: var(--aoa-inner-shadow);
   --mp-blur: none;
   /* 主题着色 token */
   --ink: var(--v-theme-on-surface, 240, 247, 255);
@@ -744,24 +745,26 @@ onMounted(() => {
 }
 
 :global(html[data-theme="transparent"]) .agentops-dashboard {
-  --aoa-inner-surface-alpha-hi: max(var(--transparent-opacity-heavy, 0.58), 0.50);
-  --aoa-inner-surface-alpha-lo: max(var(--transparent-opacity, 0.42), 0.36);
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 1));
+  --aoa-inner-surface-alpha-hi: var(--transparent-opacity-heavy, 0.58);
+  --aoa-inner-surface-alpha-lo: var(--transparent-opacity, 0.42);
   --aoa-inner-surface-tint: 0.13;
-  --aoa-inner-strong-alpha-hi: max(var(--transparent-opacity-heavy, 0.66), 0.58);
-  --aoa-inner-strong-alpha-lo: max(var(--transparent-opacity, 0.48), 0.42);
+  --aoa-inner-strong-alpha-hi: var(--transparent-opacity-heavy, 0.66);
+  --aoa-inner-strong-alpha-lo: var(--transparent-opacity, 0.48);
   --aoa-inner-strong-tint: 0.17;
-  --aoa-inner-muted-alpha-hi: max(var(--transparent-opacity, 0.48), 0.40);
-  --aoa-inner-muted-alpha-lo: max(var(--transparent-opacity-light, 0.34), 0.30);
+  --aoa-inner-muted-alpha-hi: var(--transparent-opacity, 0.48);
+  --aoa-inner-muted-alpha-lo: var(--transparent-opacity-light, 0.34);
   --aoa-inner-muted-tint: 0.12;
   --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.22);
   --aoa-inner-blur: var(--transparent-blur, 12px);
-  --mp-panel-surface: var(--aoa-inner-surface);
+  --mp-panel-surface: var(--aoa-outer-surface);
   --mp-cell-surface: var(--aoa-inner-surface-strong);
   --mp-cell-hover-surface: var(--aoa-inner-surface-strong);
   --mp-cell-muted-surface: var(--aoa-inner-surface-muted);
-  --mp-panel-border: var(--aoa-inner-border);
-  --mp-panel-shadow: var(--aoa-inner-shadow);
-  --mp-blur: blur(var(--aoa-inner-blur));
+  --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
+  --mp-panel-shadow: var(--app-surface-shadow, none);
+  --mp-cell-shadow: var(--aoa-inner-shadow);
+  --mp-blur: blur(var(--transparent-blur, 0px));
 }
 
 .agentops-dashboard.agentops-theme--light {
@@ -805,24 +808,26 @@ onMounted(() => {
 
 .agentops-dashboard.agentops-theme--transparent {
   /* 透明主题：外框跟 v-card 一致用 transparent-opacity，内框继续 on-surface 透白做层次 */
-  --aoa-inner-surface-alpha-hi: max(var(--transparent-opacity-heavy, 0.58), 0.50);
-  --aoa-inner-surface-alpha-lo: max(var(--transparent-opacity, 0.42), 0.36);
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 1));
+  --aoa-inner-surface-alpha-hi: var(--transparent-opacity-heavy, 0.58);
+  --aoa-inner-surface-alpha-lo: var(--transparent-opacity, 0.42);
   --aoa-inner-surface-tint: 0.13;
-  --aoa-inner-strong-alpha-hi: max(var(--transparent-opacity-heavy, 0.66), 0.58);
-  --aoa-inner-strong-alpha-lo: max(var(--transparent-opacity, 0.48), 0.42);
+  --aoa-inner-strong-alpha-hi: var(--transparent-opacity-heavy, 0.66);
+  --aoa-inner-strong-alpha-lo: var(--transparent-opacity, 0.48);
   --aoa-inner-strong-tint: 0.17;
-  --aoa-inner-muted-alpha-hi: max(var(--transparent-opacity, 0.48), 0.40);
-  --aoa-inner-muted-alpha-lo: max(var(--transparent-opacity-light, 0.34), 0.30);
+  --aoa-inner-muted-alpha-hi: var(--transparent-opacity, 0.48);
+  --aoa-inner-muted-alpha-lo: var(--transparent-opacity-light, 0.34);
   --aoa-inner-muted-tint: 0.12;
   --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.22);
   --aoa-inner-blur: var(--transparent-blur, 12px);
-  --mp-panel-surface: var(--aoa-inner-surface);
+  --mp-panel-surface: var(--aoa-outer-surface);
   --mp-cell-surface: var(--aoa-inner-surface-strong);
   --mp-cell-hover-surface: var(--aoa-inner-surface-strong);
   --mp-cell-muted-surface: var(--aoa-inner-surface-muted);
-  --mp-panel-border: var(--aoa-inner-border);
-  --mp-panel-shadow: var(--aoa-inner-shadow);
-  --mp-blur: blur(var(--aoa-inner-blur));
+  --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
+  --mp-panel-shadow: var(--app-surface-shadow, none);
+  --mp-cell-shadow: var(--aoa-inner-shadow);
+  --mp-blur: blur(var(--transparent-blur, 0px));
   --shell-panel-hi: 0.00;
   --shell-panel-lo: 0.00;
   --shell-stage-alpha: 0.00;
@@ -2838,7 +2843,7 @@ onMounted(() => {
   border: var(--mp-panel-border);
   border-radius: var(--mp-cell-radius);
   background: var(--mp-cell-surface);
-  box-shadow: var(--mp-panel-shadow);
+  box-shadow: var(--mp-cell-shadow);
 }
 
 .agentops-dashboard .top-button:hover,
@@ -2855,7 +2860,7 @@ onMounted(() => {
 .agentops-dashboard .cmd-icon {
   border-radius: var(--mp-cell-radius);
   background: var(--mp-cell-muted-surface);
-  box-shadow: var(--mp-panel-shadow);
+  box-shadow: var(--mp-cell-shadow);
 }
 
 .agentops-dashboard .donut::after {

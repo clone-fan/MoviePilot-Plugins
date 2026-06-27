@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、TG 融合汇报卡、订阅追新、站点统计、健康巡查、日志清理、自动备份与恢复、更新检查、自动删种、种子打标签、媒体通知和插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,TG融合汇报卡,流式汇报,订阅追新,站点统计,健康巡查,日志清理,自动备份,备份恢复,更新检查,自动删种,种子打标签,媒体通知,插件卸载,本地插件",
-    "version": "2.0.4",
+    "version": "2.0.5",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v2.0.5": "修正 v2.0.4 前端玻璃层级：Page/Config/Dashboard/自由组件统一拆分 --aoa-outer-surface 与 --aoa-inner-*，外层面板重新直连 MoviePilot 原生 surface 与 --transparent-opacity，不再把内部玻璃层套到外框；透明主题移除硬编码最小透明度夹值，内部字段、按钮和状态块继续保留可读玻璃层次。",
       "v2.0.4": "统一 AgentOpsAssistant 全部 Vue 前端的内部玻璃层次：Page/Config/Dashboard/自由组件共享 --aoa-inner-* 内层 surface 契约，透明主题下抬高内部卡片、字段、按钮和状态块的可读层次；移除详情页根级 scrim 透明遮罩，避免出现整页灰蓝覆盖；保留 MP 官方外框 token 与 1px 低可见滚动反馈。",
       "v2.0.3": "继续收敛 MoviePilot 原生主题适配：融合通知配置说明明确为接管状态；透明主题下配置页与自由组件内框统一改为低透明 on-surface 透白层，避免与 MP 背景融在一起；自由组件补齐 1px 低可见 WebKit 滚动条规则，隐藏轨道、按钮和角落残留线；入库整理展示口径合并今日成功入库与失败明细，避免成功入库时仍显示无数据。",
       "v2.0.2": "前端全量贴合 MoviePilot 官方主题：仪表盘自由组件、侧边栏仪表盘、插件详情页和配置页统一直连 --app-surface-radius/--app-surface-border/--app-surface-shadow、--v-theme-surface 与 --transparent-opacity 系列变量；外框跟 MP v-card 一致使用纯色 surface，内框改用 on-surface 透白叠层做液态玻璃层次；移除自制透明度变量与硬编码颜色，透明主题下 backdrop-filter 接 --transparent-blur，避免不同 MP 主题/尺寸/层级下出现层次扁平、配色脱节或字段融进背景的问题。",
