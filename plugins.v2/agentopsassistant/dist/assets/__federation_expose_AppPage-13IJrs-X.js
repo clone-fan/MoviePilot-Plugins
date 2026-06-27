@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import Page from './__federation_expose_Page-dbQeKQIL.js';
+import Page from './__federation_expose_Page-wvPVSoV5.js';
 
 const {openBlock:_openBlock,createBlock:_createBlock} = await importShared('vue');
 
