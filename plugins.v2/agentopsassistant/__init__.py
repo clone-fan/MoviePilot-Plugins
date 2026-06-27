@@ -4942,6 +4942,13 @@ class AgentOpsAssistant(_PluginBase):
             return ["⦁ 未取到"]
 
     def _get_transfer_health_locked(self) -> List[str]:
+        success_items = [str(x or "").strip() for x in self._get_today_downloads_locked() if str(x or "").strip()]
+        success_items = [x for x in success_items if x not in {"⦁ 无", "• 无", "无"}]
+        failed_items = self._get_transfer_failures_locked()
+        failed_items = [x for x in failed_items if x not in {"⦁ 无", "• 无", "无"}]
+        return (success_items + failed_items) or ["⦁ 无"]
+
+    def _get_transfer_failures_locked(self) -> List[str]:
         rows = self._today_transfer_rows_locked()
         failed_rows = [r for r in rows if not getattr(r, "status", False)]
         if not failed_rows:
@@ -4955,7 +4962,7 @@ class AgentOpsAssistant(_PluginBase):
 
     def _build_today_transfer_report_text(self) -> str:
         success_items = [str(x or "").strip() for x in self._get_today_downloads_locked() if str(x or "").strip()]
-        failed_items = [str(x or "").strip() for x in self._get_transfer_health_locked() if str(x or "").strip()]
+        failed_items = [str(x or "").strip() for x in self._get_transfer_failures_locked() if str(x or "").strip()]
         success_items = [x for x in success_items if x not in {"⦁ 无", "• 无", "无"}]
         failed_items = [x for x in failed_items if x not in {"⦁ 无", "• 无", "无"}]
         lines: List[str] = []

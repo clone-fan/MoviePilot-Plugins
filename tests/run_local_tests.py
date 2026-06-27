@@ -2042,7 +2042,7 @@ def main():
     p_report = make_plugin(mod)
     p_report._today_transfer_rows_locked = lambda: []
     check(p_report._get_today_downloads_locked() == ["⦁ 无"], "今日下载无记录时只写无")
-    check(p_report._get_transfer_health_locked() == ["⦁ 无"], "入库整理无失败时只写无")
+    check(p_report._get_transfer_health_locked() == ["⦁ 无"], "入库整理无记录时只写无")
     p_report._today_transfer_rows_locked = lambda: [
         types.SimpleNamespace(status=True, title="成功片", year="2026", type="电影"),
         types.SimpleNamespace(status=False, title="失败片", errmsg="硬链接失败"),
@@ -2050,7 +2050,7 @@ def main():
     downloads = p_report._get_today_downloads_locked()
     transfers = p_report._get_transfer_health_locked()
     check(all("今日下载：" not in x for x in downloads) and any("成功片" in x for x in downloads), "今日下载有内容时直接列片名，不展示数量摘要")
-    check(transfers == ["⦁ 失败：失败片 - 硬链接失败"], "入库整理只列失败明细")
+    check(any("成功片" in x for x in transfers) and transfers[-1] == "⦁ 失败：失败片 - 硬链接失败", "入库整理合并成功入库与失败明细")
     p_today_transfer = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
     p_today_transfer._today_transfer_rows_locked = lambda: [
         types.SimpleNamespace(status=True, title="成功片", year="2026", type="电影"),
@@ -2063,6 +2063,8 @@ def main():
           and transfer_reports
           and transfer_reports[-1][0] == "today_transfer"
           and transfer_reports[-1][1] == "今日入库"
+          and "✅ 成功入库 1 项" in transfer_reports[-1][2]
+          and "⚠️ 入库异常 1 项" in transfer_reports[-1][2]
           and "成功片" in transfer_reports[-1][2]
           and "失败片" in transfer_reports[-1][2],
           "今日入库 TG 按钮/API 立即读取当前入库历史并写入同一张日报卡")
