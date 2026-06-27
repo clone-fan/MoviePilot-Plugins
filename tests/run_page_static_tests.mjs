@@ -199,12 +199,21 @@ for (const [name, content] of Object.entries(themeEntrySources)) {
 for (const [name, content] of Object.entries({
   'Page.vue': page,
   'Config.vue': config,
+  'Dashboard.vue': themeEntrySources['Dashboard.vue'],
   'SiteStatsWidget.vue': themeEntrySources['SiteStatsWidget.vue'],
   'ActionsWidget.vue': themeEntrySources['ActionsWidget.vue'],
 })) {
   assert.ok(
-    /--(?:mp-cell|aoa-native-field)-surface:\s*rgba\(var\(--v-theme-on-surface\),\s*0\.0[4-7]\)/.test(content),
-    `${name} transparent theme should keep inner cards as low-opacity on-surface glass instead of blending into the MP surface`,
+    content.includes('--aoa-inner-surface') &&
+      content.includes('--aoa-inner-surface-strong') &&
+      content.includes('--aoa-inner-border') &&
+      content.includes('--aoa-inner-shadow') &&
+      content.includes('--aoa-inner-blur'),
+    `${name} should expose the shared stronger inner glass surface contract`,
+  )
+  assert.ok(
+    !/--(?:mp-cell|aoa-native-field)-surface:\s*rgba\(var\(--v-theme-on-surface\),\s*0\.0[4-7]\)/.test(content),
+    `${name} should not keep ultra-low-opacity inner cards that disappear on transparent MP themes`,
   )
 }
 
@@ -670,10 +679,19 @@ assert.ok(
   'Page.vue dashboard canvas should increase panel gaps for a less cramped layout',
 )
 
-assert.ok(
-  page.includes('.v-overlay:has(.agentops-dashboard) .v-overlay__scrim'),
-  'Page.vue should dim the underlying MP page while the dashboard dialog is open',
-)
+for (const [name, content] of Object.entries({
+  'Page.vue': page,
+  'Dashboard.vue': dashboard,
+})) {
+  assert.ok(
+    !/:global\([^)]*\.v-overlay__scrim[^)]*\)\s*\{[\s\S]*?background:/m.test(content) &&
+      !/\.agentops-dashboard::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content) &&
+      !/\.dashboard-shell::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content) &&
+      !/\.agentops-frame::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content) &&
+      !/\.aoa-dashboard-widget::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content),
+    `${name} should not add a root-level transparent overlay over the MP page or dashboard shell`,
+  )
+}
 
 const mobileRule = page.match(/@media \(max-width:\s*760px\)\s*\{[\s\S]*?\n\}/m)?.[0] || ''
 for (const fragment of ['height: auto;', 'grid-template-rows: auto;', 'overflow: visible;']) {

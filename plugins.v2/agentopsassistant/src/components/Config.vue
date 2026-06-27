@@ -2210,10 +2210,34 @@ onBeforeUnmount(() => {
   --aoa-surface-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
   --aoa-surface-shadow: var(--app-surface-shadow, none);
   --aoa-surface-hover-shadow: var(--app-surface-hover-shadow, var(--aoa-surface-shadow));
-  --aoa-native-surface: rgb(var(--v-theme-surface));
+  --aoa-inner-surface-alpha-hi: 0.56;
+  --aoa-inner-surface-alpha-lo: 0.42;
+  --aoa-inner-surface-tint: 0.10;
+  --aoa-inner-strong-alpha-hi: 0.66;
+  --aoa-inner-strong-alpha-lo: 0.50;
+  --aoa-inner-strong-tint: 0.14;
+  --aoa-inner-muted-alpha-hi: 0.48;
+  --aoa-inner-muted-alpha-lo: 0.34;
+  --aoa-inner-muted-tint: 0.09;
+  --aoa-inner-surface:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-surface-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-surface-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-surface-tint));
+  --aoa-inner-surface-strong:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-strong-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-strong-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-strong-tint));
+  --aoa-inner-surface-muted:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-muted-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-muted-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-muted-tint));
+  --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.18);
+  --aoa-inner-shadow:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.10),
+    0 10px 26px rgba(0, 0, 0, 0.14);
+  --aoa-inner-blur: 12px;
+  --aoa-native-surface: var(--aoa-inner-surface);
   /* 内框：on-surface 透白叠层（液态玻璃） */
-  --aoa-native-field-surface: rgba(var(--v-theme-on-surface), 0.04);
-  --aoa-native-hover-surface: rgba(var(--v-theme-on-surface), 0.08);
+  --aoa-native-field-surface: var(--aoa-inner-surface-strong);
+  --aoa-native-hover-surface: var(--aoa-inner-surface-strong);
   --aoa-config-backdrop: none;
   /* 数值标量（保留原命名，下方所有引用站点不动） */
   --aoa-border-alpha: var(--v-border-opacity, 0.12);
@@ -2228,10 +2252,24 @@ onBeforeUnmount(() => {
 }
 
 :global(html[data-theme="transparent"]) .aoa-config {
-  --aoa-native-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
-  --aoa-native-field-surface: rgba(var(--v-theme-on-surface), 0.05);
-  --aoa-native-hover-surface: rgba(var(--v-theme-on-surface), 0.09);
-  --aoa-config-backdrop: blur(var(--transparent-blur));
+  --aoa-inner-surface-alpha-hi: max(var(--transparent-opacity-heavy, 0.58), 0.50);
+  --aoa-inner-surface-alpha-lo: max(var(--transparent-opacity, 0.42), 0.36);
+  --aoa-inner-surface-tint: 0.13;
+  --aoa-inner-strong-alpha-hi: max(var(--transparent-opacity-heavy, 0.66), 0.58);
+  --aoa-inner-strong-alpha-lo: max(var(--transparent-opacity, 0.48), 0.42);
+  --aoa-inner-strong-tint: 0.17;
+  --aoa-inner-muted-alpha-hi: max(var(--transparent-opacity, 0.48), 0.40);
+  --aoa-inner-muted-alpha-lo: max(var(--transparent-opacity-light, 0.34), 0.30);
+  --aoa-inner-muted-tint: 0.12;
+  --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.22);
+  --aoa-inner-blur: var(--transparent-blur, 12px);
+  --aoa-native-surface: var(--aoa-inner-surface);
+  --aoa-native-field-surface: var(--aoa-inner-surface-strong);
+  --aoa-native-hover-surface: var(--aoa-inner-surface-strong);
+  --aoa-surface-border: var(--aoa-inner-border);
+  --aoa-surface-shadow: var(--aoa-inner-shadow);
+  --aoa-surface-hover-shadow: var(--aoa-inner-shadow);
+  --aoa-config-backdrop: blur(var(--aoa-inner-blur));
   --aoa-surface-alpha: var(--transparent-opacity);
   --aoa-surface-alpha-hi: var(--transparent-opacity);
   --aoa-surface-alpha-lo: var(--transparent-opacity-light);

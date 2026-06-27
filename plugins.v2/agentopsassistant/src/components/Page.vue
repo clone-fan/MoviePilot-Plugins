@@ -631,10 +631,35 @@ onMounted(() => {
   --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
   --mp-panel-shadow: var(--app-surface-shadow, none);
   --mp-cell-hover-shadow: var(--app-surface-hover-shadow, none);
-  --mp-panel-surface: rgb(var(--v-theme-surface));
-  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.04);
-  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.08);
-  --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.045);
+  --aoa-inner-surface-alpha-hi: 0.56;
+  --aoa-inner-surface-alpha-lo: 0.42;
+  --aoa-inner-surface-tint: 0.10;
+  --aoa-inner-strong-alpha-hi: 0.66;
+  --aoa-inner-strong-alpha-lo: 0.50;
+  --aoa-inner-strong-tint: 0.14;
+  --aoa-inner-muted-alpha-hi: 0.48;
+  --aoa-inner-muted-alpha-lo: 0.34;
+  --aoa-inner-muted-tint: 0.09;
+  --aoa-inner-surface:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-surface-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-surface-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-surface-tint));
+  --aoa-inner-surface-strong:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-strong-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-strong-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-strong-tint));
+  --aoa-inner-surface-muted:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-muted-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-muted-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-muted-tint));
+  --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.18);
+  --aoa-inner-shadow:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.10),
+    0 10px 26px rgba(0, 0, 0, 0.14);
+  --aoa-inner-blur: 12px;
+  --mp-panel-surface: var(--aoa-inner-surface);
+  --mp-cell-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-hover-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-muted-surface: var(--aoa-inner-surface-muted);
+  --mp-panel-shadow: var(--aoa-inner-shadow);
   --mp-blur: none;
   /* 主题着色 token */
   --ink: var(--v-theme-on-surface, 240, 247, 255);
@@ -661,8 +686,8 @@ onMounted(() => {
   --panel-glass-hi: 0.00;
   --panel-glass-lo: 0.00;
   --panel-fill-alpha: 0.00;
-  --panel-inner-alpha: 0.04;
-  --panel-inner-strong-alpha: 0.08;
+  --panel-inner-alpha: 0.10;
+  --panel-inner-strong-alpha: 0.14;
   --status-panel-alpha: 0.00;
   --shell-cyan-alpha: 0.00;
   --shell-blue-alpha: 0.00;
@@ -682,8 +707,8 @@ onMounted(() => {
   --donut-core-panel-alpha: 0.85;
   --site-cell-line-alpha: 0.04;
   --site-cell-line-low-alpha: 0.02;
-  --site-cell-border-alpha: var(--v-border-opacity, 0.12);
-  --site-cell-fill-alpha: 0.04;
+  --site-cell-border-alpha: 0.18;
+  --site-cell-fill-alpha: 0.12;
   --site-cell-shadow:
     inset 0 1px 0 rgba(var(--line), 0.10),
     inset 0 -1px 0 rgba(0, 0, 0, 0.08),
@@ -719,19 +744,42 @@ onMounted(() => {
 }
 
 :global(html[data-theme="transparent"]) .agentops-dashboard {
-  --mp-panel-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
-  --mp-cell-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-light));
-  --mp-cell-hover-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-heavy));
-  --mp-blur: blur(var(--transparent-blur));
+  --aoa-inner-surface-alpha-hi: max(var(--transparent-opacity-heavy, 0.58), 0.50);
+  --aoa-inner-surface-alpha-lo: max(var(--transparent-opacity, 0.42), 0.36);
+  --aoa-inner-surface-tint: 0.13;
+  --aoa-inner-strong-alpha-hi: max(var(--transparent-opacity-heavy, 0.66), 0.58);
+  --aoa-inner-strong-alpha-lo: max(var(--transparent-opacity, 0.48), 0.42);
+  --aoa-inner-strong-tint: 0.17;
+  --aoa-inner-muted-alpha-hi: max(var(--transparent-opacity, 0.48), 0.40);
+  --aoa-inner-muted-alpha-lo: max(var(--transparent-opacity-light, 0.34), 0.30);
+  --aoa-inner-muted-tint: 0.12;
+  --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.22);
+  --aoa-inner-blur: var(--transparent-blur, 12px);
+  --mp-panel-surface: var(--aoa-inner-surface);
+  --mp-cell-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-hover-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-muted-surface: var(--aoa-inner-surface-muted);
+  --mp-panel-border: var(--aoa-inner-border);
+  --mp-panel-shadow: var(--aoa-inner-shadow);
+  --mp-blur: blur(var(--aoa-inner-blur));
 }
 
 .agentops-dashboard.agentops-theme--light {
-  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.05);
-  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.09);
-  --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.055);
-  --panel-inner-alpha: 0.05;
-  --panel-inner-strong-alpha: 0.09;
-  --site-cell-fill-alpha: 0.05;
+  --aoa-inner-surface-alpha-hi: 0.72;
+  --aoa-inner-surface-alpha-lo: 0.58;
+  --aoa-inner-surface-tint: 0.06;
+  --aoa-inner-strong-alpha-hi: 0.82;
+  --aoa-inner-strong-alpha-lo: 0.66;
+  --aoa-inner-strong-tint: 0.08;
+  --aoa-inner-muted-alpha-hi: 0.66;
+  --aoa-inner-muted-alpha-lo: 0.50;
+  --aoa-inner-muted-tint: 0.05;
+  --mp-cell-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-hover-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-muted-surface: var(--aoa-inner-surface-muted);
+  --panel-inner-alpha: 0.08;
+  --panel-inner-strong-alpha: 0.12;
+  --site-cell-fill-alpha: 0.10;
   --donut-core-panel-alpha: 0.90;
   --site-cell-shadow:
     inset 0 1px 0 rgba(var(--line), 0.10),
@@ -757,11 +805,24 @@ onMounted(() => {
 
 .agentops-dashboard.agentops-theme--transparent {
   /* 透明主题：外框跟 v-card 一致用 transparent-opacity，内框继续 on-surface 透白做层次 */
-  --mp-panel-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
-  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.05);
-  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.09);
-  --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.055);
-  --mp-blur: blur(var(--transparent-blur));
+  --aoa-inner-surface-alpha-hi: max(var(--transparent-opacity-heavy, 0.58), 0.50);
+  --aoa-inner-surface-alpha-lo: max(var(--transparent-opacity, 0.42), 0.36);
+  --aoa-inner-surface-tint: 0.13;
+  --aoa-inner-strong-alpha-hi: max(var(--transparent-opacity-heavy, 0.66), 0.58);
+  --aoa-inner-strong-alpha-lo: max(var(--transparent-opacity, 0.48), 0.42);
+  --aoa-inner-strong-tint: 0.17;
+  --aoa-inner-muted-alpha-hi: max(var(--transparent-opacity, 0.48), 0.40);
+  --aoa-inner-muted-alpha-lo: max(var(--transparent-opacity-light, 0.34), 0.30);
+  --aoa-inner-muted-tint: 0.12;
+  --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.22);
+  --aoa-inner-blur: var(--transparent-blur, 12px);
+  --mp-panel-surface: var(--aoa-inner-surface);
+  --mp-cell-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-hover-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-muted-surface: var(--aoa-inner-surface-muted);
+  --mp-panel-border: var(--aoa-inner-border);
+  --mp-panel-shadow: var(--aoa-inner-shadow);
+  --mp-blur: blur(var(--aoa-inner-blur));
   --shell-panel-hi: 0.00;
   --shell-panel-lo: 0.00;
   --shell-stage-alpha: 0.00;
@@ -773,8 +834,8 @@ onMounted(() => {
   --panel-glass-hi: 0.00;
   --panel-glass-lo: 0.00;
   --panel-fill-alpha: 0.00;
-  --panel-inner-alpha: 0.05;
-  --panel-inner-strong-alpha: 0.09;
+  --panel-inner-alpha: 0.12;
+  --panel-inner-strong-alpha: 0.18;
   --status-panel-alpha: 0.00;
   --shell-cyan-alpha: 0.00;
   --shell-blue-alpha: 0.00;
@@ -795,7 +856,7 @@ onMounted(() => {
   --site-cell-line-alpha: 0.04;
   --site-cell-line-low-alpha: 0.02;
   --site-cell-border-alpha: var(--v-border-opacity, 0.12);
-  --site-cell-fill-alpha: 0.05;
+  --site-cell-fill-alpha: 0.14;
   --site-cell-shadow:
     inset 0 1px 0 rgba(var(--line), 0.050),
     inset 0 -1px 0 rgba(0, 0, 0, 0.014),
@@ -824,11 +885,6 @@ onMounted(() => {
 .agentops-dashboard,
 .agentops-dashboard * {
   box-sizing: border-box;
-}
-
-:global(.v-overlay:has(.agentops-dashboard) .v-overlay__scrim) {
-  background: rgba(var(--v-theme-on-surface), 0.18) !important;
-  opacity: 1 !important;
 }
 
 .agentops-dashboard::-webkit-scrollbar,

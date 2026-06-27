@@ -218,18 +218,42 @@ onMounted(loadSiteChart)
   --mp-widget-radius: var(--v-card-border-radius, var(--aoa-dashboard-radius));
   --mp-widget-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
   --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
+  --aoa-inner-surface-alpha-hi: 0.56;
+  --aoa-inner-surface-alpha-lo: 0.42;
+  --aoa-inner-surface-tint: 0.10;
+  --aoa-inner-strong-alpha-hi: 0.66;
+  --aoa-inner-strong-alpha-lo: 0.50;
+  --aoa-inner-strong-tint: 0.14;
+  --aoa-inner-muted-alpha-hi: 0.48;
+  --aoa-inner-muted-alpha-lo: 0.34;
+  --aoa-inner-muted-tint: 0.09;
+  --aoa-inner-surface:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-surface-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-surface-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-surface-tint));
+  --aoa-inner-surface-strong:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-strong-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-strong-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-strong-tint));
+  --aoa-inner-surface-muted:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-muted-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-muted-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-muted-tint));
+  --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.18);
+  --aoa-inner-shadow:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.10),
+    0 10px 26px rgba(0, 0, 0, 0.14);
+  --aoa-inner-blur: 12px;
   --mp-widget-panel-fill-hi: linear-gradient(
     180deg,
     rgba(var(--v-theme-surface), var(--mp-widget-mp-surface-opacity)),
     rgba(var(--v-theme-on-surface), 0.035)
-  );
+  ), var(--aoa-inner-surface);
   --mp-widget-cell-fill: linear-gradient(
     180deg,
     rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity)),
     rgba(var(--v-theme-on-surface), 0.045)
-  );
+  ), var(--aoa-inner-surface-strong);
   --mp-widget-shadow-panel: var(--app-surface-shadow, none);
-  --mp-widget-shadow-cell: 0 10px 24px rgba(var(--v-theme-on-surface), 0.08);
+  --mp-widget-shadow-cell: var(--aoa-inner-shadow);
   width: 100%;
   height: 100%;
   min-height: 100%;
@@ -239,6 +263,17 @@ onMounted(loadSiteChart)
 
 :global(html[data-theme="transparent"]) .aoa-dashboard-widget {
   /* 透明主题下子 widget 自己处理 backdrop-filter，这里只透传 token 给后代 */
+  --aoa-inner-surface-alpha-hi: max(var(--transparent-opacity-heavy, 0.58), 0.50);
+  --aoa-inner-surface-alpha-lo: max(var(--transparent-opacity, 0.42), 0.36);
+  --aoa-inner-surface-tint: 0.13;
+  --aoa-inner-strong-alpha-hi: max(var(--transparent-opacity-heavy, 0.66), 0.58);
+  --aoa-inner-strong-alpha-lo: max(var(--transparent-opacity, 0.48), 0.42);
+  --aoa-inner-strong-tint: 0.17;
+  --aoa-inner-muted-alpha-hi: max(var(--transparent-opacity, 0.48), 0.40);
+  --aoa-inner-muted-alpha-lo: max(var(--transparent-opacity-light, 0.34), 0.30);
+  --aoa-inner-muted-tint: 0.12;
+  --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.22);
+  --aoa-inner-blur: var(--transparent-blur, 12px);
   --aoa-dashboard-opacity: var(--transparent-opacity);
   --aoa-dashboard-blur: var(--transparent-blur);
 }

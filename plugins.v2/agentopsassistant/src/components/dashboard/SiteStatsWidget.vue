@@ -131,29 +131,53 @@ const emit = defineEmits(['refresh'])
   --mp-widget-radius: var(--v-card-border-radius, var(--app-surface-radius, 12px));
   --mp-widget-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
   --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
+  --aoa-inner-surface-alpha-hi: 0.56;
+  --aoa-inner-surface-alpha-lo: 0.42;
+  --aoa-inner-surface-tint: 0.10;
+  --aoa-inner-strong-alpha-hi: 0.66;
+  --aoa-inner-strong-alpha-lo: 0.50;
+  --aoa-inner-strong-tint: 0.14;
+  --aoa-inner-muted-alpha-hi: 0.48;
+  --aoa-inner-muted-alpha-lo: 0.34;
+  --aoa-inner-muted-tint: 0.09;
+  --aoa-inner-surface:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-surface-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-surface-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-surface-tint));
+  --aoa-inner-surface-strong:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-strong-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-strong-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-strong-tint));
+  --aoa-inner-surface-muted:
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-inner-muted-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-inner-muted-alpha-lo))),
+    rgba(var(--v-theme-on-surface), var(--aoa-inner-muted-tint));
+  --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.18);
+  --aoa-inner-shadow:
+    inset 0 1px 0 rgba(var(--v-theme-on-surface), 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.10),
+    0 10px 26px rgba(0, 0, 0, 0.14);
+  --aoa-inner-blur: 12px;
   --mp-widget-panel-fill-hi: linear-gradient(
     180deg,
     rgba(var(--v-theme-surface), var(--mp-widget-mp-surface-opacity)),
     rgba(var(--v-theme-on-surface), 0.035)
-  );
+  ), var(--aoa-inner-surface);
   --mp-widget-cell-fill: linear-gradient(
     180deg,
     rgba(var(--v-theme-surface), var(--mp-widget-surface-opacity)),
     rgba(var(--v-theme-on-surface), 0.045)
-  );
+  ), var(--aoa-inner-surface-strong);
   --mp-widget-shadow-panel: var(--app-surface-shadow, none);
-  --mp-widget-shadow-cell: 0 10px 24px rgba(var(--v-theme-on-surface), 0.08);
-  --mp-widget-blur: 10px;
+  --mp-widget-shadow-cell: var(--aoa-inner-shadow);
+  --mp-widget-blur: var(--aoa-inner-blur);
   --mp-panel-radius: var(--mp-widget-radius);
   --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
   --mp-panel-shadow: var(--mp-widget-shadow-panel);
   --mp-panel-surface: var(--mp-widget-panel-fill-hi);
   /* 内框：on-surface 透白做层次 */
   --mp-cell-radius: var(--app-field-radius, 10px);
-  --mp-cell-border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.10));
+  --mp-cell-border: var(--aoa-inner-border);
   --mp-cell-surface: var(--mp-widget-cell-fill);
-  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.08);
-  --mp-cell-muted-surface: rgba(var(--v-theme-on-surface), 0.045);
+  --mp-cell-hover-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-muted-surface: var(--aoa-inner-surface-muted);
   --mp-cell-shadow: var(--mp-widget-shadow-cell);
   --mp-empty-min: 132px;
   container-type: inline-size;
@@ -174,10 +198,23 @@ const emit = defineEmits(['refresh'])
 }
 
 :global(html[data-theme="transparent"]) .mp-site-panel {
+  --aoa-inner-surface-alpha-hi: max(var(--transparent-opacity-heavy, 0.58), 0.50);
+  --aoa-inner-surface-alpha-lo: max(var(--transparent-opacity, 0.42), 0.36);
+  --aoa-inner-surface-tint: 0.13;
+  --aoa-inner-strong-alpha-hi: max(var(--transparent-opacity-heavy, 0.66), 0.58);
+  --aoa-inner-strong-alpha-lo: max(var(--transparent-opacity, 0.48), 0.42);
+  --aoa-inner-strong-tint: 0.17;
+  --aoa-inner-muted-alpha-hi: max(var(--transparent-opacity, 0.48), 0.40);
+  --aoa-inner-muted-alpha-lo: max(var(--transparent-opacity-light, 0.34), 0.30);
+  --aoa-inner-muted-tint: 0.12;
+  --aoa-inner-border: 1px solid rgba(var(--v-border-color), 0.22);
+  --aoa-inner-blur: var(--transparent-blur, 12px);
   --mp-panel-surface: var(--mp-widget-panel-fill-hi);
-  --mp-cell-surface: rgba(var(--v-theme-on-surface), 0.05);
-  --mp-cell-hover-surface: rgba(var(--v-theme-on-surface), 0.09);
-  --mp-widget-blur: var(--transparent-blur);
+  --mp-cell-surface: var(--mp-widget-cell-fill);
+  --mp-cell-hover-surface: var(--aoa-inner-surface-strong);
+  --mp-cell-muted-surface: var(--aoa-inner-surface-muted);
+  --mp-cell-border: var(--aoa-inner-border);
+  --mp-widget-blur: var(--aoa-inner-blur);
 }
 
 .mp-site-panel::-webkit-scrollbar,
