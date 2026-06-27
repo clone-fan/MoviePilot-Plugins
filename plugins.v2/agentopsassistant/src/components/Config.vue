@@ -2210,7 +2210,8 @@ onBeforeUnmount(() => {
   --aoa-surface-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
   --aoa-surface-shadow: var(--app-surface-shadow, none);
   --aoa-surface-hover-shadow: var(--app-surface-hover-shadow, var(--aoa-surface-shadow));
-  --aoa-outer-surface: rgb(var(--v-theme-surface));
+  --aoa-outer-surface-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--aoa-outer-surface-opacity));
   --aoa-inner-surface-alpha-hi: 0.56;
   --aoa-inner-surface-alpha-lo: 0.42;
   --aoa-inner-surface-tint: 0.10;
@@ -2252,8 +2253,13 @@ onBeforeUnmount(() => {
   font-size: 14px;
 }
 
-:global(html[data-theme="transparent"]) .aoa-config {
-  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 1));
+:global(html[data-theme="transparent"]) .aoa-config,
+:global(body[data-theme="transparent"]) .aoa-config,
+:global([data-theme="transparent"]) .aoa-config,
+:global(.v-theme--transparent) .aoa-config,
+:global(.theme--transparent) .aoa-config {
+  --aoa-outer-surface-opacity: var(--transparent-opacity, 0.42);
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 0.42));
   --aoa-inner-surface-alpha-hi: var(--transparent-opacity-heavy, 0.58);
   --aoa-inner-surface-alpha-lo: var(--transparent-opacity, 0.42);
   --aoa-inner-surface-tint: 0.13;

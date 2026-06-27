@@ -216,9 +216,10 @@ onMounted(loadSiteChart)
   --aoa-dashboard-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
   --aoa-dashboard-shadow: var(--app-surface-shadow, none);
   --mp-widget-radius: var(--v-card-border-radius, var(--aoa-dashboard-radius));
-  --mp-widget-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
-  --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
-  --aoa-outer-surface: rgb(var(--v-theme-surface));
+  --mp-widget-surface-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --mp-widget-mp-surface-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-outer-surface-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--aoa-outer-surface-opacity));
   --aoa-inner-surface-alpha-hi: 0.56;
   --aoa-inner-surface-alpha-lo: 0.42;
   --aoa-inner-surface-tint: 0.10;
@@ -258,9 +259,14 @@ onMounted(loadSiteChart)
   color: rgba(var(--v-theme-on-surface), 0.92);
 }
 
-:global(html[data-theme="transparent"]) .aoa-dashboard-widget {
+:global(html[data-theme="transparent"]) .aoa-dashboard-widget,
+:global(body[data-theme="transparent"]) .aoa-dashboard-widget,
+:global([data-theme="transparent"]) .aoa-dashboard-widget,
+:global(.v-theme--transparent) .aoa-dashboard-widget,
+:global(.theme--transparent) .aoa-dashboard-widget {
   /* 透明主题下子 widget 自己处理 backdrop-filter，这里只透传 token 给后代 */
-  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 1));
+  --aoa-outer-surface-opacity: var(--transparent-opacity, 0.42);
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 0.42));
   --aoa-inner-surface-alpha-hi: var(--transparent-opacity-heavy, 0.58);
   --aoa-inner-surface-alpha-lo: var(--transparent-opacity, 0.42);
   --aoa-inner-surface-tint: 0.13;

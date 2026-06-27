@@ -220,6 +220,21 @@ for (const [name, content] of Object.entries({
     `${name} should expose an outer surface that follows MoviePilot transparent opacity directly`,
   )
   assert.ok(
+    !content.includes('--aoa-outer-surface: rgb(var(--v-theme-surface))'),
+    `${name} outer surface should not fall back to an opaque theme surface when MP transparent selectors are not matched`,
+  )
+  assert.ok(
+    content.includes('--aoa-outer-surface-opacity') &&
+      content.includes('--aoa-outer-surface: rgba(var(--v-theme-surface), var(--aoa-outer-surface-opacity))'),
+    `${name} default outer surface should be opacity-driven so MP transparent widgets do not render as black blocks`,
+  )
+  assert.ok(
+    content.includes(':global(body[data-theme="transparent"])') &&
+      content.includes(':global(.v-theme--transparent)') &&
+      content.includes(':global(.theme--transparent)'),
+    `${name} should support MoviePilot transparent theme markers beyond html[data-theme="transparent"]`,
+  )
+  assert.ok(
     !/max\(var\(--transparent-opacity[^)]*\),\s*0\.[3-9]/.test(content),
     `${name} should not clamp MoviePilot transparent opacity upward with hard-coded minimums`,
   )
@@ -517,8 +532,8 @@ for (const fragment of [
 
 assert.ok(
   dashboard.includes('--mp-widget-panel-fill-hi: var(--aoa-outer-surface)') &&
-    dashboard.includes('--aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity') &&
-    dashboard.includes('--mp-widget-mp-surface-opacity: var(--v-card-opacity') &&
+    dashboard.includes('--aoa-outer-surface: rgba(var(--v-theme-surface), var(--aoa-outer-surface-opacity))') &&
+    dashboard.includes('--mp-widget-mp-surface-opacity: var(--transparent-opacity') &&
     !dashboard.includes('var(--v-medium-emphasis-opacity, 0.68)'),
   'Dashboard.vue should derive public widget shell opacity from MP/Vuetify outer surface instead of text emphasis opacity',
 )

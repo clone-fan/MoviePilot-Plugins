@@ -129,9 +129,10 @@ const emit = defineEmits(['refresh'])
 .mp-site-panel {
   /* 外框：贴 MP 官方 surface */
   --mp-widget-radius: var(--v-card-border-radius, var(--app-surface-radius, 12px));
-  --mp-widget-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
-  --mp-widget-mp-surface-opacity: var(--v-card-opacity, var(--transparent-opacity, 1));
-  --aoa-outer-surface: rgb(var(--v-theme-surface));
+  --mp-widget-surface-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --mp-widget-mp-surface-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-outer-surface-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--aoa-outer-surface-opacity));
   --aoa-inner-surface-alpha-hi: 0.56;
   --aoa-inner-surface-alpha-lo: 0.42;
   --aoa-inner-surface-tint: 0.10;
@@ -194,8 +195,13 @@ const emit = defineEmits(['refresh'])
   -webkit-backdrop-filter: blur(var(--mp-widget-blur));
 }
 
-:global(html[data-theme="transparent"]) .mp-site-panel {
-  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 1));
+:global(html[data-theme="transparent"]) .mp-site-panel,
+:global(body[data-theme="transparent"]) .mp-site-panel,
+:global([data-theme="transparent"]) .mp-site-panel,
+:global(.v-theme--transparent) .mp-site-panel,
+:global(.theme--transparent) .mp-site-panel {
+  --aoa-outer-surface-opacity: var(--transparent-opacity, 0.42);
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 0.42));
   --aoa-inner-surface-alpha-hi: var(--transparent-opacity-heavy, 0.58);
   --aoa-inner-surface-alpha-lo: var(--transparent-opacity, 0.42);
   --aoa-inner-surface-tint: 0.13;

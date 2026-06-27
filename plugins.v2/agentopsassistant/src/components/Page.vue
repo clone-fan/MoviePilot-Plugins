@@ -631,7 +631,8 @@ onMounted(() => {
   --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
   --mp-panel-shadow: var(--app-surface-shadow, none);
   --mp-cell-hover-shadow: var(--app-surface-hover-shadow, none);
-  --aoa-outer-surface: rgb(var(--v-theme-surface));
+  --aoa-outer-surface-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--aoa-outer-surface-opacity));
   --aoa-inner-surface-alpha-hi: 0.56;
   --aoa-inner-surface-alpha-lo: 0.42;
   --aoa-inner-surface-tint: 0.10;
@@ -744,8 +745,13 @@ onMounted(() => {
   font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
 }
 
-:global(html[data-theme="transparent"]) .agentops-dashboard {
-  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 1));
+:global(html[data-theme="transparent"]) .agentops-dashboard,
+:global(body[data-theme="transparent"]) .agentops-dashboard,
+:global([data-theme="transparent"]) .agentops-dashboard,
+:global(.v-theme--transparent) .agentops-dashboard,
+:global(.theme--transparent) .agentops-dashboard {
+  --aoa-outer-surface-opacity: var(--transparent-opacity, 0.42);
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 0.42));
   --aoa-inner-surface-alpha-hi: var(--transparent-opacity-heavy, 0.58);
   --aoa-inner-surface-alpha-lo: var(--transparent-opacity, 0.42);
   --aoa-inner-surface-tint: 0.13;
@@ -808,7 +814,8 @@ onMounted(() => {
 
 .agentops-dashboard.agentops-theme--transparent {
   /* 透明主题：外框跟 v-card 一致用 transparent-opacity，内框继续 on-surface 透白做层次 */
-  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 1));
+  --aoa-outer-surface-opacity: var(--transparent-opacity, 0.42);
+  --aoa-outer-surface: rgba(var(--v-theme-surface), var(--transparent-opacity, 0.42));
   --aoa-inner-surface-alpha-hi: var(--transparent-opacity-heavy, 0.58);
   --aoa-inner-surface-alpha-lo: var(--transparent-opacity, 0.42);
   --aoa-inner-surface-tint: 0.13;
