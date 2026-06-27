@@ -371,6 +371,50 @@ def main():
     g2 = make_plugin(mod, seedclean_enabled=True, seedclean_downloaders=["qb1"])  # 无任何条件
     check(g2.run_seed_clean() is False, "有下载器但无条件 -> 跳过返回 False")
 
+    print("== 融合通知：控制通知输出，不接管任务调度 ==")
+    p_fusion_services = make_plugin(
+        mod,
+        fusion_notify_enabled=True,
+        fusion_notify_schedule_enabled=True,
+        subscribe_reminder_enabled=True,
+        subscribe_reminder_schedule_enabled=True,
+        health_check_enabled=True,
+        health_check_schedule_enabled=True,
+        backup_enabled=True,
+        backup_schedule_enabled=True,
+        log_clean_enabled=True,
+        log_clean_schedule_enabled=True,
+        mp_update_enabled=True,
+        mp_update_schedule_enabled=True,
+        market_update_enabled=True,
+        market_update_schedule_enabled=True,
+        seedclean_enabled=True,
+        seedclean_schedule_enabled=True,
+        seedclean_downloaders=["qb1"],
+    )
+    service_ids = {s.get("id") for s in p_fusion_services.get_service()}
+    expected_service_ids = {
+        "AgentOpsAssistant.FusionNotify",
+        "AgentOpsAssistant.HealthCheck",
+        "AgentOpsAssistant.Backup",
+        "AgentOpsAssistant.LogClean",
+        "AgentOpsAssistant.MPUpdate",
+        "AgentOpsAssistant.MarketUpdate",
+        "AgentOpsAssistant.SeedClean",
+    }
+    check(expected_service_ids <= service_ids
+          and "AgentOpsAssistant.SubscribeReminder" not in service_ids,
+          "融合通知开启时任务类定时仍注册，订阅追新这类定时通知由融合刷新统一控制")
+
+    _PU["notifications"] = []
+    p_tg_status = make_plugin(mod, fusion_notify_enabled=True)
+    tg_status = p_tg_status.api_tg_console_status().get("data") or {}
+    check(tg_status.get("chat_configured") is False
+          and "未找到可用 Telegram 通知渠道" in tg_status.get("config_hint", "")
+          and not tg_status.get("last_error"),
+          "未配置 Telegram 时状态接口只给中性提示，不在安装后显示错误")
+    _PU["notifications"] = []
+
     print("== QB 条件匹配（命中=返回 dict=删除目标）==")
     p = make_plugin(mod)
     p._seedclean_size = "1-10"
@@ -705,6 +749,19 @@ def main():
           "下载事件 -> 调 SubscribeOper.update 回填")
     pe.on_download_fill_subscribe(ev)
     check(len(_SUB["updates"]) == 1, "同一剧集只填充一次（去重）")
+    _SUB.update({"history": types.SimpleNamespace(type="电视剧", tmdbid=456, seasons="S01"),
+                 "subs": [types.SimpleNamespace(id=8, type="电视剧", name="剧Y", resolution=None, quality=None, effect=None, include=None, sites=None)],
+                 "updates": []})
+    pf = make_plugin(mod, fusion_notify_enabled=True, subfill_enabled=True, subfill_details="分辨率",
+                     daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
+    subfill_upserts = []
+    pf._tg_console_upsert_card = lambda token, chat_id, state: subfill_upserts.append(state) or True
+    pf.on_download_fill_subscribe(ev)
+    subfill_state = pf.get_data("tg_console_state") or {}
+    subscribe_items = (((subfill_state.get("columns") or {}).get("subscribe") or {}).get("items") or [])
+    check(subfill_upserts and subscribe_items and "订阅规则自动填充" in subscribe_items[0].get("title", "")
+          and not pf._stub_messages,
+          "融合通知开启时订阅规则填充结果无视组件通知开关，统一写入订阅融合栏目")
     _SUB.update({"history": types.SimpleNamespace(type="电影", tmdbid=5, seasons=""), "subs": [], "updates": []})
     make_plugin(mod, subfill_enabled=True, subfill_details="分辨率").on_download_fill_subscribe(ev)
     check(not _SUB["updates"], "非电视剧下载 -> 不填充")
@@ -1038,19 +1095,76 @@ def main():
           "融合通知大分类按钮按两行收束，避免信息过散")
     check(all(str(x or "").startswith("[PLUGIN]AgentOpsAssistant|aoatab:") and not str(x or "").startswith("aoa:tab:") and len(str(x or "").encode("utf-8")) <= 64 for x in tg_callback_data),
           "融合通知大分类 callback_data 使用 MP [PLUGIN] 通道，避免 MoviePilot 报回调数据格式错误")
+    p_fused_card._get_local_versions = lambda: {"backend_version": "v2.13.10", "frontend_version": "v2.13.10"}
     update_button_state = p_fused_card._tg_console_state(chat_id="chat")
     update_button_state["reports"] = {
         "updates": {
             "title": "更新检查",
             "text": "MoviePilot：有更新｜后端 v2.13.12 -> v2.13.14",
             "level": "warning",
-            "data": {"moviepilot": {"has_update": True}},
+            "data": {"moviepilot": {"has_update": True, "checks": [
+                {"type": "后端", "local_version": "v2.13.10", "latest_version": "v2.13.14", "has_update": True},
+            ]}},
         }
     }
     update_reply_markup = p_fused_card._build_tg_console_reply_markup(update_button_state)
     update_button_labels = [btn.get("text") for row in update_reply_markup.get("inline_keyboard", []) for btn in row]
     check("🆙 立即更新" in update_button_labels,
           "融合通知检测到 MoviePilot 有新版时应在 TG 交互按钮中追加立即更新")
+    p_fused_card._get_local_versions = lambda: {"backend_version": "v2.13.15", "frontend_version": "v2.13.15"}
+    stale_update_state = p_fused_card._tg_console_state(chat_id="chat")
+    stale_update_state["reports"] = {
+        "updates": {
+            "title": "更新检查",
+            "text": "MoviePilot：有更新｜后端 v2.13.12 -> v2.13.14",
+            "level": "warning",
+            "data": {"moviepilot": {"has_update": True, "checks": [
+                {"type": "后端", "local_version": "v2.13.12", "latest_version": "v2.13.14", "has_update": True},
+            ]}},
+        }
+    }
+    stale_reply_markup = p_fused_card._build_tg_console_reply_markup(stale_update_state)
+    stale_button_labels = [btn.get("text") for row in stale_reply_markup.get("inline_keyboard", []) for btn in row]
+    stale_html = p_fused_card._build_tg_console_html(stale_update_state)
+    check("🆙 立即更新" not in stale_button_labels
+          and "待更新" not in stale_html
+          and not p_fused_card._fusion_pending_update_label(stale_update_state, ""),
+          "融合通知遇到旧更新状态低于当前版本时不能显示待更新或立即更新")
+    stale_pending_state = p_fused_card._tg_console_state(chat_id="chat")
+    stale_pending_state["reports"] = {
+        "updates": {
+            "title": "更新检查",
+            "text": "MoviePilot：有更新｜后端 v2.13.12 -> v2.13.14",
+            "level": "warning",
+        }
+    }
+    stale_pending_state["pending_actions"] = {
+        "oldnonce": {"action": "run_mp_update_apply", "label": "🆙 立即更新", "destructive": True},
+    }
+    stale_pending_html = p_fused_card._build_tg_console_html(stale_pending_state)
+    stale_pending_markup = p_fused_card._build_tg_console_reply_markup(stale_pending_state)
+    stale_pending_labels = [btn.get("text") for row in stale_pending_markup.get("inline_keyboard", []) for btn in row]
+    check("待更新" not in stale_pending_html
+          and "🆙 立即更新" not in stale_pending_labels
+          and not stale_pending_state.get("pending_actions"),
+          "融合通知渲染前必须清理旧文本和旧 pending action，当前真实版本更高时常态隐藏更新入口")
+    persisted_stale_update_state = p_fused_card._tg_console_state(chat_id="chat")
+    persisted_stale_update_state["reports"] = {
+        "updates": {
+            "title": "更新检查",
+            "text": "MoviePilot：有更新｜后端 v2.13.12 -> v2.13.14",
+            "level": "warning",
+        }
+    }
+    persisted_stale_update_state["pending_actions"] = {
+        "oldnonce": {"action": "run_mp_update_apply", "label": "🆙 立即更新", "destructive": True},
+    }
+    p_fused_card.save_data("tg_console_state", persisted_stale_update_state)
+    p_fused_card.api_tg_console_status()
+    persisted_after_status = p_fused_card.get_data("tg_console_state") or {}
+    check("updates" not in (persisted_after_status.get("reports") or {})
+          and not persisted_after_status.get("pending_actions"),
+          "tg_console_status 应持久化清理旧更新状态和旧 run_mp_update_apply")
     fusion_default = p_fused_card._build_tg_console_html(fused_state)
     check("📮 MP 运维日报｜🕒" in fusion_default
           and "给你送上今天的心跳播报" in fusion_default
@@ -1080,7 +1194,7 @@ def main():
         "subscribe_site": ("<summary>📈 站点增量</summary>", "<ul>", "<li><b>📈 馒头</b>", "⬆️ 3.405 GB | ⬇️ 18,619 MB", "<summary>📺 订阅追新</summary>", "<li><b>📺 凡人修仙传"),
         "download_media": ("<summary>📥 今日下载</summary>", "今日暂无今日下载数据", "<summary>📦 入库整理</summary>", "<b>📥 成功片 2026 已入库</b>", "<summary>🎬 媒体统计</summary>", "电影 120"),
         "system_health": ("<summary>🩺 健康巡查</summary>", "<li><b>✅ 状态</b><br>全部正常</li>", "<li><b>🩺 巡查项</b><br>数据库、存储空间</li>"),
-        "system_maintenance": ("<summary>💾 存储空间</summary>", "<li><b>💾 配置目录</b><br>可用 86 GB</li>", "<summary>🧰 维护任务</summary>", "<li><b>🧰 备份</b><br>最近一次成功</li>", "<summary>🆙 更新检查</summary>", "<li><b>🆙 MoviePilot</b><br>当前已是最新</li>"),
+        "system_maintenance": ("<summary>💾 存储空间</summary>", "<li><b>💾 配置目录</b><br>可用 86 GB</li>", "<summary>🧰 维护任务</summary>", "<li><b>🧰 备份</b><br>最近一次成功</li>"),
     }
     section_template_html = p_fused_card._fusion_section_html(
         "site_stats",
@@ -1107,25 +1221,17 @@ def main():
           and "[██░░░░░░] 🟢 已用 26%" in storage_template_html
           and "存储：" not in storage_template_html,
           "融合通知存储空间必须恢复进度条样式，展示用量/总量和已用百分比")
-    p_fused_card.save_data("last_update_preview", {
-        "success": True,
-        "output": "🔄 MoviePilot 更新检查（MP运维助手直接接替）\n⦁ 后端本地：v2.13.14\n⦁ backend：无更新｜最新 v2.13.14",
-    })
-    p_fused_card.save_data("last_market_update", {
-        "success": True,
-        "output": "🧩 插件库更新检查（MP运维助手直接接替）\n⦁ 新发现：0 个\n⦁ 写入当前配置：未执行",
-    })
-    update_template_html = p_fused_card._fusion_section_html(
-        "updates",
-        "🆙 更新检查",
-        p_fused_card._fusion_recent_task_lines(["update_preview", "market_update"]),
-    )
-    check("<li><b>🆙 MP 更新</b><br>已是最新" in update_template_html
-          and "<li><b>🆙 插件更新</b><br>无更新" in update_template_html
-          and "直接接替" not in update_template_html
-          and "<br>成功<br>MoviePilot 更新检查" not in update_template_html
-          and "<br>成功<br>插件库更新检查" not in update_template_html,
-          "融合通知更新检查必须展示业务结论，不能把检查执行成功和接替说明当正文")
+    stale_update_column_state = {
+        "reports": {},
+        "columns": {
+            "updates": {"items": [{"title": "更新检查", "text": "MoviePilot：当前已是最新", "level": "success"}]},
+        },
+        "active_tab": "system_maintenance",
+    }
+    stale_update_column_html = p_fused_card._build_tg_console_html(stale_update_column_state)
+    check("<summary>🆙 更新检查</summary>" not in stale_update_column_html
+          and "🆙 更新提醒" not in stale_update_column_html,
+          "融合通知必须忽略旧状态里的更新检查栏目，不再回渲染到 TG 卡")
     health_template_html = p_fused_card._fusion_section_html(
         "health",
         "🩺 健康巡查",
@@ -1190,10 +1296,10 @@ def main():
     check("🧰 系统维护" not in storage_html
           and "<summary>💾 存储空间</summary>" in storage_html
           and "<summary>🧰 维护任务</summary>" in storage_html
-          and "<summary>🆙 更新检查</summary>" in storage_html
+          and "<summary>🆙 更新检查</summary>" not in storage_html
           and "💾 存储空间" in storage_html
           and "🩺 健康巡查" not in storage_html,
-          "active_tab=system_maintenance 时取消大分类标题，直接用可折叠小栏目展示存储、维护和更新")
+          "active_tab=system_maintenance 时取消大分类标题，且不再展示更新检查栏目")
     p_fused_card._handle_tg_console_callback({
         "id": "cb-tab-new",
         "from": {"id": "u1"},
@@ -1234,7 +1340,7 @@ def main():
         "message": {"chat": {"id": "chat"}},
         "data": "aoatab:system_maintenance",
     }, update_id=203) is True
-          and refresh_calls == ["storage", "maintenance", "updates"]
+          and refresh_calls == ["storage", "maintenance"]
           and refresh_html
           and "容量已更新" in refresh_html[-1],
           "点击融合大分类 callback 必须立即刷新所属子栏目数据并编辑同一张卡")
@@ -1339,14 +1445,14 @@ def main():
           "fused card should be enabled by default and suppress standalone notifications")
     expected_fusion_report_keys = {
         "daily_report", "site_stat", "today_transfer", "subscribe_reminder",
-        "storage", "media_stat", "health_check", "maintenance", "updates",
+        "storage", "media_stat", "health_check", "maintenance",
     }
     fusion_categories = {item["key"]: item["children"] for item in p_fused_defaults._fusion_category_registry()}
     check(fusion_categories.get("system_health") == ["health"]
-          and fusion_categories.get("system_maintenance") == ["storage", "maintenance", "updates"]
+          and fusion_categories.get("system_maintenance") == ["storage", "maintenance"]
           and p_fused_defaults._normalize_fusion_tab("health") == "system_health"
           and p_fused_defaults._normalize_fusion_tab("storage") == "system_maintenance",
-          "TG 融合卡要拆分系统类目：健康巡查独立，系统维护只放存储空间和维护/更新任务")
+          "TG 融合卡要拆分系统类目：健康巡查独立，系统维护只放存储空间和维护任务")
     check(p_fused_defaults.run_daily_report() is True
           and default_fused_upserts
           and set(default_fused_upserts[-1]) == expected_fusion_report_keys
@@ -1370,11 +1476,11 @@ def main():
     ]
     p_fused_sub_channel = make_plugin(mod, fusion_notify_msgtype="Subscribe")
     sub_token, sub_chat, sub_source = p_fused_sub_channel._resolve_daily_report_telegram_config()
-    check((sub_token, sub_chat) == ("sub-token", "-100sub") and "订阅 Telegram" in sub_source,
+    check((sub_token, sub_chat) == ("sub-token", "-100sub") and "复用 MoviePilot 通知渠道：订阅 Telegram" == sub_source,
           "融合通知消息类型选择订阅时，应从 MP 订阅通知通道读取 Telegram 配置")
     p_fused_plugin_channel = make_plugin(mod, fusion_notify_msgtype="Plugin")
     plugin_token, plugin_chat, plugin_source = p_fused_plugin_channel._resolve_daily_report_telegram_config()
-    check((plugin_token, plugin_chat) == ("plugin-token", "-100plugin") and "插件 Telegram" in plugin_source,
+    check((plugin_token, plugin_chat) == ("plugin-token", "-100plugin") and "复用 MoviePilot 通知渠道：插件 Telegram" == plugin_source,
           "融合通知消息类型默认插件时，应从 MP 插件通知通道读取 Telegram 配置")
     p_fused_forced = make_plugin(mod, tg_console_enabled=False, tg_console_suppress_individual_notifications=False,
                                  daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
@@ -1437,9 +1543,7 @@ def main():
         seedclean_downloaders=["qb"],
     )
     fusion_service_ids = {svc.get("id") for svc in p_fusion_schedule.get_service()}
-    fusion_blocked_service_ids = {
-        "AgentOpsAssistant.DailyReport",
-        "AgentOpsAssistant.SubscribeReminder",
+    fusion_kept_service_ids = {
         "AgentOpsAssistant.HealthCheck",
         "AgentOpsAssistant.LogClean",
         "AgentOpsAssistant.Backup",
@@ -1448,8 +1552,10 @@ def main():
         "AgentOpsAssistant.SeedClean",
     }
     check("AgentOpsAssistant.FusionNotify" in fusion_service_ids
-          and not (fusion_service_ids & fusion_blocked_service_ids),
-          "融合通知开启时定时服务只注册融合刷新，不再注册组件级定时任务")
+          and "AgentOpsAssistant.DailyReport" not in fusion_service_ids
+          and "AgentOpsAssistant.SubscribeReminder" not in fusion_service_ids
+          and fusion_kept_service_ids <= fusion_service_ids,
+          "融合通知开启时只替代日报和订阅追新这类通知定时，保留任务类定时服务")
     p_full_fusion = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
     p_full_fusion._refresh_daily_report_live_data = lambda: {"success": True}
     p_full_fusion._build_daily_report_message = lambda preview=False: "daily"
@@ -1457,8 +1563,8 @@ def main():
     p_full_fusion._refresh_fusion_column = lambda key, state: refreshed_columns.append(key) or True
     p_full_fusion._tg_console_upsert_card = lambda token, chat_id, state: True
     check(p_full_fusion.run_daily_report() is True
-          and refreshed_columns == ["site_stats", "download_transfer", "subscribe", "storage", "media", "health", "maintenance", "updates"],
-          "立即刷新融合通知时必须覆盖 8 个融合栏目")
+          and refreshed_columns == ["site_stats", "download_transfer", "subscribe", "storage", "media", "health", "maintenance"],
+          "立即刷新融合通知时必须覆盖 7 个融合栏目")
     p_fused_flow = make_plugin(mod, tg_console_enabled=True, tg_console_suppress_individual_notifications=True,
                                daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
     p_fused_flow._refresh_daily_report_live_data = lambda: {"success": True}
@@ -1853,10 +1959,46 @@ def main():
           and "{ path: 'run_downloader_tag', component: 'downloader_tag'" in page_vue,
           "Page 仪表盘命令面板按组件启用状态禁用手动动作")
     dashboard_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "Dashboard.vue").read_text(encoding="utf-8")
+    site_widget_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "dashboard" / "SiteStatsWidget.vue").read_text(encoding="utf-8")
+    actions_widget_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "dashboard" / "ActionsWidget.vue").read_text(encoding="utf-8")
     check("{ path: 'create_tg_console_card', component: '', label: '立即建卡'" in dashboard_vue
           and "{ path: 'run_daily_report', component: 'daily_report', label: '立即刷新'" in dashboard_vue
           and "{ path: 'run_daily_report', component: 'daily_report', label: '每日汇报'" not in dashboard_vue,
           "独立 Dashboard 动作组件也提供立即建卡，并把每日汇报按钮改为立即刷新")
+    theme_sources = {
+        "Dashboard.vue": dashboard_vue,
+        "Page.vue": page_vue,
+        "Config.vue": config_vue,
+        "SiteStatsWidget.vue": site_widget_vue,
+        "ActionsWidget.vue": actions_widget_vue,
+    }
+    check(all("var(--app-surface-radius" in src for src in theme_sources.values()),
+          "插件配置页、侧导航仪表盘和 MP 自由组件统一使用 MP 官方 --app-surface-radius")
+    check(all("var(--app-surface-shadow" in src for src in theme_sources.values()),
+          "插件配置页、侧导航仪表盘和 MP 自由组件统一使用 MP 官方 --app-surface-shadow")
+    check(all("var(--app-surface-border" in src for src in theme_sources.values()),
+          "插件配置页、侧导航仪表盘和 MP 自由组件统一使用 MP 官方 --app-surface-border")
+    check(all('html[data-theme="transparent"]' in src and "--transparent-opacity" in src and "--transparent-blur" in src
+              for src in theme_sources.values()),
+          "插件所有入口跟随 MP 透明主题的 --transparent-opacity / --transparent-blur")
+    banned_theme_fragments = [
+        "--mp-widget-radius: 16px",
+        "blur(18px) saturate(145%)",
+        "blur(24px) saturate(150%)",
+        "ensureDialogBackdropStyle",
+        "dialogBackdropStyleId",
+    ]
+    check(not any(fragment in src for src in theme_sources.values() for fragment in banned_theme_fragments),
+          "插件前端不再使用重自定义玻璃、固定圆角或自注入遮罩覆盖 MP 原生主题")
+    check(".dashboard-shell--sidebar .top-button" in page_vue
+          and ".dashboard-shell--sidebar .top-button:hover" in page_vue
+          and ".dashboard-shell--sidebar .top-button :deep(.v-btn__overlay)" in page_vue
+          and ".dashboard-shell--sidebar .top-button :deep(.v-btn__underlay)" in page_vue
+          and '[class~="v-btn__overlay"]' in page_vue
+          and '[class~="v-btn__underlay"]' in page_vue
+          and "background: transparent !important;" in page_vue
+          and "box-shadow: none !important;" in page_vue,
+          "侧边栏仪表盘顶部按钮禁用 hover 隐形方框和 Vuetify overlay")
     check("MoviePilot 版本" not in config_vue
           and "今日摘要" not in config_vue
           and "fusion_notify_columns" in config_vue
@@ -1868,6 +2010,16 @@ def main():
           and "数据范围" in config_vue
           and "媒体通知" in config_vue,
           "配置页融合通知栏目合并二级路径后按通用模板展示，并暴露融合通知消息类型")
+    check("notificationLockedByFusion" in config_vue
+          and 'label="启用定时追新" :disabled="!form.subscribe_reminder_enabled || notificationLockedByFusion"' in config_vue
+          and 'label="执行更新结果通知" :disabled="!form.mp_update_enabled || notificationLockedByFusion"' in config_vue
+          and 'label="消息类型" :disabled="!form.mp_update_enabled || !form.mp_update_notify || notificationLockedByFusion"' in config_vue,
+          "融合通知开启时所有通知类设置锁定，订阅追新这类定时通知也由融合刷新控制")
+    check("融合通知开启：插件内部通知统一写入 TG 融合卡；关闭后各组件通知渠道恢复生效。" in config_vue
+          and "组件定时任务仍按各自设置执行" not in config_vue
+          and "当前融合卡使用：" in config_vue
+          and "已配置 ·" not in config_vue,
+          "配置页只在融合通知位置说明通知边界，并避免表现成插件自带 Telegram 配置")
     _PU["notifications"] = [{
         "name": "默认 Telegram",
         "type": "telegram",
@@ -1932,9 +2084,25 @@ def main():
     cd = chart.get("data", {})
     check(chart.get("code") == 0 and cd.get("upload_total") == 11 * 1024 ** 3, "饼图：今日上传合计=各站增量之和(10+1 GB)")
     check(cd.get("download_total") == 2 * 1024 ** 3 and len(cd.get("sites", [])) == 2, "饼图：下载合计与站点数正确")
+    check(cd.get("active_count") == 2 and cd.get("visible_count") == 2,
+          "站点统计图返回 active_count/visible_count，供前端区分空态与真实站点数")
     inc_text = "\n".join(make_plugin(mod)._get_site_increment_locked())
     check("📊 3.405" in inc_text and "⬆" in inc_text and "⬇" in inc_text and "🪙 18,619.5" in inc_text,
           "站点增量使用图标展示分享率/上传/下载/魔力")
+    _SUB.update({
+        "sites": [],
+        "site_latest": [
+            types.SimpleNamespace(name="回退站", domain="fallback.x", err_msg="", updated_day=_today, upload=42 * 1024 ** 3, download=9 * 1024 ** 3),
+        ],
+        "site_prev": [
+            types.SimpleNamespace(name="回退站", domain="fallback.x", err_msg="", upload=40 * 1024 ** 3, download=8 * 1024 ** 3),
+        ],
+    })
+    active_empty_chart = make_plugin(mod).api_site_stat_chart().get("data", {})
+    check(active_empty_chart.get("visible_count") == 1
+          and len(active_empty_chart.get("sites") or []) == 1
+          and active_empty_chart.get("upload_total") == 2 * 1024 ** 3,
+          "list_active 为空时站点统计回退使用最新快照，不能把在线站点过滤成 0")
     _SUB.update({
         "sites": [types.SimpleNamespace(domain="real.x")],
         "site_latest": [
@@ -2189,6 +2357,11 @@ def main():
     p_cmd_feedback.handle_command(types.SimpleNamespace(event_data={"action": "mpops_health"}))
     feedback_titles = [m.get("title") for m in p_cmd_feedback._stub_messages]
     check(feedback_titles == ["MP 运维助手命令执行结果"], "命令触发的任务未发送业务通知时，仍保留命令反馈")
+
+    p_cmd_update_quiet = make_plugin(mod, fusion_notify_enabled=False, mp_update_enabled=True)
+    p_cmd_update_quiet.run_mp_update_check = lambda: True
+    p_cmd_update_quiet.handle_command(types.SimpleNamespace(event_data={"action": "mpops_updates"}))
+    check(not p_cmd_update_quiet._stub_messages, "更新检查命令成功时不补发 TG/命令结果通知")
 
     p_cmd_failure = make_plugin(mod, fusion_notify_enabled=False)
     p_cmd_failure.run_daily_report = lambda: p_cmd_failure.post_message(mtype=mod.NotificationType.Plugin, title="业务通知", text="日报已发送") or True

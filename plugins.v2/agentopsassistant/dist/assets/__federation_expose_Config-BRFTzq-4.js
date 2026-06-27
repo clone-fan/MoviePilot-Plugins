@@ -66,7 +66,6 @@ const _hoisted_46 = { class: "aoa-action-note" };
 
 const {reactive,ref,computed,watch,onMounted,onBeforeUnmount,defineComponent,h,resolveComponent} = await importShared('vue');
 
-const fusionTakeoverText = '融合通知已接管';
 
 const _sfc_main = {
   __name: 'Config',
@@ -189,6 +188,14 @@ const actionDisabledReason = computed(() => {
   if (!form.enabled) return '插件总开关未启用，手动动作已暂停。'
   return ''
 });
+const notificationLockedByFusion = computed(() => !!form.fusion_notify_enabled);
+function displayTgChannelSource(source) {
+  return String(source || '')
+    .replace(/^复用 MoviePilot 通知渠道：/, '')
+    .replace(/^MoviePilot 通知配置：/, '')
+    .replace(/^使用 /, '')
+    .trim()
+}
 function actionComponentEnabled(itemOrPath) {
   const path = typeof itemOrPath === 'string' ? itemOrPath : itemOrPath?.path;
   const component = actionComponentMap[path];
@@ -277,7 +284,25 @@ const tgConsoleMessageLabel = computed(() => {
   const messageId = Number(tgConsoleStatus.data?.message_id || 0);
   return messageId ? `#${messageId}` : '待建卡'
 });
-const tgConsoleChatLabel = computed(() => tgConsoleStatus.data?.chat_configured ? '已配置' : '未配置');
+const tgConsoleChatLabel = computed(() => {
+  const data = tgConsoleStatus.data || {};
+  if (data.chat_configured) {
+    const source = displayTgChannelSource(data.config_source);
+    return source ? `当前融合卡使用：${source}` : '当前融合卡使用：MoviePilot Telegram'
+  }
+  return '未找到可用 Telegram 通知渠道'
+});
+const tgConsoleLastError = computed(() => {
+  const data = tgConsoleStatus.data || {};
+  const err = tgConsoleStatus.error || data.last_error || '';
+  const oldInstallHint = ['Bot Token', 'Chat ID', '未配置'].every(key => String(err).includes(key));
+  if (!data.chat_configured && oldInstallHint) return ''
+  return err
+});
+const tgConsoleConfigHint = computed(() => {
+  if (tgConsoleLastError.value) return ''
+  return tgConsoleStatus.data?.config_hint || ''
+});
 const tgConsoleLastUpdateLabel = computed(() => {
   const notices = Array.isArray(tgConsoleStatus.data?.notices) ? tgConsoleStatus.data.notices : [];
   const time = notices[0]?.time;
@@ -505,7 +530,6 @@ const fusionColumnItems = [
   { key: 'storage', group: '系统维护', label: '存储空间', component: '存储空间', requires: 'health_check', note: '配置目录、下载目录、媒体库、网盘容量' },
   { key: 'health', group: '系统维护', label: '健康巡查', component: '健康巡查', requires: 'health_check', note: '数据库、目录权限、服务异常' },
   { key: 'maintenance', group: '系统维护', label: '维护任务', component: '系统维护', requires: null, note: '备份、日志清理、插件治理、自动删种、种子标签' },
-  { key: 'updates', group: '系统维护', label: '更新检查', component: '更新检查', requires: null, note: 'MoviePilot 与插件库更新' },
 ];
 const fusionColumnKeys = fusionColumnItems.map(item => item.key);
 const fusionGroupIcons = {
@@ -668,7 +692,7 @@ const defaults = {
 };
 
 const mainTabs = [
-  { key: 'report', group: '通知中心', title: '融合通知', icon: 'mdi-newspaper-variant-outline', desc: '单张 RichMessage 融合卡与组件栏目控制' },
+  { key: 'report', group: '通知中心', title: '融合通知', icon: 'mdi-newspaper-variant-outline', desc: '' },
   { key: 'subreminder', group: '订阅与站点', title: '订阅管理', icon: 'mdi-bell-cog-outline', desc: '订阅追新与规则填充' },
   { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '仪表盘站点数据与日报栏目' },
   { key: 'seedclean', group: '下载与媒体', title: '下载器管理', icon: 'mdi-download-network-outline', desc: '自动删种、种子标签与下载器治理' },
@@ -814,15 +838,6 @@ const activeFusionColumnGroup = computed(() => {
   const groups = fusionColumnGroups.value;
   return groups.find(group => group.name === activeFusionGroup.value) || groups[0] || { name: '', icon: '', items: [] }
 });
-const FusionTakeoverAlert = defineComponent({
-  name: 'FusionTakeoverAlert',
-  setup() {
-    return () => {
-      return h('span', { class: 'aoa-fusion-takeover-note' }, fusionTakeoverText)
-    }
-  },
-});
-
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0]);
 const currentSubs = computed(() => subTabs[activeMain.value] || []);
 const activeActionItems = computed(() => {
@@ -1221,12 +1236,12 @@ return (_ctx, _cache) => {
                       kicker: "融合通知",
                       "on-title": "融合通知已启用",
                       "off-title": "融合通知未启用",
-                      desc: "所有组件通知写入同一张 RichMessage|关闭后恢复组件自身通知设置",
+                      desc: "融合通知开启：插件内部通知统一写入 TG 融合卡；关闭后各组件通知渠道恢复生效。|任务调度仍由健康巡查、备份、日志清理等组件自己的开关控制。",
                       "count-label": `${reportEnabledCount.value} / ${_unref(reportSections).length} 个栏目`
                     }, null, 8, ["enabled", "count-label"]),
                     _createVNode(_unref(SettingSection), {
-                      title: "定时获取数据",
-                      note: "融合通知开启后按这里的 Cron 全量刷新卡片数据，默认每小时一次"
+                      title: "定时刷新卡片",
+                      note: "融合刷新负责 TG 卡和订阅追新等通知输出；任务类调度仍看各组件开关"
                     }, {
                       default: _withCtx(() => [
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
@@ -1416,7 +1431,7 @@ return (_ctx, _cache) => {
                           ]),
                           _: 1
                         }),
-                        (tgConsoleStatus.data?.last_error || tgConsoleStatus.error)
+                        (tgConsoleLastError.value)
                           ? (_openBlock(), _createBlock(_component_VAlert, {
                               key: 0,
                               type: "error",
@@ -1424,9 +1439,19 @@ return (_ctx, _cache) => {
                               density: "compact",
                               class: "mt-3",
                               title: "最近错误",
-                              text: tgConsoleStatus.data?.last_error || tgConsoleStatus.error
+                              text: tgConsoleLastError.value
                             }, null, 8, ["text"]))
-                          : _createCommentVNode("", true),
+                          : (tgConsoleConfigHint.value)
+                            ? (_openBlock(), _createBlock(_component_VAlert, {
+                                key: 1,
+                                type: "info",
+                                variant: "tonal",
+                                density: "compact",
+                                class: "mt-3",
+                                title: "融合卡状态",
+                                text: tgConsoleConfigHint.value
+                              }, null, 8, ["text"]))
+                            : _createCommentVNode("", true),
                         _createVNode(_component_VBtn, {
                           size: "small",
                           variant: "text",
@@ -1467,9 +1492,6 @@ return (_ctx, _cache) => {
                       note: "推送时间、订阅类型与消息渠道集中配置"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -1484,7 +1506,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "启用定时追新",
-                                  disabled: !form.subscribe_reminder_enabled || form.fusion_notify_enabled
+                                  disabled: !form.subscribe_reminder_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -1498,7 +1520,7 @@ return (_ctx, _cache) => {
                                   modelValue: form.subscribe_reminder_cron,
                                   "onUpdate:modelValue": _cache[12] || (_cache[12] = $event => ((form.subscribe_reminder_cron) = $event)),
                                   label: "推送时间 (Cron)",
-                                  disabled: !form.subscribe_reminder_enabled || !form.subscribe_reminder_schedule_enabled || form.fusion_notify_enabled
+                                  disabled: !form.subscribe_reminder_enabled || !form.subscribe_reminder_schedule_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -1531,7 +1553,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[14] || (_cache[14] = $event => ((form.subscribe_reminder_msgtype) = $event)),
                                   items: messageTypeItems,
                                   label: "消息类型",
-                                  disabled: !form.subscribe_reminder_enabled || form.fusion_notify_enabled
+                                  disabled: !form.subscribe_reminder_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -1566,9 +1588,6 @@ return (_ctx, _cache) => {
                       note: "控制仪表盘站点数据口径与通知方式"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -1596,7 +1615,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[17] || (_cache[17] = $event => ((form.site_stat_notify_type) = $event)),
                                   items: siteNotifyItems,
                                   label: "通知方式",
-                                  disabled: !form.site_stat_enabled || form.fusion_notify_enabled
+                                  disabled: !form.site_stat_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -1640,18 +1659,15 @@ return (_ctx, _cache) => {
                               inset: "",
                               "hide-details": "",
                               label: "启用定时巡查",
-                              disabled: !form.health_check_enabled || form.fusion_notify_enabled
-                            }, null, 8, ["modelValue", "disabled"]),
-                            (form.fusion_notify_enabled)
-                              ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                              : _createCommentVNode("", true)
+                              disabled: !form.health_check_enabled
+                            }, null, 8, ["modelValue", "disabled"])
                           ]),
                           _createVNode(_component_VCronField, {
                             modelValue: form.health_check_cron,
                             "onUpdate:modelValue": _cache[20] || (_cache[20] = $event => ((form.health_check_cron) = $event)),
                             label: "巡查时间 (Cron)",
                             class: "aoa-health-field-third",
-                            disabled: !form.health_check_enabled || !form.health_check_schedule_enabled || form.fusion_notify_enabled
+                            disabled: !form.health_check_enabled || !form.health_check_schedule_enabled
                           }, null, 8, ["modelValue", "disabled"]),
                           _createVNode(_component_VTextField, {
                             modelValue: form.health_check_storage_threshold,
@@ -1671,7 +1687,7 @@ return (_ctx, _cache) => {
                             items: notificationTypeItems,
                             label: "异常通知渠道",
                             class: "aoa-health-field-third",
-                            disabled: !form.health_check_enabled || form.fusion_notify_enabled
+                            disabled: !form.health_check_enabled || notificationLockedByFusion.value
                           }, null, 8, ["modelValue", "disabled"]),
                           _createVNode(_component_VSelect, {
                             modelValue: form.report_storage_targets,
@@ -1831,9 +1847,6 @@ return (_ctx, _cache) => {
                       note: "选择自动填充范围，并配置完成后的通知渠道"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -1848,7 +1861,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "填充后发送通知",
-                                  disabled: !form.subfill_enabled || form.fusion_notify_enabled
+                                  disabled: !form.subfill_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -1863,7 +1876,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[30] || (_cache[30] = $event => ((form.subfill_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
-                                  disabled: !form.subfill_enabled || !form.subfill_notify || form.fusion_notify_enabled
+                                  disabled: !form.subfill_enabled || !form.subfill_notify || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -1958,9 +1971,6 @@ return (_ctx, _cache) => {
                       note: "备份时间、路径和保留份数集中配置"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -1975,7 +1985,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "启用定时备份",
-                                  disabled: !form.backup_enabled || form.fusion_notify_enabled
+                                  disabled: !form.backup_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -1989,7 +1999,7 @@ return (_ctx, _cache) => {
                                   modelValue: form.backup_cron,
                                   "onUpdate:modelValue": _cache[36] || (_cache[36] = $event => ((form.backup_cron) = $event)),
                                   label: "备份时间 (Cron)",
-                                  disabled: !form.backup_enabled || !form.backup_schedule_enabled || form.fusion_notify_enabled
+                                  disabled: !form.backup_enabled || !form.backup_schedule_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2049,9 +2059,6 @@ return (_ctx, _cache) => {
                       note: "备份完成通知和手动触发开关"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -2066,7 +2073,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "备份结果通知",
-                                  disabled: !form.backup_enabled || form.fusion_notify_enabled
+                                  disabled: !form.backup_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2081,7 +2088,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[40] || (_cache[40] = $event => ((form.backup_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
-                                  disabled: !form.backup_enabled || !form.backup_notify || form.fusion_notify_enabled
+                                  disabled: !form.backup_enabled || !form.backup_notify || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2390,9 +2397,6 @@ return (_ctx, _cache) => {
                       note: "保留份数、通知渠道和连接校验"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -2422,7 +2426,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "远端备份结果通知",
-                                  disabled: !form.backup_webdav_enabled || form.fusion_notify_enabled
+                                  disabled: !form.backup_webdav_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2437,7 +2441,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[53] || (_cache[53] = $event => ((form.backup_webdav_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
-                                  disabled: !form.backup_webdav_enabled || !form.backup_webdav_notify || form.fusion_notify_enabled
+                                  disabled: !form.backup_webdav_enabled || !form.backup_webdav_notify || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2705,9 +2709,6 @@ return (_ctx, _cache) => {
                       note: "清理时间、保留行数和限定插件"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -2722,7 +2723,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "启用定时清理",
-                                  disabled: !form.log_clean_enabled || form.fusion_notify_enabled
+                                  disabled: !form.log_clean_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2736,7 +2737,7 @@ return (_ctx, _cache) => {
                                   modelValue: form.log_clean_cron,
                                   "onUpdate:modelValue": _cache[63] || (_cache[63] = $event => ((form.log_clean_cron) = $event)),
                                   label: "清理时间 (Cron)",
-                                  disabled: !form.log_clean_enabled || !form.log_clean_schedule_enabled || form.fusion_notify_enabled
+                                  disabled: !form.log_clean_enabled || !form.log_clean_schedule_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2790,9 +2791,6 @@ return (_ctx, _cache) => {
                       note: "清理完成通知和手动触发开关"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -2807,7 +2805,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "清理结果通知",
-                                  disabled: !form.log_clean_enabled || form.fusion_notify_enabled
+                                  disabled: !form.log_clean_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2822,7 +2820,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[67] || (_cache[67] = $event => ((form.log_clean_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
-                                  disabled: !form.log_clean_enabled || !form.log_clean_notify || form.fusion_notify_enabled
+                                  disabled: !form.log_clean_enabled || !form.log_clean_notify || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2874,9 +2872,6 @@ return (_ctx, _cache) => {
                       note: "检查时间、范围和通知渠道"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -2891,7 +2886,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "启用定时检查",
-                                  disabled: !form.mp_update_enabled || form.fusion_notify_enabled
+                                  disabled: !form.mp_update_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2905,7 +2900,7 @@ return (_ctx, _cache) => {
                                   modelValue: form.mp_update_cron,
                                   "onUpdate:modelValue": _cache[71] || (_cache[71] = $event => ((form.mp_update_cron) = $event)),
                                   label: "检查时间 (Cron)",
-                                  disabled: !form.mp_update_enabled || !form.mp_update_schedule_enabled || form.fusion_notify_enabled
+                                  disabled: !form.mp_update_enabled || !form.mp_update_schedule_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2938,7 +2933,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[73] || (_cache[73] = $event => ((form.mp_update_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
-                                  disabled: !form.mp_update_enabled || !form.mp_update_notify || form.fusion_notify_enabled
+                                  disabled: !form.mp_update_enabled || !form.mp_update_notify || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -2954,8 +2949,8 @@ return (_ctx, _cache) => {
                                   color: "primary",
                                   inset: "",
                                   "hide-details": "",
-                                  label: "发现新版本时通知",
-                                  disabled: !form.mp_update_enabled || form.fusion_notify_enabled
+                                  label: "执行更新结果通知",
+                                  disabled: !form.mp_update_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -3007,9 +3002,6 @@ return (_ctx, _cache) => {
                       note: "检查间隔、通知方式和插件库访问方式"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -3024,7 +3016,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "启用定时检查",
-                                  disabled: !form.market_update_enabled || form.fusion_notify_enabled
+                                  disabled: !form.market_update_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -3039,7 +3031,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[78] || (_cache[78] = $event => ((form.market_update_interval) = $event)),
                                   items: _unref(intervalPresets),
                                   label: "检查间隔",
-                                  disabled: !form.market_update_enabled || !form.market_update_schedule_enabled || form.fusion_notify_enabled
+                                  disabled: !form.market_update_enabled || !form.market_update_schedule_enabled
                                 }, null, 8, ["modelValue", "items", "disabled"])
                               ]),
                               _: 1
@@ -3054,7 +3046,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[79] || (_cache[79] = $event => ((form.market_update_notify_type) = $event)),
                                   items: _unref(marketNotifyItems),
                                   label: "通知消息类型",
-                                  disabled: !form.market_update_enabled || form.fusion_notify_enabled
+                                  disabled: !form.market_update_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "items", "disabled"])
                               ]),
                               _: 1
@@ -3087,7 +3079,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "发现更新时通知",
-                                  disabled: !form.market_update_enabled || form.fusion_notify_enabled
+                                  disabled: !form.market_update_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -3491,9 +3483,6 @@ return (_ctx, _cache) => {
                       note: "清理结果通知和本地源码残留处理"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -3508,7 +3497,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "清理结果通知",
-                                  disabled: form.fusion_notify_enabled
+                                  disabled: notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -3523,7 +3512,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[101] || (_cache[101] = $event => ((form.plugin_uninstall_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
-                                  disabled: !form.plugin_uninstall_notify || form.fusion_notify_enabled
+                                  disabled: !form.plugin_uninstall_notify || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -3574,9 +3563,6 @@ return (_ctx, _cache) => {
                       note: "执行周期、动作和下载器范围"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid aoa-seed-basic-row" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -3591,7 +3577,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "启用定时执行",
-                                  disabled: !form.seedclean_enabled || form.fusion_notify_enabled
+                                  disabled: !form.seedclean_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -3605,7 +3591,7 @@ return (_ctx, _cache) => {
                                   modelValue: form.seedclean_cron,
                                   "onUpdate:modelValue": _cache[105] || (_cache[105] = $event => ((form.seedclean_cron) = $event)),
                                   label: "执行周期 (Cron)",
-                                  disabled: !form.seedclean_enabled || !form.seedclean_schedule_enabled || form.fusion_notify_enabled
+                                  disabled: !form.seedclean_enabled || !form.seedclean_schedule_enabled
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -3840,9 +3826,6 @@ return (_ctx, _cache) => {
                       note: "辅种保护、MoviePilot 任务限制和通知渠道"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid aoa-seed-protect-row" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -3886,7 +3869,7 @@ return (_ctx, _cache) => {
                                     color: "primary",
                                     inset: "",
                                     "hide-details": "",
-                                    disabled: !form.seedclean_enabled || form.fusion_notify_enabled
+                                    disabled: !form.seedclean_enabled || notificationLockedByFusion.value
                                   }, {
                                     label: _withCtx(() => [...(_cache[150] || (_cache[150] = [
                                       _createElementVNode("span", { class: "aoa-seed-option-label" }, "处理结果通知", -1)
@@ -3908,7 +3891,7 @@ return (_ctx, _cache) => {
                                   items: notificationTypeItems,
                                   "hide-details": "",
                                   label: "消息类型",
-                                  disabled: !form.seedclean_enabled || !form.seedclean_notify || form.fusion_notify_enabled
+                                  disabled: !form.seedclean_enabled || !form.seedclean_notify || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -3943,9 +3926,6 @@ return (_ctx, _cache) => {
                       note: "选择事件类型和媒体服务器范围"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid aoa-media-field-row" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -3959,7 +3939,7 @@ return (_ctx, _cache) => {
                                   items: notificationTypeItems,
                                   label: "消息类型",
                                   "prepend-inner-icon": "mdi-message-badge-outline",
-                                  disabled: !form.msgnotify_enabled || form.fusion_notify_enabled
+                                  disabled: !form.msgnotify_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -4087,9 +4067,6 @@ return (_ctx, _cache) => {
                       note: "打标完成后按选择渠道通知"
                     }, {
                       default: _withCtx(() => [
-                        (form.fusion_notify_enabled)
-                          ? (_openBlock(), _createBlock(_unref(FusionTakeoverAlert), { key: 0 }))
-                          : _createCommentVNode("", true),
                         _createVNode(_component_VRow, { class: "aoa-setting-grid aoa-dltag-notify-row" }, {
                           default: _withCtx(() => [
                             _createVNode(_component_VCol, {
@@ -4104,7 +4081,7 @@ return (_ctx, _cache) => {
                                   inset: "",
                                   "hide-details": "",
                                   label: "完成后通知",
-                                  disabled: !form.dltag_enabled || form.fusion_notify_enabled
+                                  disabled: !form.dltag_enabled || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -4119,7 +4096,7 @@ return (_ctx, _cache) => {
                                   "onUpdate:modelValue": _cache[130] || (_cache[130] = $event => ((form.dltag_notify_type) = $event)),
                                   items: notificationTypeItems,
                                   label: "消息类型",
-                                  disabled: !form.dltag_enabled || !form.dltag_notify || form.fusion_notify_enabled
+                                  disabled: !form.dltag_enabled || !form.dltag_notify || notificationLockedByFusion.value
                                 }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
@@ -4215,6 +4192,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-ae356ba0"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-65f2c39f"]]);
 
 export { Config as default };

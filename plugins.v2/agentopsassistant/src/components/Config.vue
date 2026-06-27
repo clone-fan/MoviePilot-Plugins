@@ -117,6 +117,14 @@ const actionDisabledReason = computed(() => {
   if (!form.enabled) return '插件总开关未启用，手动动作已暂停。'
   return ''
 })
+const notificationLockedByFusion = computed(() => !!form.fusion_notify_enabled)
+function displayTgChannelSource(source) {
+  return String(source || '')
+    .replace(/^复用 MoviePilot 通知渠道：/, '')
+    .replace(/^MoviePilot 通知配置：/, '')
+    .replace(/^使用 /, '')
+    .trim()
+}
 function actionComponentEnabled(itemOrPath) {
   const path = typeof itemOrPath === 'string' ? itemOrPath : itemOrPath?.path
   const component = actionComponentMap[path]
@@ -205,7 +213,25 @@ const tgConsoleMessageLabel = computed(() => {
   const messageId = Number(tgConsoleStatus.data?.message_id || 0)
   return messageId ? `#${messageId}` : '待建卡'
 })
-const tgConsoleChatLabel = computed(() => tgConsoleStatus.data?.chat_configured ? '已配置' : '未配置')
+const tgConsoleChatLabel = computed(() => {
+  const data = tgConsoleStatus.data || {}
+  if (data.chat_configured) {
+    const source = displayTgChannelSource(data.config_source)
+    return source ? `当前融合卡使用：${source}` : '当前融合卡使用：MoviePilot Telegram'
+  }
+  return '未找到可用 Telegram 通知渠道'
+})
+const tgConsoleLastError = computed(() => {
+  const data = tgConsoleStatus.data || {}
+  const err = tgConsoleStatus.error || data.last_error || ''
+  const oldInstallHint = ['Bot Token', 'Chat ID', '未配置'].every(key => String(err).includes(key))
+  if (!data.chat_configured && oldInstallHint) return ''
+  return err
+})
+const tgConsoleConfigHint = computed(() => {
+  if (tgConsoleLastError.value) return ''
+  return tgConsoleStatus.data?.config_hint || ''
+})
 const tgConsoleLastUpdateLabel = computed(() => {
   const notices = Array.isArray(tgConsoleStatus.data?.notices) ? tgConsoleStatus.data.notices : []
   const time = notices[0]?.time
@@ -433,7 +459,6 @@ const fusionColumnItems = [
   { key: 'storage', group: '系统维护', label: '存储空间', component: '存储空间', requires: 'health_check', note: '配置目录、下载目录、媒体库、网盘容量' },
   { key: 'health', group: '系统维护', label: '健康巡查', component: '健康巡查', requires: 'health_check', note: '数据库、目录权限、服务异常' },
   { key: 'maintenance', group: '系统维护', label: '维护任务', component: '系统维护', requires: null, note: '备份、日志清理、插件治理、自动删种、种子标签' },
-  { key: 'updates', group: '系统维护', label: '更新检查', component: '更新检查', requires: null, note: 'MoviePilot 与插件库更新' },
 ]
 const fusionColumnKeys = fusionColumnItems.map(item => item.key)
 const fusionGroupIcons = {
@@ -596,7 +621,7 @@ const defaults = {
 }
 
 const mainTabs = [
-  { key: 'report', group: '通知中心', title: '融合通知', icon: 'mdi-newspaper-variant-outline', desc: '单张 RichMessage 融合卡与组件栏目控制' },
+  { key: 'report', group: '通知中心', title: '融合通知', icon: 'mdi-newspaper-variant-outline', desc: '' },
   { key: 'subreminder', group: '订阅与站点', title: '订阅管理', icon: 'mdi-bell-cog-outline', desc: '订阅追新与规则填充' },
   { key: 'sitestat', group: '订阅与站点', title: '站点数据统计', icon: 'mdi-chart-line', desc: '仪表盘站点数据与日报栏目' },
   { key: 'seedclean', group: '下载与媒体', title: '下载器管理', icon: 'mdi-download-network-outline', desc: '自动删种、种子标签与下载器治理' },
@@ -742,16 +767,6 @@ const activeFusionColumnGroup = computed(() => {
   const groups = fusionColumnGroups.value
   return groups.find(group => group.name === activeFusionGroup.value) || groups[0] || { name: '', icon: '', items: [] }
 })
-const fusionTakeoverText = '融合通知已接管'
-const FusionTakeoverAlert = defineComponent({
-  name: 'FusionTakeoverAlert',
-  setup() {
-    return () => {
-      return h('span', { class: 'aoa-fusion-takeover-note' }, fusionTakeoverText)
-    }
-  },
-})
-
 const currentMain = computed(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0])
 const currentSubs = computed(() => subTabs[activeMain.value] || [])
 const activeActionItems = computed(() => {
@@ -1035,11 +1050,11 @@ onBeforeUnmount(() => {
                   kicker="融合通知"
                   on-title="融合通知已启用"
                   off-title="融合通知未启用"
-                  desc="所有组件通知写入同一张 RichMessage|关闭后恢复组件自身通知设置"
+                  desc="融合通知开启：插件内部通知统一写入 TG 融合卡；关闭后各组件通知渠道恢复生效。|任务调度仍由健康巡查、备份、日志清理等组件自己的开关控制。"
                   :count-label="`${reportEnabledCount} / ${reportSections.length} 个栏目`"
                 />
 
-                <SettingSection title="定时获取数据" note="融合通知开启后按这里的 Cron 全量刷新卡片数据，默认每小时一次">
+                <SettingSection title="定时刷新卡片" note="融合刷新负责 TG 卡和订阅追新等通知输出；任务类调度仍看各组件开关">
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="3">
                       <VSwitch v-model="form.fusion_notify_schedule_enabled" color="primary" inset hide-details
@@ -1145,13 +1160,22 @@ onBeforeUnmount(() => {
                     </VCol>
                   </VRow>
                   <VAlert
-                    v-if="tgConsoleStatus.data?.last_error || tgConsoleStatus.error"
+                    v-if="tgConsoleLastError"
                     type="error"
                     variant="tonal"
                     density="compact"
                     class="mt-3"
                     title="最近错误"
-                    :text="tgConsoleStatus.data?.last_error || tgConsoleStatus.error"
+                    :text="tgConsoleLastError"
+                  />
+                  <VAlert
+                    v-else-if="tgConsoleConfigHint"
+                    type="info"
+                    variant="tonal"
+                    density="compact"
+                    class="mt-3"
+                    title="融合卡状态"
+                    :text="tgConsoleConfigHint"
                   />
                   <VBtn
                     size="small"
@@ -1180,15 +1204,14 @@ onBeforeUnmount(() => {
                   :count-label="`${form.subscribe_reminder_subtype?.length || 0} 类提醒`"
                 />
                 <SettingSection title="追新设置" note="推送时间、订阅类型与消息渠道集中配置">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="3">
                       <VSwitch v-model="form.subscribe_reminder_schedule_enabled" color="primary" inset hide-details
-                        label="启用定时追新" :disabled="!form.subscribe_reminder_enabled || form.fusion_notify_enabled" />
+                        label="启用定时追新" :disabled="!form.subscribe_reminder_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VCronField v-model="form.subscribe_reminder_cron" label="推送时间 (Cron)"
-                        :disabled="!form.subscribe_reminder_enabled || !form.subscribe_reminder_schedule_enabled || form.fusion_notify_enabled" />
+                        :disabled="!form.subscribe_reminder_enabled || !form.subscribe_reminder_schedule_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VSelect v-model="form.subscribe_reminder_subtype" :items="subscribeSubtypeItems"
@@ -1196,7 +1219,7 @@ onBeforeUnmount(() => {
                     </VCol>
                     <VCol cols="12" md="3">
                       <VSelect v-model="form.subscribe_reminder_msgtype" :items="messageTypeItems"
-                        label="消息类型" :disabled="!form.subscribe_reminder_enabled || form.fusion_notify_enabled" />
+                        label="消息类型" :disabled="!form.subscribe_reminder_enabled || notificationLockedByFusion" />
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -1216,7 +1239,6 @@ onBeforeUnmount(() => {
                   :count-label="form.site_stat_dashboard_type === 'today' ? '今日数据' : '统计数据'"
                 />
                 <SettingSection title="统计设置" note="控制仪表盘站点数据口径与通知方式">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="6">
                       <VSelect v-model="form.site_stat_dashboard_type" :items="siteStatRangeItems"
@@ -1224,7 +1246,7 @@ onBeforeUnmount(() => {
                     </VCol>
                     <VCol cols="12" md="6">
                       <VSelect v-model="form.site_stat_notify_type" :items="siteNotifyItems"
-                        label="通知方式" :disabled="!form.site_stat_enabled || form.fusion_notify_enabled" />
+                        label="通知方式" :disabled="!form.site_stat_enabled || notificationLockedByFusion" />
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -1248,15 +1270,14 @@ onBeforeUnmount(() => {
                   <div class="aoa-health-scope-grid">
                     <div class="aoa-health-field-third aoa-health-schedule-cell">
                       <VSwitch v-model="form.health_check_schedule_enabled" color="primary" inset hide-details
-                        label="启用定时巡查" :disabled="!form.health_check_enabled || form.fusion_notify_enabled" />
-                      <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
+                        label="启用定时巡查" :disabled="!form.health_check_enabled" />
                     </div>
                     <VCronField v-model="form.health_check_cron" label="巡查时间 (Cron)" class="aoa-health-field-third"
-                      :disabled="!form.health_check_enabled || !form.health_check_schedule_enabled || form.fusion_notify_enabled" />
+                      :disabled="!form.health_check_enabled || !form.health_check_schedule_enabled" />
                     <VTextField v-model.number="form.health_check_storage_threshold" label="容量阈值" type="number" class="aoa-health-field-third"
                       min="1" max="99" suffix="%" :disabled="!form.health_check_enabled" />
                     <VSelect v-model="form.health_check_notify_type" :items="notificationTypeItems" label="异常通知渠道"
-                      class="aoa-health-field-third" :disabled="!form.health_check_enabled || form.fusion_notify_enabled" />
+                      class="aoa-health-field-third" :disabled="!form.health_check_enabled || notificationLockedByFusion" />
                     <VSelect
                       v-model="form.report_storage_targets"
                       :items="storageTargetItems"
@@ -1329,15 +1350,14 @@ onBeforeUnmount(() => {
                   :count-label="`${form.subfill_details?.length || 0} 项填充`"
                 />
                 <SettingSection title="规则填充" note="选择自动填充范围，并配置完成后的通知渠道">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="6">
                       <VSwitch v-model="form.subfill_notify" color="primary" inset hide-details
-                        label="填充后发送通知" :disabled="!form.subfill_enabled || form.fusion_notify_enabled" />
+                        label="填充后发送通知" :disabled="!form.subfill_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="6">
                       <VSelect v-model="form.subfill_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.subfill_enabled || !form.subfill_notify || form.fusion_notify_enabled" />
+                        label="消息类型" :disabled="!form.subfill_enabled || !form.subfill_notify || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12">
                       <VSelect v-model="form.subfill_details" :items="subfillDetailItems"
@@ -1377,15 +1397,14 @@ onBeforeUnmount(() => {
                   :count-label="`${form.backup_keep_count} 份保留`"
                 />
                 <SettingSection title="本地策略" note="备份时间、路径和保留份数集中配置">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.backup_schedule_enabled" color="primary" inset hide-details
-                        label="启用定时备份" :disabled="!form.backup_enabled || form.fusion_notify_enabled" />
+                        label="启用定时备份" :disabled="!form.backup_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VCronField v-model="form.backup_cron" label="备份时间 (Cron)"
-                        :disabled="!form.backup_enabled || !form.backup_schedule_enabled || form.fusion_notify_enabled" />
+                        :disabled="!form.backup_enabled || !form.backup_schedule_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VTextField v-model="form.backup_path" label="本地备份路径"
@@ -1402,15 +1421,14 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="通知与触发" note="备份完成通知和手动触发开关">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.backup_notify" color="primary" inset hide-details
-                        label="备份结果通知" :disabled="!form.backup_enabled || form.fusion_notify_enabled" />
+                        label="备份结果通知" :disabled="!form.backup_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.backup_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.backup_enabled || !form.backup_notify || form.fusion_notify_enabled" />
+                        label="消息类型" :disabled="!form.backup_enabled || !form.backup_notify || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.backup_onlyonce" color="warning" inset hide-details
@@ -1516,7 +1534,6 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="远端策略" note="保留份数、通知渠道和连接校验">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.backup_webdav_max_count" :items="keepCountPresets"
@@ -1524,11 +1541,11 @@ onBeforeUnmount(() => {
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.backup_webdav_notify" color="primary" inset hide-details
-                        label="远端备份结果通知" :disabled="!form.backup_webdav_enabled || form.fusion_notify_enabled" />
+                        label="远端备份结果通知" :disabled="!form.backup_webdav_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.backup_webdav_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.backup_webdav_enabled || !form.backup_webdav_notify || form.fusion_notify_enabled" />
+                        label="消息类型" :disabled="!form.backup_webdav_enabled || !form.backup_webdav_notify || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.backup_webdav_digest_auth" color="primary" inset hide-details
@@ -1621,15 +1638,14 @@ onBeforeUnmount(() => {
                   :count-label="`保留 ${form.log_clean_rows} 行`"
                 />
                 <SettingSection title="清理策略" note="清理时间、保留行数和限定插件">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="3">
                       <VSwitch v-model="form.log_clean_schedule_enabled" color="primary" inset hide-details
-                        label="启用定时清理" :disabled="!form.log_clean_enabled || form.fusion_notify_enabled" />
+                        label="启用定时清理" :disabled="!form.log_clean_enabled" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VCronField v-model="form.log_clean_cron" label="清理时间 (Cron)"
-                        :disabled="!form.log_clean_enabled || !form.log_clean_schedule_enabled || form.fusion_notify_enabled" />
+                        :disabled="!form.log_clean_enabled || !form.log_clean_schedule_enabled" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VSelect v-model="form.log_clean_rows" :items="logRowsPresets"
@@ -1646,15 +1662,14 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="通知与触发" note="清理完成通知和手动触发开关">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.log_clean_notify" color="primary" inset hide-details
-                        label="清理结果通知" :disabled="!form.log_clean_enabled || form.fusion_notify_enabled" />
+                        label="清理结果通知" :disabled="!form.log_clean_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.log_clean_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.log_clean_enabled || !form.log_clean_notify || form.fusion_notify_enabled" />
+                        label="消息类型" :disabled="!form.log_clean_enabled || !form.log_clean_notify || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.log_clean_onlyonce" color="warning" inset hide-details
@@ -1678,15 +1693,14 @@ onBeforeUnmount(() => {
                   :count-label="`${form.mp_update_types?.length || 0} 个范围`"
                 />
                 <SettingSection title="检查策略" note="检查时间、范围和通知渠道">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="3">
                       <VSwitch v-model="form.mp_update_schedule_enabled" color="primary" inset hide-details
-                        label="启用定时检查" :disabled="!form.mp_update_enabled || form.fusion_notify_enabled" />
+                        label="启用定时检查" :disabled="!form.mp_update_enabled" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VCronField v-model="form.mp_update_cron" label="检查时间 (Cron)"
-                        :disabled="!form.mp_update_enabled || !form.mp_update_schedule_enabled || form.fusion_notify_enabled" />
+                        :disabled="!form.mp_update_enabled || !form.mp_update_schedule_enabled" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VSelect v-model="form.mp_update_types" :items="mpUpdateTypes"
@@ -1694,11 +1708,11 @@ onBeforeUnmount(() => {
                     </VCol>
                     <VCol cols="12" md="3">
                       <VSelect v-model="form.mp_update_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.mp_update_enabled || !form.mp_update_notify || form.fusion_notify_enabled" />
+                        label="消息类型" :disabled="!form.mp_update_enabled || !form.mp_update_notify || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="6">
                       <VSwitch v-model="form.mp_update_notify" color="primary" inset hide-details
-                        label="发现新版本时通知" :disabled="!form.mp_update_enabled || form.fusion_notify_enabled" />
+                        label="执行更新结果通知" :disabled="!form.mp_update_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="6">
                       <VSwitch v-model="form.mp_update_restart_confirm" color="warning" inset hide-details
@@ -1722,19 +1736,18 @@ onBeforeUnmount(() => {
                   :count-label="form.market_update_auto_install ? '自动安装' : '仅提醒'"
                 />
                 <SettingSection title="检查策略" note="检查间隔、通知方式和插件库访问方式">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="3">
                       <VSwitch v-model="form.market_update_schedule_enabled" color="primary" inset hide-details
-                        label="启用定时检查" :disabled="!form.market_update_enabled || form.fusion_notify_enabled" />
+                        label="启用定时检查" :disabled="!form.market_update_enabled" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VSelect v-model="form.market_update_interval" :items="intervalPresets"
-                        label="检查间隔" :disabled="!form.market_update_enabled || !form.market_update_schedule_enabled || form.fusion_notify_enabled" />
+                        label="检查间隔" :disabled="!form.market_update_enabled || !form.market_update_schedule_enabled" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VSelect v-model="form.market_update_notify_type" :items="marketNotifyItems"
-                        label="通知消息类型" :disabled="!form.market_update_enabled || form.fusion_notify_enabled" />
+                        label="通知消息类型" :disabled="!form.market_update_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="3">
                       <VTextField v-model="form.market_update_timeout" label="请求超时（秒）"
@@ -1742,7 +1755,7 @@ onBeforeUnmount(() => {
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.market_update_notify" color="primary" inset hide-details
-                        label="发现更新时通知" :disabled="!form.market_update_enabled || form.fusion_notify_enabled" />
+                        label="发现更新时通知" :disabled="!form.market_update_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.market_update_proxy" color="primary" inset hide-details
@@ -1888,15 +1901,14 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="通知与残留" note="清理结果通知和本地源码残留处理">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.plugin_uninstall_notify" color="primary" inset hide-details
-                        label="清理结果通知" :disabled="form.fusion_notify_enabled" />
+                        label="清理结果通知" :disabled="notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.plugin_uninstall_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.plugin_uninstall_notify || form.fusion_notify_enabled" />
+                        label="消息类型" :disabled="!form.plugin_uninstall_notify || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.plugin_uninstall_delete_source" color="error" inset hide-details
@@ -1920,15 +1932,14 @@ onBeforeUnmount(() => {
                   :count-label="`${seedFilterCount} 个条件`"
                 />
                 <SettingSection title="执行策略" note="执行周期、动作和下载器范围">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid aoa-seed-basic-row">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.seedclean_schedule_enabled" color="primary" inset hide-details
-                        label="启用定时执行" :disabled="!form.seedclean_enabled || form.fusion_notify_enabled" />
+                        label="启用定时执行" :disabled="!form.seedclean_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VCronField v-model="form.seedclean_cron" label="执行周期 (Cron)"
-                        :disabled="!form.seedclean_enabled || !form.seedclean_schedule_enabled || form.fusion_notify_enabled" />
+                        :disabled="!form.seedclean_enabled || !form.seedclean_schedule_enabled" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.seedclean_action" :items="seedActionItems"
@@ -1991,7 +2002,6 @@ onBeforeUnmount(() => {
                 </SettingSection>
 
                 <SettingSection title="保护与通知" note="辅种保护、MoviePilot 任务限制和通知渠道">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid aoa-seed-protect-row">
                     <VCol cols="12" md="8">
                       <div class="aoa-seed-options">
@@ -2004,14 +2014,14 @@ onBeforeUnmount(() => {
                           <template #label><span class="aoa-seed-option-label">仅 MoviePilot 任务</span></template>
                         </VSwitch>
                         <VSwitch v-model="form.seedclean_notify" class="aoa-seed-option-control" color="primary" inset
-                          hide-details :disabled="!form.seedclean_enabled || form.fusion_notify_enabled">
+                          hide-details :disabled="!form.seedclean_enabled || notificationLockedByFusion">
                           <template #label><span class="aoa-seed-option-label">处理结果通知</span></template>
                         </VSwitch>
                       </div>
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.seedclean_notify_type" :items="notificationTypeItems"
-                        hide-details label="消息类型" :disabled="!form.seedclean_enabled || !form.seedclean_notify || form.fusion_notify_enabled" />
+                        hide-details label="消息类型" :disabled="!form.seedclean_enabled || !form.seedclean_notify || notificationLockedByFusion" />
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -2030,12 +2040,11 @@ onBeforeUnmount(() => {
                   :count-label="`${form.msgnotify_types?.length || 0} 类事件`"
                 />
                 <SettingSection title="通知范围" note="选择事件类型和媒体服务器范围">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid aoa-media-field-row">
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.msgnotify_notify_type" :items="notificationTypeItems"
                         label="消息类型" prepend-inner-icon="mdi-message-badge-outline"
-                        :disabled="!form.msgnotify_enabled || form.fusion_notify_enabled" />
+                        :disabled="!form.msgnotify_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="8">
                       <VSelect v-model="form.msgnotify_types" :items="msgGroupItems"
@@ -2084,15 +2093,14 @@ onBeforeUnmount(() => {
                   </VRow>
                 </SettingSection>
                 <SettingSection title="通知设置" note="打标完成后按选择渠道通知">
-                  <FusionTakeoverAlert v-if="form.fusion_notify_enabled" />
                   <VRow class="aoa-setting-grid aoa-dltag-notify-row">
                     <VCol cols="12" md="4">
                       <VSwitch v-model="form.dltag_notify" color="primary" inset hide-details label="完成后通知"
-                        :disabled="!form.dltag_enabled || form.fusion_notify_enabled" />
+                        :disabled="!form.dltag_enabled || notificationLockedByFusion" />
                     </VCol>
                     <VCol cols="12" md="4">
                       <VSelect v-model="form.dltag_notify_type" :items="notificationTypeItems"
-                        label="消息类型" :disabled="!form.dltag_enabled || !form.dltag_notify || form.fusion_notify_enabled" />
+                        label="消息类型" :disabled="!form.dltag_enabled || !form.dltag_notify || notificationLockedByFusion" />
                     </VCol>
                   </VRow>
                 </SettingSection>
@@ -2175,6 +2183,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .aoa-config {
+  /* 布局 token：保留 */
   --aoa-pane-x: 24px;
   --aoa-pane-y: 22px;
   --aoa-pane-bottom: 20px;
@@ -2183,13 +2192,42 @@ onBeforeUnmount(() => {
   --aoa-section-gap: 14px;
   --aoa-grid-gutter-x: 18px;
   --aoa-grid-gutter-y: 14px;
-  --aoa-control-radius: 14px;
-  --aoa-hairline-alpha: 0.045;
   --aoa-scrollbar-size: 1px;
   --aoa-scrollbar-alpha: 0.14;
   --aoa-scrollbar-hover-alpha: 0.22;
+  /* 外框：直连 MP 官方 surface（与 v-card 一致） */
+  --aoa-surface-radius: var(--app-surface-radius, 12px);
+  --aoa-field-radius: var(--app-field-radius, var(--aoa-surface-radius));
+  --aoa-control-radius: var(--app-control-radius, var(--aoa-field-radius));
+  --aoa-surface-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
+  --aoa-surface-shadow: var(--app-surface-shadow, none);
+  --aoa-surface-hover-shadow: var(--app-surface-hover-shadow, var(--aoa-surface-shadow));
+  --aoa-native-surface: rgb(var(--v-theme-surface));
+  /* 内框：on-surface 透白叠层（液态玻璃） */
+  --aoa-native-field-surface: rgba(var(--v-theme-on-surface), 0.04);
+  --aoa-native-hover-surface: rgba(var(--v-theme-on-surface), 0.08);
+  --aoa-config-backdrop: none;
+  /* 数值标量（保留原命名，下方所有引用站点不动） */
+  --aoa-border-alpha: var(--v-border-opacity, 0.12);
+  --aoa-hairline-alpha: 0.045;
+  /* surface-alpha 系列：默认主题外框直接用满 surface，渐变叠层归零 */
+  --aoa-surface-alpha: 1;
+  --aoa-surface-alpha-hi: 0;
+  --aoa-surface-alpha-lo: 0;
+  --aoa-field-alpha: 0.04;
   padding: 10px;
   font-size: 14px;
+}
+
+:global(html[data-theme="transparent"]) .aoa-config {
+  --aoa-native-surface: rgba(var(--v-theme-surface), var(--transparent-opacity));
+  --aoa-native-field-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-light));
+  --aoa-native-hover-surface: rgba(var(--v-theme-surface), var(--transparent-opacity-heavy));
+  --aoa-config-backdrop: blur(var(--transparent-blur));
+  --aoa-surface-alpha: var(--transparent-opacity);
+  --aoa-surface-alpha-hi: var(--transparent-opacity);
+  --aoa-surface-alpha-lo: var(--transparent-opacity-light);
+  --aoa-field-alpha: var(--transparent-opacity-light);
 }
 .aoa-config::-webkit-scrollbar,
 .aoa-config :deep(*)::-webkit-scrollbar {
@@ -2300,12 +2338,10 @@ onBeforeUnmount(() => {
   max-height: calc(100vh - 20px);
   border-radius: 18px;
   overflow: hidden;
-  border: 1px solid rgba(var(--v-border-color), 0.075);
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.72), rgba(var(--v-theme-surface), 0.54)),
-    rgba(var(--v-theme-on-surface), 0.016);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(var(--v-border-color), var(--aoa-border-alpha));
+  background: var(--aoa-native-surface);
+  backdrop-filter: var(--aoa-config-backdrop);
+  -webkit-backdrop-filter: var(--aoa-config-backdrop);
 }
 .aoa-hairline {
   display: block;
@@ -2386,7 +2422,7 @@ onBeforeUnmount(() => {
   width: 208px;
   flex: 0 0 208px;
   border-right: 1px solid rgba(var(--v-border-color), var(--aoa-hairline-alpha));
-  background: rgba(var(--v-theme-on-surface), 0.012);
+  background: rgba(var(--v-theme-on-surface), 0.03);
 }
 .aoa-nav-scroll {
   height: 100%;
@@ -2602,14 +2638,12 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   padding: var(--aoa-section-pad);
   border-radius: 18px;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: var(--aoa-config-backdrop);
+  -webkit-backdrop-filter: var(--aoa-config-backdrop);
   background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.48), rgba(var(--v-theme-surface), 0.30)),
-    rgba(var(--v-theme-on-surface), 0.018);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--v-border-color), 0.11),
-    0 10px 26px rgba(var(--v-theme-on-surface), 0.022);
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-surface-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-surface-alpha-lo))),
+    rgba(var(--v-theme-background), calc(var(--aoa-surface-alpha) * 0.18));
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--aoa-border-alpha));
 }
 .aoa-setting-section-head {
   display: flex;
@@ -2640,28 +2674,6 @@ onBeforeUnmount(() => {
 .aoa-setting-section-body {
   min-width: 0;
 }
-.aoa-fusion-takeover-note {
-  position: absolute;
-  top: 16px;
-  right: 18px;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  width: max-content;
-  max-width: calc(100% - 36px);
-  min-height: 22px;
-  margin: 0;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(var(--v-border-color), 0.10);
-  background: rgba(var(--v-theme-surface), 0.34);
-  color: rgba(var(--v-theme-on-surface), 0.52);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-  pointer-events: none;
-  white-space: nowrap;
-}
 .aoa-setting-grid {
   --aoa-row-x: var(--aoa-grid-gutter-x);
   --aoa-row-y: var(--aoa-grid-gutter-y);
@@ -2677,8 +2689,8 @@ onBeforeUnmount(() => {
   min-height: 58px;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(var(--v-border-color), 0.12);
-  background: rgba(var(--v-theme-surface), 0.32);
+  border: 1px solid rgba(var(--v-border-color), var(--aoa-border-alpha));
+  background: var(--aoa-native-field-surface);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -2710,8 +2722,8 @@ onBeforeUnmount(() => {
 }
 .aoa-pane :deep(.v-field) {
   border-radius: var(--aoa-control-radius);
-  background: rgba(var(--v-theme-surface), 0.34);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.06);
+  background: var(--aoa-native-field-surface);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), calc(var(--aoa-border-alpha) * 0.62));
 }
 .aoa-pane :deep(.v-field__input) {
   row-gap: 6px;
@@ -2742,11 +2754,10 @@ onBeforeUnmount(() => {
 .aoa-pane :deep(.v-expansion-panel) {
   border-radius: 18px !important;
   background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.42), rgba(var(--v-theme-surface), 0.25)),
-    rgba(var(--v-theme-on-surface), 0.018) !important;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), 0.09) !important;
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-surface-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-surface-alpha-lo))) !important;
+  backdrop-filter: var(--aoa-config-backdrop);
+  -webkit-backdrop-filter: var(--aoa-config-backdrop);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--aoa-border-alpha)) !important;
 }
 .aoa-pane :deep(.v-expansion-panel-title) {
   min-height: 48px;
@@ -2777,12 +2788,10 @@ onBeforeUnmount(() => {
 .aoa-action-dock {
   flex: 0 0 auto;
   padding: 12px var(--aoa-pane-x) 16px;
-  background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.16), rgba(var(--v-theme-surface), 0.26)),
-    rgba(var(--v-theme-on-surface), 0.006);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: inset 0 1px 0 rgba(var(--v-border-color), 0.035);
+  background: rgba(var(--v-theme-surface), var(--aoa-surface-alpha));
+  backdrop-filter: var(--aoa-config-backdrop);
+  -webkit-backdrop-filter: var(--aoa-config-backdrop);
+  box-shadow: inset 0 1px 0 rgba(var(--v-border-color), var(--aoa-border-alpha));
 }
 .aoa-action-dock-list {
   display: flex;
@@ -2800,12 +2809,10 @@ onBeforeUnmount(() => {
   min-height: 38px;
   border-radius: 999px;
   font-weight: 750;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  background: rgba(var(--v-theme-surface), 0.46) !important;
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--v-border-color), 0.12),
-    0 8px 22px rgba(var(--v-theme-on-surface), 0.04);
+  backdrop-filter: var(--aoa-config-backdrop);
+  -webkit-backdrop-filter: var(--aoa-config-backdrop);
+  background: var(--aoa-native-field-surface) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--aoa-border-alpha));
   transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
 }
 .aoa-action-btn:hover {
@@ -2862,24 +2869,18 @@ onBeforeUnmount(() => {
   padding: 17px var(--aoa-section-pad);
   border-radius: 22px;
   color: rgba(var(--v-theme-on-surface), 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--aoa-config-backdrop);
+  -webkit-backdrop-filter: var(--aoa-config-backdrop);
   background:
-    radial-gradient(circle at 16% 0%, rgba(var(--v-theme-primary), 0.13), transparent 36%),
-    linear-gradient(135deg, rgba(var(--v-theme-surface), 0.50), rgba(var(--v-theme-surface), 0.30)),
-    rgba(var(--v-theme-on-surface), 0.018);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--v-border-color), 0.11),
-    0 12px 30px rgba(var(--v-theme-on-surface), 0.028);
+    linear-gradient(135deg, rgba(var(--v-theme-surface), var(--aoa-surface-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-surface-alpha-lo))),
+    rgba(var(--v-theme-background), calc(var(--aoa-surface-alpha) * 0.12));
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--aoa-border-alpha));
 }
 .aoa-pane :deep(.aoa-module-hero--off) {
   background:
-    radial-gradient(circle at 16% 0%, rgba(var(--v-theme-warning), 0.11), transparent 36%),
-    linear-gradient(135deg, rgba(var(--v-theme-surface), 0.46), rgba(var(--v-theme-surface), 0.28)),
-    rgba(var(--v-theme-on-surface), 0.014);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--v-border-color), 0.10),
-    0 10px 28px rgba(var(--v-theme-on-surface), 0.025);
+    linear-gradient(135deg, rgba(var(--v-theme-surface), var(--aoa-surface-alpha-hi)), rgba(var(--v-theme-surface), var(--aoa-surface-alpha-lo))),
+    rgba(var(--v-theme-background), calc(var(--aoa-surface-alpha) * 0.10));
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--aoa-border-alpha));
 }
 .aoa-pane :deep(.aoa-module-heading) {
   min-width: 0;
@@ -2896,8 +2897,8 @@ onBeforeUnmount(() => {
   place-items: center;
   border-radius: 17px;
   color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-surface), 0.44);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-primary), 0.16);
+  background: var(--aoa-native-field-surface);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--aoa-border-alpha));
 }
 .aoa-pane :deep(.aoa-module-heading-text) {
   min-width: 0;
@@ -2990,10 +2991,10 @@ onBeforeUnmount(() => {
   gap: 8px;
   min-height: 52px;
   padding: 10px 12px;
-  border: 1px solid rgba(var(--v-border-color), 0.12);
+  border: 1px solid rgba(var(--v-border-color), var(--aoa-border-alpha));
   border-radius: 10px;
   color: rgba(var(--v-theme-on-surface), 0.72);
-  background: rgba(var(--v-theme-surface), 0.22);
+  background: var(--aoa-native-field-surface);
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease;
 }
@@ -3025,9 +3026,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border: 1px solid rgba(var(--v-border-color), 0.10);
+  border: 1px solid rgba(var(--v-border-color), var(--aoa-border-alpha));
   border-radius: 10px;
-  background: rgba(var(--v-theme-surface), 0.18);
+  background: var(--aoa-native-field-surface);
 }
 .aoa-fusion-subcategory-item {
   grid-template-columns: 36px minmax(0, 1fr);
@@ -3052,11 +3053,10 @@ onBeforeUnmount(() => {
 .aoa-table-wrap {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(var(--v-border-color), 0.10);
+  border: 1px solid rgba(var(--v-border-color), var(--aoa-border-alpha));
   border-radius: 16px;
   background:
-    linear-gradient(180deg, rgba(var(--v-theme-surface), 0.22), rgba(var(--v-theme-surface), 0.14)),
-    rgba(var(--v-theme-on-surface), 0.014);
+    linear-gradient(180deg, rgba(var(--v-theme-surface), var(--aoa-surface-alpha)), rgba(var(--v-theme-surface), var(--aoa-surface-alpha-lo)));
 }
 .aoa-columns-pane {
   display: block;
@@ -3260,11 +3260,6 @@ onBeforeUnmount(() => {
   }
   .aoa-pane {
     padding: var(--aoa-pane-y) var(--aoa-pane-x) var(--aoa-pane-bottom);
-  }
-  .aoa-fusion-takeover-note {
-    position: static;
-    margin: -4px 0 2px;
-    max-width: 100%;
   }
   .aoa-fusion-subcategory-head {
     grid-template-columns: 1fr;
@@ -3481,5 +3476,61 @@ onBeforeUnmount(() => {
   .aoa-pane {
     padding: 12px var(--aoa-pane-x) var(--aoa-pane-bottom);
   }
+}
+
+/* MP native theme alignment: PluginConfigDialog already supplies the outer VCard. */
+.aoa-config .aoa-card {
+  border: 0;
+  border-radius: var(--aoa-surface-radius);
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.aoa-config .aoa-nav {
+  border-right: var(--aoa-surface-border);
+  background: var(--aoa-native-field-surface);
+}
+
+.aoa-config .aoa-setting-section,
+.aoa-config .aoa-table-wrap,
+.aoa-config .aoa-status-tile,
+.aoa-config .aoa-fusion-category-tab,
+.aoa-config .aoa-fusion-subcategory-head,
+.aoa-config .aoa-fusion-subcategory-item,
+.aoa-config .aoa-action-dock,
+.aoa-pane :deep(.v-expansion-panel),
+.aoa-pane :deep(.aoa-module-hero) {
+  border: var(--aoa-surface-border);
+  border-radius: var(--aoa-surface-radius);
+  background: var(--aoa-native-surface);
+  box-shadow: var(--aoa-surface-shadow);
+  backdrop-filter: var(--aoa-config-backdrop);
+  -webkit-backdrop-filter: var(--aoa-config-backdrop);
+}
+
+.aoa-config .aoa-status-tile,
+.aoa-config .aoa-fusion-category-tab,
+.aoa-config .aoa-fusion-subcategory-head,
+.aoa-config .aoa-fusion-subcategory-item,
+.aoa-pane :deep(.v-field),
+.aoa-pane :deep(.aoa-module-emblem),
+.aoa-config .aoa-action-btn {
+  border-radius: var(--aoa-field-radius);
+  background: var(--aoa-native-field-surface) !important;
+  box-shadow: var(--aoa-surface-shadow);
+}
+
+.aoa-config .aoa-action-btn:hover,
+.aoa-config .aoa-fusion-category-tab--active {
+  background: var(--aoa-native-hover-surface) !important;
+  box-shadow: var(--aoa-surface-hover-shadow);
+}
+
+.aoa-config .aoa-action-dock {
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
 }
 </style>

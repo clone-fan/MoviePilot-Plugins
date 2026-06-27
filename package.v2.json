@@ -3,7 +3,7 @@
     "name": "MP 运维助手",
     "description": "面向 MoviePilot 的运维助手：每日汇报、TG 融合汇报卡、订阅追新、站点统计、健康巡查、日志清理、自动备份与恢复、更新检查、自动删种、种子打标签、媒体通知和插件卸载清理。",
     "labels": "MoviePilot,运维,每日汇报,TG融合汇报卡,流式汇报,订阅追新,站点统计,健康巡查,日志清理,自动备份,备份恢复,更新检查,自动删种,种子打标签,媒体通知,插件卸载,本地插件",
-    "version": "2.0.0",
+    "version": "2.0.2",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/agentopsassistant.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,8 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v2.0.2": "前端全量贴合 MoviePilot 官方主题：仪表盘自由组件、侧边栏仪表盘、插件详情页和配置页统一直连 --app-surface-radius/--app-surface-border/--app-surface-shadow、--v-theme-surface 与 --transparent-opacity 系列变量；外框跟 MP v-card 一致使用纯色 surface，内框改用 on-surface 透白叠层做液态玻璃层次；移除自制透明度变量与硬编码颜色，透明主题下 backdrop-filter 接 --transparent-blur，避免不同 MP 主题/尺寸/层级下出现层次扁平、配色脱节或字段融进背景的问题。",
+      "v2.0.1": "修复 2.0 融合通知边界与前端适配：融合通知只汇聚通知输出，不再禁用订阅追新、健康巡查、备份、日志清理、更新检查、插件库更新和自动删种自身定时任务；无 Telegram 通道时改为中性提示；清理旧的低版本更新提醒和立即更新按钮；站点统计恢复 donut + 三列摘要 + 表格式站点行，并复用 MoviePilot 系统主题透明度变量。",
       "v2.0.0": "发布 2.0：统一 Telegram 融合汇报卡模板，恢复存储进度条展示，健康巡查与系统维护改为摘要化文案；更新检查只在实际协助更新后推送，并在 TG 交互中提供立即更新入口；同步修正站点在线统计、媒体动态流式更新、仪表盘适配与前端 API 响应兼容。",
       "v1.0.77": "修复 Telegram 融合卡媒体播放动态的真实流式链路：播放/暂停/停止 webhook 在融合通知开启且媒体栏目启用时直接更新同一张日报卡顶部，位置固定在系统行下方、提示语上方，并用上下横线隔开；媒体统计改写入 media_stat，不再覆盖 media_activity，下载与媒体栏目只展示媒体统计，避免播放动态重复或显示在错误位置。",
       "v1.0.76": "重构 Telegram 融合卡小栏目数据呈现：站点增量改为“站点名 + 上传/下载/分享/魔力短指标行”，存储空间改为“用量/总量 | 已用百分比”，健康巡查和系统维护拆成标题、状态、摘要多行，减少长句和日志感，提升移动端可读性。",
