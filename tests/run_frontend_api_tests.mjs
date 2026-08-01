@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 
-import { actionMessageFromResponse, getPluginApi, getPluginApiRaw, postPluginApi, postPluginApiRaw } from '../plugins.v2/agentopsassistant/src/components/api.js'
+import { actionMessageFromResponse, getPluginApi, getPluginApiRaw, postPluginApi, postPluginApiRaw } from '../plugins.v2/signal/src/shared/api.js'
 
 async function main() {
   const api = {
@@ -49,7 +49,7 @@ async function main() {
   const unwrappedFailureApi = {
     async post(path) {
       if (path.endsWith('/run_backup')) {
-        return { enabled: false, back_path: '/config/plugins/AgentOpsAssistant/Backup' }
+        return { enabled: false, back_path: '/config/plugins/Signal/Backup' }
       }
       throw new Error(`unexpected POST ${path}`)
     },
@@ -180,13 +180,13 @@ async function main() {
   await postPluginApi(payloadApi, 'run_plugin_uninstall', { plugin_uninstall_ids: ['AutoBackup'] })
   assert.deepEqual(
     posted,
-    [{ path: 'plugin/AgentOpsAssistant/run_plugin_uninstall', payload: { plugin_uninstall_ids: ['AutoBackup'] } }],
+    [{ path: 'plugin/Signal/run_plugin_uninstall', payload: { plugin_uninstall_ids: ['AutoBackup'] } }],
     'POST helpers should forward action payloads without unwrapping or dropping fields',
   )
 
-  const config = fs.readFileSync('plugins.v2/agentopsassistant/src/components/Config.vue', 'utf8')
-  const pageSource = fs.readFileSync('plugins.v2/agentopsassistant/src/components/Page.vue', 'utf8')
-  const dashboardSource = fs.readFileSync('plugins.v2/agentopsassistant/src/components/Dashboard.vue', 'utf8')
+  const config = fs.readFileSync('plugins.v2/signal/src/app/Config.vue', 'utf8')
+  const pageSource = fs.readFileSync('plugins.v2/signal/src/app/Page.vue', 'utf8')
+  const dashboardSource = fs.readFileSync('plugins.v2/signal/src/app/Dashboard.vue', 'utf8')
   assert.ok(
     pageSource.includes('res && res.code === 0') && !pageSource.includes('res.code === undefined'),
     'Page.vue manual actions must not treat a missing status code as success',

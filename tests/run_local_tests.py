@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-AgentOpsAssistant 本地单元测试（无需运行中的 MoviePilot）。
+Signal 本地单元测试（无需运行中的 MoviePilot）。
 
 做法：把插件 import 的 `app.*` / `apscheduler` 全部用桩(stub)注入 sys.modules，
-再用 importlib 以文件路径加载 plugins.v2/agentopsassistant/__init__.py，
+再用 importlib 以文件路径加载 plugins.v2/signal/__init__.py，
 然后对“纯逻辑”方法（删种条件匹配、格式化、聚合等）做断言测试。
 
 运行： python tests/run_local_tests.py
@@ -24,7 +24,7 @@ from enum import Enum
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGIN_FILE = ROOT / "plugins.v2" / "agentopsassistant" / "__init__.py"
+PLUGIN_FILE = ROOT / "plugins.v2" / "signal" / "__init__.py"
 
 
 # ---------------------------------------------------------------- stubs
@@ -207,7 +207,7 @@ def install_stubs():
     cfg = _mod("app.core.config")
     cfg.settings = types.SimpleNamespace(
         TZ="Asia/Shanghai", PROXY=None, GITHUB_HEADERS={}, PLUGIN_MARKET="",
-        CONFIG_PATH="/tmp/agentops-test-config", DB_TYPE="sqlite", TORRENT_TAG="MOVIEPILOT",
+        CONFIG_PATH="/tmp/signal-test-config", DB_TYPE="sqlite", TORRENT_TAG="MOVIEPILOT",
         RMT_MEDIAEXT=[], DOWNLOAD_TMPEXT=[], RMT_SUBEXT=[], RMT_AUDIOEXT=[],
     )
     ev = _mod("app.core.event")
@@ -265,7 +265,7 @@ def install_stubs():
 
 
 def load_plugin():
-    spec = importlib.util.spec_from_file_location("agentopsassistant_under_test", str(PLUGIN_FILE))
+    spec = importlib.util.spec_from_file_location("signal_under_test", str(PLUGIN_FILE))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -316,7 +316,7 @@ def fake_local(pid, ver):
 
 
 def make_plugin(module, **cfg):
-    p = module.AgentOpsAssistant()
+    p = module.Signal()
     base = {"enabled": True}
     base.update(cfg)
     p.init_plugin(base)
@@ -394,16 +394,16 @@ def main():
     )
     service_ids = {s.get("id") for s in p_fusion_services.get_service()}
     expected_service_ids = {
-        "AgentOpsAssistant.FusionNotify",
-        "AgentOpsAssistant.HealthCheck",
-        "AgentOpsAssistant.Backup",
-        "AgentOpsAssistant.LogClean",
-        "AgentOpsAssistant.MPUpdate",
-        "AgentOpsAssistant.MarketUpdate",
-        "AgentOpsAssistant.SeedClean",
+        "Signal.FusionNotify",
+        "Signal.HealthCheck",
+        "Signal.Backup",
+        "Signal.LogClean",
+        "Signal.MPUpdate",
+        "Signal.MarketUpdate",
+        "Signal.SeedClean",
     }
     check(expected_service_ids <= service_ids
-          and "AgentOpsAssistant.SubscribeReminder" not in service_ids,
+          and "Signal.SubscribeReminder" not in service_ids,
           "融合通知开启时任务类定时仍注册，订阅追新这类定时通知由融合刷新统一控制")
 
     _PU["notifications"] = []
@@ -497,7 +497,7 @@ def main():
     check(p._sql_literal(b"\x00\x01") == "'\\x0001'", "_sql_literal bytes->hex")
     # 无 pg_dump 且无 app.db 引擎 -> 优雅失败（不抛），返回 (False, 含“未导出”)
     p._find_pg_dump = lambda: ""
-    ok_pg, msg_pg = p._dump_postgresql(Path("/tmp/aoa-nonexist-pg.sql"))
+    ok_pg, msg_pg = p._dump_postgresql(Path("/tmp/signal-nonexist-pg.sql"))
     check(ok_pg is False and "未导出" in msg_pg, "无 pg_dump+无引擎 -> (False, 未导出)，不抛异常")
     # 状态文案：只有 PG 提示时显示“成功”+“提示：”，不出现“异常：”
     t_ok = p._format_backup_status_text({"success": True, "back_path": "/x", "keep_count": 3,
@@ -713,7 +713,7 @@ def main():
     r = make_plugin(mod, market_update_auto_install=True, market_update_exclude_ids="AutoBackup")._auto_update_installed_plugins(apply=True)
     check(not _PU["install_calls"] and any(x["id"] == "AutoBackup" for x in r["skipped"]), "排除名单 -> 跳过不安装")
     # 本插件自身 -> 永不自动更新
-    _reset_pu(online=[fake_online("AgentOpsAssistant", "9.9")], local=[fake_local("AgentOpsAssistant", "1.0")], installed=["AgentOpsAssistant"])
+    _reset_pu(online=[fake_online("Signal", "9.9")], local=[fake_local("Signal", "1.0")], installed=["Signal"])
     make_plugin(mod, market_update_auto_install=True)._auto_update_installed_plugins(apply=True)
     check(not _PU["install_calls"], "本插件自身永不自动更新")
     # 正在运行 + 跳过开启 -> 跳过
@@ -723,11 +723,11 @@ def main():
     check(not _PU["install_calls"] and any(x.get("reason") == "正在运行" for x in r["skipped"]), "正在运行的插件跳过升级")
 
     print("== 订阅规则自动填充 ==")
-    AOA = mod.AgentOpsAssistant
-    check(AOA._parse_pix("2160p") == "4K|2160p|x2160", "_parse_pix 4K")
-    check(AOA._parse_pix("1080p") == "1080[pi]|x1080", "_parse_pix 1080")
-    check(AOA._parse_type("WEB-DL") == "WEB-?DL|WEB-?RIP", "_parse_type WEB-DL")
-    check(AOA._parse_type("Remux") == "Remux", "_parse_type Remux")
+    SIGNAL = mod.Signal
+    check(SIGNAL._parse_pix("2160p") == "4K|2160p|x2160", "_parse_pix 4K")
+    check(SIGNAL._parse_pix("1080p") == "1080[pi]|x1080", "_parse_pix 1080")
+    check(SIGNAL._parse_type("WEB-DL") == "WEB-?DL|WEB-?RIP", "_parse_type WEB-DL")
+    check(SIGNAL._parse_type("Remux") == "Remux", "_parse_type Remux")
     p = make_plugin(mod, subfill_enabled=True, subfill_details="分辨率,资源质量,制作组")
     meta = types.SimpleNamespace(resource_pix="2160p", resource_type="WEB-DL", resource_effect=None, resource_team="FRDS", customization=None)
     sub_empty = types.SimpleNamespace(type="电视剧", name="A", resolution=None, quality=None, effect=None, include=None, sites=None)
@@ -767,9 +767,9 @@ def main():
     check(not _SUB["updates"], "非电视剧下载 -> 不填充")
 
     print("== 媒体库服务器通知 ==")
-    check(AOA._msg_group_of("playback.start") == "开始播放", "事件归类 playback.start->开始播放")
-    check(AOA._msg_group_of("ItemAdded") == "新入库", "ItemAdded->新入库")
-    check(AOA._msg_group_of("unknown.x") is None, "未知事件 -> None")
+    check(SIGNAL._msg_group_of("playback.start") == "开始播放", "事件归类 playback.start->开始播放")
+    check(SIGNAL._msg_group_of("ItemAdded") == "新入库", "ItemAdded->新入库")
+    check(SIGNAL._msg_group_of("unknown.x") is None, "未知事件 -> None")
     info = types.SimpleNamespace(event="playback.start", item_type="TV", item_name="入青云 S1E5 纪伯宰亲自为明意上药", user_name="卓",
                                  device_name="AfuseKt", client="", ip="172.17.0.1", percentage=None, overview=None,
                                  item_id="i1", server_name="Emby1", channel="emby", image_url=None)
@@ -1030,8 +1030,8 @@ def main():
           and "🆙 更新提醒" not in fused_html,
           "融合通知隐藏旧错误标题，且无更新时不展示更新提醒")
     check("卡片内交互" not in fused_html
-          and "/aoa_daily" not in fused_html
-          and "/aoa_site" not in fused_html,
+          and "/signal_daily" not in fused_html
+          and "/signal_site" not in fused_html,
           "TG 日报卡不再渲染不可点击的卡片内 slash command 说明")
     check("📊 订阅与站点" not in fused_html
           and "📊 订阅与站点详情" not in fused_html
@@ -1093,7 +1093,7 @@ def main():
     check(len(reply_markup.get("inline_keyboard", [])) == 2
           and [len(row) for row in reply_markup.get("inline_keyboard", [])] == [2, 2],
           "融合通知大分类按钮按两行收束，避免信息过散")
-    check(all(str(x or "").startswith("[PLUGIN]AgentOpsAssistant|aoatab:") and not str(x or "").startswith("aoa:tab:") and len(str(x or "").encode("utf-8")) <= 64 for x in tg_callback_data),
+    check(all(str(x or "").startswith("[PLUGIN]Signal|signaltab:") and not str(x or "").startswith("signal:tab:") and len(str(x or "").encode("utf-8")) <= 64 for x in tg_callback_data),
           "融合通知大分类 callback_data 使用 MP [PLUGIN] 通道，避免 MoviePilot 报回调数据格式错误")
     p_fused_card._get_local_versions = lambda: {"backend_version": "v2.13.10", "frontend_version": "v2.13.10"}
     update_button_state = p_fused_card._tg_console_state(chat_id="chat")
@@ -1288,7 +1288,7 @@ def main():
         "id": "cb-tab",
         "from": {"id": "u1"},
         "message": {"chat": {"id": "chat"}},
-        "data": "aoa:tab:storage",
+        "data": "signal:tab:storage",
     }, update_id=100)
     switched_state = p_fused_card.get_data("tg_console_state") or {}
     check(switched_state.get("active_tab") == "system_maintenance", "旧三段式子栏目 callback 会兼容切换到所属大分类")
@@ -1304,7 +1304,7 @@ def main():
         "id": "cb-tab-new",
         "from": {"id": "u1"},
         "message": {"chat": {"id": "chat"}},
-        "data": "aoatab:health",
+        "data": "signaltab:health",
     }, update_id=101)
     switched_new_state = p_fused_card.get_data("tg_console_state") or {}
     health_html = p_fused_card._build_tg_console_html(switched_new_state)
@@ -1316,7 +1316,7 @@ def main():
     p_dedupe = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
     p_dedupe._tg_console_upsert_card = lambda token, chat_id, state: callback_upserts.append(state.get("active_tab")) or True
     p_dedupe._tg_console_answer_callback = lambda callback_id, text="": True
-    cb = {"id": "cb-repeat", "from": {"id": "u1"}, "message": {"chat": {"id": "chat"}}, "data": "aoatab:system_maintenance"}
+    cb = {"id": "cb-repeat", "from": {"id": "u1"}, "message": {"chat": {"id": "chat"}}, "data": "signaltab:system_maintenance"}
     check(p_dedupe._handle_tg_console_callback(cb, update_id=200) is True
           and p_dedupe._handle_tg_console_callback(cb, update_id=201) is True
           and callback_upserts == ["system_maintenance"],
@@ -1338,7 +1338,7 @@ def main():
         "id": "cb-refresh-tab",
         "from": {"id": "u1"},
         "message": {"chat": {"id": "chat"}},
-        "data": "aoatab:system_maintenance",
+        "data": "signaltab:system_maintenance",
     }, update_id=203) is True
           and refresh_calls == ["storage", "maintenance"]
           and refresh_html
@@ -1351,8 +1351,8 @@ def main():
     message_action_handler = getattr(p_message_action, "on_message_action", None)
     if callable(message_action_handler):
         message_action_handler(types.SimpleNamespace(event_data={
-            "plugin_id": "AgentOpsAssistant",
-            "text": "aoatab:download_media",
+            "plugin_id": "Signal",
+            "text": "signaltab:download_media",
             "userid": "u1",
             "original_chat_id": "chat",
             "original_message_id": 456,
@@ -1368,7 +1368,7 @@ def main():
         "id": "cb-bad-tab",
         "from": {"id": "u1"},
         "message": {"chat": {"id": "chat"}},
-        "data": "aoa:tab:not_exists",
+        "data": "signal:tab:not_exists",
     }, update_id=202) is False and invalid_answers == ["未知栏目"],
           "未知融合栏目 callback 必须被拒绝并答复未知栏目")
     p_new_card = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
@@ -1509,14 +1509,14 @@ def main():
     )
     service_ids = {svc.get("id") for svc in p_schedule_off.get_service()}
     check(not any(x in service_ids for x in {
-        "AgentOpsAssistant.DailyReport",
-        "AgentOpsAssistant.SubscribeReminder",
-        "AgentOpsAssistant.HealthCheck",
-        "AgentOpsAssistant.Backup",
-        "AgentOpsAssistant.LogClean",
-        "AgentOpsAssistant.MPUpdate",
-        "AgentOpsAssistant.MarketUpdate",
-        "AgentOpsAssistant.SeedClean",
+        "Signal.DailyReport",
+        "Signal.SubscribeReminder",
+        "Signal.HealthCheck",
+        "Signal.Backup",
+        "Signal.LogClean",
+        "Signal.MPUpdate",
+        "Signal.MarketUpdate",
+        "Signal.SeedClean",
     }) and p_schedule_off._can_run_task("每日汇报", "daily_report")[0] is True,
           "独立定时开关关闭时不注册服务，但组件手动动作仍可运行")
     p_fusion_schedule = make_plugin(
@@ -1544,16 +1544,16 @@ def main():
     )
     fusion_service_ids = {svc.get("id") for svc in p_fusion_schedule.get_service()}
     fusion_kept_service_ids = {
-        "AgentOpsAssistant.HealthCheck",
-        "AgentOpsAssistant.LogClean",
-        "AgentOpsAssistant.Backup",
-        "AgentOpsAssistant.MPUpdate",
-        "AgentOpsAssistant.MarketUpdate",
-        "AgentOpsAssistant.SeedClean",
+        "Signal.HealthCheck",
+        "Signal.LogClean",
+        "Signal.Backup",
+        "Signal.MPUpdate",
+        "Signal.MarketUpdate",
+        "Signal.SeedClean",
     }
-    check("AgentOpsAssistant.FusionNotify" in fusion_service_ids
-          and "AgentOpsAssistant.DailyReport" not in fusion_service_ids
-          and "AgentOpsAssistant.SubscribeReminder" not in fusion_service_ids
+    check("Signal.FusionNotify" in fusion_service_ids
+          and "Signal.DailyReport" not in fusion_service_ids
+          and "Signal.SubscribeReminder" not in fusion_service_ids
           and fusion_kept_service_ids <= fusion_service_ids,
           "融合通知开启时只替代日报和订阅追新这类通知定时，保留任务类定时服务")
     p_full_fusion = make_plugin(mod, daily_report_telegram_bot_token="token", daily_report_telegram_chat_id="chat")
@@ -1766,7 +1766,7 @@ def main():
     check("A&amp;B站" in escaped_tg_html and "&lt;token&gt;" in escaped_tg_html and "<token>" not in escaped_tg_html,
           "Telegram RichMessage 动态内容必须 HTML escape，避免站点名/错误详情破坏结构")
     long_cell = "VeryLongStorageNameWithoutNaturalBreakpoints1234567890ABCDEFGHIJK"
-    long_storage_html = p_card._telegram_storage_table("", [f"⦁ {long_cell}：💽 /config/plugins/AgentOpsAssistant/Backup/weekly/archive/2026/06/20 ｜ 🟢 已用 26% <safe>"])
+    long_storage_html = p_card._telegram_storage_table("", [f"⦁ {long_cell}：💽 /config/plugins/Signal/Backup/weekly/archive/2026/06/20 ｜ 🟢 已用 26% <safe>"])
     media_html = p_card._telegram_media_table("", ["⦁ 电影 120 ｜ 电视剧 46 ｜ 剧集 2300 ｜ 用户 3"])
     health_icon_html = p_card._telegram_health_list_html(["状态：全部正常", "巡查项：共 7 项，通过 7 项，异常 0 项", "正常项：订阅、站点"])
     check("\u200b" in long_storage_html and long_cell not in long_storage_html and "&lt;safe&gt;" in long_storage_html and "<table>" not in long_storage_html and "<table>" not in media_html and "<b>💾" in long_storage_html and "<b>🎬 电影</b>" in media_html and "<b>👤 用户</b>" in media_html and "✅ 状态：全部正常" in health_icon_html,
@@ -1930,14 +1930,14 @@ def main():
     console_leak_error = (console_leak_last.get("error") or "") + (console_leak_last.get("message") or "")
     check(leak_token not in console_leak_error and f"bot{leak_token}" not in console_leak_error and "bot***" in console_leak_error,
           "TG 控制台卡片异常写入 last_daily_report 前必须脱敏 Bot Token")
-    config_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "Config.vue").read_text(encoding="utf-8")
+    config_vue = (ROOT / "plugins.v2" / "signal" / "src" / "components" / "Config.vue").read_text(encoding="utf-8")
     check('label="Bot Token"' not in config_vue and 'label="Chat ID"' not in config_vue
           and 'label="Telegram RichMessage"' not in config_vue,
           "日报设置页不暴露插件私有 TG Bot Token/Chat ID，默认复用 MoviePilot 全局 Telegram 通知配置")
     check("preview_daily_report" not in config_vue and "预览完整日报" not in config_vue,
           "配置页不再暴露误导性的完整日报预览入口")
     check("quickCardActions" not in config_vue
-          and "aoa-quick-card-actions" not in config_vue
+          and "signal-quick-card-actions" not in config_vue
           and "立即发送汇报" not in config_vue
           and "预览融合卡" not in config_vue
           and "立即健康巡查" not in config_vue,
@@ -1947,7 +1947,7 @@ def main():
           and "最后更新" in config_vue
           and "最近错误" in config_vue,
           "Telegram 日报卡配置页要展示当前卡片状态、更新时间和错误")
-    page_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "Page.vue").read_text(encoding="utf-8")
+    page_vue = (ROOT / "plugins.v2" / "signal" / "src" / "components" / "Page.vue").read_text(encoding="utf-8")
     check("{ path: 'create_tg_console_card', component: '', label: '立即建卡'" in page_vue
           and "{ path: 'run_daily_report', component: 'daily_report', label: '立即刷新'" in page_vue
           and "{ path: 'run_daily_report', label: '每日汇报'" not in page_vue,
@@ -1958,9 +1958,9 @@ def main():
           and "{ path: 'run_seed_clean', component: 'seed_clean'" in page_vue
           and "{ path: 'run_downloader_tag', component: 'downloader_tag'" in page_vue,
           "Page 仪表盘命令面板按组件启用状态禁用手动动作")
-    dashboard_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "Dashboard.vue").read_text(encoding="utf-8")
-    site_widget_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "dashboard" / "SiteStatsWidget.vue").read_text(encoding="utf-8")
-    actions_widget_vue = (ROOT / "plugins.v2" / "agentopsassistant" / "src" / "components" / "dashboard" / "ActionsWidget.vue").read_text(encoding="utf-8")
+    dashboard_vue = (ROOT / "plugins.v2" / "signal" / "src" / "components" / "Dashboard.vue").read_text(encoding="utf-8")
+    site_widget_vue = (ROOT / "plugins.v2" / "signal" / "src" / "components" / "dashboard" / "SiteStatsWidget.vue").read_text(encoding="utf-8")
+    actions_widget_vue = (ROOT / "plugins.v2" / "signal" / "src" / "components" / "dashboard" / "ActionsWidget.vue").read_text(encoding="utf-8")
     check("{ path: 'create_tg_console_card', component: '', label: '立即建卡'" in dashboard_vue
           and "{ path: 'run_daily_report', component: 'daily_report', label: '立即刷新'" in dashboard_vue
           and "{ path: 'run_daily_report', component: 'daily_report', label: '每日汇报'" not in dashboard_vue,
@@ -2232,7 +2232,7 @@ def main():
     check(p_cron._subscribe_reminder_cron == "30 8 * * *", "显式 cron 优先于小时")
     p_sr = make_plugin(mod, fusion_notify_enabled=False, enabled=True, subscribe_reminder_enabled=True, subscribe_reminder_cron="0 9 * * *")
     sr_ids = [s.get("id") for s in (p_sr.get_service() or [])]
-    check("AgentOpsAssistant.SubscribeReminder" in sr_ids, "启用后注册独立订阅追新定时服务")
+    check("Signal.SubscribeReminder" in sr_ids, "启用后注册独立订阅追新定时服务")
     p_sr._get_today_subscribe_updates_locked = lambda: ["凡人修仙传 S01E50"]
     sr_sent = {}
     p_sr.post_message = lambda **kw: sr_sent.update(kw)
@@ -2245,7 +2245,7 @@ def main():
     p_sr_other.run_subscribe_reminder()
     check(getattr(sr_other_sent.get("mtype"), "name", "") == "Other", "订阅追新消息类型支持 其他")
     p_off = make_plugin(mod, enabled=True, subscribe_reminder_enabled=False)
-    check("AgentOpsAssistant.SubscribeReminder" not in [s.get("id") for s in (p_off.get_service() or [])], "关闭时不注册订阅追新服务")
+    check("Signal.SubscribeReminder" not in [s.get("id") for s in (p_off.get_service() or [])], "关闭时不注册订阅追新服务")
 
     print("== 通知类型统一 ==")
     p_market = make_plugin(mod, fusion_notify_enabled=False, market_update_enabled=True, market_update_notify=True, market_update_notify_type="Other")
@@ -2289,7 +2289,7 @@ def main():
         "error": "",
     }
     p_update._build_market_status = lambda: {"note": "本插件直接检查插件库记录"}
-    mp_update_service = next(s for s in p_update.get_service() if s.get("id") == "AgentOpsAssistant.MPUpdate")
+    mp_update_service = next(s for s in p_update.get_service() if s.get("id") == "Signal.MPUpdate")
     check(mp_update_service["func"]() is True, "MP 更新定时服务执行成功")
     check(not p_update._stub_messages, "MP 更新检查发现新版时不单独推送 TG，只更新状态供融合卡按钮使用")
     update_task = p_update.get_data("last_update_preview") or {}
@@ -2417,7 +2417,7 @@ def main():
     fired_disabled = p_disabled._fire_onlyonce(cfg_disabled_once)
     check(fired_disabled == [] and cfg_disabled_once["backup_onlyonce"] is False and disabled_calls == [],
           "总开关关闭时 onlyonce 只复位不执行业务")
-    p_disabled._create_agentops_backup = lambda: (_ for _ in ()).throw(RuntimeError("backup should not run"))
+    p_disabled._create_signal_backup = lambda: (_ for _ in ()).throw(RuntimeError("backup should not run"))
     disabled_backup = p_disabled.api_run_backup()
     check(disabled_backup.get("code") == 1 and "插件未启用" in disabled_backup.get("msg", ""),
           "总开关关闭时手动备份 API 跳过业务链路")
@@ -2479,7 +2479,7 @@ def main():
                                    daily_report_enabled=False, health_check_enabled=False, site_stat_enabled=False,
                                    subscribe_reminder_enabled=False, seedclean_enabled=False,
                                    dltag_enabled=False, seedclean_downloaders=["qb1"], dltag_downloaders=["qb1"])
-    p_components_off._create_agentops_backup = lambda: (_ for _ in ()).throw(RuntimeError("backup should not run"))
+    p_components_off._create_signal_backup = lambda: (_ for _ in ()).throw(RuntimeError("backup should not run"))
     check("自动备份未启用" in p_components_off.api_run_backup().get("msg", ""),
           "备份组件关闭时手动备份 API 跳过")
     component_restore_calls = []
@@ -2564,14 +2564,14 @@ def main():
     print("== 健康巡查范围与兜底 ==")
     hc_service = make_plugin(mod, fusion_notify_enabled=False, enabled=True, health_check_enabled=True, health_check_cron="0 */6 * * *")
     hc_service_ids = {s.get("id") for s in (hc_service.get_service() or [])}
-    check("AgentOpsAssistant.HealthCheck" in hc_service_ids, "启用健康巡查后注册独立定时服务")
+    check("Signal.HealthCheck" in hc_service_ids, "启用健康巡查后注册独立定时服务")
     task_keys = {t.get("key") for t in hc_service._task_definitions()}
     check("health_check" in task_keys, "组件运行状况包含健康巡查")
     check("site_stat" in task_keys, "组件运行状况包含站点数据统计")
     check("downloader_tag" in task_keys, "组件运行状况包含种子标签")
     hc_service_off = make_plugin(mod, enabled=True, health_check_enabled=False)
     hc_service_off_ids = {s.get("id") for s in (hc_service_off.get_service() or [])}
-    check("AgentOpsAssistant.HealthCheck" not in hc_service_off_ids, "关闭健康巡查后不注册定时服务")
+    check("Signal.HealthCheck" not in hc_service_off_ids, "关闭健康巡查后不注册定时服务")
     bad_cron = make_plugin(mod, enabled=True, daily_report_enabled=True, daily_report_cron="bad cron",
                            health_check_enabled=True, health_check_cron="bad cron",
                            seedclean_enabled=True, seedclean_downloaders=["qb1"], seedclean_cron="bad cron")
@@ -2581,9 +2581,9 @@ def main():
     except Exception:
         bad_cron_ids = set()
         bad_cron_raised = True
-    check(not bad_cron_raised and "AgentOpsAssistant.DailyReport" not in bad_cron_ids
-          and "AgentOpsAssistant.HealthCheck" not in bad_cron_ids
-          and "AgentOpsAssistant.SeedClean" not in bad_cron_ids,
+    check(not bad_cron_raised and "Signal.DailyReport" not in bad_cron_ids
+          and "Signal.HealthCheck" not in bad_cron_ids
+          and "Signal.SeedClean" not in bad_cron_ids,
           "cron 配置错误时跳过对应定时服务，不拖垮插件调度加载")
 
     hc_all = make_plugin(mod, health_check_items=[])
@@ -2605,7 +2605,7 @@ def main():
     check(hc_run.run_health_check() is True, "健康巡查发现异常时接口仍表示巡查任务已完成")
     check((hc_run.get_data("last_health_check") or {}).get("success") is False, "健康巡查异常状态仍保存在健康结果中")
     hc_dashboard = make_plugin(mod)
-    long_health_output = "⦁ 状态：发现 2 项异常\n" + ("⦁ 存储空间：/downloads/library/very/long/path 已用 93%，超过阈值 85%\n" * 12) + "⦁ 目录权限：/config/plugins/AgentOpsAssistant/Backup 无写入权限"
+    long_health_output = "⦁ 状态：发现 2 项异常\n" + ("⦁ 存储空间：/downloads/library/very/long/path 已用 93%，超过阈值 85%\n" * 12) + "⦁ 目录权限：/config/plugins/Signal/Backup 无写入权限"
     hc_dashboard.save_data("last_health_check", {"time": "2026-06-18 20:00:00", "success": False, "output": long_health_output})
     hc_dashboard_data = (hc_dashboard.api_dashboard().get("data") or {}).get("health") or {}
     check(hc_dashboard_data.get("output") == long_health_output, "仪表盘健康巡查异常详情不截断")
@@ -2726,7 +2726,7 @@ def main():
 
     svcs = pa.get_service() or []
     check(all(callable(s.get("func")) for s in svcs), f"get_service 全部 func 可调用（{len(svcs)} 个）")
-    cmds = mod.AgentOpsAssistant.get_command() or []
+    cmds = mod.Signal.get_command() or []
     check(isinstance(cmds, list) and all(c.get("data", {}).get("action") for c in cmds), "get_command 结构完整")
     check(pa.get_render_mode()[0] == "vue", "渲染模式 = vue")
     form_schema, form_default = pa.get_form()

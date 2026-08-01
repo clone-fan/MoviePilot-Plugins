@@ -1,0 +1,236 @@
+/* signal 共享面板原语 — 跨组件复用的 panel/cell 基线
+ * 全局 CSS（非 scoped），用 .signal-root 作为 scope。
+ * 子组件在 DOM 内是 .signal-root 的后代，自动匹配，无需重复定义。
+ * 透明主题覆盖用 .signal-root.signal-theme--transparent 选择器（theme class 挂在 root 上）。
+ * 设计层次：外框 panel = MP 原生 surface；内框 cell = iOS 液态玻璃透白。 */
+
+/* ---- Panel 基线 ---- */
+.signal-root .panel,
+.signal-root .metric-card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--mp-panel-radius);
+  border: var(--mp-panel-border);
+  background: var(--mp-panel-surface);
+  box-shadow: var(--mp-panel-shadow);
+  backdrop-filter: var(--mp-blur);
+  -webkit-backdrop-filter: var(--mp-blur);
+}
+
+.signal-root .panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--line), 0.28), transparent);
+  opacity: 0.50;
+  pointer-events: none;
+}
+
+.signal-root .panel-head {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 14px;
+}
+
+.signal-root .panel-head h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 860;
+}
+
+.signal-root .panel-note {
+  margin-left: auto;
+  color: rgba(var(--muted), 0.66);
+  font-size: 12px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.signal-root .panel-icon {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.signal-root .panel-icon--cyan {
+  color: rgb(var(--cyan));
+}
+
+.signal-root .panel-icon--blue {
+  color: rgb(var(--blue));
+}
+
+/* ---- Cell 基线（内框液态玻璃） ---- */
+.signal-root .top-button,
+.signal-root .alert-line,
+.signal-root .site-stat,
+.signal-root .site-card,
+.signal-root .site-row-cell,
+.signal-root .site-table,
+.signal-root .site-table-row,
+.signal-root .site-empty-row,
+.signal-root .site-empty-main,
+.signal-root .site-empty-stats,
+.signal-root .site-empty-icon,
+.signal-root .command-quick-card,
+.signal-root .command-group,
+.signal-root .cmd-btn,
+.signal-root .downloader-card,
+.signal-root .module {
+  border: var(--mp-cell-border);
+  border-radius: var(--mp-cell-radius);
+  background: var(--mp-cell-surface);
+  box-shadow: var(--mp-cell-shadow);
+  backdrop-filter: var(--mp-cell-backdrop);
+  -webkit-backdrop-filter: var(--mp-cell-backdrop);
+}
+
+/* ---- Cell hover ---- */
+.signal-root .top-button:hover,
+.signal-root .command-quick-btn:hover,
+.signal-root .cmd-btn:hover {
+  background: var(--mp-cell-hover-surface);
+  box-shadow: var(--mp-cell-hover-shadow);
+}
+
+/* ---- Muted cell（图标容器等） ---- */
+.signal-root .alert-icon,
+.signal-root .metric-symbol,
+.signal-root .donut-zone,
+.signal-root .command-quick-btn,
+.signal-root .cmd-icon {
+  border: var(--mp-cell-border);
+  border-radius: var(--mp-cell-radius);
+  background: var(--mp-cell-muted-surface);
+  box-shadow: var(--mp-cell-shadow);
+  backdrop-filter: var(--mp-cell-backdrop);
+  -webkit-backdrop-filter: var(--mp-cell-backdrop);
+}
+
+/* ---- 透明主题：panel 覆盖 ---- */
+.signal-root.signal-theme--transparent .panel {
+  border-color: rgba(var(--line), 0.060);
+  background: var(--mp-panel-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.signal-root.signal-theme--transparent .panel::before {
+  opacity: 0.34;
+}
+
+/* ---- 透明主题：cell 覆盖 ---- */
+.signal-root.signal-theme--transparent .top-button,
+.signal-root.signal-theme--transparent .command-quick-btn,
+.signal-root.signal-theme--transparent .alert-line,
+.signal-root.signal-theme--transparent .site-empty-row,
+.signal-root.signal-theme--transparent .command-group,
+.signal-root.signal-theme--transparent .cmd-btn,
+.signal-root.signal-theme--transparent .downloader-card,
+.signal-root.signal-theme--transparent .module {
+  background:
+    linear-gradient(180deg, rgba(var(--line), 0.014), rgba(var(--line), 0.004)),
+    var(--mp-cell-surface);
+  box-shadow: var(--shadow-block);
+}
+
+.signal-root.signal-theme--transparent .top-button,
+.signal-root.signal-theme--transparent .command-quick-btn,
+.signal-root.signal-theme--transparent .cmd-btn {
+  box-shadow: var(--shadow-button);
+}
+
+.signal-root.signal-theme--transparent .cmd-btn:hover {
+  border-color: rgba(var(--line), 0.14);
+  background:
+    linear-gradient(180deg, rgba(var(--line), 0.022), rgba(var(--line), 0.006)),
+    var(--mp-cell-hover-surface);
+}
+
+/* ---- 透明主题：muted cell 覆盖 ---- */
+.signal-root.signal-theme--transparent .alert-icon {
+  background: rgba(var(--red), 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--line), 0.070),
+    0 2px 5px rgba(0, 0, 0, 0.016);
+}
+
+.signal-root.signal-theme--transparent .alert-panel--ok .alert-icon {
+  background: rgba(var(--green), 0.10);
+}
+
+.signal-root.signal-theme--transparent .metric-symbol,
+.signal-root.signal-theme--transparent .donut-zone {
+  background: var(--mp-cell-muted-surface);
+  box-shadow: var(--shadow-block);
+}
+
+.signal-root.signal-theme--transparent .donut {
+  box-shadow:
+    inset 0 1px 10px rgba(var(--line), 0.075),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.035),
+    0 3px 9px rgba(0, 0, 0, 0.018);
+}
+
+.signal-root.signal-theme--transparent .donut::after {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(var(--line), var(--donut-core-line-alpha)), transparent 48%),
+    rgba(var(--line), var(--donut-core-panel-alpha));
+  box-shadow:
+    inset 0 1px 0 rgba(var(--line), 0.045),
+    0 0 0 1px rgba(var(--line), 0.026);
+}
+
+.signal-root.signal-theme--transparent .badge,
+.signal-root.signal-theme--transparent .ok-chip,
+.signal-root.signal-theme--transparent .state {
+  box-shadow:
+    inset 0 1px 0 rgba(var(--line), 0.042),
+    0 1px 2px rgba(0, 0, 0, 0.010);
+}
+
+/* ---- Scrollbar 基线（全局统一，杜绝各组件重复定义） ---- */
+.signal-root ::-webkit-scrollbar,
+.signal-root::-webkit-scrollbar {
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+.signal-root ::-webkit-scrollbar-track,
+.signal-root::-webkit-scrollbar-track,
+.signal-root ::-webkit-scrollbar-track-piece,
+.signal-root::-webkit-scrollbar-track-piece {
+  background: transparent !important;
+}
+.signal-root ::-webkit-scrollbar-thumb,
+.signal-root::-webkit-scrollbar-thumb {
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+}
+.signal-root ::-webkit-scrollbar-button,
+.signal-root::-webkit-scrollbar-button,
+.signal-root ::-webkit-scrollbar-corner,
+.signal-root::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  appearance: none !important;
+  background: transparent !important;
+  opacity: 0 !important;
+}
+.signal-root,
+.signal-root * {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}

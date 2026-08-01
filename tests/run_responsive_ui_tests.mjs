@@ -41,7 +41,7 @@ const dashboardFixture = {
   health: {
     time: '2026-06-18 20:00',
     success: false,
-    output: '⚠️ 存储空间：本地 /downloads/moviepilot/library/very/very/long/path 已用 93%，超过阈值 85%；目录权限：/config/plugins/AgentOpsAssistant/Backup 无写入权限；数据库：SQLite 主库连接正常\n✅ 订阅：正常\n⚠️ 下载器：qbittorrent 连接失败，HTTP 401 用户名或密码错误\n✅ 本插件任务：正常',
+    output: '⚠️ 存储空间：本地 /downloads/moviepilot/library/very/very/long/path 已用 93%，超过阈值 85%；目录权限：/config/plugins/Signal/Backup 无写入权限；数据库：SQLite 主库连接正常\n✅ 订阅：正常\n⚠️ 下载器：qbittorrent 连接失败，HTTP 401 用户名或密码错误\n✅ 本插件任务：正常',
   },
 }
 
@@ -109,16 +109,16 @@ async function loginIfNeeded(page) {
 }
 
 async function mockDashboardApis(page) {
-  await page.route('**/api/v1/plugin/AgentOpsAssistant/dashboard', route => {
+  await page.route('**/api/v1/plugin/Signal/dashboard', route => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, data: dashboardFixture }) })
   })
-  await page.route('**/api/v1/plugin/AgentOpsAssistant/site_stat_chart', route => {
+  await page.route('**/api/v1/plugin/Signal/site_stat_chart', route => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, data: siteChartFixture }) })
   })
-  await page.route('**/api/v1/plugin/AgentOpsAssistant/downloader_overview', route => {
+  await page.route('**/api/v1/plugin/Signal/downloader_overview', route => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, data: downloaderFixture }) })
   })
-  await page.route('**/api/v1/plugin/AgentOpsAssistant/run_seed_clean', route => {
+  await page.route('**/api/v1/plugin/Signal/run_seed_clean', route => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 1, msg: '自动删种未执行：未选择下载器' }) })
   })
 }
@@ -127,20 +127,20 @@ async function openPluginDashboard(page) {
   const card = page.locator('.v-card--link').filter({ hasText: PLUGIN_NAME }).first()
   await card.waitFor({ timeout: 15000 })
   await card.click({ position: { x: 40, y: 30 } })
-  await page.waitForSelector('.agentops-dashboard', { timeout: 15000 })
+  await page.waitForSelector('.signal-dashboard', { timeout: 15000 })
   await page.waitForTimeout(800)
 }
 
 async function openSidebarDashboard(page) {
-  await page.goto(`${BASE_URL}/#/plugin-app/AgentOpsAssistant/main`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE_URL}/#/plugin-app/Signal/main`, { waitUntil: 'domcontentloaded' })
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
   await page.waitForSelector('.dashboard-shell--sidebar .dashboard-canvas', { timeout: 15000 })
   await page.waitForTimeout(800)
 }
 
 async function openPluginConfig(page) {
-  await page.locator('.agentops-dashboard').getByRole('button', { name: /设置/ }).click()
-  await page.waitForSelector('.aoa-config', { timeout: 15000 })
+  await page.locator('.signal-dashboard').getByRole('button', { name: /设置/ }).click()
+  await page.waitForSelector('.signal-config', { timeout: 15000 })
   await page.waitForTimeout(600)
 }
 
@@ -170,7 +170,7 @@ async function auditVisibleSidebarDashboard(page, scope) {
       }))
     const horizontalOverflow = [
       '.dashboard-shell--sidebar',
-      '.dashboard-shell--sidebar .agentops-frame',
+      '.dashboard-shell--sidebar .signal-frame',
       '.dashboard-shell--sidebar .dashboard-canvas',
       '.dashboard-shell--sidebar .metrics-panel',
       '.dashboard-shell--sidebar .site-panel',
@@ -192,7 +192,7 @@ async function auditVisibleSidebarDashboard(page, scope) {
       .filter(item => item.deltaX > 3)
     const outerFrameChrome = [
       '.dashboard-shell--sidebar',
-      '.dashboard-shell--sidebar .agentops-frame',
+      '.dashboard-shell--sidebar .signal-frame',
     ]
       .flatMap(sel => [...document.querySelectorAll(sel)]
         .filter(el => {
@@ -361,7 +361,7 @@ async function auditVisibleDashboard(page, scope) {
       }
     }
     const horizontalOverflow = [
-      '.agentops-dashboard',
+      '.signal-dashboard',
       '.glass-panel',
       '.site-stat-layout',
       '.site-stat-content',
@@ -408,7 +408,7 @@ async function auditVisibleDashboard(page, scope) {
     const actionBox = actionScroll ? info(actionScroll) : null
     const viewportHeight = window.innerHeight
     const viewportWidth = window.innerWidth
-    const dashboard = document.querySelector('.agentops-dashboard')
+    const dashboard = document.querySelector('.signal-dashboard')
     const dashboardBox = dashboard ? dashboard.getBoundingClientRect() : null
     const dashboardStyle = dashboard ? getComputedStyle(dashboard) : null
     const isSidebarDashboard = dashboard?.classList.contains('dashboard-shell--sidebar')
@@ -436,7 +436,7 @@ async function auditVisibleDashboard(page, scope) {
     } : null
 
     const scrollbarIssues = [
-      '.agentops-dashboard',
+      '.signal-dashboard',
       '.site-legend',
       '.task-grid',
       '.health-grid',
@@ -478,7 +478,7 @@ async function auditDashboardActionFailure(page, scope) {
 
 async function auditVisibleConfig(page, scope) {
   const result = await page.evaluate((scope) => {
-    const roots = [...document.querySelectorAll('.aoa-config')].filter((el) => {
+    const roots = [...document.querySelectorAll('.signal-config')].filter((el) => {
       const r = el.getBoundingClientRect()
       return r.width > 0 && r.height > 0
     })
@@ -501,27 +501,27 @@ async function auditVisibleConfig(page, scope) {
       }
     }
     const overflowSelectors = [
-      '.aoa-window',
-      '.aoa-pane',
-      '.aoa-columns-form',
-      '.aoa-table-wrap',
-      '.aoa-report-table-scroll',
-      '.aoa-report-table',
+      '.signal-window',
+      '.signal-pane',
+      '.signal-columns-form',
+      '.signal-table-wrap',
+      '.signal-report-table-scroll',
+      '.signal-report-table',
     ]
     const horizontalOverflow = overflowSelectors
       .flatMap(sel => [...document.querySelectorAll(sel)].filter(isVisible).map(info))
       .filter(item => item.deltaX > 3)
 
-    const clippedLabels = [...document.querySelectorAll('.aoa-config .v-label.v-field-label')]
+    const clippedLabels = [...document.querySelectorAll('.signal-config .v-label.v-field-label')]
       .filter(el => isVisible(el) && inConfig(el))
       .filter(el => (el.innerText || '').trim() && el.scrollWidth > el.clientWidth + 3)
       .map(info)
-    const clippedHeaderText = [...document.querySelectorAll('.aoa-config .aoa-header .v-card-title, .aoa-config .aoa-header .v-card-subtitle')]
+    const clippedHeaderText = [...document.querySelectorAll('.signal-config .signal-header .v-card-title, .signal-config .signal-header .v-card-subtitle')]
       .filter(el => isVisible(el) && inConfig(el))
       .filter(el => (el.innerText || '').trim() && (el.scrollWidth > el.clientWidth + 3 || el.scrollHeight > el.clientHeight + 3))
       .map(info)
 
-    const verticalAccessIssues = [...document.querySelectorAll('.aoa-card, .aoa-body, .aoa-content, .aoa-window')]
+    const verticalAccessIssues = [...document.querySelectorAll('.signal-card, .signal-body, .signal-content, .signal-window')]
       .filter(el => isVisible(el) && inConfig(el))
       .filter(el => {
         const cs = getComputedStyle(el)
@@ -539,27 +539,27 @@ async function auditVisibleConfig(page, scope) {
 }
 
 async function walkConfigTabs(page, viewportName) {
-  const navCount = await page.locator('.aoa-nav-item').count()
+  const navCount = await page.locator('.signal-nav-item').count()
   for (let i = 0; i < navCount; i += 1) {
-    await page.locator('.aoa-nav-item').nth(i).evaluate(el => {
+    await page.locator('.signal-nav-item').nth(i).evaluate(el => {
       el.scrollIntoView({ block: 'center', inline: 'nearest' })
       el.click()
     })
     await page.waitForTimeout(100)
 
-    const subCount = await page.locator('.aoa-subtab').count()
+    const subCount = await page.locator('.signal-subtab').count()
     for (let j = 0; j < Math.max(1, subCount); j += 1) {
-      const currentSubCount = await page.locator('.aoa-subtab').count()
+      const currentSubCount = await page.locator('.signal-subtab').count()
       if (currentSubCount > j) {
-        await page.locator('.aoa-subtab').nth(j).evaluate(el => {
+        await page.locator('.signal-subtab').nth(j).evaluate(el => {
           el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
           el.click()
         })
         await page.waitForTimeout(80)
       }
       const title = await page.evaluate(() => {
-        const main = document.querySelector('.aoa-nav-item.v-list-item--active .v-list-item-title')?.innerText || ''
-        const sub = document.querySelector('.aoa-subtab--active')?.innerText || ''
+        const main = document.querySelector('.signal-nav-item.v-list-item--active .v-list-item-title')?.innerText || ''
+        const sub = document.querySelector('.signal-subtab--active')?.innerText || ''
         return `${main.trim()} / ${sub.trim()}`
       })
       await auditVisibleConfig(page, `${viewportName}: ${title}`)

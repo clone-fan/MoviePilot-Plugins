@@ -1,0 +1,27 @@
+/* 透明 / 亮色主题覆盖 — 全组件统一，挂在 .signal-root 上
+ * 注意：vite postcss vuetify-filter 会剥离含 .v- 的选择器，
+ * 故只用 [data-theme] / .signal-theme--transparent。
+ */
+
+/* 透明主题：外框直连 transparent-opacity，内框玻璃增强模糊 */
+html[data-theme="transparent"] .signal-root,
+body[data-theme="transparent"] .signal-root,
+[data-theme="transparent"] .signal-root,
+.signal-root.signal-theme--transparent {
+  --signal-transparent-opacity: calc(var(--transparent-opacity, 0.42) * 0.8);
+  --signal-transparent-opacity-light: calc(var(--transparent-opacity-light, 0.28) * 0.8);
+  --signal-transparent-opacity-heavy: calc(var(--transparent-opacity-heavy, 0.55) * 0.8);
+  --signal-outer-opacity: var(--signal-transparent-opacity);
+  --signal-outer-surface: rgba(var(--v-theme-surface), var(--signal-transparent-opacity));
+  --signal-inner-border: 1px solid rgba(var(--v-border-color), 0.13);
+  --signal-inner-blur: var(--transparent-blur, 12px);
+  --mp-cell-backdrop: saturate(1.24) blur(var(--signal-inner-blur));
+  --mp-panel-border: var(--app-surface-border, 1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12)));
+  --donut-core-line-alpha: 0.03;
+  --donut-core-panel-alpha: var(--signal-transparent-opacity-heavy);
+}
+
+/* 亮色主题：饼图核心更实 */
+.signal-root.signal-theme--light {
+  --donut-core-panel-alpha: 0.90;
+}

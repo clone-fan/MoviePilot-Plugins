@@ -9,14 +9,14 @@ const repoRoot = process.env.MOVIEPILOT_PLUGINS_REPO_ROOT
   : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const fromRoot = (...segments) => path.join(repoRoot, ...segments)
 
-const page = fs.readFileSync(fromRoot('plugins.v2/agentopsassistant/src/components/Page.vue'), 'utf8')
-const appPagePath = fromRoot('plugins.v2/agentopsassistant/src/components/AppPage.vue')
-const dashboardPath = fromRoot('plugins.v2/agentopsassistant/src/components/Dashboard.vue')
-const dashboardSitePath = fromRoot('plugins.v2/agentopsassistant/src/components/dashboard/SiteStatsWidget.vue')
-const dashboardActionsPath = fromRoot('plugins.v2/agentopsassistant/src/components/dashboard/ActionsWidget.vue')
-const configPath = fromRoot('plugins.v2/agentopsassistant/src/components/Config.vue')
-const distAssetsPath = fromRoot('plugins.v2/agentopsassistant/dist/assets')
-const vite = fs.readFileSync(fromRoot('plugins.v2/agentopsassistant/vite.config.js'), 'utf8')
+const page = fs.readFileSync(fromRoot('plugins.v2/signal/src/components/Page.vue'), 'utf8')
+const appPagePath = fromRoot('plugins.v2/signal/src/components/AppPage.vue')
+const dashboardPath = fromRoot('plugins.v2/signal/src/components/Dashboard.vue')
+const dashboardSitePath = fromRoot('plugins.v2/signal/src/components/dashboard/SiteStatsWidget.vue')
+const dashboardActionsPath = fromRoot('plugins.v2/signal/src/components/dashboard/ActionsWidget.vue')
+const configPath = fromRoot('plugins.v2/signal/src/components/Config.vue')
+const distAssetsPath = fromRoot('plugins.v2/signal/dist/assets')
+const vite = fs.readFileSync(fromRoot('plugins.v2/signal/vite.config.js'), 'utf8')
 
 const requiredFragments = [
   'dashboard-shell',
@@ -148,7 +148,7 @@ for (const fragment of [
   assert.ok(config.includes(fragment), `Config.vue should expose independent schedule switch: ${fragment}`)
 }
 assert.ok(
-  !config.includes('aoa-quick-card-actions') &&
+  !config.includes('signal-quick-card-actions') &&
     !config.includes('quickCardActions') &&
     /report:\s*\[\s*\{\s*key:\s*'fusion',\s*title:\s*'融合通知'/m.test(config) &&
     !config.includes("title: '定时刷新'") &&
@@ -204,28 +204,28 @@ for (const [name, content] of Object.entries({
   'ActionsWidget.vue': themeEntrySources['ActionsWidget.vue'],
 })) {
   assert.ok(
-    content.includes('--aoa-inner-surface') &&
-      content.includes('--aoa-inner-surface-strong') &&
-      content.includes('--aoa-inner-border') &&
-      content.includes('--aoa-inner-shadow') &&
-      content.includes('--aoa-inner-blur'),
+    content.includes('--signal-inner-surface') &&
+      content.includes('--signal-inner-surface-strong') &&
+      content.includes('--signal-inner-border') &&
+      content.includes('--signal-inner-shadow') &&
+      content.includes('--signal-inner-blur'),
     `${name} should expose the shared stronger inner glass surface contract`,
   )
   assert.ok(
-    !/--(?:mp-cell|aoa-native-field)-surface:\s*rgba\(var\(--v-theme-on-surface\),\s*0\.0[4-7]\)/.test(content),
+    !/--(?:mp-cell|signal-native-field)-surface:\s*rgba\(var\(--v-theme-on-surface\),\s*0\.0[4-7]\)/.test(content),
     `${name} should not keep ultra-low-opacity inner cards that disappear on transparent MP themes`,
   )
   assert.ok(
-    content.includes('--aoa-outer-surface') && content.includes('rgba(var(--v-theme-surface), var(--transparent-opacity'),
+    content.includes('--signal-outer-surface') && content.includes('rgba(var(--v-theme-surface), var(--transparent-opacity'),
     `${name} should expose an outer surface that follows MoviePilot transparent opacity directly`,
   )
   assert.ok(
-    !content.includes('--aoa-outer-surface: rgb(var(--v-theme-surface))'),
+    !content.includes('--signal-outer-surface: rgb(var(--v-theme-surface))'),
     `${name} outer surface should not fall back to an opaque theme surface when MP transparent selectors are not matched`,
   )
   assert.ok(
-    content.includes('--aoa-outer-surface-opacity') &&
-      content.includes('--aoa-outer-surface: rgba(var(--v-theme-surface), var(--aoa-outer-surface-opacity))'),
+    content.includes('--signal-outer-surface-opacity') &&
+      content.includes('--signal-outer-surface: rgba(var(--v-theme-surface), var(--signal-outer-surface-opacity))'),
     `${name} default outer surface should be opacity-driven so MP transparent widgets do not render as black blocks`,
   )
   assert.ok(
@@ -248,18 +248,18 @@ for (const [name, content] of Object.entries({
   'ActionsWidget.vue': themeEntrySources['ActionsWidget.vue'],
 })) {
   assert.ok(
-    !/--(?:mp-panel|aoa-native)-surface:\s*var\(--aoa-inner-surface\)/.test(content) &&
-      !/--mp-widget-panel-fill-hi:\s*[\s\S]*?var\(--aoa-inner-surface\)[\s\S]*?;/.test(content),
+    !/--(?:mp-panel|signal-native)-surface:\s*var\(--signal-inner-surface\)/.test(content) &&
+      !/--mp-widget-panel-fill-hi:\s*[\s\S]*?var\(--signal-inner-surface\)[\s\S]*?;/.test(content),
     `${name} outer panel surfaces should not consume the stronger inner glass surface`,
   )
 }
 
 assert.ok(
-  page.includes('--mp-panel-surface: var(--aoa-outer-surface)'),
+  page.includes('--mp-panel-surface: var(--signal-outer-surface)'),
   'Page.vue outer dashboard panels should follow the MP outer transparent surface',
 )
 assert.ok(
-  config.includes('--aoa-native-surface: var(--aoa-outer-surface)'),
+  config.includes('--signal-native-surface: var(--signal-outer-surface)'),
   'Config.vue module shells should keep the MP outer transparent surface while fields use inner glass',
 )
 for (const [name, content] of Object.entries({
@@ -268,14 +268,14 @@ for (const [name, content] of Object.entries({
   'ActionsWidget.vue': themeEntrySources['ActionsWidget.vue'],
 })) {
   assert.ok(
-    content.includes('--mp-widget-panel-fill-hi: var(--aoa-outer-surface)'),
+    content.includes('--mp-widget-panel-fill-hi: var(--signal-outer-surface)'),
     `${name} public widget shell should use the MP outer transparent surface`,
   )
 }
 
 assert.ok(
-  /--aoa-scrollbar-alpha:\s*0\.0[6-9]/.test(config) &&
-    /--aoa-scrollbar-hover-alpha:\s*0\.1[0-6]/.test(config),
+  /--signal-scrollbar-alpha:\s*0\.0[6-9]/.test(config) &&
+    /--signal-scrollbar-hover-alpha:\s*0\.1[0-6]/.test(config),
   'Config.vue scrollbar feedback should be nearly hidden, not a visible thick line',
 )
 
@@ -297,16 +297,16 @@ assert.ok(
     config.includes("group: '订阅与站点'") &&
     config.includes("group: '下载与媒体'") &&
     config.includes("group: '系统维护'") &&
-    config.includes('aoa-fusion-category-tabs') &&
-    config.includes('aoa-fusion-subcategory-list') &&
-    !config.includes('aoa-report-group-row'),
+    config.includes('signal-fusion-category-tabs') &&
+    config.includes('signal-fusion-subcategory-list') &&
+    !config.includes('signal-report-group-row'),
   'Config.vue fusion columns should use clickable large categories with focused subcategory content',
 )
 assert.ok(
-  /\.aoa-fusion-category-tabs\s*\{[\s\S]*grid-template-columns:\s*repeat\(4,\s*minmax\(132px,\s*1fr\)\)/m.test(config) &&
-    /@media\s*\(max-width:\s*960px\)\s*\{[\s\S]*\.aoa-fusion-category-tabs\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(128px,\s*1fr\)\)/m.test(config) &&
-    /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.aoa-fusion-category-tabs\s*\{[\s\S]*grid-template-columns:\s*1fr/m.test(config) &&
-    !/\.aoa-fusion-category-title\s*\{[\s\S]*white-space:\s*nowrap/m.test(config),
+  /\.signal-fusion-category-tabs\s*\{[\s\S]*grid-template-columns:\s*repeat\(4,\s*minmax\(132px,\s*1fr\)\)/m.test(config) &&
+    /@media\s*\(max-width:\s*960px\)\s*\{[\s\S]*\.signal-fusion-category-tabs\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(128px,\s*1fr\)\)/m.test(config) &&
+    /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.signal-fusion-category-tabs\s*\{[\s\S]*grid-template-columns:\s*1fr/m.test(config) &&
+    !/\.signal-fusion-category-title\s*\{[\s\S]*white-space:\s*nowrap/m.test(config),
   'Config.vue fusion category tabs should adapt as 4/2/1 columns and keep titles readable instead of truncating',
 )
 assert.ok(
@@ -316,9 +316,9 @@ assert.ok(
     !config.includes('启用消息轮询') &&
     !config.includes('轮询间隔') &&
     !config.includes('授权用户 ID') &&
-    config.includes("class: 'aoa-fusion-takeover-note'") &&
-    /h\('span',\s*\{\s*class:\s*'aoa-fusion-takeover-note'/.test(config) &&
-    /\.aoa-fusion-takeover-note\s*\{[\s\S]*position:\s*absolute/m.test(config) &&
+    config.includes("class: 'signal-fusion-takeover-note'") &&
+    /h\('span',\s*\{\s*class:\s*'signal-fusion-takeover-note'/.test(config) &&
+    /\.signal-fusion-takeover-note\s*\{[\s\S]*position:\s*absolute/m.test(config) &&
     !/name:\s*'FusionTakeoverAlert'[\s\S]*resolveComponent\('VAlert'\)/.test(config),
   'Config.vue should remove the TG button interaction settings from the UI and keep takeover as a compact non-flow note',
 )
@@ -329,9 +329,9 @@ assert.ok(
   'Config.vue should move storage display targets from fusion notification into health check settings',
 )
 assert.ok(
-  config.includes('aoa-health-schedule-cell') &&
-    /\.aoa-health-scope-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(12,\s*minmax\(0,\s*1fr\)\)/m.test(config) &&
-    /\.aoa-health-field-third\s*\{[\s\S]*grid-column:\s*span\s+3/m.test(config),
+  config.includes('signal-health-schedule-cell') &&
+    /\.signal-health-scope-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(12,\s*minmax\(0,\s*1fr\)\)/m.test(config) &&
+    /\.signal-health-field-third\s*\{[\s\S]*grid-column:\s*span\s+3/m.test(config),
   'Config.vue health check schedule, cron, threshold and notification channel should fit in one horizontal row on desktop',
 )
 assert.ok(
@@ -418,7 +418,7 @@ assert.ok(
 )
 
 assert.ok(
-  config.includes('class="aoa-inline-action aoa-plugin-uninstall-action"') &&
+  config.includes('class="signal-inline-action signal-plugin-uninstall-action"') &&
     config.includes("@click=\"runAction('run_plugin_uninstall', '执行卸载')\""),
   'Config.vue should render plugin uninstall action inline beside the target plugin selector',
 )
@@ -431,9 +431,9 @@ assert.ok(
 )
 
 assert.ok(
-  config.includes('aoa-seed-protect-row') &&
-    config.includes('aoa-seed-option-label') &&
-    /\.aoa-seed-option-label[\s\S]*white-space:\s*nowrap/m.test(config) &&
+  config.includes('signal-seed-protect-row') &&
+    config.includes('signal-seed-option-label') &&
+    /\.signal-seed-option-label[\s\S]*white-space:\s*nowrap/m.test(config) &&
     /font-size:\s*12px/.test(config) &&
     /min-width:\s*max-content/.test(config),
   'Config.vue should keep short seed protection labels on one line with a smaller font',
@@ -446,8 +446,8 @@ const configDistCss = fs
   .join('\n')
 
 assert.ok(
-  /\.aoa-seed-options[\s\S]*display:\s*flex/m.test(configDistCss) &&
-    /\.aoa-seed-option-label[\s\S]*white-space:\s*nowrap/m.test(configDistCss) &&
+  /\.signal-seed-options[\s\S]*display:\s*flex/m.test(configDistCss) &&
+    /\.signal-seed-option-label[\s\S]*white-space:\s*nowrap/m.test(configDistCss) &&
     /font-size:\s*12px/.test(configDistCss) &&
     /min-width:\s*max-content/.test(configDistCss),
   'dist Config CSS should be rebuilt with one-line seed protection labels',
@@ -464,7 +464,7 @@ assert.ok(
 )
 
 assert.ok(
-  vite.includes("'./AppPage': './src/components/AppPage.vue'"),
+  vite.includes("'./AppPageConfig': './src/app/AppPageConfig.vue'"),
   'vite federation should expose AppPage for MP sidebar routes',
 )
 
@@ -476,11 +476,11 @@ const dashboardSite = fs.readFileSync(dashboardSitePath, 'utf8')
 const dashboardActions = fs.readFileSync(dashboardActionsPath, 'utf8')
 
 assert.ok(
-  vite.includes("'./Dashboard': './src/components/Dashboard.vue'"),
+  vite.includes("'./Dashboard': './src/app/Dashboard.vue'"),
   'vite federation should expose Dashboard for MP dashboard widgets',
 )
 
-for (const fragment of ['SiteStatsWidget', 'ActionsWidget']) {
+for (const fragment of ['Dashboard', 'MpFreeDashboardRenderer']) {
   assert.ok(dashboard.includes(fragment), `Dashboard.vue should route to ${fragment}`)
 }
 
@@ -531,8 +531,8 @@ for (const fragment of [
 }
 
 assert.ok(
-  dashboard.includes('--mp-widget-panel-fill-hi: var(--aoa-outer-surface)') &&
-    dashboard.includes('--aoa-outer-surface: rgba(var(--v-theme-surface), var(--aoa-outer-surface-opacity))') &&
+  dashboard.includes('--mp-widget-panel-fill-hi: var(--signal-outer-surface)') &&
+    dashboard.includes('--signal-outer-surface: rgba(var(--v-theme-surface), var(--signal-outer-surface-opacity))') &&
     dashboard.includes('--mp-widget-mp-surface-opacity: var(--transparent-opacity') &&
     !dashboard.includes('var(--v-medium-emphasis-opacity, 0.68)'),
   'Dashboard.vue should derive public widget shell opacity from MP/Vuetify outer surface instead of text emphasis opacity',
@@ -650,12 +650,12 @@ for (const fragment of ['.dashboard-shell--sidebar .dashboard-canvas', '.dashboa
 }
 
 assert.ok(
-  page.includes('--aoa-dashboard-radius: var(--v-card-border-radius'),
+  page.includes('--signal-dashboard-radius: var(--v-card-border-radius'),
   'Page.vue outer dashboard radius should be controlled by MP/Vuetify theme variables',
 )
 
 assert.ok(
-  /\.dashboard-shell\s*\{[\s\S]*border-radius:\s*var\(--aoa-dashboard-radius\)/m.test(page),
+  /\.dashboard-shell\s*\{[\s\S]*border-radius:\s*var\(--signal-dashboard-radius\)/m.test(page),
   'Page.vue dashboard shell should not hard-code its outer radius',
 )
 
@@ -682,33 +682,33 @@ assert.ok(
 )
 
 assert.ok(
-  /^\.agentops-frame\s*\{[\s\S]*border-radius:\s*var\(--aoa-dashboard-radius\)/m.test(page),
+  /^\.signal-frame\s*\{[\s\S]*border-radius:\s*var\(--signal-dashboard-radius\)/m.test(page),
   'Page.vue dashboard frame should not hard-code its outer radius',
 )
 
-const agentopsFrameRule = page.match(/^\.agentops-frame\s*\{[\s\S]*?\n\}/m)?.[0] || ''
+const signalFrameRule = page.match(/^\.signal-frame\s*\{[\s\S]*?\n\}/m)?.[0] || ''
 assert.ok(
-  agentopsFrameRule.includes('border: 0;'),
+  signalFrameRule.includes('border: 0;'),
   'Page.vue dashboard frame should not draw a second outer border inside the MP dialog',
 )
 assert.ok(
-  /background:\s*transparent;/.test(agentopsFrameRule),
+  /background:\s*transparent;/.test(signalFrameRule),
   'Page.vue dashboard frame should be transparent so only inner cards create visual layers',
 )
 assert.ok(
-  /box-shadow:\s*none;/.test(agentopsFrameRule),
+  /box-shadow:\s*none;/.test(signalFrameRule),
   'Page.vue dashboard frame should not add an extra outer shadow',
 )
 assert.ok(
-  /backdrop-filter:\s*none(?:\s*!important)?;/.test(agentopsFrameRule),
+  /backdrop-filter:\s*none(?:\s*!important)?;/.test(signalFrameRule),
   'Page.vue dashboard frame should not blur as a separate outer layer',
 )
 assert.ok(
-  /-webkit-backdrop-filter:\s*none(?:\s*!important)?;/.test(agentopsFrameRule),
+  /-webkit-backdrop-filter:\s*none(?:\s*!important)?;/.test(signalFrameRule),
   'Page.vue dashboard frame should override WebKit backdrop blur as well',
 )
 
-const toolbarRule = page.match(/^\.agentops-toolbar\s*\{[\s\S]*?\n\}/m)?.[0] || ''
+const toolbarRule = page.match(/^\.signal-toolbar\s*\{[\s\S]*?\n\}/m)?.[0] || ''
 assert.ok(
   /margin-bottom:\s*(?:12|14|16|18)px;/.test(toolbarRule),
   'Page.vue toolbar should leave visible breathing room before dashboard content',
@@ -742,10 +742,10 @@ for (const [name, content] of Object.entries({
 })) {
   assert.ok(
     !/:global\([^)]*\.v-overlay__scrim[^)]*\)\s*\{[\s\S]*?background:/m.test(content) &&
-      !/\.agentops-dashboard::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content) &&
+      !/\.signal-dashboard::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content) &&
       !/\.dashboard-shell::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content) &&
-      !/\.agentops-frame::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content) &&
-      !/\.aoa-dashboard-widget::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content),
+      !/\.signal-frame::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content) &&
+      !/\.signal-dashboard-widget::(?:before|after)\s*\{[\s\S]*?inset:\s*0\s*;/m.test(content),
     `${name} should not add a root-level transparent overlay over the MP page or dashboard shell`,
   )
 }
@@ -800,21 +800,21 @@ assert.ok(
 )
 
 assert.ok(
-  /@media \(max-width:\s*380px\)\s*\{[\s\S]*?\.agentops-toolbar[\s\S]*?\.command-quick-card[\s\S]*?\.alert-line/m.test(page),
+  /@media \(max-width:\s*380px\)\s*\{[\s\S]*?\.signal-toolbar[\s\S]*?\.command-quick-card[\s\S]*?\.alert-line/m.test(page),
   'Page.vue should include an ultra-narrow breakpoint for 320-380px MP dialogs',
 )
 
 assert.ok(
-  /@media \(max-width:\s*520px\)\s*\{[\s\S]*?\.aoa-header-controls[\s\S]*?flex-wrap:\s*wrap[\s\S]*?\.aoa-actions[\s\S]*?flex-wrap:\s*wrap/m.test(config),
+  /@media \(max-width:\s*520px\)\s*\{[\s\S]*?\.signal-header-controls[\s\S]*?flex-wrap:\s*wrap[\s\S]*?\.signal-actions[\s\S]*?flex-wrap:\s*wrap/m.test(config),
   'Config.vue should let header controls and bottom actions wrap on phone-sized dialogs',
 )
 
 assert.ok(
-  /@media \(max-height:\s*640px\)\s+and\s+\(max-width:\s*760px\)\s*\{[\s\S]*?\.aoa-nav[\s\S]*?height:\s*128px/m.test(config),
+  /@media \(max-height:\s*640px\)\s+and\s+\(max-width:\s*760px\)\s*\{[\s\S]*?\.signal-nav[\s\S]*?height:\s*128px/m.test(config),
   'Config.vue should shorten the mobile navigation rail on low-height screens',
 )
 
-const transparentThemeRule = page.match(/\.agentops-dashboard\.agentops-theme--transparent\s*\{[\s\S]*?\n\}/m)?.[0] || ''
+const transparentThemeRule = page.match(/\.signal-dashboard\.signal-theme--transparent\s*\{[\s\S]*?\n\}/m)?.[0] || ''
 for (const fragment of ['--site-cell-line-alpha', '--site-cell-fill-alpha', '--site-cell-shadow']) {
   assert.ok(transparentThemeRule.includes(fragment), `Transparent theme should tune site cell token: ${fragment}`)
 }
