@@ -41,10 +41,6 @@ class DownloaderTagEventsMixin:
             task_override=["tagging", "seeding"],
         )
 
-    def run_downloader_tag(self) -> bool:
-        """手动入口：仅执行种子打标签（不清理、不做种）。"""
-        return self.run_downloader_helper(trigger="manual", task_override=["tagging"])
-
     def on_download_file_deleted(self, event: Any = None):
         """Source file removal only runs the bounded cleanup task."""
         if self._event_should_noop_after_stop():

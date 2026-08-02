@@ -1,6 +1,6 @@
 """MoviePilot adapter and composition root for Signal."""
 
-# SIGNAL-OWNERSHIP: plugin-contract composition boundary. Host decorators stay here;
+# AOA-OWNERSHIP: plugin-contract composition boundary. Host decorators stay here;
 # behavior belongs to the imported owned mixins.
 
 from app.core.event import Event, eventmanager

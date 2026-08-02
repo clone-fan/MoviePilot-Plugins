@@ -81,13 +81,13 @@ class TgConsoleCallbackMixin:
             return False
         command = text.split()[0].split("@", 1)[0].lower() if text else ""
         command_map = {
-            "/signal_create": "create_tg_console_card",
-            "/signal_daily": "run_daily_report",
-            "/signal_report": "run_daily_report",
-            "/signal_subscribe": "run_subscribe_reminder",
-            "/signal_site": "run_site_stat",
-            "/signal_transfer": "run_today_transfer",
-            "/signal_health": "run_health_check",
+            "/aoa_create": "create_tg_console_card",
+            "/aoa_daily": "run_daily_report",
+            "/aoa_report": "run_daily_report",
+            "/aoa_subscribe": "run_subscribe_reminder",
+            "/aoa_site": "run_site_stat",
+            "/aoa_transfer": "run_today_transfer",
+            "/aoa_health": "run_health_check",
         }
         action_key = command_map.get(command)
         if not action_key:
@@ -265,10 +265,10 @@ class TgConsoleCallbackMixin:
     @classmethod
     def _tg_console_callback_tab_key(cls, data: str) -> Optional[str]:
         raw = cls._tg_console_unwrap_plugin_callback(data)
-        if raw.startswith("signaltab:"):
+        if raw.startswith("aoatab:"):
             key = raw.split(":", 1)[1].split("?", 1)[0].strip()
             return "system_health" if key == "health" else key
-        if raw.startswith("signal:tab:"):
+        if raw.startswith("aoa:tab:"):
             key = raw.split(":", 2)[-1].split("?", 1)[0].strip()
             return "system_health" if key == "health" else key
         return None
@@ -276,9 +276,9 @@ class TgConsoleCallbackMixin:
     @classmethod
     def _tg_console_callback_action_nonce(cls, data: str) -> Optional[str]:
         raw = cls._tg_console_unwrap_plugin_callback(data)
-        if raw.startswith("signalv1:"):
+        if raw.startswith("aoav1:"):
             return raw.split(":", 1)[1].split("?", 1)[0].strip()
-        if raw.startswith("signal:v1:"):
+        if raw.startswith("aoa:v1:"):
             return raw.split(":", 2)[-1].split("?", 1)[0].strip()
         return None
 
