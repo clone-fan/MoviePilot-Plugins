@@ -637,20 +637,6 @@ class BackupMixin:
         ok, _ = self._guard_task("自动备份", "backup")
         if not ok:
             return False
-        if self._fusion_notify_enabled:
-            self._emit_fusion_owned_event(
-                owner="realtime-task-backup",
-                event_type="realtime",
-                title="自动备份执行中",
-                body="自动备份正在执行。",
-                level="info",
-                payload={"affected_owner": "realtime-task-backup"},
-                component="backup",
-                realtime=True,
-                execution_status="running",
-                result_status="running",
-                outcome="自动备份执行中",
-            )
         try:
             data = self._create_signal_backup()
             text = self._format_backup_status_text(data)
