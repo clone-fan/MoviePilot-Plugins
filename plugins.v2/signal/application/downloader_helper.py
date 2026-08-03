@@ -29,7 +29,10 @@ class DownloaderHelperMixin:
     @staticmethod
     def _dltag_value(source: Any, *names: str) -> Any:
         for name in names:
-            value = source.get(name) if isinstance(source, dict) else getattr(source, name, None)
+            try:
+                value = source.get(name) if isinstance(source, dict) else getattr(source, name, None)
+            except (AttributeError, KeyError):
+                continue
             if value not in (None, ""):
                 return value
         return None
@@ -171,7 +174,8 @@ class DownloaderHelperMixin:
             remove = [tag for tag in existing if tag not in final]
             remover = getattr(inst, "remove_torrents_tag", None)
             if remove and callable(remover):
-                remover(ids=[torrent_id], tags=remove)
+                for tag in remove:
+                    remover(ids=[torrent_id], tag=tag)
             elif remove and callable(getattr(torrent, "remove_tags", None)):
                 torrent.remove_tags(tags=remove)
             adder = getattr(inst, "set_torrents_tag", None)

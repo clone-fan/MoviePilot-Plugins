@@ -3,7 +3,7 @@
     "name": "媒体融合 Signal",
     "description": "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。",
     "labels": "MoviePilot,媒体融合,Signal,通知汇报,数据监控,下载管理,系统维护,插件卸载,每日汇报,TG融合汇报卡,订阅追新,站点统计,健康巡查,日志清理,自动备份,更新检查,自动删种,媒体通知",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.3": "修复下载器助手兼容性：qBittorrent 按当前接口逐个移除标签；Transmission 缺少 isPrivate 字段时安全回退到 Tracker 信息判定私种。",
       "v1.0.2": "修复下载器助手执行失败时未回传失败明细的问题；融合通知补齐消息类型配置项；同步 L2.1 构建 CSS 复核脚本到当前 __federation_expose_AppPageConfig-*.css 产物命名。",
       "v1.0.1": "仪表盘标题补齐图标徽章，与配置中心入口对称；补发此前未升版本号导致市场检测不到的更新。",
       "v1.0.0": "首个正式版。通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。融合 13 项社区能力：每日汇报与 TG 融合汇报卡、订阅追新与规则填充、站点统计、自动删种、下载器助手、自动备份恢复、日志清理、历史清理、MP 更新推送、插件库更新、插件卸载、媒体服务器通知。致谢 jxxghp、thsrite、hotlcc、InfinityPacer、Aqr-K、madrays。",
