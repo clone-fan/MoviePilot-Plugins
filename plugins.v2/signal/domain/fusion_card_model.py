@@ -139,7 +139,7 @@ def _identity(value: Any) -> Dict[str, Any]:
         "owner": "card",
         "tier": "identity",
         "title": str(data.get("title") or "运维助手 · 融合通知"),
-"version": str(data.get("version") or "v1.0.1"),
+"version": str(data.get("version") or "v1.0.2"),
         "refreshed_at": str(data.get("refreshed_at") or ""),
     }
 

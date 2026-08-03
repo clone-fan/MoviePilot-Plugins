@@ -315,6 +315,7 @@ class DownloaderHelperMixin:
             return False
         tasks = self._dltag_task_set(task_override)
         counts = {"tagged": 0, "seeded": 0, "cleaned": 0, "failed": 0, "total": 0}
+        failed_downloaders: List[str] = []
         cleanup_scope_is_confirmed = confirmed_candidates is not None
         selected = {(str(item.get("downloader")), str(item.get("id"))) for item in (confirmed_candidates or [])}
         try:
@@ -346,11 +347,14 @@ class DownloaderHelperMixin:
                                 counts["cleaned"] += 1
                 except Exception as err:
                     counts["failed"] += 1
+                    failed_downloaders.append(f"{downloader}: {err}")
                     logger.warning(f"下载器助手处理 {downloader} 失败，已继续其它下载器：{err}")
             success = counts["failed"] == 0
             text = f"下载器助手完成：处理 {counts['total']} 个任务，标签 {counts['tagged']}，做种 {counts['seeded']}，清理 {counts['cleaned']}"
             if counts["failed"]:
                 text += f"，失败 {counts['failed']} 个下载器"
+                if failed_downloaders:
+                    text += "；" + "；".join(failed_downloaders[:3])
             self._save_task_result(name, success, 0 if success else 1, text)
             if trigger == "scheduled" and getattr(self, "_dltag_scheduled_notify", False):
                 self._notify_fusion_task_outcome(mtype=self._notification_type(self._dltag_notify_type), title=name, text=text, outcome=text, success=success, component="downloader_helper")

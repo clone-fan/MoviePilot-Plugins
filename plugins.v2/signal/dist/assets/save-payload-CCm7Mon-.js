@@ -630,6 +630,41 @@ const currentConfigSchemaFields = [
     }
   },
 {
+    "key": "fusion_notify_msgtype",
+    "type": "string",
+    "dataType": "string",
+    "cardType": "notify",
+    "module": "fusion_notify",
+    "subtab": "fusion",
+    "label": "消息类型",
+    "help": "融合卡片通过 MoviePilot 对应消息类型发送。",
+    "control": "select",
+    "itemSource": "notificationTypeItems",
+    "defaultSource": "frontend_defaults,backend_default_config,remote_mp_config",
+    "defaultSources": [
+      "frontend_defaults",
+      "backend_default_config",
+      "remote_mp_config"
+    ],
+    "isDisplayed": true,
+    "displayPolicy": "display",
+    "displayReason": "",
+    "sources": [
+      "frontend_defaults",
+      "backend_default_config",
+      "backend_config_read",
+      "vue_form_use",
+      "remote_mp_config"
+    ],
+    "sourceFlags": {
+      "frontendDefaults": true,
+      "backendDefaults": true,
+      "backendReads": true,
+      "vueUses": true,
+      "remoteConfig": true
+    }
+  },
+{
     "key": "health_check_cron",
     "type": "string",
     "dataType": "string",
@@ -3219,6 +3254,7 @@ Object.freeze(
 
 const DEFAULT_FUSION_CARD_REFRESH_CRON = '0 * * * *';
 const DEFAULT_FUSION_CARD_CREATE_CRON = '5 0 * * *';
+const notificationTypes$1 = new Set(['Plugin', 'Other', 'Manual', 'Subscribe', 'Download', 'Organize', 'SiteMessage', 'MediaServer', 'Agent']);
 const cronRanges = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];
 
 function validCronPart(part, min, max) {
@@ -3258,10 +3294,15 @@ function normalizeFusionCreateCron(value, fallback = DEFAULT_FUSION_CARD_CREATE_
   return normalizeFusionRefreshCron(value, fallback)
 }
 
+function normalizeFusionNotifyMsgtype(value) {
+  return notificationTypes$1.has(value) ? value : 'Plugin'
+}
+
 function normalizeCurrentFusionConfig(config = {}) {
   const source = config && typeof config === 'object' && !Array.isArray(config) ? config : {};
   const normalized = { ...source };
   if (Object.hasOwn(source, 'fusion_notify_enabled')) normalized.fusion_notify_enabled = !!source.fusion_notify_enabled;
+  if (Object.hasOwn(source, 'fusion_notify_msgtype')) normalized.fusion_notify_msgtype = normalizeFusionNotifyMsgtype(source.fusion_notify_msgtype);
   if (Object.hasOwn(source, 'fusion_card_create_cron')) normalized.fusion_card_create_cron = normalizeFusionCreateCron(source.fusion_card_create_cron);
   if (Object.hasOwn(source, 'fusion_card_refresh_cron')) normalized.fusion_card_refresh_cron = normalizeFusionRefreshCron(source.fusion_card_refresh_cron);
   return normalized

@@ -1,6 +1,6 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { am as _export_sfc, c7 as mdiChevronDown, bB as mdiCogOutline, bI as mdiClose, c4 as mdiAlertOutline, aX as mdiPlay, bu as mdiDeleteOutline, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, aG as mdiShieldCheckOutline, c8 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, b4 as mdiLinkVariant, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bl as mdiFilterOutline, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-CTgwQT0_.js';
-import { c as configSchemaFields, n as normalizeCurrentConfig, e as emitConfigSave } from './save-payload-CuYtvZ2o.js';
+import { c as configSchemaFields, n as normalizeCurrentConfig, e as emitConfigSave } from './save-payload-CCm7Mon-.js';
 import { p as postPluginApi, g as getPluginApi, u as useAgentOpsTheme, a as useActionRunner } from './useAgentOpsTheme-C3_mdvlW.js';
 
 const {createElementVNode:_createElementVNode$6,normalizeClass:_normalizeClass$6,openBlock:_openBlock$8,createElementBlock:_createElementBlock$6,createCommentVNode:_createCommentVNode$6,resolveComponent:_resolveComponent$4,mergeProps:_mergeProps$1,createBlock:_createBlock$7,toDisplayString:_toDisplayString$6,createTextVNode:_createTextVNode$2,withCtx:_withCtx$3,createVNode:_createVNode$5,createSlots:_createSlots} = await importShared('vue');
@@ -1651,6 +1651,7 @@ const defaults = {
   enabled: false,
   local_plugin_repo: '',
   fusion_notify_enabled: true,
+  fusion_notify_msgtype: 'Plugin',
   fusion_card_create_cron: '5 0 * * *',
   fusion_card_refresh_cron: '0 * * * *',
   health_check_enabled: true,
@@ -2784,9 +2785,10 @@ const replicaCards = computed(() => {
   const dltagTaggingActive = dltagTasks.includes('tagging') || Boolean(form.dltag_listen_download);
   const cards = composeSharedReplicaCards(bindReplicaCards(completeReplicaCards({
     fusion: [
-      { type: 'section', icon: 'mdi-plus-circle-outline', title: '每日建卡', note: '使用标准 Cron 安排建卡和刷新，修改后保存即可重载计划。', grid: 'grid-2', fields: [
+      { type: 'section', icon: 'mdi-plus-circle-outline', title: '每日建卡', note: '使用标准 Cron 安排建卡和刷新，修改后保存即可重载计划。', grid: 'grid-3', fields: [
         { key: 'fusion_card_create_cron', icon: 'mdi-plus-circle-outline', label: '建卡时间', value: cronVal(form.fusion_card_create_cron) },
         { key: 'fusion_card_refresh_cron', icon: 'mdi-calendar-clock', label: '刷新时间', value: cronVal(form.fusion_card_refresh_cron) },
+        { key: 'fusion_notify_msgtype', icon: 'mdi-email-outline', label: '消息类型', value: valOr(form.fusion_notify_msgtype, 'Plugin') },
       ] },
       { type: 'actions', actions: [{ icon: 'mdi-plus-circle-outline', label: '立即建卡', path: 'create_tg_console_card' }, { icon: 'mdi-sync', label: '立即刷新', path: 'run_daily_report' }] },
     ],

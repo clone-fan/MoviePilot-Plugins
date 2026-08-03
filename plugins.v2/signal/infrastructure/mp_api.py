@@ -529,7 +529,15 @@ class MpApiMixin:
             else:
                 confirmed = []
             success = self.run_downloader_helper(trigger="manual", confirmed_candidates=confirmed)
-            return {"code": 0 if success else 1, "msg": f"下载器助手执行{'完成' if success else '失败'}", "data": {"confirm_required": False, "preview": preview}}
+            result = {}
+            try:
+                loader = getattr(self, "get_data", None)
+                if callable(loader):
+                    result = loader(f"last_{self._slug('下载器助手')}") or {}
+            except Exception:
+                result = {}
+            result_msg = result.get("output") or f"下载器助手执行{'完成' if success else '失败'}"
+            return {"code": 0 if success else 1, "msg": result_msg, "data": {"confirm_required": False, "preview": preview, "result": result}}
         except Exception as err:
             self._save_task_result("下载器助手", False, -1, str(err))
             return {"code": 1, "msg": f"下载器助手执行失败：{err}", "data": {}}
