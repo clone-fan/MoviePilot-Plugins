@@ -192,8 +192,6 @@ class DownloaderHelperMixin:
             setter(torrent_id, final)
         except TypeError:
             setter(ids=torrent_id, tags=final, org_tags=[])
-        if hasattr(torrent, "labels"):
-            torrent.labels = final
         return True
 
     def _dltag_is_complete(self, torrent: Any, is_qb: bool) -> bool:

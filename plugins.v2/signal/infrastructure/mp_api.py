@@ -211,13 +211,26 @@ class MpApiMixin:
         return {"code": 0 if ok else 1, "msg": "插件日志清理执行成功" if ok else "插件日志清理执行失败，详情请查看插件日志。"}
 
     def api_run_backup(self) -> Dict[str, Any]:
-        ok_guard, msg = self._can_run_task("自动备份", "backup")
-        if not ok_guard:
-            self._save_task_result("自动备份", False, 2, msg)
-            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, self._build_backup_status())}
-        ok = self.run_backup()
-        data = self._build_backup_status()
-        return {"code": 0 if ok else 1, "msg": "自动备份执行成功" if ok else "自动备份执行失败，详情请查看插件日志。", "data": data}
+        try:
+            ok_guard, msg = self._can_run_task("自动备份", "backup")
+            if not ok_guard:
+                self._save_task_result("自动备份", False, 2, msg)
+                return {"code": 1, "msg": msg, "data": self._skipped_data(msg, self._build_backup_status())}
+            ok = self.run_backup()
+            data = self._build_backup_status()
+            return {"code": 0 if ok else 1, "msg": "自动备份执行成功" if ok else "自动备份执行失败，详情请查看插件日志。", "data": data}
+        except Exception as err:
+            logger.error(f"Signal 自动备份接口执行失败：{err}")
+            try:
+                self._save_task_result("自动备份", False, -1, str(err))
+            except Exception as save_err:
+                logger.error(f"Signal 自动备份失败结果保存异常：{save_err}")
+            try:
+                data = self._build_backup_status()
+            except Exception as status_err:
+                logger.error(f"Signal 自动备份状态读取失败：{status_err}")
+                data = {}
+            return {"code": 1, "msg": f"自动备份执行失败：{err}", "data": data}
 
     def api_backup_archives(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("备份恢复", "backup")
