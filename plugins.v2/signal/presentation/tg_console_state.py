@@ -89,11 +89,19 @@ class TgConsoleStateMixin:
 
     def _new_tg_console_card_state(self, chat_id: str = "", trigger: str = "manual") -> Dict[str, Any]:
         previous = self._tg_console_state(chat_id=chat_id)
-        fusion_card = begin_fusion_card_creation(previous.get("fusion_card"), trigger=trigger, chat_id=str(chat_id or previous.get("chat_id") or ""))
+        today = self._today_prefix()
+        previous_card = previous.get("fusion_card") if isinstance(previous.get("fusion_card"), dict) else {}
+        same_day = str(previous_card.get("created_at") or "").startswith(today)
+        fusion_card = begin_fusion_card_creation(
+            previous_card,
+            trigger=trigger,
+            chat_id=str(chat_id or previous.get("chat_id") or ""),
+            reuse_active=same_day,
+        )
         return {
-            "date": self._today_prefix(),
+            "date": today,
             "chat_id": str(chat_id or previous.get("chat_id") or ""),
-            "message_id": 0,
+            "message_id": fusion_card.get("message_id", 0) if can_update_fusion_card(fusion_card) else 0,
             "last_update_id": self._safe_int(previous.get("last_update_id"), 0, 0),
             "processed_callbacks": list(previous.get("processed_callbacks") or [])[-100:],
             "notices": [],
@@ -105,7 +113,7 @@ class TgConsoleStateMixin:
             "pending_actions": {},
             "last_error": "",
             "fusion_card": fusion_card,
-            "v7_event_ledger": normalize_event_ledger(previous.get("v7_event_ledger"), self._today_prefix()),
+            "v7_event_ledger": normalize_event_ledger(previous.get("v7_event_ledger"), today),
         }
 
     def _save_tg_console_state(self, state: Dict[str, Any]) -> None:

@@ -137,10 +137,23 @@ def begin_fusion_card_creation(
     trigger: str,
     chat_id: str = "",
     card_id: str = "",
+    reuse_active: bool = True,
     now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     stamp = _timestamp(now)
     old = normalize_fusion_card_state(previous, enabled=True, now=now)
+    if reuse_active and not card_id and can_update_fusion_card(old):
+        reused = deepcopy(old)
+        reused.update({
+            "lifecycle": "active",
+            "trigger": str(trigger or reused.get("trigger") or "manual"),
+            "updated_at": stamp,
+            "last_refresh_at": stamp,
+            "retired_at": "",
+            "retirement_reason": "",
+            "modules": {},
+        })
+        return reused
     previous_summary = None
     if old.get("card_id") or old.get("message_id"):
         previous_summary = {
