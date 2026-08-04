@@ -3,10 +3,9 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List
 
-from app.core.event import Event, eventmanager
+from app.core.event import Event
 from app.log import logger
 from app.schemas import NotificationType
-from app.schemas.types import EventType
 
 
 def _split_subfill_fields(line: str) -> List[str]:
@@ -33,7 +32,6 @@ def _split_subfill_fields(line: str) -> List[str]:
 class EventsMixin:
     """MoviePilot event and remote-command entrypoints."""
 
-    @eventmanager.register(EventType.PluginAction)
     def handle_command(self, event: Event = None):
         if not event:
             return
@@ -111,7 +109,6 @@ class EventsMixin:
         if results and not self._fusion_notify_enabled and (has_failed_task or (not task_sent_message and action not in quiet_success_actions)):
             self._notify_or_console(mtype=NotificationType.Plugin, title="MP 运维助手命令执行结果", text="\n".join(results))
 
-    @eventmanager.register(EventType.MessageAction)
     def on_message_action(self, event: Event = None):
         """接收 MoviePilot 通知渠道转发的 `[PLUGIN]Signal|...` 按钮回调。"""
         if self._event_should_noop_after_stop():
@@ -139,7 +136,6 @@ class EventsMixin:
         }
         self._handle_tg_console_callback(callback)
 
-    @eventmanager.register(EventType.DownloadAdded)
     def on_download_fill_subscribe(self, event: Event = None):
         """下载添加后，用实际下载到的资源回填对应电视剧订阅的空规则（移植自 thsrite SubscribeGroup 下载填充）。
         仅填充订阅中尚为空的字段，已设置的不覆盖；按 tmdbid 去重，仅处理一次。"""
@@ -301,7 +297,6 @@ class EventsMixin:
                                             "sites": sites, "filter_groups": filter_groups}
         return confs
 
-    @eventmanager.register(EventType.SubscribeAdded)
     def on_subscribe_added_fill(self, event: Event = None):
         """新增订阅时按媒体二级分类套用自定义规则（移植自 thsrite SubscribeGroup 二级分类填充）。"""
         if self._event_should_noop_after_stop():
@@ -401,7 +396,6 @@ class EventsMixin:
             resource_effect = "[\\s.]+SDR[\\s.]+"
         return resource_effect
 
-    @eventmanager.register(EventType.WebhookMessage)
     def on_webhook_message(self, event: Event = None):
         """媒体库服务器通知（移植自 jxxghp MediaServerMsg 核心）：把 Emby/Jellyfin/Plex 的
         播放/入库/登录等 webhook 事件按配置推送通知。不含原插件的剧集聚合/IP定位/海报抓取。"""
