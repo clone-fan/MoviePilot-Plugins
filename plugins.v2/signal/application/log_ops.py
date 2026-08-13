@@ -48,6 +48,8 @@ class LogOpsMixin:
                     outcome=outcome,
                     success=success,
                     component="log_clean",
+                    task_key="log_clean",
+                    task_group="维护任务",
                 )
             self._save_task_result("日志清理", success, 0 if success else 1, text)
             return success

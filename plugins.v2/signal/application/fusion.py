@@ -89,17 +89,47 @@ class FusionMixin:
 
     def _notify_fusion_task_outcome(
         self, *, mtype: Any, title: str, text: str, outcome: str,
-        success: bool, component: str, affected_owner: str = "",
+        success: bool, component: str, affected_owner: str = "", task_key: str = "",
+        task_group: str = "", execution_count: int = 1,
     ) -> bool:
         concrete_outcome = str(outcome or "").strip()
         if not concrete_outcome:
             raise ValueError("Fusion task outcome requires concrete humanized copy")
         if self._fusion_notify_enabled:
+            resolved_task_key = str(task_key or component or "").strip()
+            resolved_task_group = str(task_group or self._fusion_task_group(component) or "").strip()
+            event_payload = {
+                "affected_owner": affected_owner,
+                "task_key": resolved_task_key,
+                "task_group": resolved_task_group,
+                "execution_count": max(1, int(execution_count or 1)),
+                "last_result_at": datetime.now().astimezone().isoformat(),
+            }
             return self._emit_fusion_owned_event(
                 owner="today-completion" if success else "current-anomalies", event_type="completion" if success else "anomaly",
-                title=title, body=text, level="success" if success else "error", payload={"affected_owner": affected_owner},
+                title=title, body=text, level="success" if success else "error", payload=event_payload,
                 component=component, execution_status="executed", result_status="success" if success else "error", outcome=concrete_outcome)
         return self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+
+    @staticmethod
+    def _fusion_task_group(component: Any) -> str:
+        """Resolve grouping from the stable component key, never from rendered title text."""
+        return {
+            "site_stat": "站点统计",
+            "health_check": "维护任务",
+            "backup": "维护任务",
+            "log_clean": "维护任务",
+            "seed_clean": "维护任务",
+            "downloader_helper": "维护任务",
+            "dltag": "维护任务",
+            "mp_update": "更新管理",
+            "update_preview": "更新管理",
+            "market_update": "更新管理",
+            "plugin_update_reminder": "更新管理",
+            "subfill_download": "规则填充",
+            "subfill_category": "规则填充",
+            "subfill": "规则填充",
+        }.get(str(component or "").strip(), "")
 
     @staticmethod
     def _task_outcome_notification_enabled(component_notify: Any) -> bool:
@@ -126,7 +156,11 @@ class FusionMixin:
             ("备份", "backup"),
             ("MoviePilot更新", "mp_update"),
             ("主程序更新", "mp_update"),
+            ("插件库同步", "market_update"),
             ("插件库更新", "market_update"),
+            ("插件更新提醒", "plugin_update_reminder"),
+            ("插件更新", "plugin_update_reminder"),
+            ("插件自动安装", "plugin_update_reminder"),
             ("自动删种", "seed_clean"),
             ("下载器助手", "downloader_helper"),
             ("订阅规则自动填充", "subfill"),
@@ -279,7 +313,7 @@ class FusionMixin:
         if key == "maintenance":
             return "维护任务", "\n".join(self._fusion_recent_task_lines(["backup", "log_clean", "plugin_uninstall", "seed_clean", "downloader_helper"])), "info"
         if key == "updates":
-            return "更新检查", "\n".join(self._fusion_recent_task_lines(["update_preview", "market_update"])), "info"
+            return "更新管理", "\n".join(self._fusion_recent_task_lines(["update_preview", "plugin_update_reminder", "market_update"])), "info"
         return "融合通知", "", "info"
 
     def _fusion_site_stat_lines(self) -> List[str]:
@@ -306,7 +340,8 @@ class FusionMixin:
             "seed_clean": "自动删种",
             "downloader_helper": "下载器助手",
             "update_preview": "MP 更新",
-            "market_update": "插件更新",
+            "market_update": "插件库同步",
+            "plugin_update_reminder": "插件更新",
         }
         rows = []
         for key in keys:
@@ -315,7 +350,7 @@ class FusionMixin:
             if not data:
                 rows.append(f"⦁ {label}：暂无记录")
                 continue
-            if key in {"update_preview", "market_update"}:
+            if key in {"update_preview", "market_update", "plugin_update_reminder", "plugin_auto_install"}:
                 status = self._fusion_update_task_status(key, data)
                 summary = self._fusion_update_task_summary(key, data)
             else:
@@ -330,8 +365,6 @@ class FusionMixin:
         raw_lower = raw.lower()
         if data.get("success") is False or data.get("error"):
             return "检查失败"
-        if any(word in raw for word in ("失败", "异常", "错误")) or any(word in raw_lower for word in ("error", "timeout", "failed")):
-            return "检查失败"
         if key == "update_preview":
             if data.get("upgrade_dispatched") or any(word in raw for word in ("已触发 MoviePilot 升级", "已触发 MoviePilot 重启", "更新执行：已触发")):
                 return "已触发更新"
@@ -341,18 +374,29 @@ class FusionMixin:
                 return "已是最新"
             return "检查完成" if data.get("success") is True else "待确认"
         if key == "market_update":
-            plugin_update = data.get("plugin_update") if isinstance(data.get("plugin_update"), dict) else {}
-            if plugin_update.get("updated"):
-                return "已更新"
-            if plugin_update.get("failed"):
-                return "部分失败"
-            if plugin_update.get("updatable") or data.get("has_update") or data.get("new_markets"):
-                return "有更新"
-            if re.search(r"(?:新发现|发现可更新插件)\s*[：:]\s*[1-9]\d*", raw) or "发现可更新插件" in raw:
-                return "有更新"
-            if any(word in raw for word in ("无更新", "未发现", "新发现：0", "新发现:0", "新发现： 0")):
-                return "无更新"
+            if "写入当前配置：已执行" in raw or "写入 app.env：已执行" in raw:
+                return "已同步"
+            if data.get("has_update") or data.get("new_markets"):
+                return "发现变化"
+            if re.search(r"新发现\s*[：:]\s*[1-9]\d*", raw):
+                return "发现变化"
+            if any(word in raw for word in ("未执行", "新发现：0", "新发现:0", "新发现： 0")):
+                return "已是最新"
+            return "同步完成" if data.get("success") is True else "待确认"
+        if key in {"plugin_update_reminder", "plugin_auto_install"}:
+            install_match = re.search(r"自动安装：成功\s*(\d+)\s*个[｜|]\s*失败\s*(\d+)\s*个", raw)
+            if install_match:
+                if int(install_match.group(2)) > 0:
+                    return "部分失败"
+                return "已安装" if int(install_match.group(1)) > 0 else "无可安装更新"
+            update_match = re.search(r"发现可更新插件：\s*(\d+)\s*个", raw)
+            if update_match:
+                return "有更新" if int(update_match.group(1)) > 0 else "已是最新"
+            if any(word in raw for word in ("当前没有可更新插件", "无可安装更新")):
+                return "已是最新"
             return "检查完成" if data.get("success") is True else "待确认"
+        if any(word in raw for word in ("失败", "异常", "错误")) or any(word in raw_lower for word in ("error", "timeout", "failed")):
+            return "检查失败"
         return "成功" if data.get("success") is True else ("失败" if data.get("success") is False else "待确认")
 
     @classmethod
@@ -368,10 +412,18 @@ class FusionMixin:
             if match:
                 return match.group(0).strip(" ⦁-")
         if key == "market_update":
-            plugin_update = data.get("plugin_update") if isinstance(data.get("plugin_update"), dict) else {}
-            if plugin_update.get("updated") is not None:
-                return f"已更新 {len(plugin_update.get('updated') or [])} 个，失败 {len(plugin_update.get('failed') or [])} 个"
             match = re.search(r"新发现\s*[：:]\s*\d+\s*个", raw)
+            if match:
+                return match.group(0)
+            writes = sum(1 for marker in ("写入当前配置：已执行", "写入 app.env：已执行") if marker in raw)
+            if writes:
+                return f"同步 {writes} 处插件库配置"
+        if key == "plugin_update_reminder":
+            match = re.search(r"发现可更新插件：\s*\d+\s*个", raw)
+            if match:
+                return match.group(0)
+        if key == "plugin_auto_install":
+            match = re.search(r"自动安装：成功\s*\d+\s*个[｜|]\s*失败\s*\d+\s*个", raw)
             if match:
                 return match.group(0)
         return cls._summarize_fusion_task_text("", raw)

@@ -648,6 +648,8 @@ class BackupMixin:
                     outcome=self._backup_outcome(data),
                     success=bool(data.get("success")),
                     component="backup",
+                    task_key="backup",
+                    task_group="维护任务",
                     affected_owner="realtime-task-backup",
                 )
             elif scheduled and self._task_outcome_notification_enabled(self._backup_notify):
@@ -658,6 +660,8 @@ class BackupMixin:
                     outcome=self._backup_outcome(data),
                     success=bool(data.get("success")),
                     component="backup",
+                    task_key="backup",
+                    task_group="维护任务",
                 )
             self._save_task_result("自动备份", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
@@ -671,6 +675,8 @@ class BackupMixin:
                     outcome="自动备份执行异常",
                     success=False,
                     component="backup",
+                    task_key="backup",
+                    task_group="维护任务",
                     affected_owner="realtime-task-backup",
                 )
             elif scheduled and self._task_outcome_notification_enabled(self._backup_notify):
@@ -681,6 +687,8 @@ class BackupMixin:
                     outcome="自动备份执行异常",
                     success=False,
                     component="backup",
+                    task_key="backup",
+                    task_group="维护任务",
                 )
             self._save_task_result("自动备份", False, -1, str(err))
             logger.error(f"Signal 自动备份执行失败：{err}")

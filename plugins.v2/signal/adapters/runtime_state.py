@@ -23,7 +23,7 @@ class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "1.0.7"
+    plugin_version = "1.0.10"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -61,9 +61,9 @@ class RuntimeStateMixin:
         {"key": "log_clean", "category": "ops_tools", "subcategory": "日志清理", "name": "日志清理", "phase": "v0.9", "risk": "中", "status": "已直接接替", "source": "/config/logs/plugins", "goal": "扫描插件日志、按保留行数直接清理"},
         {"key": "backup", "category": "ops_tools", "subcategory": "配置备份", "name": "自动备份", "phase": "v1.1", "risk": "中", "status": "已直接接替", "source": "Signal", "goal": "打包配置/数据库/关键目录、保留策略清理"},
         {"key": "mp_update", "category": "ops_tools", "subcategory": "主程序", "name": "MoviePilot 更新推送", "phase": "v1.2", "risk": "中", "status": "已直接接替", "source": "Signal", "goal": "检查后端/前端 release 并通知"},
-        {"key": "market_update", "category": "ops_tools", "subcategory": "插件库", "name": "插件库更新推送", "phase": "v1.3", "risk": "中", "status": "已直接接替", "source": "Signal", "goal": "抓取插件库记录、对比当前配置、通知变化"},
+        {"key": "market_update", "category": "ops_tools", "subcategory": "更新管理", "name": "插件库同步", "phase": "v1.3", "risk": "中", "status": "已直接接替", "source": "Signal", "goal": "同步插件库记录、对比当前配置、通知变化"},
 
-        {"key": "plugin_uninstall", "category": "plugin", "subcategory": "插件卸载", "name": "插件卸载", "phase": "v1.4", "risk": "高", "status": "已接入", "source": "Signal", "goal": "插件卸载、配置/数据清理与残留文件备份删除"},
+        {"key": "plugin_uninstall", "category": "plugin", "subcategory": "插件卸载", "name": "插件卸载", "phase": "v1.4", "risk": "高", "status": "已接入", "source": "Signal", "goal": "插件卸载、配置/数据清理与残留文件彻底删除"},
     ]
 
     _enabled = False
@@ -110,6 +110,7 @@ class RuntimeStateMixin:
     _site_stat_enabled = True
     _site_stat_schedule_enabled = True
     _site_stat_cron = "0 8 * * *"
+    _site_stat_schedule_notify_enabled = True
     _site_stat_notify_type = "Plugin"
     _health_check_enabled: bool = True
     _health_check_schedule_enabled: bool = True
@@ -119,7 +120,10 @@ class RuntimeStateMixin:
     _health_check_storage_targets: List[str] = []
     _health_check_directory_targets: List[str] = []
     _health_check_storage_threshold: int = 85
+    _health_check_notify: bool = True
+    _health_check_completion_notify_enabled: bool = False
     _health_check_notify_type: str = "Plugin"
+    _health_check_completion_notify_type: str = "Plugin"
     _report_health: bool = True
     _log_clean_enabled = False
     _log_clean_schedule_enabled = False
@@ -150,9 +154,25 @@ class RuntimeStateMixin:
     _market_update_strategy = "check"
     _market_update_install_ids: List[str] = []
     _market_update_exclude_ids: List[str] = []
+    _plugin_update_reminder_enabled = False
+    _plugin_update_reminder_schedule_enabled = False
+    _plugin_update_reminder_cron = "0 9 * * *"
+    _mp_update_scheduled_notify = False
+    _mp_update_notify_type = "Plugin"
+    _market_update_scheduled_notify = False
+    _market_update_notify_type = "Plugin"
+    _plugin_update_reminder_scheduled_notify = False
+    _plugin_update_reminder_notify_type = "Plugin"
+    _plugin_auto_install_enabled = False
+    _plugin_auto_install_schedule_enabled = False
+    _plugin_auto_install_cron = "0 9 * * *"
+    _plugin_auto_install_scheduled_notify = False
+    _plugin_auto_install_notify_type = "Plugin"
+    _plugin_auto_install_scope_mode = "all"
+    _plugin_auto_install_install_ids: List[str] = []
+    _plugin_auto_install_exclude_ids: List[str] = []
     _update_scheduled_notify = False
     _update_notify_type = "Plugin"
-    _plugin_uninstall_remove_plugin = True
     _plugin_uninstall_clear_config = True
     _plugin_uninstall_clear_data = True
     _plugin_uninstall_delete_source = False
@@ -180,6 +200,8 @@ class RuntimeStateMixin:
     _subfill_details: List[str] = []
     _subfill_category_enabled = False
     _subfill_category_confs = ""
+    _subfill_completion_notify_enabled = False
+    _subfill_completion_notify_type = "Plugin"
     _subfill_confs: Dict[str, Any] = {}
     _msgnotify_enabled = False
     _msgnotify_types: List[str] = []
@@ -247,6 +269,8 @@ class RuntimeStateMixin:
         "backup": "_backup_enabled",
         "mp_update": "_mp_update_enabled",
         "market_update": "_market_update_enabled",
+        "plugin_update_reminder": "_plugin_update_reminder_enabled",
+        "plugin_auto_install": "_plugin_auto_install_enabled",
         "seed_clean": "_seedclean_enabled",
         "seedclean": "_seedclean_enabled",
         "downloader_tag": "_dltag_enabled",
@@ -349,7 +373,10 @@ class RuntimeStateMixin:
             "health_check_storage_targets": ["storages", "config", "download", "library"],
             "health_check_directory_targets": ["config", "plugin", "download", "library"],
             "health_check_storage_threshold": 85,
+            "health_check_notify": True,
+            "health_check_completion_notify_enabled": False,
             "health_check_notify_type": "Plugin",
+            "health_check_completion_notify_type": "Plugin",
             "subscribe_reminder_enabled": True,
             "subscribe_reminder_schedule_enabled": True,
             "subscribe_reminder_cron": "0 9 * * *",
@@ -358,6 +385,7 @@ class RuntimeStateMixin:
             "site_stat_enabled": True,
             "site_stat_schedule_enabled": True,
             "site_stat_cron": "0 8 * * *",
+            "site_stat_schedule_notify_enabled": True,
             "site_stat_dashboard_type": "today",
             "site_stat_notify_type": "Plugin",
             "log_clean_enabled": False,
@@ -373,6 +401,7 @@ class RuntimeStateMixin:
             "backup_path": "/config/plugins/Signal/Backup",
             "backup_notify": False,
             "backup_notify_type": "Plugin",
+            "backup_webdav_enabled": False,
             "backup_webdav_digest_auth": False,
             "backup_webdav_disable_check": False,
             "backup_webdav_hostname": "",
@@ -389,10 +418,26 @@ class RuntimeStateMixin:
             "market_update_strategy": "check",
             "market_update_install_ids": [],
             "market_update_exclude_ids": [],
+            "plugin_update_reminder_enabled": False,
+            "plugin_update_reminder_schedule_enabled": False,
+            "plugin_update_reminder_cron": "0 9 * * *",
+            "mp_update_scheduled_notify": False,
+            "mp_update_notify_type": "Plugin",
+            "market_update_scheduled_notify": False,
+            "market_update_notify_type": "Plugin",
+            "plugin_update_reminder_scheduled_notify": False,
+            "plugin_update_reminder_notify_type": "Plugin",
+            "plugin_auto_install_enabled": False,
+            "plugin_auto_install_schedule_enabled": False,
+            "plugin_auto_install_cron": "0 9 * * *",
+            "plugin_auto_install_scheduled_notify": False,
+            "plugin_auto_install_notify_type": "Plugin",
+            "plugin_auto_install_scope_mode": "all",
+            "plugin_auto_install_install_ids": [],
+            "plugin_auto_install_exclude_ids": [],
             "update_scheduled_notify": False,
             "update_notify_type": "Plugin",
             "plugin_uninstall_ids": [],
-            "plugin_uninstall_remove_plugin": True,
             "plugin_uninstall_clear_config": True,
             "plugin_uninstall_clear_data": True,
             "plugin_uninstall_delete_source": False,
@@ -420,6 +465,8 @@ class RuntimeStateMixin:
             "subfill_details": [],
             "subfill_category_enabled": False,
             "subfill_category_confs": "",
+            "subfill_completion_notify_enabled": False,
+            "subfill_completion_notify_type": "Plugin",
             "msgnotify_enabled": False,
             "msgnotify_types": [],
             "msgnotify_servers": [],

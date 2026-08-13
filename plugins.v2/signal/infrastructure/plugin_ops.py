@@ -3,6 +3,8 @@
 import os
 import re
 import shutil
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -73,7 +75,6 @@ class PluginOpsMixin:
         if "plugin_uninstall_ids" in payload:
             override["plugin_uninstall_ids"] = self._parse_csv(payload.get("plugin_uninstall_ids"))
         for key in (
-            "plugin_uninstall_remove_plugin",
             "plugin_uninstall_clear_config",
             "plugin_uninstall_clear_data",
             "plugin_uninstall_delete_source",
@@ -91,7 +92,6 @@ class PluginOpsMixin:
         raw_ids = list(raw_ids or [])
         return {
             "raw_ids": raw_ids,
-            "remove_plugin": bool(override.get("plugin_uninstall_remove_plugin", self._plugin_uninstall_remove_plugin)),
             "clear_config": bool(override.get("plugin_uninstall_clear_config", self._plugin_uninstall_clear_config)),
             "clear_data": bool(override.get("plugin_uninstall_clear_data", self._plugin_uninstall_clear_data)),
             "delete_source": bool(override.get("plugin_uninstall_delete_source", self._plugin_uninstall_delete_source)),
@@ -105,19 +105,17 @@ class PluginOpsMixin:
             if pid and pid not in ids:
                 ids.append(pid)
         result = {"success": True, "dry_run": not clean, "plugin_id": "、".join(ids),
-                  "note": "卸载插件并按勾选项清理配置、数据、日志、备份或本地源码残留；不会删除媒体文件、下载任务或 MoviePilot 核心源码。",
-                  "remove_plugin": options["remove_plugin"],
+                  "note": "执行按钮始终卸载插件本体；按勾选项额外清理配置、数据、运行源码和本地源码，同时删除日志与历史卸载残留；不会生成备份，操作不可逆。",
                   "clear_config": options["clear_config"],
                   "clear_data": options["clear_data"],
                   "delete_source": options["delete_source"],
-                  "uninstalled": [], "cleaned_config": [], "cleaned_data": [],
-                  "candidates": [], "deleted": [], "errors": [], "backup_path": "", "blocked": "",
-                  "attempted_actions": 0}
+                   "uninstalled": [], "cleaned_config": [], "cleaned_data": [],
+                   "candidates": [], "deleted": [], "verification": [], "errors": [], "blocked": "",
+                   "attempted_actions": 0}
         if not ids:
             result.update({"success": False, "blocked": "请先在配置页选择目标插件。"})
             return result
         forbidden = {"signal", "moviepilot"}
-        backups: List[str] = []
         for pid in ids:
             if pid.lower() in forbidden:
                 result["errors"].append(f"{pid}: 为避免自毁或误删核心组件，禁止卸载 Signal / MoviePilot 本体，已跳过。")
@@ -135,86 +133,135 @@ class PluginOpsMixin:
                     allowed_candidates.append(item)
                 else:
                     result["errors"].append(f"{path}: 路径越界，不在允许范围内，已跳过删除。")
-            if options["remove_plugin"]:
-                result["attempted_actions"] += 1
-                ok, message, cleaned = self._uninstall_moviepilot_plugin(pid, clear_config=options["clear_config"], clear_data=options["clear_data"])
-                result["uninstalled"].append({"plugin_id": pid, "success": ok, "message": message})
-                if cleaned.get("config"):
-                    result["cleaned_config"].append(pid)
-                if cleaned.get("data"):
-                    result["cleaned_data"].append(pid)
-                if not ok:
-                    result["errors"].append(f"{pid}: {message}")
-                    continue
+            result["attempted_actions"] += 1
+            ok, message, cleaned = self._uninstall_moviepilot_plugin(pid, clear_config=options["clear_config"], clear_data=options["clear_data"])
+            result["uninstalled"].append({"plugin_id": pid, "success": ok, "message": message})
+            result["uninstalled"][-1]["verification"] = {
+                key: bool(value)
+                for key, value in cleaned.items()
+                if key in {"installed_list", "plugin_folders", "api", "scheduler", "runtime"}
+            }
+            if cleaned.get("config"):
+                result["cleaned_config"].append(pid)
+            if cleaned.get("data"):
+                result["cleaned_data"].append(pid)
+            if not ok:
+                result["errors"].append(f"{pid}: {message}")
             if allowed_candidates:
-                backups.append(self._backup_plugin_uninstall_candidates(pid, allowed_candidates))
+                self._isolate_plugin_runtime_candidates(pid, allowed_candidates, result)
             for item in allowed_candidates:
                 path = Path(item.get("path") or "")
                 if not path.exists():
                     continue
                 result["attempted_actions"] += 1
                 try:
-                    if path.is_dir():
-                        shutil.rmtree(path)
-                    else:
-                        path.unlink()
+                    self._delete_plugin_path_with_retry(path)
                     result["deleted"].append(item)
                 except Exception as err:
                     result["errors"].append(f"{path}: {err}")
-        result["backup_path"] = "；".join([b for b in backups if b])
+            for item in allowed_candidates:
+                original_path = Path(item.get("original_path") or item.get("path") or "")
+                current_path = Path(item.get("path") or "")
+                if original_path.exists() or current_path.exists():
+                    result["errors"].append(f"{pid}: 清理后仍有残留：{current_path}")
+            remaining = self._plugin_uninstall_candidates(pid, delete_source=options["delete_source"])
+            path_clean = True
+            for item in remaining:
+                path = Path(item.get("path") or "")
+                if path.exists() and self._plugin_uninstall_path_allowed(path, delete_source=options["delete_source"]):
+                    path_clean = False
+                    result["errors"].append(f"{pid}: 最终复核仍有残留：{path}")
+            result["verification"].append({"plugin_id": pid, "paths": path_clean})
+        self._remove_empty_isolation_root()
         result["success"] = not result["errors"]
         return result
     @staticmethod
-    def _remove_plugin_api_safely(plugin_id: str):
+    def _remove_plugin_api_safely(plugin_id: str) -> bool:
         try:
             from app.api.endpoints.plugin import remove_plugin_api
-            remove_plugin_api(plugin_id)
+            result = remove_plugin_api(plugin_id)
+            return result is not False
         except Exception as err:
             logger.debug(f"Signal 移除插件 API 路由跳过：{plugin_id} {err}")
+            return False
     @staticmethod
-    def _remove_plugin_job_safely(scheduler: Any, plugin_id: str):
+    def _remove_plugin_job_safely(scheduler: Any, plugin_id: str) -> bool:
         try:
             if hasattr(scheduler, "remove_plugin_job"):
-                scheduler.remove_plugin_job(plugin_id)
+                result = scheduler.remove_plugin_job(plugin_id)
+                return result is not False
+            return True
         except Exception as err:
             logger.warning(f"Signal 移除插件调度失败：{plugin_id} {err}")
+            return False
     @staticmethod
-    def _remove_plugin_from_folders_safely(config_oper: Any, system_config_key: Any, plugin_id: str):
+    def _remove_plugin_from_folders_safely(config_oper: Any, system_config_key: Any, plugin_id: str) -> bool:
         try:
             folders_key = getattr(system_config_key, "PluginFolders", "PluginFolders")
             folders = config_oper.get(folders_key) or {}
             modified = False
-            for _, folder_data in folders.items():
+            folder_values = folders.values() if isinstance(folders, dict) else folders if isinstance(folders, list) else []
+            for folder_data in folder_values:
                 if isinstance(folder_data, dict) and isinstance(folder_data.get("plugins"), list):
-                    if plugin_id in folder_data["plugins"]:
-                        folder_data["plugins"].remove(plugin_id)
+                    original = list(folder_data["plugins"])
+                    folder_data["plugins"] = [item for item in original if str(item).lower() != plugin_id.lower()]
+                    if len(folder_data["plugins"]) != len(original):
                         modified = True
-                elif isinstance(folder_data, list) and plugin_id in folder_data:
-                    folder_data.remove(plugin_id)
+                elif isinstance(folder_data, list) and any(str(item).lower() == plugin_id.lower() for item in folder_data):
+                    folder_data[:] = [item for item in folder_data if str(item).lower() != plugin_id.lower()]
                     modified = True
             if modified:
                 config_oper.set(folders_key, folders)
+            verify_values = folders.values() if isinstance(folders, dict) else folders if isinstance(folders, list) else []
+            for folder_data in verify_values:
+                values = folder_data.get("plugins") if isinstance(folder_data, dict) else folder_data
+                if isinstance(values, list) and any(str(item).lower() == plugin_id.lower() for item in values):
+                    return False
+            return True
         except Exception as err:
             logger.warning(f"Signal 从插件文件夹移除失败：{plugin_id} {err}")
+            return False
     def _plugin_uninstall_candidates(self, plugin_id: str, delete_source: Optional[bool] = None) -> List[Dict[str, Any]]:
         lower = plugin_id.lower()
         candidates: List[Dict[str, Any]] = []
-        roots = [
-            ("runtime_data", Path("/config/plugins") / plugin_id),
-            ("runtime_data", Path("/config/plugins") / lower),
-            ("backup", Path("/config/plugins_backup") / plugin_id),
-            ("backup", Path("/config/plugins_backup") / lower),
-        ]
+        roots = [("runtime_data", Path("/config/plugins")), ("backup", Path("/config/plugins_backup"))]
         delete_source = self._plugin_uninstall_delete_source if delete_source is None else delete_source
-        if delete_source and self._local_plugin_repo:
-            roots.append(("local_source", Path(self._local_plugin_repo) / "plugins.v2" / lower))
-        for kind, path in roots:
-            if path.exists():
-                candidates.append(self._path_candidate(kind, path))
+        if delete_source:
+            runtime_source_root = self._plugin_runtime_source_root()
+            if runtime_source_root:
+                roots.append(("runtime_source", runtime_source_root))
+            if self._local_plugin_repo:
+                roots.append(("local_source", Path(self._local_plugin_repo) / "plugins.v2"))
+        for kind, root in roots:
+            if not root.exists() or not root.is_dir():
+                continue
+            try:
+                for path in root.iterdir():
+                    if path.name.lower() == lower:
+                        candidates.append(self._path_candidate(kind, path))
+            except OSError:
+                continue
         log_root = Path("/config/logs/plugins")
-        for item in sorted(list(log_root.glob(f"{lower}.log*")) + list(log_root.glob(f"{plugin_id}.log*"))):
-            if item.exists():
-                candidates.append(self._path_candidate("log", item))
+        if log_root.exists() and log_root.is_dir():
+            try:
+                for item in sorted(log_root.iterdir(), key=lambda path: path.name.lower()):
+                    stem = item.name.split(".log", 1)[0].lower()
+                    if stem == lower and item.exists():
+                        candidates.append(self._path_candidate("log", item))
+            except OSError:
+                pass
+        # Historical residue archives are deletion targets, never new backups.
+        plugin_root = Path("/config/plugins")
+        if plugin_root.exists() and plugin_root.is_dir():
+            for signal_dir in plugin_root.iterdir():
+                if signal_dir.name.lower() != "signal" or not signal_dir.is_dir():
+                    continue
+                for backup_dir in signal_dir.iterdir():
+                    if backup_dir.name.lower() != "pluginuninstallbackup" or not backup_dir.is_dir():
+                        continue
+                    for archive in backup_dir.iterdir():
+                        if archive.is_file() and archive.name.lower().startswith(f"{lower}-residue-") and archive.suffix.lower() == ".zip":
+                            candidates.append(self._path_candidate("uninstall_backup", archive))
         seen = set()
         deduped = []
         for item in candidates:
@@ -223,11 +270,119 @@ class PluginOpsMixin:
                 seen.add(key)
                 deduped.append(item)
         return deduped
+
+    @staticmethod
+    def _isolation_root() -> Path:
+        return Path("/config/.signal-uninstall-isolation")
+
+    @staticmethod
+    def _plugin_runtime_source_root() -> Optional[Path]:
+        """Return MoviePilot's installed plugin source root.
+
+        MoviePilot copies local-repository plugins from ``/config/FFplugin``
+        into ``<ROOT_PATH>/app/plugins``. ``PluginManager.remove_plugin`` only
+        unregisters the running instance, so source deletion must explicitly
+        include that installed directory.
+        """
+        try:
+            from app.core.config import settings
+
+            root_path = getattr(settings, "ROOT_PATH", None)
+            return Path(root_path) / "app" / "plugins" if root_path else None
+        except Exception as err:
+            logger.warning(f"Signal 无法解析 MoviePilot 运行源码目录：{err}")
+            return None
+
+    def _isolate_plugin_runtime_candidates(self, plugin_id: str, candidates: List[Dict[str, Any]], result: Dict[str, Any]) -> None:
+        root = self._isolation_root()
+        runtime_items = [item for item in candidates if item.get("kind") == "runtime_data" and Path(item.get("path") or "").is_dir()]
+        if not runtime_items:
+            return
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+        except Exception as err:
+            result["errors"].append(f"{plugin_id}: 创建临时隔离目录失败：{err}")
+            return
+        stamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        for index, item in enumerate(runtime_items):
+            source = Path(item.get("path") or "")
+            target = root / f"{self._normalize_plugin_id(plugin_id).lower()}-{stamp}-{index}"
+            item["original_path"] = str(source)
+            try:
+                shutil.move(str(source), str(target))
+                item["path"] = str(target)
+                item["isolated"] = True
+            except Exception as err:
+                result["errors"].append(f"{source}: 临时隔离失败：{err}")
+
+    @staticmethod
+    def _delete_plugin_path_with_retry(path: Path, attempts: int = 3) -> None:
+        last_error = None
+        for attempt in range(max(1, attempts)):
+            if not path.exists() and not path.is_symlink():
+                return
+            try:
+                if path.is_symlink():
+                    path.unlink()
+                elif path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
+                return
+            except Exception as err:
+                last_error = err
+                if attempt + 1 < max(1, attempts):
+                    time.sleep(0.05)
+        raise last_error or OSError(f"删除失败：{path}")
+
+    def _cleanup_pending_plugin_uninstall_isolation(self) -> Dict[str, Any]:
+        """Retry deletion of temporary uninstall staging left by an earlier failed run."""
+        root = self._isolation_root()
+        result: Dict[str, Any] = {"success": True, "attempted": 0, "deleted": [], "errors": []}
+        if not root.exists():
+            return result
+        if not root.is_dir():
+            result["success"] = False
+            result["errors"].append(f"卸载临时目录不是文件夹：{root}")
+            return result
+        try:
+            children = list(root.iterdir())
+        except Exception as err:
+            result["success"] = False
+            result["errors"].append(f"读取卸载临时目录失败：{err}")
+            return result
+        for path in children:
+            if not self._plugin_uninstall_path_allowed(path, delete_source=False):
+                result["errors"].append(f"卸载临时路径越界：{path}")
+                continue
+            result["attempted"] += 1
+            try:
+                self._delete_plugin_path_with_retry(path)
+                result["deleted"].append(str(path))
+            except Exception as err:
+                result["errors"].append(f"{path}: {err}")
+        self._remove_empty_isolation_root()
+        if root.exists():
+            result["errors"].append(f"卸载临时目录仍有残留：{root}")
+        result["success"] = not result["errors"]
+        return result
+
+    def _remove_empty_isolation_root(self) -> None:
+        root = self._isolation_root()
+        try:
+            if root.exists() and root.is_dir() and not any(root.iterdir()):
+                root.rmdir()
+        except Exception:
+            pass
     def _plugin_uninstall_path_allowed(self, path: Path, delete_source: Optional[bool] = None) -> bool:
-        roots = [Path("/config/plugins"), Path("/config/plugins_backup"), Path("/config/logs/plugins")]
+        roots = [Path("/config/plugins"), Path("/config/plugins_backup"), Path("/config/logs/plugins"), self._isolation_root()]
         delete_source = self._plugin_uninstall_delete_source if delete_source is None else delete_source
-        if delete_source and self._local_plugin_repo:
-            roots.append(Path(self._local_plugin_repo) / "plugins.v2")
+        if delete_source:
+            runtime_source_root = self._plugin_runtime_source_root()
+            if runtime_source_root:
+                roots.append(runtime_source_root)
+            if self._local_plugin_repo:
+                roots.append(Path(self._local_plugin_repo) / "plugins.v2")
         try:
             resolved = path.resolve(strict=False)
         except Exception:

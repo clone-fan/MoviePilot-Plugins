@@ -1,14 +1,13 @@
 """Plugin uninstall helpers extracted from the main plugin class.
 
-Handles plugin uninstall, path candidates, backup of candidates,
-text formatting and installed-plugin id enumeration. Local imports
+Handles plugin uninstall, path candidates, text formatting and
+installed-plugin id enumeration. Local imports
 of PluginManager / Scheduler / SystemConfigOper / SystemConfigKey are
 kept inside _uninstall_moviepilot_plugin as in the original.
 """
 
-import json
 import re
-import zipfile
+from importlib import import_module
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -25,7 +24,17 @@ class PluginUninstallMixin:
         return safe
 
     def _uninstall_moviepilot_plugin(self, plugin_id: str, clear_config: Optional[bool] = None, clear_data: Optional[bool] = None) -> Tuple[bool, str, Dict[str, bool]]:
-        cleaned = {"config": False, "data": False}
+        cleaned = {
+            "config": False,
+            "data": False,
+            "config_missing": False,
+            "data_missing": False,
+            "installed_list": False,
+            "plugin_folders": False,
+            "api": False,
+            "scheduler": False,
+            "runtime": False,
+        }
         try:
             from app.core.plugin import PluginManager
             from app.db.systemconfig_oper import SystemConfigOper
@@ -35,38 +44,229 @@ class PluginUninstallMixin:
             return False, f"当前 MoviePilot 环境缺少插件卸载依赖：{err}", cleaned
 
         messages: List[str] = []
+        errors: List[str] = []
         config_oper = SystemConfigOper()
-        installed_plugins = config_oper.get(SystemConfigKey.UserInstalledPlugins) or []
-        remaining = [p for p in installed_plugins if p != plugin_id]
-        if len(remaining) != len(installed_plugins):
-            config_oper.set(SystemConfigKey.UserInstalledPlugins, remaining)
-            messages.append("已移出已安装列表")
-        else:
-            messages.append("未在已安装列表中")
-
-        self._remove_plugin_api_safely(plugin_id)
-        self._remove_plugin_job_safely(Scheduler(), plugin_id)
-        self._remove_plugin_from_folders_safely(config_oper, SystemConfigKey, plugin_id)
-
         plugin_manager = PluginManager()
-        if self._plugin_uninstall_clear_config if clear_config is None else clear_config:
-            try:
-                cleaned["config"] = bool(plugin_manager.delete_plugin_config(plugin_id))
-                messages.append("配置已清理" if cleaned["config"] else "配置未找到")
-            except Exception as err:
-                messages.append(f"配置清理失败：{err}")
-        if self._plugin_uninstall_clear_data if clear_data is None else clear_data:
-            try:
-                cleaned["data"] = bool(plugin_manager.delete_plugin_data(plugin_id))
-                messages.append("数据已清理" if cleaned["data"] else "数据未找到")
-            except Exception as err:
-                messages.append(f"数据清理失败：{err}")
+        installed_plugins = config_oper.get(SystemConfigKey.UserInstalledPlugins) or []
+        runtime_plugin_ids: List[str] = []
         try:
-            plugin_manager.remove_plugin(plugin_id)
-            messages.append("运行实例已移除")
+            if hasattr(plugin_manager, "get_plugin_ids"):
+                runtime_plugin_ids = [str(item) for item in (plugin_manager.get_plugin_ids() or [])]
+            elif hasattr(plugin_manager, "get_local_plugins"):
+                runtime_plugin_ids = [str(getattr(item, "id", "")) for item in (plugin_manager.get_local_plugins() or [])]
+        except Exception:
+            runtime_plugin_ids = []
+        canonical_id = next(
+            (item for item in runtime_plugin_ids if item.lower() == plugin_id.lower()),
+            next((str(item) for item in installed_plugins if str(item).lower() == plugin_id.lower()), plugin_id),
+        )
+        try:
+            remaining = [p for p in installed_plugins if str(p).lower() != canonical_id.lower()]
+            if len(remaining) != len(installed_plugins):
+                config_oper.set(SystemConfigKey.UserInstalledPlugins, remaining)
+                messages.append("已移出已安装列表")
+            else:
+                messages.append("未在已安装列表中")
+            if any(str(item).lower() == canonical_id.lower() for item in (config_oper.get(SystemConfigKey.UserInstalledPlugins) or [])):
+                errors.append("仍存在于已安装列表")
+            else:
+                cleaned["installed_list"] = True
         except Exception as err:
-            return False, f"移除运行实例失败：{err}", cleaned
+            errors.append(f"清理已安装列表失败：{err}")
+
+        api_removed = self._remove_plugin_api_safely(canonical_id)
+        if not api_removed:
+            errors.append("插件 API 路由注销失败")
+        elif not self._verify_plugin_api_removed(canonical_id):
+            errors.append("插件 API 路由注销后仍有残留或无法确认")
+        else:
+            cleaned["api"] = True
+
+        scheduler = Scheduler()
+        scheduler_removed = self._remove_plugin_job_safely(scheduler, canonical_id)
+        if not scheduler_removed:
+            errors.append("插件调度任务注销失败")
+        elif not self._verify_plugin_scheduler_removed(scheduler, canonical_id):
+            errors.append("插件调度任务注销后仍有残留或无法确认")
+        else:
+            cleaned["scheduler"] = True
+
+        folders_removed = self._remove_plugin_from_folders_safely(config_oper, SystemConfigKey, canonical_id)
+        if not folders_removed:
+            errors.append("插件文件夹注册项注销失败")
+        else:
+            cleaned["plugin_folders"] = True
+
+        clear_config_enabled = self._plugin_uninstall_clear_config if clear_config is None else clear_config
+        clear_data_enabled = self._plugin_uninstall_clear_data if clear_data is None else clear_data
+        config_key_template = getattr(plugin_manager, "_config_key", "plugin.%s")
+        config_key = config_key_template % canonical_id
+        config_known = hasattr(config_oper, "get")
+        config_before = None
+        if clear_config_enabled and config_known:
+            try:
+                config_before = config_oper.get(config_key) or {}
+            except Exception as err:
+                errors.append(f"读取配置状态失败：{err}")
+                config_known = False
+        if clear_config_enabled:
+            try:
+                try:
+                    deleted = plugin_manager.delete_plugin_config(canonical_id, force=True)
+                except TypeError:
+                    deleted = plugin_manager.delete_plugin_config(canonical_id)
+                if deleted:
+                    cleaned["config"] = True
+                    messages.append("配置已清理")
+                elif config_known and not config_before:
+                    cleaned["config_missing"] = True
+                    messages.append("配置本来不存在")
+                else:
+                    errors.append("配置删除失败或无法确认")
+                if config_known and (config_oper.get(config_key) or {}):
+                    errors.append("配置删除后仍有残留")
+            except Exception as err:
+                errors.append(f"配置清理失败：{err}")
+        data_known = False
+        data_before = None
+        data_oper = None
+        if clear_data_enabled:
+            try:
+                from app.db.plugindata_oper import PluginDataOper
+                data_oper = PluginDataOper()
+                data_before = data_oper.get_data(canonical_id)
+                data_known = True
+            except Exception:
+                data_known = False
+        if clear_data_enabled:
+            try:
+                try:
+                    deleted = plugin_manager.delete_plugin_data(canonical_id, force=True)
+                except TypeError:
+                    deleted = plugin_manager.delete_plugin_data(canonical_id)
+                data_after = None
+                data_after_known = data_oper is not None
+                if data_oper is not None:
+                    try:
+                        data_after = data_oper.get_data(canonical_id)
+                    except Exception as err:
+                        data_after_known = False
+                        errors.append(f"数据删除后无法确认：{err}")
+                if data_after_known and data_after:
+                    errors.append("数据删除后仍有残留")
+                if deleted is False and data_known and not data_before:
+                    cleaned["data_missing"] = True
+                    messages.append("数据本来不存在")
+                elif deleted is False:
+                    errors.append("数据删除失败或无法确认")
+                elif deleted is True and data_known and not data_before:
+                    cleaned["data_missing"] = True
+                    messages.append("数据本来不存在")
+                elif deleted is True:
+                    cleaned["data"] = True
+                    messages.append("数据已清理")
+                elif data_after_known and not data_after:
+                    if data_known and not data_before:
+                        cleaned["data_missing"] = True
+                        messages.append("数据本来不存在")
+                    else:
+                        cleaned["data"] = True
+                        messages.append("数据已清理")
+                else:
+                    errors.append("数据删除失败或无法确认")
+            except Exception as err:
+                errors.append(f"数据清理失败：{err}")
+        try:
+            removed = plugin_manager.remove_plugin(canonical_id)
+            if removed is False:
+                errors.append("运行实例移除返回失败")
+            messages.append("运行实例已移除")
+            if hasattr(plugin_manager, "get_plugin_state") and plugin_manager.get_plugin_state(canonical_id):
+                errors.append("运行实例复核仍处于运行状态")
+            local_plugins = plugin_manager.get_local_plugins() if hasattr(plugin_manager, "get_local_plugins") else None
+            if local_plugins is None:
+                errors.append("无法确认运行实例是否已移除")
+            elif any(str(getattr(item, "id", "")).lower() == canonical_id.lower() for item in local_plugins):
+                errors.append("运行实例复核仍存在")
+            else:
+                cleaned["runtime"] = True
+        except Exception as err:
+            errors.append(f"移除运行实例失败：{err}")
+        if errors:
+            return False, "；".join(errors), cleaned
         return True, "；".join(messages), cleaned
+
+    @staticmethod
+    def _verify_plugin_api_removed(plugin_id: str) -> bool:
+        """Verify known MoviePilot API registries when the host exposes them.
+
+        Current MoviePilot versions register plugin routes directly on the
+        FastAPI application. Older versions may additionally expose a plugin
+        registry. Any matching route or registry entry is a residual failure.
+        """
+        try:
+            module = import_module("app.api.endpoints.plugin")
+        except Exception:
+            return False
+        registries = [
+            getattr(module, name, None)
+            for name in ("PLUGIN_APIS", "plugin_apis", "_plugin_apis", "PLUGIN_API")
+        ]
+        target = str(plugin_id or "").strip().lower()
+
+        application = getattr(module, "app", None)
+        routes = getattr(application, "routes", None)
+        if routes is not None:
+            route_prefixes = []
+            for name in ("PLUGIN_PREFIX", "PLUGIN_V2_PREFIX"):
+                prefix = str(getattr(module, name, "") or "").strip().rstrip("/")
+                if prefix:
+                    route_prefixes.append(f"{prefix}/{target}/".lower())
+            for route in routes:
+                route_path = str(getattr(route, "path", "") or "").strip().lower()
+                if any(route_path.startswith(prefix) for prefix in route_prefixes):
+                    return False
+
+        def contains(value: Any) -> bool:
+            if isinstance(value, dict):
+                return any(contains(key) or contains(item) for key, item in value.items())
+            if isinstance(value, (list, tuple, set)):
+                return any(contains(item) for item in value)
+            if hasattr(value, "id") or hasattr(value, "plugin_id"):
+                return contains(getattr(value, "id", "")) or contains(getattr(value, "plugin_id", ""))
+            text = str(value or "").strip().lower()
+            return text == target or text.startswith(f"{target}.") or text.startswith(f"{target}:")
+
+        for registry in registries:
+            if registry is None:
+                continue
+            if contains(registry):
+                return False
+        return True
+
+    @staticmethod
+    def _verify_plugin_scheduler_removed(scheduler: Any, plugin_id: str) -> bool:
+        """Verify the host scheduler no longer exposes a job for this plugin."""
+        list_jobs = getattr(scheduler, "list", None) or getattr(scheduler, "get_jobs", None)
+        if not callable(list_jobs):
+            return False
+        target = str(plugin_id or "").strip().lower()
+        try:
+            jobs = list_jobs() or []
+        except Exception:
+            return False
+        for job in jobs:
+            values = [getattr(job, key, "") for key in ("plugin_id", "plugin", "pid", "id", "name")]
+            if any(
+                (value := str(item or "").strip().lower())
+                and (
+                    value == target
+                    or any(value.startswith(f"{target}{separator}") for separator in (".", ":", "-", "_", "|"))
+                )
+                for item in values
+            ):
+                return False
+        return True
 
     def _path_candidate(self, kind: str, path: Path) -> Dict[str, Any]:
         try:
@@ -90,27 +290,6 @@ class PluginUninstallMixin:
                     pass
         return total
 
-    def _backup_plugin_uninstall_candidates(self, plugin_id: str, candidates: List[Dict[str, Any]]) -> str:
-        backup_dir = Path("/config/plugins/Signal/PluginUninstallBackup")
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        zip_path = backup_dir / f"{plugin_id}-residue-{stamp}.zip"
-        manifest = {"created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "plugin_id": plugin_id, "candidates": candidates}
-        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
-            for item in candidates:
-                path = Path(item.get("path") or "")
-                if not path.exists():
-                    continue
-                base = f"{item.get('kind')}/{path.name}"
-                if path.is_file():
-                    zf.write(path, base)
-                else:
-                    for child in path.rglob("*"):
-                        if child.is_file():
-                            zf.write(child, f"{base}/{child.relative_to(path)}")
-        return str(zip_path)
-
     @staticmethod
     def _format_plugin_uninstall_text(data: Dict[str, Any]) -> str:
         title = "🧩 插件卸载预览" if data.get("dry_run") else "🧩 插件卸载结果"
@@ -118,13 +297,12 @@ class PluginUninstallMixin:
         if data.get("blocked"):
             lines.append(f"⦁ 阻止原因：{data.get('blocked')}")
             return "\n".join(lines)
-        actions = []
-        actions.append("卸载插件" if data.get("remove_plugin") else "仅清残留")
+        actions = ["卸载插件"]
         if data.get("clear_config"):
             actions.append("清配置")
         if data.get("clear_data"):
             actions.append("清数据")
-        actions.append("删本地源码" if data.get("delete_source") else "保留本地源码")
+        actions.append("删运行与本地源码" if data.get("delete_source") else "保留运行与本地源码")
         lines.append(f"⦁ 动作：{' ｜ '.join(actions)}")
         candidates = data.get("candidates") or []
         lines.append(f"⦁ 候选残留：{len(candidates)} 项")
@@ -142,7 +320,6 @@ class PluginUninstallMixin:
             if data.get("cleaned_config") or data.get("cleaned_data"):
                 lines.append(f"⦁ 配置/数据：配置 {len(data.get('cleaned_config') or [])} 个 ｜ 数据 {len(data.get('cleaned_data') or [])} 个")
             lines.append(f"⦁ 已删除：{len(data.get('deleted') or [])} 项")
-            lines.append(f"⦁ 备份：{data.get('backup_path') or '未生成'}")
         if data.get("errors"):
             lines.append("异常：")
             lines.extend([f"⦁ {e}" for e in data.get("errors", [])[:5]])

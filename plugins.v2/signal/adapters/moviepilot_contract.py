@@ -10,6 +10,13 @@ from app.schemas.types import EventType
 class PluginContractMixin:
     """MoviePilot plugin contract, render entry, scheduler, and dashboard declarations."""
 
+    MP_FREE_MODULE_IDENTITY = {
+        "pluginId": "Signal",
+        "expose": "Dashboard",
+        "surface": "mp-widget",
+        "contract": "signal-mp-free-dashboard/v1",
+    }
+
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
         return [
@@ -21,7 +28,9 @@ class PluginContractMixin:
             {"cmd": "/signal_logs_clean", "event": EventType.PluginAction, "desc": "执行插件日志清理（按保留行数截断）", "category": "MP运维", "data": {"action": "signal_logs_clean"}},
             {"cmd": "/signal_backup", "event": EventType.PluginAction, "desc": "执行 MP 运维助手自动备份", "category": "MP运维", "data": {"action": "signal_backup"}},
             {"cmd": "/signal_updates", "event": EventType.PluginAction, "desc": "检查 MoviePilot 后端/前端更新", "category": "MP运维", "data": {"action": "signal_updates"}},
-            {"cmd": "/signal_market", "event": EventType.PluginAction, "desc": "检查插件库更新并按确认写入", "category": "MP运维", "data": {"action": "signal_market"}},
+            {"cmd": "/signal_market", "event": EventType.PluginAction, "desc": "同步插件库记录", "category": "MP运维", "data": {"action": "signal_market"}},
+            {"cmd": "/signal_plugin_updates", "event": EventType.PluginAction, "desc": "检查插件更新并发送提醒", "category": "MP运维", "data": {"action": "signal_plugin_updates"}},
+            {"cmd": "/signal_plugin_install", "event": EventType.PluginAction, "desc": "按范围自动安装插件更新", "category": "MP运维", "data": {"action": "signal_plugin_install"}},
             {"cmd": "/signal_run_all", "event": EventType.PluginAction, "desc": "依次执行每日汇报与健康巡查", "category": "MP运维", "data": {"action": "signal_run_all"}},
             {"cmd": "/signal_plugin_preview", "event": EventType.PluginAction, "desc": "预览插件卸载与残留清理范围", "category": "MP运维", "data": {"action": "signal_plugin_preview"}},
             {"cmd": "/signal_plugin_clean", "event": EventType.PluginAction, "desc": "插件卸载安全提示（需在配置页显式确认后执行）", "category": "MP运维", "data": {"action": "signal_plugin_clean"}},
@@ -47,15 +56,19 @@ class PluginContractMixin:
             {"path": "/run_backup", "endpoint": self.api_run_backup, "auth": "bear", "methods": ["POST"], "summary": "执行MP运维助手自动备份"},
             {"path": "/backup_archives", "endpoint": self.api_backup_archives, "auth": "bear", "methods": ["GET"], "summary": "列出本地可恢复备份包"},
             {"path": "/preview_backup_restore", "endpoint": self.api_preview_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "预览本地备份恢复内容"},
-            {"path": "/run_backup_restore", "endpoint": self.api_run_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "执行本地备份一键恢复"},
+            {"path": "/run_backup_restore", "endpoint": self.api_run_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "执行已确认的本地备份恢复"},
             {"path": "/webdav_backup_archives", "endpoint": self.api_webdav_backup_archives, "auth": "bear", "methods": ["GET"], "summary": "列出 WebDAV 可恢复备份包"},
             {"path": "/preview_webdav_backup_restore", "endpoint": self.api_preview_webdav_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "预览 WebDAV 备份恢复内容"},
-            {"path": "/run_webdav_backup_restore", "endpoint": self.api_run_webdav_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "执行 WebDAV 备份一键恢复"},
+            {"path": "/run_webdav_backup_restore", "endpoint": self.api_run_webdav_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "执行已确认的 WebDAV 备份恢复"},
             {"path": "/preview_updates", "endpoint": self.api_preview_updates, "auth": "bear", "methods": ["POST"], "summary": "预览MoviePilot后端/前端更新状态（不通知、不重启）"},
-            {"path": "/run_mp_update", "endpoint": self.api_run_mp_update, "auth": "bear", "methods": ["POST"], "summary": "立即检查MoviePilot后端/前端更新并记录状态"},
+            {"path": "/run_mp_update", "endpoint": self.api_run_mp_update, "auth": "bear", "methods": ["POST"], "summary": "立即检查并更新MoviePilot后端/前端"},
             {"path": "/run_mp_update_apply", "endpoint": self.api_run_mp_update_apply, "auth": "bear", "methods": ["POST"], "summary": "执行MoviePilot后端/前端更新并重启"},
-            {"path": "/preview_market_update", "endpoint": self.api_preview_market_update, "auth": "bear", "methods": ["POST"], "summary": "预览插件库更新"},
-            {"path": "/run_market_update", "endpoint": self.api_run_market_update, "auth": "bear", "methods": ["POST"], "summary": "执行插件库更新检查并按确认写入"},
+            {"path": "/preview_market_update", "endpoint": self.api_preview_market_update, "auth": "bear", "methods": ["POST"], "summary": "预览插件库同步"},
+            {"path": "/run_market_update", "endpoint": self.api_run_market_update, "auth": "bear", "methods": ["POST"], "summary": "执行插件库同步"},
+            {"path": "/preview_plugin_update_reminder", "endpoint": self.api_preview_plugin_update_reminder, "auth": "bear", "methods": ["POST"], "summary": "预览插件更新"},
+            {"path": "/run_plugin_update_reminder", "endpoint": self.api_run_plugin_update_reminder, "auth": "bear", "methods": ["POST"], "summary": "执行插件更新检查"},
+            {"path": "/preview_plugin_auto_install", "endpoint": self.api_preview_plugin_auto_install, "auth": "bear", "methods": ["POST"], "summary": "预览插件自动安装"},
+            {"path": "/run_plugin_auto_install", "endpoint": self.api_run_plugin_auto_install, "auth": "bear", "methods": ["POST"], "summary": "执行插件自动安装"},
             {"path": "/preview_plugin_uninstall", "endpoint": self.api_preview_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "预览插件卸载与残留清理范围"},
             {"path": "/run_plugin_uninstall", "endpoint": self.api_run_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "执行插件卸载与残留清理"},
             {"path": "/run_seed_clean", "endpoint": self.api_run_seed_clean, "auth": "bear", "methods": ["POST"], "summary": "立即执行自动删种"},
@@ -98,10 +111,12 @@ class PluginContractMixin:
             self._append_cron_service(services, "Signal.LogClean", "MP 运维助手 - 插件日志清理", self._log_clean_cron, self.run_log_clean_scheduled)
         if can_register("backup", self._backup_schedule_enabled):
             self._append_cron_service(services, "Signal.Backup", "MP 运维助手 - 自动备份", self._backup_cron, self.run_backup_scheduled)
-        if can_register("mp_update", self._mp_update_schedule_enabled):
-            self._append_cron_service(services, "Signal.MPUpdate", "MP 运维助手 - MoviePilot更新检查", self._mp_update_cron, self.run_mp_update_scheduled)
-        if can_register("market_update", self._market_update_schedule_enabled):
-            self._append_cron_service(services, "Signal.MarketUpdate", "MP 运维助手 - 插件库更新检查", self._market_update_cron, self.run_market_update_scheduled)
+        if can_register("mp_update", bool(self._mp_update_enabled and self._mp_update_cron)):
+            self._append_cron_service(services, "Signal.MPUpdate", "MP 运维助手 - 系统更新检查", self._mp_update_cron, self.run_mp_update_scheduled)
+        if can_register("market_update", bool(self._market_update_enabled and self._market_update_cron)):
+            self._append_cron_service(services, "Signal.MarketUpdate", "MP 运维助手 - 插件库同步", self._market_update_cron, self.run_market_update_scheduled)
+        if can_register("plugin_update_reminder", bool(self._plugin_update_reminder_enabled and self._plugin_update_reminder_cron)):
+            self._append_cron_service(services, "Signal.PluginUpdateReminder", "MP 运维助手 - 插件更新", self._plugin_update_reminder_cron, self.run_plugin_update_reminder_scheduled)
         if can_register("seed_clean", self._seedclean_schedule_enabled) and self._seedclean_downloaders:
             self._append_cron_service(services, "Signal.SeedClean", "MP 运维助手 - 自动删种", self._seedclean_cron, self.run_seed_clean_scheduled)
         if can_register("dltag", bool(self._dltag_cron)):
@@ -183,6 +198,7 @@ class PluginContractMixin:
             "subtitle": widget.get("subtitle", ""),
             "border": True,
             "component": widget["key"],
+            "moduleIdentity": dict(self.MP_FREE_MODULE_IDENTITY, widget=widget["key"]),
             "components": {
                 "subscribe_reminder": bool(self._subscribe_reminder_enabled),
                 "site_stat": bool(self._site_stat_enabled),
@@ -191,6 +207,7 @@ class PluginContractMixin:
                 "log_clean": bool(self._log_clean_enabled),
                 "mp_update": bool(self._mp_update_enabled),
                 "market_update": bool(self._market_update_enabled),
+                "plugin_update_reminder": bool(self._plugin_update_reminder_enabled),
                 "seedclean": bool(self._seedclean_enabled),
                 "dltag": bool(self._dltag_enabled),
             },

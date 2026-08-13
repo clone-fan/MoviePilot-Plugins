@@ -172,11 +172,22 @@ def _persistent_blocks(module: Dict[str, Any], state: str) -> List[Dict[str, Any
 
 def _completion_blocks(module: Dict[str, Any], state: str) -> List[Dict[str, Any]]:
     tasks = normalize_completion_tasks(module.get("tasks"))
-    cells = []
+    groups: Dict[str, List[Dict[str, Any]]] = {}
     for task in tasks:
-        result = _completion_result_text(task["outcome"], task["result_status"])
-        cells.append([_cell(task["title"], "center"), _cell(result, "right")])
-    return [_details_block(_summary(module), [_multirow_table(cells)], False)] if cells else []
+        groups.setdefault(str(task.get("task_group") or "").strip(), []).append(task)
+    body: List[Dict[str, Any]] = []
+    for group, grouped_tasks in groups.items():
+        if group:
+            body.append({"type": "heading", "text": group, "size": 5})
+        cells = []
+        for task in grouped_tasks:
+            result = _completion_result_text(task["outcome"], task["result_status"])
+            count = int(task.get("execution_count") or 1)
+            title = task["title"] if count <= 1 else f"{task['title']}（{count}次）"
+            cells.append([_cell(title, "center"), _cell(result, "right")])
+        if cells:
+            body.append(_multirow_table(cells))
+    return [_details_block(_summary(module), body, False)] if body else []
 
 
 def _completion_result_text(value: Any, result_status: str = "success") -> Any:

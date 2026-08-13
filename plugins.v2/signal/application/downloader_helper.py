@@ -359,7 +359,10 @@ class DownloaderHelperMixin:
                     text += "；" + "；".join(failed_downloaders[:3])
             self._save_task_result(name, success, 0 if success else 1, text)
             if trigger == "scheduled" and getattr(self, "_dltag_scheduled_notify", False):
-                self._notify_fusion_task_outcome(mtype=self._notification_type(self._dltag_notify_type), title=name, text=text, outcome=text, success=success, component="downloader_helper")
+                self._notify_fusion_task_outcome(
+                    mtype=self._notification_type(self._dltag_notify_type), title=name, text=text, outcome=text,
+                    success=success, component="downloader_helper", task_key="downloader_helper", task_group="维护任务",
+                )
             return success
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))

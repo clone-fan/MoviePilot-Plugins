@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from app.core.event import Event
 from app.log import logger
 from app.schemas import NotificationType
+from app.schemas.types import MediaType
 
 
 def _split_subfill_fields(line: str) -> List[str]:
@@ -46,8 +47,12 @@ class EventsMixin:
             "signal_logs": [("日志清理预览", self.run_log_preview, "log_clean")],
             "signal_logs_clean": [("日志清理", self.run_log_clean, "log_clean")],
             "signal_backup": [("自动备份", self.run_backup, "backup")],
-            "signal_updates": [("主程序更新检查", self.run_mp_update_check, "mp_update")],
-            "signal_market": [("插件库更新", self.run_market_update, "market_update")],
+            "signal_updates": [("系统更新检查", self.run_mp_update_check, "mp_update")],
+            "signal_market": [("插件库同步", self.run_market_update, "market_update")],
+            "signal_plugin_updates": [("插件更新", self.run_plugin_update_reminder, "plugin_update_reminder")],
+            # Compatibility command: installation now runs through the plugin
+            # update check and does not create a separate task path.
+            "signal_plugin_install": [("插件更新", self.run_plugin_auto_install, "plugin_update_reminder")],
             "signal_run_all": [("每日汇报", self.run_daily_report, "daily_report"), ("健康巡查", self.run_health_check, "health_check")],
             "signal_plugin_preview": [("插件卸载预览", self.run_plugin_uninstall_preview, None)],
             "signal_plugin_clean": [("插件卸载", self.run_plugin_uninstall_confirm_required, None)],
@@ -157,6 +162,7 @@ class EventsMixin:
             from app.db.subscribe_oper import SubscribeOper
         except Exception as err:
             logger.warning(f"Signal 订阅填充加载依赖失败：{err}")
+            self._notify_subfill_failure("subfill_download", "下载完成", err)
             return
         try:
             dh = DownloadHistoryOper().get_by_hash(dhash)
@@ -178,7 +184,9 @@ class EventsMixin:
                 upd = self._subfill_build_update(sub, meta, torrent)
                 if not upd:
                     continue
-                SubscribeOper().update(sub.id, upd)
+                result = SubscribeOper().update(sub.id, upd)
+                if result is False:
+                    raise RuntimeError(f"订阅 {getattr(sub, 'name', sub.id)} 更新未成功")
                 filled.append({"name": getattr(sub, "name", ""), "update": upd})
                 self._subfill_log(getattr(sub, "name", ""), "下载填充", upd)
             if filled:
@@ -186,8 +194,59 @@ class EventsMixin:
                 self.save_data("subfill_handled", handled)
                 text = self._format_subfill(filled)
                 self._save_task_result("订阅规则填充", True, 0, text)
+                self._notify_subfill_completion("subfill_download", "下载完成", text)
         except Exception as err:
             logger.error(f"Signal 订阅规则填充失败：{err}")
+            self._notify_subfill_failure("subfill_download", "下载完成", err)
+
+    def _notify_subfill_completion(self, task_key: str, source_label: str, text: str):
+        """通知订阅规则填充的实际变更结果。"""
+        if not self._subfill_completion_notify_enabled:
+            return
+        self._notify_fusion_task_outcome(
+            mtype=self._notification_type(self._subfill_completion_notify_type),
+            title=f"MP 运维助手 - 订阅规则填充（{source_label}）",
+            text=text,
+            outcome=f"{source_label}填充完成",
+            success=True,
+            component=task_key,
+            task_key=task_key,
+            task_group="规则填充",
+            affected_owner="subscription-rules",
+        )
+
+    def _notify_subfill_failure(self, task_key: str, source_label: str, error: Any):
+        """通知订阅规则填充的执行异常。"""
+        if not self._subfill_completion_notify_enabled:
+            return
+        message = f"订阅规则填充（{source_label}）失败：{str(error)[:300]}"
+        self._notify_fusion_task_outcome(
+            mtype=self._notification_type(self._subfill_completion_notify_type),
+            title=f"MP 运维助手 - 订阅规则填充（{source_label}）",
+            text=message,
+            outcome=f"{source_label}填充失败",
+            success=False,
+            component=task_key,
+            task_key=task_key,
+            task_group="规则填充",
+            affected_owner="subscription-rules",
+        )
+
+    @staticmethod
+    def _subfill_values_equal(current: Any, expected: Any) -> bool:
+        if isinstance(expected, list):
+            current_values = current if isinstance(current, (list, tuple, set)) else ([] if current in (None, "") else [current])
+            return [str(item) for item in current_values] == [str(item) for item in expected]
+        if current == expected:
+            return True
+        return str(current or "").strip() == str(expected or "").strip()
+
+    def _subfill_only_changed(self, sub: Any, update: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            key: value
+            for key, value in update.items()
+            if not self._subfill_values_equal(getattr(sub, key, None), value)
+        }
 
     def _subfill_build_update(self, sub: Any, meta: Any, torrent: Any) -> Dict[str, Any]:
         """根据已下载资源的 meta/torrent，构造订阅“空字段”的回填字典（仅填空，不覆盖）。"""
@@ -297,6 +356,40 @@ class EventsMixin:
                                             "sites": sites, "filter_groups": filter_groups}
         return confs
 
+    def _subfill_resolve_category(self, data: Dict[str, Any], sid: Any):
+        """补回原 SubscribeGroup 在事件缺少分类时的媒体识别兜底。"""
+        mediainfo = data.get("mediainfo") or {}
+        category = mediainfo.get("category")
+        if category:
+            return category
+
+        tmdbid = mediainfo.get("tmdb_id") or mediainfo.get("tmdbid")
+        media_type = mediainfo.get("type")
+        chain = getattr(self, "chain", None)
+        recognize_media = getattr(chain, "recognize_media", None)
+        if not callable(recognize_media) or (tmdbid is None and media_type is None):
+            logger.warning(f"Signal 订阅ID:{sid} 未获取到二级分类，且没有可用的媒体识别信息")
+            return None
+
+        try:
+            kwargs = {"tmdbid": tmdbid}
+            if media_type is not None:
+                kwargs["mtype"] = MediaType(media_type)
+            media = recognize_media(**kwargs)
+        except Exception as err:
+            logger.warning(f"Signal 订阅ID:{sid} 二级分类媒体识别失败：{err}")
+            return None
+
+        if isinstance(media, dict):
+            category = media.get("category")
+        else:
+            category = getattr(media, "category", None)
+        if category:
+            logger.info(f"Signal 订阅ID:{sid} 二级分类:{category} 已通过媒体信息识别")
+            return category
+        logger.warning(f"Signal 订阅ID:{sid} 未获取到二级分类")
+        return None
+
     def on_subscribe_added_fill(self, event: Event = None):
         """新增订阅时按媒体二级分类套用自定义规则（移植自 thsrite SubscribeGroup 二级分类填充）。"""
         if self._event_should_noop_after_stop():
@@ -313,10 +406,11 @@ class EventsMixin:
             from app.db.subscribe_oper import SubscribeOper
         except Exception as err:
             logger.warning(f"Signal 订阅二级分类填充加载依赖失败：{err}")
+            self._notify_subfill_failure("subfill_category", "二级分类", err)
             return
         try:
             sid = data.get("subscribe_id")
-            category = (data.get("mediainfo") or {}).get("category")
+            category = self._subfill_resolve_category(data, sid)
             if not category or category not in self._subfill_confs:
                 return
             sub = SubscribeOper().get(sid)
@@ -341,12 +435,21 @@ class EventsMixin:
                 if "{name}" in sp and sub:
                     sp = sp.replace("{name}", f"{getattr(sub, 'name', '')} ({getattr(sub, 'year', '')})")
                 upd["save_path"] = sp
+            if not sub:
+                raise RuntimeError(f"订阅 {sid} 不存在")
+            upd = self._subfill_only_changed(sub, upd)
             if not upd:
                 return
-            SubscribeOper().update(sid, upd)
+            result = SubscribeOper().update(sid, upd)
+            if result is False:
+                raise RuntimeError(f"订阅 {sid} 更新未成功")
             self._subfill_log(getattr(sub, "name", str(sid)), f"二级分类[{category}]", upd)
+            text = self._format_subfill([{"name": getattr(sub, "name", str(sid)), "update": upd}])
+            self._save_task_result("订阅规则填充", True, 0, text)
+            self._notify_subfill_completion("subfill_category", "二级分类", text)
         except Exception as err:
             logger.error(f"Signal 订阅二级分类填充失败：{err}")
+            self._notify_subfill_failure("subfill_category", "二级分类", err)
 
     @staticmethod
     def _parse_pix(resource_pix):

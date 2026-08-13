@@ -8,9 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.log import logger
-from app.schemas import NotificationType
 from ..domain import site_helpers
-from ..domain.fusion_event import FusionEvent
 
 
 class SiteStatsMixin:
@@ -21,30 +19,50 @@ class SiteStatsMixin:
         ok, _ = self._guard_task("健康巡查", "health_check")
         if not ok:
             return False
-        data = self._build_health_summary()
+        try:
+            data = self._build_health_summary()
+        except Exception as err:
+            logger.error(f"Signal 健康巡查执行失败：{err}", exc_info=True)
+            data = {"success": False, "checks": [{"name": "health_check", "ok": False, "detail": str(err)[:160]}], "total": 1, "pass": 0, "fail": 1}
         text = self._format_health_summary(data)
-        self._save_task_result("健康巡查", True, 0, text)
+        failed = int(data.get("fail") or 0)
+        success = bool(data.get("success")) and failed == 0
+        self._save_task_result("健康巡查", success, 0 if success else 1, text)
         self.save_data("last_health_check", {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "success": bool(data.get("success")),
+            "success": success,
+            "checks": data.get("checks") or [],
+            "total": data.get("total") or 0,
+            "pass": data.get("pass") or 0,
+            "fail": failed,
             "output": text,
         })
-        if self._fusion_notify_enabled:
-            failed = int(data.get("fail") or 0)
-            self._emit_fusion_event(FusionEvent.create(
-                owner="current-anomalies" if failed else "health",
-                event_type="anomaly" if failed else "snapshot",
-                title="健康巡查",
-                body=text,
-                level="warning" if failed else "success",
-                payload={"summary": data, "affected_owner": "persistent-storage" if failed else ""},
+        if failed:
+            if self._health_check_notify:
+                self._notify_fusion_task_outcome(
+                    mtype=self._notification_type(self._health_check_notify_type),
+                    title=f"MP 运维助手 - 健康巡查发现 {failed} 项异常",
+                    text="\n".join([f"发现 {failed} 项异常", *self._health_failure_lines(data)]),
+                    outcome=f"巡检发现 {failed} 项异常",
+                    success=False,
+                    component="health_check",
+                    task_key="health_check",
+                    task_group="维护任务",
+                    affected_owner="persistent-storage",
+                )
+        elif self._health_check_completion_notify_enabled:
+            self._notify_fusion_task_outcome(
+                mtype=self._notification_type(self._health_check_completion_notify_type),
+                title="MP 运维助手 - 健康巡查完成",
+                text=text,
+                outcome="巡检完成，未发现异常",
+                success=True,
                 component="health_check",
-            ))
-        elif self._tg_console_enabled:
-            self._emit_console_report("health_check", "健康巡查", text, level="success" if data.get("success") else "warning")
-        if not self._fusion_notify_enabled:
-            self._notify_health_failures(data)
-        return True
+                task_key="health_check",
+                task_group="维护任务",
+                affected_owner="health",
+            )
+        return success
     def _get_today_transfers_locked(self) -> List[str]:
         try:
             rows = self._today_transfer_rows_locked()
@@ -863,14 +881,6 @@ class SiteStatsMixin:
             return {"name": "directory", "ok": ok, "detail": "；".join(details[:8]) if details else "未选择目录"}
         except Exception as err:
             return {"name": "directory", "ok": False, "detail": f"目录检查异常：{str(err)[:100]}"}
-
-    def _notify_health_failures(self, data: Dict[str, Any]):
-        failures = self._health_failure_lines(data)
-        if not failures:
-            return
-        failed = data.get("fail") or len(failures)
-        text = "\n".join([f"发现 {failed} 项异常", *failures])
-        self._notify_or_console(mtype=self._notification_type(self._health_check_notify_type), title=f"MP 运维助手 - 健康巡查发现 {failed} 项异常", text=text)
 
     def _get_health_report_locked(self, persist_missing: bool = True) -> List[str]:
         """日报中的健康巡查栏目：优先使用最近巡查结果，没有记录时现场生成一次。"""

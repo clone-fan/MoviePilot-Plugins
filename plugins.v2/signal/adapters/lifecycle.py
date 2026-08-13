@@ -24,6 +24,12 @@ class LifecycleMixin:
         self._runtime_timers = set()
         self._msg_seen = {}
         self._last_summary = self._build_summary()
+        try:
+            cleanup = self._cleanup_pending_plugin_uninstall_isolation()
+            if cleanup.get("errors"):
+                logger.warning(f"Signal 插件卸载临时目录续清理未完成：{'；'.join(cleanup['errors'][:3])}")
+        except Exception as err:
+            logger.warning(f"Signal 插件卸载临时目录续清理失败：{err}")
 
     def _stop_runtime_state(self):
         self._runtime_active = False
@@ -192,7 +198,12 @@ class LifecycleMixin:
         self._health_check_storage_threshold = self._safe_int(config.get("health_check_storage_threshold"), 85, 1)
         if self._health_check_storage_threshold > 99:
             self._health_check_storage_threshold = 99
+        self._health_check_notify = self._config_bool(config, "health_check_notify", True)
+        self._health_check_completion_notify_enabled = self._config_bool(
+            config, "health_check_completion_notify_enabled", False
+        )
         self._health_check_notify_type = config.get("health_check_notify_type") or "Plugin"
+        self._health_check_completion_notify_type = config.get("health_check_completion_notify_type") or "Plugin"
         self._report_health = True
         self._subscribe_reminder_cron = self._normalize_optional_cron(config.get("subscribe_reminder_cron")) or "0 9 * * *"
         self._subscribe_reminder_subtype = config.get("subscribe_reminder_subtype") or ["movie", "tv"]
@@ -203,6 +214,9 @@ class LifecycleMixin:
         self._site_stat_dashboard_type = config.get("site_stat_dashboard_type") or "today"
         self._site_stat_schedule_enabled = self._schedule_flag(config, "site_stat_schedule_enabled", self._site_stat_enabled)
         self._site_stat_cron = self._normalize_optional_cron(config.get("site_stat_cron")) or "0 8 * * *"
+        self._site_stat_schedule_notify_enabled = self._config_bool(
+            config, "site_stat_schedule_notify_enabled", True
+        )
         notify_type = str(config.get("site_stat_notify_type") or "Plugin").strip()
         self._site_stat_notify_type = "Plugin" if notify_type.lower() in {"inc", "all", "none", "off", ""} else notify_type
 
@@ -229,31 +243,113 @@ class LifecycleMixin:
         self._backup_webdav_login = str(config.get("backup_webdav_login") or "").strip()
         self._backup_webdav_password = str(config.get("backup_webdav_password") or "")
         self._backup_webdav_max_count = self._safe_int(config.get("backup_webdav_max_count"), 5, 1)
-        self._backup_webdav_enabled = all((
+        webdav_credentials_ready = all((
             self._backup_webdav_hostname,
             self._backup_webdav_login,
             self._backup_webdav_password,
         ))
-        self._mp_update_enabled = bool(config.get("mp_update_enabled", False))
-        self._mp_update_schedule_enabled = self._schedule_flag(config, "mp_update_schedule_enabled", self._mp_update_enabled)
+        # Keep existing WebDAV setups working once, while making the persisted
+        # switch the runtime authority for all new and explicitly saved config.
+        self._backup_webdav_enabled = self._config_bool(
+            config,
+            "backup_webdav_enabled",
+            webdav_credentials_ready,
+        )
+        self._mp_update_enabled = self._config_bool(config, "mp_update_enabled", False)
+        # The task switch is now the only scheduler switch.  The old schedule
+        # flags are retained in config solely so older installations can save
+        # and reload without losing unknown compatibility keys.
+        self._mp_update_schedule_enabled = self._mp_update_enabled
         self._mp_update_cron = config.get("mp_update_cron") or "0 9 * * *"
         self._mp_update_types = config.get("mp_update_types") or ["后端", "前端"]
         if isinstance(self._mp_update_types, str):
             self._mp_update_types = self._parse_csv(self._mp_update_types) or ["后端", "前端"]
-        self._market_update_enabled = bool(config.get("market_update_enabled", False))
-        self._market_update_schedule_enabled = self._schedule_flag(config, "market_update_schedule_enabled", self._market_update_enabled)
-        self._market_update_cron = self._normalize_optional_cron(config.get("market_update_cron")) or "0 9 * * *"
+        legacy_market_enabled = self._config_bool(config, "market_update_enabled", False)
+        legacy_market_schedule_enabled = self._config_bool(
+            config, "market_update_schedule_enabled", legacy_market_enabled
+        )
+        legacy_market_cron = self._normalize_optional_cron(config.get("market_update_cron")) or "0 9 * * *"
+        has_current_plugin_update_config = any(
+            key in config for key in (
+                "plugin_update_reminder_enabled",
+                "plugin_auto_install_enabled",
+                "plugin_auto_install_scope_mode",
+            )
+        )
+        # The old schedule flag is only meaningful during the one-time legacy
+        # migration. Once the new plugin-update fields exist, the visible
+        # library switch is the scheduler authority and the hidden flag must
+        # not override it on a later reload.
+        legacy_market_effective = bool(legacy_market_enabled and legacy_market_schedule_enabled)
+        self._market_update_enabled = bool(
+            legacy_market_enabled if has_current_plugin_update_config else legacy_market_effective
+        )
+        self._market_update_schedule_enabled = self._market_update_enabled
+        self._market_update_cron = legacy_market_cron
         self._market_update_strategy = str(config.get("market_update_strategy") or "check").strip().lower()
         if self._market_update_strategy not in {"check", "sync", "install"}:
             self._market_update_strategy = "check"
         self._market_update_install_ids = self._parse_csv(config.get("market_update_install_ids"))
         self._market_update_exclude_ids = self._parse_csv(config.get("market_update_exclude_ids"))
-        self._update_scheduled_notify = bool(config.get("update_scheduled_notify", False))
-        self._update_notify_type = config.get("update_notify_type") or "Plugin"
+        reminder_enabled = self._config_bool(
+            config,
+            "plugin_update_reminder_enabled",
+            legacy_market_enabled if has_current_plugin_update_config else legacy_market_effective,
+        )
+        self._plugin_update_reminder_enabled = bool(reminder_enabled)
+        self._plugin_update_reminder_schedule_enabled = self._plugin_update_reminder_enabled
+        self._plugin_update_reminder_cron = self._normalize_optional_cron(
+            config.get("plugin_update_reminder_cron") or legacy_market_cron
+        ) or "0 9 * * *"
+        auto_install_enabled = self._config_bool(
+            config, "plugin_auto_install_enabled", self._market_update_strategy == "install"
+        )
+        self._plugin_auto_install_enabled = bool(auto_install_enabled)
+        self._plugin_auto_install_schedule_enabled = self._plugin_auto_install_enabled
+        self._plugin_auto_install_cron = self._normalize_optional_cron(
+            config.get("plugin_auto_install_cron") or legacy_market_cron
+        ) or "0 9 * * *"
+        self._plugin_auto_install_install_ids = self._parse_csv(
+            config.get("plugin_auto_install_install_ids")
+            if "plugin_auto_install_install_ids" in config
+            else config.get("market_update_install_ids")
+        )
+        self._plugin_auto_install_exclude_ids = self._parse_csv(
+            config.get("plugin_auto_install_exclude_ids")
+            if "plugin_auto_install_exclude_ids" in config
+            else config.get("market_update_exclude_ids")
+        )
+        scope_mode = str(config.get("plugin_auto_install_scope_mode") or "").strip().lower()
+        if scope_mode not in {"all", "include", "exclude"}:
+            if self._plugin_auto_install_install_ids and self._plugin_auto_install_exclude_ids:
+                excluded = set(self._plugin_auto_install_exclude_ids)
+                self._plugin_auto_install_install_ids = [
+                    plugin_id for plugin_id in self._plugin_auto_install_install_ids if plugin_id not in excluded
+                ]
+                self._plugin_auto_install_exclude_ids = []
+                scope_mode = "include"
+            elif self._plugin_auto_install_install_ids:
+                scope_mode = "include"
+            elif self._plugin_auto_install_exclude_ids:
+                scope_mode = "exclude"
+            else:
+                scope_mode = "all"
+        self._plugin_auto_install_scope_mode = scope_mode
+        legacy_update_notify = self._config_bool(config, "update_scheduled_notify", False)
+        legacy_update_notify_type = config.get("update_notify_type") or "Plugin"
+        self._update_scheduled_notify = legacy_update_notify
+        self._update_notify_type = legacy_update_notify_type
+        self._mp_update_scheduled_notify = self._config_bool(config, "mp_update_scheduled_notify", legacy_update_notify)
+        self._mp_update_notify_type = config.get("mp_update_notify_type") or legacy_update_notify_type
+        self._market_update_scheduled_notify = self._config_bool(config, "market_update_scheduled_notify", legacy_update_notify)
+        self._market_update_notify_type = config.get("market_update_notify_type") or legacy_update_notify_type
+        self._plugin_update_reminder_scheduled_notify = self._config_bool(config, "plugin_update_reminder_scheduled_notify", legacy_update_notify)
+        self._plugin_update_reminder_notify_type = config.get("plugin_update_reminder_notify_type") or legacy_update_notify_type
+        self._plugin_auto_install_scheduled_notify = self._config_bool(config, "plugin_auto_install_scheduled_notify", legacy_update_notify)
+        self._plugin_auto_install_notify_type = config.get("plugin_auto_install_notify_type") or legacy_update_notify_type
         self._plugin_uninstall_ids = config.get("plugin_uninstall_ids") or []
         if isinstance(self._plugin_uninstall_ids, str):
             self._plugin_uninstall_ids = self._parse_csv(self._plugin_uninstall_ids)
-        self._plugin_uninstall_remove_plugin = bool(config.get("plugin_uninstall_remove_plugin", True))
         self._plugin_uninstall_clear_config = bool(config.get("plugin_uninstall_clear_config", True))
         self._plugin_uninstall_clear_data = bool(config.get("plugin_uninstall_clear_data", True))
         self._plugin_uninstall_delete_source = bool(config.get("plugin_uninstall_delete_source", False))
@@ -283,6 +379,8 @@ class LifecycleMixin:
         self._subfill_details = self._parse_csv(config.get("subfill_details"))
         self._subfill_category_enabled = bool(config.get("subfill_category_enabled", False))
         self._subfill_category_confs = config.get("subfill_category_confs") or ""
+        self._subfill_completion_notify_enabled = self._config_bool(config, "subfill_completion_notify_enabled", False)
+        self._subfill_completion_notify_type = config.get("subfill_completion_notify_type") or "Plugin"
         self._subfill_confs = self._parse_subfill_confs(self._subfill_category_confs)
         self._msgnotify_enabled = bool(config.get("msgnotify_enabled", False))
         self._msgnotify_types = self._parse_csv(config.get("msgnotify_types"))

@@ -105,7 +105,7 @@ class MpApiMixin:
         return {"code": 0, "msg": msg}
 
     def api_run_mp_update(self) -> Dict[str, Any]:
-        return self._api_run_task("主程序更新检查", self.run_mp_update_check, "mp_update")
+        return self._api_run_task("系统更新检查", self.run_mp_update_check, "mp_update")
 
     def api_run_mp_update_apply(self) -> Dict[str, Any]:
         return self._api_run_task("主程序更新执行", self.run_mp_update_apply, "mp_update")
@@ -321,7 +321,7 @@ class MpApiMixin:
         return {"code": 0 if ok else 1, "msg": "WebDAV 备份恢复执行成功" if ok else f"WebDAV 备份恢复执行失败：{'；'.join(data.get('errors') or [])}", "data": data, "text": self._format_backup_restore_text(data)}
 
     def api_preview_updates(self) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("主程序更新检查", "mp_update")
+        ok, msg = self._can_run_task("系统更新检查", "mp_update")
         if not ok:
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
         try:
@@ -332,23 +332,54 @@ class MpApiMixin:
             return {"code": 1, "msg": f"更新状态预览失败：{err}", "data": {}, "text": ""}
 
     def api_preview_market_update(self) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("插件库更新", "market_update")
+        ok, msg = self._can_run_task("插件库同步", "market_update")
         if not ok:
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
         try:
             data = self._build_market_update_status(apply=False)
-            return {"code": 0, "msg": "插件库更新预览完成，未写入配置。", "data": data, "text": self._format_market_update_text(data)}
+            return {"code": 0, "msg": "插件库同步预览完成，未写入配置。", "data": data, "text": self._format_market_update_text(data)}
         except Exception as err:
-            return {"code": 1, "msg": f"插件库更新预览失败：{err}", "data": {}, "text": ""}
+            return {"code": 1, "msg": f"插件库同步预览失败：{err}", "data": {}, "text": ""}
 
     def api_run_market_update(self) -> Dict[str, Any]:
-        ok_guard, msg = self._can_run_task("插件库更新", "market_update")
+        ok_guard, msg = self._can_run_task("插件库同步", "market_update")
         if not ok_guard:
-            self._save_task_result("插件库更新", False, 2, msg)
+            self._save_task_result("插件库同步", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg, self._build_market_status())}
         ok = self.run_market_update()
         data = self._build_market_status()
-        return {"code": 0 if ok else 1, "msg": "插件库更新检查执行成功" if ok else "插件库更新检查失败，详情请查看插件日志。", "data": data}
+        return {"code": 0 if ok else 1, "msg": "插件库同步执行成功" if ok else "插件库同步失败，详情请查看插件日志。", "data": data}
+
+    def api_preview_plugin_update_reminder(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("插件更新", "plugin_update_reminder")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
+        try:
+            data = self._auto_update_installed_plugins(apply=False)
+            data["auto_install"] = False
+            text = self._format_plugin_update_text(data)
+            success = not bool(data.get("error"))
+            return {"code": 0 if success else 1, "msg": "插件更新预览完成，未安装插件。" if success else "插件更新预览失败。", "data": data, "text": text}
+        except Exception as err:
+            return {"code": 1, "msg": f"插件更新预览失败：{err}", "data": {}, "text": ""}
+
+    def api_run_plugin_update_reminder(self) -> Dict[str, Any]:
+        return self._api_run_task("插件更新", self.run_plugin_update_reminder, "plugin_update_reminder")
+
+    def api_preview_plugin_auto_install(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("插件更新", "plugin_update_reminder")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
+        try:
+            data = self._auto_update_installed_plugins(apply=False)
+            text = self._format_plugin_update_text(data, "📦 插件自动安装预览")
+            success = not bool(data.get("error"))
+            return {"code": 0 if success else 1, "msg": "插件自动安装预览完成，未安装插件。" if success else "插件自动安装预览失败。", "data": data, "text": text}
+        except Exception as err:
+            return {"code": 1, "msg": f"插件自动安装预览失败：{err}", "data": {}, "text": ""}
+
+    def api_run_plugin_auto_install(self) -> Dict[str, Any]:
+        return self._api_run_task("插件更新", self.run_plugin_auto_install, "plugin_update_reminder")
 
     def api_preview_plugin_uninstall(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("插件卸载预览")
@@ -481,6 +512,7 @@ class MpApiMixin:
     def api_run_site_stat(self, trigger: str = "manual") -> Dict[str, Any]:
         """刷新站点数据统计：站点快照来自 MoviePilot SiteOper，这里重新汇总并记录一次任务结果。"""
         ok, msg = self._can_run_task("站点数据统计", "site_stat")
+        scheduled_notify = trigger == "scheduled" and bool(getattr(self, "_site_stat_schedule_notify_enabled", True))
         if not ok:
             self._save_task_result("站点数据统计", False, 2, msg)
             data = self._skipped_data(msg, {"date": "", "basis": "skipped", "sites": [], "upload_total": 0, "download_total": 0})
@@ -491,6 +523,18 @@ class MpApiMixin:
                 msg = (chart or {}).get("msg") or "站点统计图数据获取失败"
                 payload = (chart or {}).get("data") or {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}
                 self._save_task_result("站点数据统计", False, 1, msg)
+                if scheduled_notify:
+                    self._notify_fusion_task_outcome(
+                        mtype=self._notification_type(self._site_stat_notify_type),
+                        title="MP 运维助手 - 站点统计",
+                        text=msg,
+                        outcome=f"站点统计失败：{msg}",
+                        success=False,
+                        component="site_stat",
+                        task_key="site_stat",
+                        task_group="站点统计",
+                        affected_owner="persistent-sites",
+                    )
                 return {"code": 1, "msg": msg, "data": payload}
             payload = chart.get("data") or {}
             site_count = len(payload.get("sites") or [])
@@ -499,20 +543,34 @@ class MpApiMixin:
             label = "今日" if payload.get("basis") != "latest" else f"最近快照 {payload.get('date') or ''}".strip()
             text = f"已刷新 {site_count} 个站点｜{label}｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无可用增量"
             self._save_task_result("站点数据统计", True, 0, text)
-            if trigger == "scheduled":
-                self._notify_or_console(
+            if scheduled_notify:
+                self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._site_stat_notify_type),
                     title="MP 运维助手 - 站点统计",
                     text=text,
+                    outcome="站点统计完成",
+                    success=True,
                     component="site_stat",
-                    owner="persistent-sites",
-                    level="success",
-                    payload=payload,
+                    task_key="site_stat",
+                    task_group="站点统计",
+                    affected_owner="persistent-sites",
                 )
             return {"code": 0, "msg": text, "data": payload}
         except Exception as err:
             self._save_task_result("站点数据统计", False, -1, str(err))
             logger.error(f"站点数据统计刷新失败：{err}")
+            if scheduled_notify:
+                self._notify_fusion_task_outcome(
+                    mtype=self._notification_type(self._site_stat_notify_type),
+                    title="MP 运维助手 - 站点统计",
+                    text=f"站点数据统计刷新失败：{err}",
+                    outcome=f"站点统计失败：{err}",
+                    success=False,
+                    component="site_stat",
+                    task_key="site_stat",
+                    task_group="站点统计",
+                    affected_owner="persistent-sites",
+                )
             return {"code": 1, "msg": f"站点数据统计刷新失败：{err}", "data": {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}}
 
     def api_preview_downloader_helper(self) -> Dict[str, Any]:

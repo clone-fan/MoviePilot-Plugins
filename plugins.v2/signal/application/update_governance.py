@@ -14,7 +14,7 @@ class UpdateGovernanceMixin:
     """MoviePilot version checks, plugin market updates, and auto-update logic."""
 
     def _build_update_status(self) -> Dict[str, Any]:
-        result = {"safe_mode": True, "note": "本插件直接检查 MoviePilot 后端/前端 release，不自动重启。", "moviepilot": {}, "plugin_market": self._build_market_status()}
+        result = {"safe_mode": True, "note": "检查到 MoviePilot 后端或前端有更新时，只触发一次整体升级。", "moviepilot": {}}
         local = self._get_local_versions()
         result["moviepilot"].update(local)
         checks = []
@@ -92,7 +92,7 @@ class UpdateGovernanceMixin:
     @staticmethod
     def _format_update_status_text(data: Dict[str, Any]) -> str:
         mp = data.get("moviepilot") or {}
-        lines = ["🔄 MoviePilot 更新检查", f"⦁ 后端本地：{mp.get('backend_version', '未知')}", f"⦁ 前端本地：{mp.get('frontend_version', '未知')}"]
+        lines = ["🔄 系统更新检查", f"⦁ 后端本地：{mp.get('backend_version', '未知')}", f"⦁ 前端本地：{mp.get('frontend_version', '未知')}"]
         for item in mp.get("checks") or []:
             status = "有更新" if item.get("has_update") else "无更新"
             if item.get("error"):
@@ -106,14 +106,12 @@ class UpdateGovernanceMixin:
             lines.append("⦁ 更新执行：已触发 MoviePilot 重启")
         elif mp.get("restart_error"):
             lines.append(f"⦁ 更新执行：失败｜{mp.get('restart_error')}")
-        if data.get("plugin_market"):
-            lines.append(f"⦁ 插件库更新：{data['plugin_market'].get('note')}")
         return "\n".join(lines)
 
     def _build_market_status(self) -> Dict[str, Any]:
         settings_markets = self._valid_markets_list(settings.PLUGIN_MARKET)
         last = self.get_data("last_market_update") or {}
-        return {"status": "已直接接替", "note": "本插件直接检查插件库记录，不依赖 原插件库更新推送插件。", "enabled": self._market_update_enabled, "cron": self._market_update_cron, "settings_count": len(settings_markets), "last_update": last.get("time"), "last_wiki_count": len(last.get("wiki_markets") or [])}
+        return {"status": "已直接接替", "note": "本插件直接同步插件库记录，不依赖原插件库更新推送插件。", "enabled": self._market_update_enabled, "cron": self._market_update_cron, "settings_count": len(settings_markets), "last_update": last.get("time"), "last_wiki_count": len(last.get("wiki_markets") or [])}
 
     def _build_market_update_status(self, apply: bool = False) -> Dict[str, Any]:
         wiki_markets = self._fetch_wiki_markets()
@@ -124,14 +122,12 @@ class UpdateGovernanceMixin:
         last_wiki = self._valid_markets_list(last.get("wiki_markets") or [])
         new_markets = [x for x in wiki_markets if x not in last_wiki and x not in settings_markets]
         has_update = set(wiki_markets) != set(last_wiki) or bool(new_markets)
-        sync_enabled = self._market_update_strategy in {"sync", "install"}
-        result = {"success": True, "dry_run": not apply, "has_update": has_update, "strategy": self._market_update_strategy, "wiki_markets": wiki_markets, "settings_markets": settings_markets, "other_markets": other_markets, "write_markets": write_markets, "new_markets": new_markets, "settings_written": False, "env_written": False}
+        result = {"success": True, "dry_run": not apply, "has_update": has_update, "strategy": "sync", "legacy_strategy": self._market_update_strategy, "wiki_markets": wiki_markets, "settings_markets": settings_markets, "other_markets": other_markets, "write_markets": write_markets, "new_markets": new_markets, "settings_written": False, "env_written": False}
         if apply:
-            if sync_enabled and write_markets != settings_markets:
+            if write_markets != settings_markets:
                 settings.PLUGIN_MARKET = ",".join(write_markets)
                 result["settings_written"] = True
-            if sync_enabled:
-                result["env_written"] = self._write_app_env_key("PLUGIN_MARKET", ",".join(write_markets))
+            result["env_written"] = self._write_app_env_key("PLUGIN_MARKET", ",".join(write_markets))
             self.save_data("last_market_update", {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "wiki_markets": wiki_markets, "settings_markets": settings_markets, "new_markets": new_markets, "has_update": has_update})
         return result
 
@@ -202,10 +198,8 @@ class UpdateGovernanceMixin:
 
     @staticmethod
     def _format_market_update_text(data: Dict[str, Any]) -> str:
-        strategy_label = {"check": "仅检查", "sync": "同步插件库", "install": "同步并更新插件"}.get(data.get("strategy"), "仅检查")
         lines = [
-            "🧩 插件库更新检查",
-            f"⦁ 处理方式：{strategy_label}",
+            "🧩 插件库同步",
             f"⦁ Wiki记录：{len(data.get('wiki_markets') or [])} 个",
             f"⦁ 当前配置：{len(data.get('settings_markets') or [])} 个",
             f"⦁ 第三方保留：{len(data.get('other_markets') or [])} 个",
@@ -215,42 +209,18 @@ class UpdateGovernanceMixin:
         ]
         for url in (data.get('new_markets') or [])[:5]:
             lines.append(f"⦁ 新库：{url}")
-        pu = data.get("plugin_update") or {}
-        if pu:
-            if pu.get("error"):
-                lines.append(f"⦁ 插件自动更新：{pu['error']}")
-            elif pu.get("auto_install"):
-                lines.append(f"⦁ 插件自动更新：已更新 {len(pu.get('updated') or [])}｜失败 {len(pu.get('failed') or [])}｜跳过 {len(pu.get('skipped') or [])}")
-                for it in (pu.get("updated") or [])[:6]:
-                    extra = f"｜{it['history']}" if it.get("history") else ""
-                    lines.append(f"  ✓ {it['name']}：v{it['old']} → v{it['new']}{extra}")
-                for it in (pu.get("failed") or [])[:5]:
-                    lines.append(f"  ✗ {it['name']}：{it.get('msg')}")
-                for it in (pu.get("skipped") or [])[:5]:
-                    lines.append(f"  – {it['name']}：跳过（{it.get('reason')}）")
-            elif pu.get("updatable"):
-                lines.append(f"⦁ 发现可更新插件：{len(pu['updatable'])} 个（未开启自动安装，仅提醒）")
-                for it in pu["updatable"][:8]:
-                    lines.append(f"  - {it['name']}：v{it['old']} → v{it['new']}")
         return "\n".join(lines)
 
     @staticmethod
     def _market_update_outcome(data: Dict[str, Any]) -> str:
-        plugin_update = data.get("plugin_update") or {}
-        updated = len(plugin_update.get("updated") or [])
-        failed = len(plugin_update.get("failed") or [])
         writes = int(bool(data.get("settings_written"))) + int(bool(data.get("env_written")))
         if data.get("success"):
             parts = []
             if writes:
                 parts.append(f"同步 {writes} 处插件库配置")
-            if updated:
-                parts.append(f"更新 {updated} 个插件")
             return "已" + "，".join(parts) if parts else "插件库检查完成，未执行变更"
-        if failed:
-            return f"插件更新失败：成功 {updated} 个，失败 {failed} 个"
-        detail = str(plugin_update.get("error") or "插件库同步未完成")[:120]
-        return f"插件库更新失败：{detail}"
+        detail = "插件库同步未完成"
+        return f"插件库同步失败：{detail}"
 
     @staticmethod
     def _moviepilot_update_outcome(data: Dict[str, Any], success: bool) -> str:
@@ -258,7 +228,9 @@ class UpdateGovernanceMixin:
         if success:
             if mp.get("upgrade_dispatched"):
                 return "已触发 MoviePilot 升级并重启"
-            return "已触发 MoviePilot 重启"
+            if mp.get("has_update"):
+                return "检测到更新，但未触发 MoviePilot 整体升级"
+            return "检查完成，MoviePilot 已是最新版本"
         detail = str(mp.get("upgrade_error") or mp.get("restart_error") or "更新请求未被接受")[:120]
         return f"MoviePilot 更新触发失败：{detail}"
 
@@ -266,7 +238,7 @@ class UpdateGovernanceMixin:
         """检查已安装插件是否有新版（移植自 thsrite/PluginAutoUpdate，适配本插件）。
         开启“自动安装”且 apply 时下载安装新版并重载；否则仅汇总可更新清单供通知。
         全程 try/except，任何失败只反映在结果里，不抛出。"""
-        auto_install = self._market_update_strategy == "install"
+        auto_install = bool(self._plugin_auto_install_enabled)
         out: Dict[str, Any] = {"auto_install": auto_install,
                                "updatable": [], "updated": [], "failed": [], "skipped": []}
         try:
@@ -301,8 +273,11 @@ class UpdateGovernanceMixin:
                         running.add(s.id)
             except Exception:
                 pass
-            exclude = set(self._market_update_exclude_ids or [])
-            include = set(self._market_update_install_ids or [])
+            scope_mode = str(getattr(self, "_plugin_auto_install_scope_mode", "all") or "all").strip().lower()
+            if scope_mode not in {"all", "include", "exclude"}:
+                scope_mode = "all"
+            exclude = set(self._plugin_auto_install_exclude_ids or []) if scope_mode == "exclude" else set()
+            include = set(self._plugin_auto_install_install_ids or []) if scope_mode == "include" else set()
             for p in online:
                 pid = str(p.id)
                 if pid not in installed_ids:
@@ -320,7 +295,7 @@ class UpdateGovernanceMixin:
                 if pid.lower() in {"signal", "moviepilot"} or pid in exclude:
                     out["skipped"].append({**info, "reason": "排除/本体"})
                     continue
-                if include and pid not in include:
+                if scope_mode == "include" and pid not in include:
                     out["skipped"].append({**info, "reason": "不在自动更新列表"})
                     continue
                 if pid in running or p.id in running:
@@ -354,7 +329,7 @@ class UpdateGovernanceMixin:
             out["error"] = f"插件自动更新异常：{str(err)[:160]}"
             return out
     def run_update_preview(self) -> bool:
-        ok, _ = self._guard_task("主程序更新检查", "mp_update")
+        ok, _ = self._guard_task("系统更新检查", "mp_update")
         if not ok:
             return False
         data = self._build_update_status()
@@ -365,8 +340,8 @@ class UpdateGovernanceMixin:
     def run_mp_update_scheduled(self) -> bool:
         return self.run_mp_update_check(scheduled=True)
 
-    def run_mp_update_check(self, scheduled: bool = False) -> bool:
-        ok, _ = self._guard_task("主程序更新检查", "mp_update")
+    def run_mp_update_check(self, scheduled: bool = False, result_name: str = "系统更新检查") -> bool:
+        ok, _ = self._guard_task("系统更新检查", "mp_update")
         if not ok:
             return False
         data = self._build_update_status()
@@ -376,82 +351,159 @@ class UpdateGovernanceMixin:
         errors = [f"{item.get('type') or '未知'}：{item.get('error')}" for item in checks if item.get("error")]
         if mp.get("version_error"):
             errors.append(f"本地版本：{mp.get('version_error')}")
-        success = bool(checks) and not errors
-        if scheduled and self._task_outcome_notification_enabled(self._update_scheduled_notify):
-            title = "MoviePilot更新检查" if success else "MoviePilot更新检查异常"
-            outcome = errors[0][:120] if errors else ("发现可用更新" if mp.get("has_update") else "当前已是最新版本")
+        if not errors and mp.get("has_update"):
+            self._dispatch_moviepilot_upgrade(data)
+            text = self._format_update_status_text(data)
+        execution_failed = bool(mp.get("has_update") and not mp.get("upgrade_dispatched"))
+        success = bool(checks) and not errors and not execution_failed
+        if scheduled and self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
+            title = "系统更新" if success else "系统更新异常"
+            outcome = errors[0][:120] if errors else self._moviepilot_update_outcome(data, success)
             self._notify_fusion_task_outcome(
-                mtype=self._notification_type(self._update_notify_type),
+                mtype=self._notification_type(self._mp_update_notify_type),
                 title=title,
                 text=text,
                 outcome=outcome,
                 success=success,
                 component="mp_update",
+                task_key="mp_update",
+                task_group="更新管理",
+                affected_owner="moviepilot",
             )
-        self._save_task_result("主程序更新检查", success, 0 if success else 1, text)
+        self._save_task_result(result_name, success, 0 if success else 1, text)
         return success
 
     def run_mp_update_apply(self) -> bool:
-        ok, _ = self._guard_task("主程序更新执行", "mp_update")
-        if not ok:
-            return False
-        data = self._build_update_status()
-        text = self._format_update_status_text(data)
-        mp = data.get("moviepilot") or {}
-        checks = mp.get("checks") or []
-        errors = [f"{item.get('type') or '未知'}：{item.get('error')}" for item in checks if item.get("error")]
-        if mp.get("version_error"):
-            errors.append(f"本地版本：{mp.get('version_error')}")
-        if errors:
-            self._save_task_result("主程序更新执行", False, 1, text)
-            return False
-        if not mp.get("has_update"):
-            self._save_task_result("主程序更新执行", True, 0, text)
-            return True
-        self._dispatch_moviepilot_upgrade(data)
-        text = self._format_update_status_text(data)
-        dispatched = bool(mp.get("upgrade_dispatched") or mp.get("restart_dispatched"))
-        success = dispatched and not mp.get("upgrade_error") and not mp.get("restart_error")
-        self._save_task_result("主程序更新执行", success, 0 if success else 1, text)
-        return success
+        return self.run_mp_update_check(scheduled=False, result_name="主程序更新执行")
 
     def run_market_update_scheduled(self) -> bool:
         return self.run_market_update(scheduled=True)
 
     def run_market_update(self, scheduled: bool = False) -> bool:
-        ok, _ = self._guard_task("插件库更新", "market_update")
+        ok, _ = self._guard_task("插件库同步", "market_update")
         if not ok:
             return False
         try:
             data = self._build_market_update_status(apply=True)
-            data["plugin_update"] = self._auto_update_installed_plugins(apply=True)
             text = self._format_market_update_text(data)
-            pu = data.get("plugin_update") or {}
-            data["success"] = not bool(pu.get("failed") or pu.get("error"))
-            if scheduled and self._task_outcome_notification_enabled(self._update_scheduled_notify):
+            data["success"] = True
+            if scheduled and self._task_outcome_notification_enabled(self._market_update_scheduled_notify):
                 self._notify_fusion_task_outcome(
-                    mtype=self._notification_type(self._update_notify_type),
-                    title="插件库更新",
+                    mtype=self._notification_type(self._market_update_notify_type),
+                    title="插件库同步",
                     text=text,
                     outcome=self._market_update_outcome(data),
                     success=bool(data.get("success")),
                     component="market_update",
+                    task_key="market_sync",
+                    task_group="更新管理",
                 )
-            self._save_task_result("插件库更新", bool(data.get("success")), 0 if data.get("success") else 1, text)
+            self._save_task_result("插件库同步", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
         except Exception as err:
-            self._save_task_result("插件库更新", False, -1, str(err))
-            if scheduled and self._task_outcome_notification_enabled(self._update_scheduled_notify):
+            self._save_task_result("插件库同步", False, -1, str(err))
+            if scheduled and self._task_outcome_notification_enabled(self._market_update_scheduled_notify):
                 self._notify_fusion_task_outcome(
-                    mtype=self._notification_type(self._update_notify_type),
-                    title="插件库更新异常",
+                    mtype=self._notification_type(self._market_update_notify_type),
+                    title="插件库同步异常",
                     text=str(err),
-                    outcome=f"插件库更新失败：{str(err)[:120]}",
+                    outcome=f"插件库同步失败：{str(err)[:120]}",
                     success=False,
                     component="market_update",
+                    task_key="market_sync",
+                    task_group="更新管理",
                 )
-            logger.error(f"Signal 插件库更新检查失败：{err}")
+            logger.error(f"Signal 插件库同步失败：{err}")
             return False
+
+    @staticmethod
+    def _format_plugin_update_text(data: Dict[str, Any], title: str = "🔔 插件更新") -> str:
+        lines = [title]
+        if data.get("error"):
+            return "\n".join(lines + [f"⦁ 检查失败：{data['error']}"])
+        updatable = data.get("updatable") or []
+        updated = data.get("updated") or []
+        failed = data.get("failed") or []
+        skipped = data.get("skipped") or []
+        if data.get("auto_install"):
+            lines.append(f"⦁ 自动安装：成功 {len(updated)} 个｜失败 {len(failed)} 个｜跳过 {len(skipped)} 个")
+            for item in updated[:8]:
+                extra = f"｜{item['history']}" if item.get("history") else ""
+                lines.append(f"  ✓ {item['name']}：v{item['old']} → v{item['new']}{extra}")
+            for item in failed[:5]:
+                lines.append(f"  ✗ {item['name']}：{item.get('msg')}")
+            for item in skipped[:5]:
+                lines.append(f"  – {item['name']}：跳过（{item.get('reason')}）")
+        else:
+            lines.append(f"⦁ 发现可更新插件：{len(updatable)} 个")
+            for item in updatable[:10]:
+                lines.append(f"  - {item['name']}：v{item['old']} → v{item['new']}")
+            if not updatable:
+                lines.append("⦁ 当前没有可更新插件")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _plugin_update_outcome(data: Dict[str, Any]) -> str:
+        if data.get("error"):
+            return f"插件更新检查失败：{str(data['error'])[:120]}"
+        if data.get("auto_install"):
+            return f"自动安装完成：成功 {len(data.get('updated') or [])} 个，失败 {len(data.get('failed') or [])} 个"
+        return f"发现 {len(data.get('updatable') or [])} 个可更新插件"
+
+    def run_plugin_update_reminder_scheduled(self) -> bool:
+        return self.run_plugin_update_reminder(scheduled=True)
+
+    def run_plugin_update_reminder(self, scheduled: bool = False) -> bool:
+        ok, _ = self._guard_task("插件更新", "plugin_update_reminder")
+        if not ok:
+            return False
+        auto_install_enabled = bool(getattr(self, "_plugin_auto_install_enabled", False))
+        data = self._auto_update_installed_plugins(apply=auto_install_enabled)
+        data["auto_install"] = auto_install_enabled
+        text = self._format_plugin_update_text(data)
+        success = not bool(data.get("error") or data.get("failed"))
+        install_attempted = bool(data.get("updated") or data.get("failed"))
+        notify_check = self._task_outcome_notification_enabled(self._plugin_update_reminder_scheduled_notify)
+        notify_install = bool(
+            data.get("auto_install")
+            and install_attempted
+            and self._task_outcome_notification_enabled(self._plugin_auto_install_scheduled_notify)
+        )
+        if scheduled and notify_check:
+            check_success = not bool(data.get("error"))
+            check_data = {**data, "auto_install": False}
+            self._notify_fusion_task_outcome(
+                mtype=self._notification_type(self._plugin_update_reminder_notify_type),
+                title="插件更新检查" if check_success else "插件更新检查异常",
+                text=self._format_plugin_update_text(check_data, title="🔔 插件更新检查"),
+                outcome=self._plugin_update_outcome(check_data),
+                success=check_success,
+                component="plugin_update_reminder",
+                task_key="plugin_update_reminder",
+                task_group="更新管理",
+            )
+        if scheduled and notify_install:
+            install_success = not bool(data.get("error") or data.get("failed"))
+            self._notify_fusion_task_outcome(
+                mtype=self._notification_type(self._plugin_auto_install_notify_type),
+                title="插件自动安装" if install_success else "插件自动安装异常",
+                text=self._format_plugin_update_text(data, title="📦 插件自动安装"),
+                outcome=self._plugin_update_outcome(data),
+                success=install_success,
+                component="plugin_update_reminder",
+                task_key="plugin_auto_install",
+                task_group="更新管理",
+            )
+        self._save_task_result("插件更新", success, 0 if success else 1, text)
+        return success
+
+    def run_plugin_auto_install_scheduled(self) -> bool:
+        return self.run_plugin_auto_install(scheduled=True)
+
+    def run_plugin_auto_install(self, scheduled: bool = False) -> bool:
+        # Compatibility command/API: installation is now part of one plugin
+        # update check and must not create a second execution path.
+        return self.run_plugin_update_reminder(scheduled=scheduled)
 
     def _api_run_task(self, name: str, runner, component: Optional[str] = None) -> Dict[str, Any]:
         ok, msg = self._can_run_task(name, component)

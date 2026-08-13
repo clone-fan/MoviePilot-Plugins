@@ -1,0 +1,3808 @@
+/* signal 设计系统入口 — 组件只需 import './styles/index.css' */
+/* signal 设计系统 — 设计 token 单一真相源
+ * 外框跟随 MoviePilot 原生 v-card / app-surface 变量；
+ * 内框统一 iOS 透白 + 液态玻璃层次。
+ * 组件根元素挂 .aoa-root 即继承全部 token；子组件经 DOM 继承自动获得，无需重复定义。
+ * 只保留液态玻璃版（on-surface 透白死代码已删除）。
+ * 共享、Dashboard、Config 与 MP Host Adapter 只消费 aoa 语义令牌。
+ */
+.aoa-root {
+  /* Foundation scale: a 4px rhythm with half steps for compact host surfaces. */
+  --aoa-space-0: 0;
+  --aoa-space-0-5: 2px;
+  --aoa-space-1: 4px;
+  --aoa-space-1-5: 6px;
+  --aoa-space-2: 8px;
+  --aoa-space-2-5: 10px;
+  --aoa-space-3: 12px;
+  --aoa-space-3-5: 14px;
+  --aoa-space-4: 16px;
+  --aoa-space-4-5: 18px;
+  --aoa-space-5: 20px;
+  --aoa-space-6: 24px;
+  --aoa-space-7: 28px;
+  --aoa-space-8: 32px;
+  --aoa-space-10: 40px;
+  --aoa-space-12: 48px;
+
+  /* Primitive typography scale. Feature CSS consumes semantic roles below,
+   * never these raw steps directly unless it defines a deliberate exception. */
+  --aoa-font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --aoa-font-family-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --aoa-font-size-050: 9px;
+  --aoa-font-size-100: 10px;
+  --aoa-font-size-200: 11px;
+  --aoa-font-size-300: 12px;
+  --aoa-font-size-400: 13px;
+  --aoa-font-size-500: 14px;
+  --aoa-font-size-600: 16px;
+  --aoa-font-size-700: 18px;
+  --aoa-font-size-800: 20px;
+  --aoa-font-size-900: 24px;
+  --aoa-font-size-1000: 30px;
+  --aoa-font-weight-light: 300;
+  --aoa-font-weight-regular: 400;
+  --aoa-font-weight-medium: 500;
+  --aoa-font-weight-semibold: 600;
+  --aoa-font-weight-bold: 700;
+  --aoa-font-weight-extrabold: 800;
+  --aoa-font-weight-black: 900;
+  --aoa-line-height-none: 1;
+  --aoa-line-height-display: 1.1;
+  --aoa-line-height-title: 1.2;
+  --aoa-line-height-compact: 1.3;
+  --aoa-line-height-body: 1.4;
+  --aoa-line-height-relaxed: 1.5;
+  --aoa-letter-spacing-tight: -0.01em;
+  --aoa-letter-spacing-normal: 0;
+  --aoa-letter-spacing-wide: 0.02em;
+
+  /* Semantic typography roles shared by Config, Dashboard and MP widgets. */
+  --aoa-type-page-title-font-size: var(--aoa-font-size-1000);
+  --aoa-type-page-title-font-weight: var(--aoa-font-weight-extrabold);
+  --aoa-type-page-title-line-height: var(--aoa-line-height-display);
+  --aoa-type-page-title-letter-spacing: var(--aoa-letter-spacing-tight);
+  --aoa-type-section-title-font-size: var(--aoa-font-size-800);
+  --aoa-type-section-title-font-weight: var(--aoa-font-weight-extrabold);
+  --aoa-type-section-title-line-height: var(--aoa-line-height-title);
+  --aoa-type-section-title-letter-spacing: var(--aoa-letter-spacing-tight);
+  --aoa-type-card-title-font-size: var(--aoa-font-size-600);
+  --aoa-type-card-title-font-weight: var(--aoa-font-weight-bold);
+  --aoa-type-card-title-line-height: var(--aoa-line-height-title);
+  --aoa-type-card-title-letter-spacing: var(--aoa-letter-spacing-normal);
+  --aoa-type-metric-large-font-size: var(--aoa-font-size-900);
+  --aoa-type-metric-large-font-weight: var(--aoa-font-weight-extrabold);
+  --aoa-type-metric-large-line-height: var(--aoa-line-height-display);
+  --aoa-type-metric-large-letter-spacing: var(--aoa-letter-spacing-tight);
+  --aoa-type-metric-font-size: var(--aoa-font-size-800);
+  --aoa-type-metric-font-weight: var(--aoa-font-weight-extrabold);
+  --aoa-type-metric-line-height: var(--aoa-line-height-display);
+  --aoa-type-metric-letter-spacing: var(--aoa-letter-spacing-normal);
+  --aoa-type-body-font-size: var(--aoa-font-size-500);
+  --aoa-type-body-font-weight: var(--aoa-font-weight-regular);
+  --aoa-type-body-line-height: var(--aoa-line-height-body);
+  --aoa-type-body-letter-spacing: var(--aoa-letter-spacing-normal);
+  --aoa-type-body-small-font-size: var(--aoa-font-size-400);
+  --aoa-type-body-small-font-weight: var(--aoa-font-weight-regular);
+  --aoa-type-body-small-line-height: var(--aoa-line-height-body);
+  --aoa-type-body-small-letter-spacing: var(--aoa-letter-spacing-normal);
+  --aoa-type-label-font-size: var(--aoa-font-size-300);
+  --aoa-type-label-font-weight: var(--aoa-font-weight-semibold);
+  --aoa-type-label-line-height: var(--aoa-line-height-title);
+  --aoa-type-label-letter-spacing: var(--aoa-letter-spacing-normal);
+  --aoa-type-caption-font-size: var(--aoa-font-size-200);
+  --aoa-type-caption-font-weight: var(--aoa-font-weight-regular);
+  --aoa-type-caption-line-height: var(--aoa-line-height-compact);
+  --aoa-type-caption-letter-spacing: var(--aoa-letter-spacing-normal);
+  --aoa-type-micro-font-size: var(--aoa-font-size-100);
+  --aoa-type-micro-font-weight: var(--aoa-font-weight-semibold);
+  --aoa-type-micro-line-height: var(--aoa-line-height-title);
+  --aoa-type-micro-letter-spacing: var(--aoa-letter-spacing-wide);
+  --aoa-type-code-font-family: var(--aoa-font-family-mono);
+  --aoa-type-code-font-size: var(--aoa-font-size-300);
+  --aoa-type-code-font-weight: var(--aoa-font-weight-medium);
+  --aoa-type-code-line-height: var(--aoa-line-height-body);
+  --aoa-type-code-letter-spacing: var(--aoa-letter-spacing-normal);
+
+  font-family: var(--aoa-font-family-sans);
+  font-size: var(--aoa-type-body-font-size);
+  font-weight: var(--aoa-type-body-font-weight);
+  line-height: var(--aoa-type-body-line-height);
+  letter-spacing: var(--aoa-type-body-letter-spacing);
+
+  /* 外框：MP 原生 app-surface 优先，Vuetify token 作为安全 fallback */
+  --aoa-radius-pill: 999px;
+  --aoa-config-radius-card: var(--app-surface-radius, 18px);
+  --aoa-config-radius-section: var(--app-surface-radius, 18px);
+  --aoa-config-radius-hero: var(--app-surface-radius-lg, 22px);
+  --aoa-config-radius-emblem: var(--app-control-radius, 17px);
+  --aoa-config-radius-table: var(--app-surface-radius, 16px);
+  --aoa-config-radius-mobile-card: var(--app-surface-radius, 14px);
+  --aoa-config-radius-control: var(--app-control-radius, 12px);
+  --aoa-config-radius-cell: var(--app-field-radius, var(--v-field-border-radius, 10px));
+  --aoa-config-radius-status: var(--app-field-radius, 8px);
+  /* Shared page and surface geometry. Feature layouts may compose these
+   * primitives, but must not redefine the same hierarchy with raw values. */
+  --aoa-layout-page-gap: var(--aoa-space-3);
+  --aoa-layout-section-gap: var(--aoa-space-3);
+  --aoa-layout-grid-gap: var(--aoa-space-3);
+  --aoa-surface-card-padding: var(--aoa-space-4-5);
+  --aoa-surface-compact-padding: var(--aoa-space-3);
+  --aoa-surface-card-radius: var(--app-surface-radius, var(--aoa-config-radius-card));
+  --aoa-surface-section-radius: var(--app-surface-radius, var(--aoa-config-radius-section));
+  --aoa-surface-compact-radius: var(--app-field-radius, var(--aoa-config-radius-cell));
+  --aoa-surface-card-border: var(--aoa-inner-border);
+  --aoa-surface-card-background: var(--aoa-inner-surface);
+  --aoa-surface-card-background-muted: var(--aoa-inner-surface-muted);
+  --aoa-surface-card-shadow: var(--aoa-inner-shadow);
+  --aoa-surface-card-backdrop: saturate(1.12) blur(var(--aoa-inner-blur));
+  --aoa-motion-fast: 160ms;
+  --aoa-motion-short: 150ms;
+  --aoa-motion-standard: 180ms;
+  --aoa-transition-surface: background-color var(--aoa-motion-fast) ease, box-shadow var(--aoa-motion-fast) ease;
+  --aoa-transition-surface-color: background-color var(--aoa-motion-fast) ease, box-shadow var(--aoa-motion-fast) ease, color var(--aoa-motion-fast) ease;
+  --aoa-transition-tab: background var(--aoa-motion-short) ease, color var(--aoa-motion-short) ease;
+  --aoa-transition-category: border-color var(--aoa-motion-standard) ease, background var(--aoa-motion-standard) ease;
+  --aoa-transition-row: background var(--aoa-motion-short) ease;
+  /* Theme adapter defaults. themes.css may override only these semantic color
+   * and host-translucency inputs; geometry remains owned by shared primitives. */
+  --aoa-color-ink-rgb: var(--v-theme-on-surface, 240, 247, 255);
+  --aoa-color-muted-rgb: var(--v-theme-on-surface, 151, 171, 201);
+  --aoa-color-faint-rgb: var(--v-theme-on-surface, 111, 131, 163);
+  --aoa-color-line-rgb: var(--v-theme-on-surface, 255, 255, 255);
+  --aoa-color-border-rgb: var(--v-border-color, 255, 255, 255);
+  --aoa-color-panel-rgb: var(--v-theme-surface, 28, 38, 57);
+  --aoa-color-stage-rgb: var(--v-theme-background, 8, 15, 27);
+  --aoa-color-info-rgb: var(--v-theme-info, 124, 194, 224);
+  --aoa-color-primary-rgb: var(--v-theme-primary, 142, 169, 222);
+  --aoa-color-success-rgb: var(--v-theme-success, 91, 204, 155);
+  --aoa-color-warning-rgb: var(--v-theme-warning, 218, 179, 93);
+  --aoa-color-error-rgb: var(--v-theme-error, 232, 104, 124);
+  --aoa-color-accent-rgb: var(--v-theme-primary, 162, 151, 211);
+  --aoa-theme-shadow-color: rgba(0, 0, 0, 0.16);
+  --aoa-theme-inner-border-alpha: var(--v-border-opacity, 0.14);
+  --aoa-theme-inner-highlight-alpha: 0.108;
+  --aoa-theme-inner-lowlight-alpha: 0.021;
+  --aoa-theme-donut-core-line-alpha: 0.04;
+  --aoa-theme-donut-core-panel-alpha: 0.85;
+  --aoa-shell-accent-primary-rgb: var(--aoa-color-info-rgb);
+  --aoa-shell-accent-secondary-rgb: var(--aoa-color-primary-rgb);
+  --aoa-shell-lift-rgb: var(--aoa-color-ink-rgb);
+  --aoa-shell-depth-rgb: var(--aoa-color-stage-rgb);
+  --aoa-shell-accent-primary-alpha: 0.065;
+  --aoa-shell-accent-secondary-alpha: 0.045;
+  --aoa-shell-lift-alpha: 0.032;
+  --aoa-shell-depth-alpha: 0.055;
+  --aoa-host-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-host-opacity-light: var(--transparent-opacity-light, var(--aoa-host-opacity));
+  --aoa-host-opacity-heavy: var(--transparent-opacity-heavy, var(--aoa-host-opacity));
+  --aoa-host-shell-blur: var(--transparent-blur, 12px);
+  --aoa-host-glass-blur: 18px;
+
+  /* Canonical full-page host surface. */
+  --aoa-plugin-shell-radius: var(--app-surface-radius, var(--v-card-border-radius, var(--aoa-space-3)));
+  --aoa-plugin-shell-border: var(--app-surface-border, 1px solid rgba(var(--aoa-color-border-rgb), var(--v-border-opacity, 0.12)));
+  --aoa-theme-shadow: 0 18px 48px var(--aoa-theme-shadow-color);
+  --aoa-plugin-shell-shadow: var(--app-surface-shadow, var(--aoa-theme-shadow));
+  /* Preserve the native MP surface while adding a low-energy, theme-owned
+   * material contribution. These layers add depth without replacing the
+   * host color, opacity, blur or border recipe. */
+  --aoa-plugin-shell-background-color: rgba(var(--aoa-color-panel-rgb), var(--aoa-host-opacity));
+  --aoa-plugin-shell-background-image:
+    radial-gradient(ellipse at 8% -10%, rgba(var(--aoa-shell-accent-primary-rgb), var(--aoa-shell-accent-primary-alpha)) 0%, transparent 44%),
+    radial-gradient(ellipse at 96% 108%, rgba(var(--aoa-shell-accent-secondary-rgb), var(--aoa-shell-accent-secondary-alpha)) 0%, transparent 42%),
+    linear-gradient(145deg, rgba(var(--aoa-shell-lift-rgb), var(--aoa-shell-lift-alpha)) 0%, transparent 46%, rgba(var(--aoa-shell-depth-rgb), var(--aoa-shell-depth-alpha)) 100%);
+  --aoa-plugin-shell-backdrop: blur(var(--aoa-host-shell-blur));
+  --aoa-plugin-shell-padding: var(--aoa-space-5);
+
+  /* 内框：液态玻璃（iOS 透白渐变 + 主题色叠加） */
+  --aoa-liquid-panel:
+    linear-gradient(180deg, rgba(var(--aoa-color-ink-rgb), 0.048), rgba(var(--aoa-color-ink-rgb), 0.018)),
+    rgba(var(--aoa-color-panel-rgb), 0.027);
+  --aoa-liquid-cell:
+    linear-gradient(180deg, rgba(var(--aoa-color-ink-rgb), 0.090), rgba(var(--aoa-color-ink-rgb), 0.035)),
+    rgba(var(--aoa-color-panel-rgb), 0.048);
+  --aoa-liquid-cell-strong:
+    linear-gradient(180deg, rgba(var(--aoa-color-ink-rgb), 0.112), rgba(var(--aoa-color-ink-rgb), 0.045)),
+    rgba(var(--aoa-color-panel-rgb), 0.060);
+  --aoa-liquid-cell-muted:
+    linear-gradient(180deg, rgba(var(--aoa-color-ink-rgb), 0.064), rgba(var(--aoa-color-ink-rgb), 0.026)),
+    rgba(var(--aoa-color-panel-rgb), 0.036);
+  --aoa-inner-border: 1px solid rgba(var(--aoa-color-border-rgb), var(--aoa-theme-inner-border-alpha));
+  --aoa-inner-edge-shadow:
+    inset 0 1px 0 rgba(var(--aoa-color-ink-rgb), var(--aoa-theme-inner-highlight-alpha)),
+    inset 0 -1px 0 rgba(var(--aoa-color-ink-rgb), var(--aoa-theme-inner-lowlight-alpha));
+  --aoa-inner-shadow:
+    var(--aoa-inner-edge-shadow),
+    0 10px 24px var(--aoa-theme-shadow-color);
+  --aoa-inner-blur: var(--aoa-host-glass-blur);
+
+  /* 内框语义别名 → 液态玻璃 */
+  --aoa-inner-surface: var(--aoa-liquid-panel);
+  --aoa-inner-surface-strong: var(--aoa-liquid-cell);
+  --aoa-inner-surface-muted: var(--aoa-liquid-cell-muted);
+  --aoa-surface-cell-radius: var(--app-field-radius, var(--aoa-config-radius-cell));
+  --aoa-surface-cell-border: var(--aoa-inner-border);
+  --aoa-surface-cell-background: var(--aoa-inner-surface-strong);
+  --aoa-surface-cell-background-hover: var(--aoa-liquid-cell-strong);
+  --aoa-surface-cell-background-muted: var(--aoa-inner-surface-muted);
+  --aoa-surface-cell-shadow: var(--aoa-inner-shadow);
+  --aoa-surface-cell-edge-shadow: var(--aoa-inner-edge-shadow);
+  --aoa-surface-cell-hover-shadow: var(--app-surface-hover-shadow, var(--aoa-surface-cell-shadow));
+  --aoa-surface-cell-backdrop: saturate(1.24) blur(var(--aoa-inner-blur));
+
+  /* Shared interaction primitives. Feature CSS owns composition only; button,
+   * icon, status and feedback states resolve through these semantic tokens. */
+  --aoa-control-height-sm: var(--aoa-space-8);
+  --aoa-control-height-md: var(--aoa-space-10);
+  --aoa-control-height-lg: var(--aoa-space-12);
+  --aoa-control-radius: var(--aoa-radius-pill);
+  --aoa-control-gap: var(--aoa-space-2);
+  --aoa-control-padding-inline: var(--aoa-space-4);
+  --aoa-icon-button-size: var(--aoa-control-height-md);
+  --aoa-icon-badge-size: var(--aoa-space-7);
+  --aoa-icon-badge-size-compact: calc(var(--aoa-space-5) + var(--aoa-space-0-5));
+  --aoa-status-height: var(--aoa-space-6);
+  --aoa-status-padding-inline: var(--aoa-space-2-5);
+  --aoa-feedback-height: var(--aoa-space-7);
+  --aoa-feedback-padding-inline: var(--aoa-space-3);
+  --aoa-feedback-radius: var(--aoa-radius-pill);
+  --aoa-interaction-hover-transform: translateY(-1px);
+  --aoa-interaction-pressed-transform: translateY(0) scale(0.985);
+  --aoa-interaction-disabled-opacity: 0.48;
+  --aoa-interaction-loading-opacity: 0.72;
+  --aoa-interaction-focus-outline: 2px solid rgba(var(--aoa-color-info-rgb), 0.82);
+  --aoa-interaction-focus-offset: 2px;
+  --aoa-interaction-transition:
+    background-color var(--aoa-motion-fast) ease,
+    border-color var(--aoa-motion-fast) ease,
+    box-shadow var(--aoa-motion-fast) ease,
+    color var(--aoa-motion-fast) ease,
+    opacity var(--aoa-motion-fast) ease,
+    transform var(--aoa-motion-fast) ease;
+  --aoa-interaction-neutral-border: rgba(var(--aoa-color-border-rgb), 0.16);
+  --aoa-interaction-neutral-surface: rgba(var(--aoa-color-ink-rgb), 0.06);
+  --aoa-interaction-neutral-hover-surface: rgba(var(--aoa-color-ink-rgb), 0.12);
+  --aoa-interaction-neutral-color: rgba(var(--aoa-color-ink-rgb), 0.78);
+  --aoa-feedback-success-border: rgba(var(--aoa-color-success-rgb), 0.24);
+  --aoa-feedback-success-surface: rgba(var(--aoa-color-success-rgb), 0.12);
+  --aoa-feedback-success-color: rgb(var(--aoa-color-success-rgb));
+  --aoa-feedback-warning-border: rgba(var(--aoa-color-warning-rgb), 0.28);
+  --aoa-feedback-warning-surface: rgba(var(--aoa-color-warning-rgb), 0.11);
+  --aoa-feedback-warning-color: rgb(var(--aoa-color-warning-rgb));
+  --aoa-feedback-error-border: rgba(var(--aoa-color-error-rgb), 0.24);
+  --aoa-feedback-error-surface: rgba(var(--aoa-color-error-rgb), 0.12);
+  --aoa-feedback-error-color: rgb(var(--aoa-color-error-rgb));
+  --aoa-feedback-info-border: rgba(var(--aoa-color-info-rgb), 0.24);
+  --aoa-feedback-info-surface: rgba(var(--aoa-color-info-rgb), 0.12);
+  --aoa-feedback-info-color: rgb(var(--aoa-color-info-rgb));
+  --aoa-loading-indicator-size: var(--aoa-space-3-5);
+  --aoa-loading-indicator-width: 2px;
+  --aoa-loading-indicator-duration: 720ms;
+
+  /* 饼图核心（统一主题色，杜绝黑色死核） */
+  --donut-core-line-alpha: var(--aoa-theme-donut-core-line-alpha);
+  --donut-core-panel-alpha: var(--aoa-theme-donut-core-panel-alpha);
+  --aoa-site-donut-size: 142px;
+  --aoa-site-widget-donut-size: clamp(112px, 10.4vw, 142px);
+  --aoa-site-donut-mobile-size: 108px;
+  --aoa-site-donut-core-inset: 30px;
+  --aoa-site-donut-mobile-core-inset: 24px;
+  --aoa-site-card-min-height: 72px;
+  --aoa-site-card-head-row: minmax(20px, auto);
+  --aoa-site-card-metric-row: minmax(32px, auto);
+}
+/* The only painted full-page plugin shell. Dashboard and Config both mount
+ * this primitive on their root so host geometry and visual tokens cannot drift. */
+.aoa-plugin-shell {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: var(--aoa-plugin-shell-padding);
+  overflow: hidden;
+  border: var(--aoa-plugin-shell-border);
+  border-radius: var(--aoa-plugin-shell-radius);
+  background-color: var(--aoa-plugin-shell-background-color);
+  background-image: var(--aoa-plugin-shell-background-image);
+  box-shadow: var(--aoa-plugin-shell-shadow);
+  backdrop-filter: var(--aoa-plugin-shell-backdrop);
+  -webkit-backdrop-filter: var(--aoa-plugin-shell-backdrop);
+}
+@media (max-width: 720px) {
+  .aoa-plugin-shell {
+    --aoa-plugin-shell-padding: var(--aoa-space-3-5);
+    --aoa-plugin-shell-radius: var(--aoa-space-5);
+  }
+}
+/* AOA-OWNERSHIP: frontend-platform outer-shell paint owner. */
+/* Signal theme adapter — themes map semantic color, host translucency and a
+ * restrained material contribution for the shared plugin shell.
+ * 注意：vite postcss vuetify-filter 会剥离含 .v- 的选择器，
+ * 故只用 [data-theme] / .agentops-theme--*。
+ */
+/* All MoviePilot modes resolve through the active Vuetify palette. The
+ * unqualified root is the fallback while theme classes are being mounted. */
+.aoa-root,
+.aoa-root.agentops-theme--system,
+.aoa-root.agentops-theme--light,
+.aoa-root.agentops-theme--dark,
+.aoa-root.agentops-theme--purple,
+.aoa-root.agentops-theme--glass,
+.aoa-root.agentops-theme--transparent {
+  --aoa-color-ink-rgb: var(--v-theme-on-surface, 240, 247, 255);
+  --aoa-color-muted-rgb: var(--v-theme-on-surface, 151, 171, 201);
+  --aoa-color-faint-rgb: var(--v-theme-on-surface, 111, 131, 163);
+  --aoa-color-line-rgb: var(--v-theme-on-surface, 255, 255, 255);
+  --aoa-color-border-rgb: var(--v-border-color, 255, 255, 255);
+  --aoa-color-panel-rgb: var(--v-theme-surface, 28, 38, 57);
+  --aoa-color-stage-rgb: var(--v-theme-background, 8, 15, 27);
+  --aoa-color-info-rgb: var(--v-theme-info, 124, 194, 224);
+  --aoa-color-primary-rgb: var(--v-theme-primary, 142, 169, 222);
+  --aoa-color-success-rgb: var(--v-theme-success, 91, 204, 155);
+  --aoa-color-warning-rgb: var(--v-theme-warning, 218, 179, 93);
+  --aoa-color-error-rgb: var(--v-theme-error, 232, 104, 124);
+  --aoa-color-accent-rgb: var(--v-theme-primary, 162, 151, 211);
+  --aoa-host-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-host-opacity-light: var(--transparent-opacity-light, var(--aoa-host-opacity));
+  --aoa-host-opacity-heavy: var(--transparent-opacity-heavy, var(--aoa-host-opacity));
+  --aoa-host-shell-blur: var(--transparent-blur, 12px);
+}
+/* Transparent mode adapts only host translucency and semantic paint inputs. */
+html[data-theme="transparent"] .aoa-root,
+body[data-theme="transparent"] .aoa-root,
+[data-theme="transparent"] .aoa-root,
+.aoa-root.agentops-theme--transparent {
+  --aoa-host-opacity: calc(var(--transparent-opacity, 0.42) * 0.8);
+  --aoa-host-opacity-light: calc(var(--transparent-opacity-light, 0.28) * 0.8);
+  --aoa-host-opacity-heavy: calc(var(--transparent-opacity-heavy, 0.55) * 0.8);
+  --aoa-host-glass-blur: var(--transparent-blur, 12px);
+  --aoa-theme-inner-border-alpha: 0.13;
+  --aoa-theme-donut-core-line-alpha: 0.03;
+  --aoa-theme-donut-core-panel-alpha: var(--aoa-host-opacity-heavy);
+  --aoa-theme-shadow-color: rgba(0, 0, 0, 0.22);
+  --aoa-shell-accent-primary-alpha: 0.10;
+  --aoa-shell-accent-secondary-alpha: 0.07;
+  --aoa-shell-lift-alpha: 0.045;
+  --aoa-shell-depth-alpha: 0.035;
+}
+/* Light mode raises contrast through semantic paint, not alternate geometry. */
+.aoa-root.agentops-theme--light {
+  --aoa-theme-donut-core-panel-alpha: 0.90;
+  --aoa-theme-shadow-color: rgba(32, 42, 56, 0.14);
+  --aoa-theme-inner-border-alpha: 0.22;
+  --aoa-theme-inner-highlight-alpha: 0.06;
+  --aoa-theme-inner-lowlight-alpha: 0.025;
+  --aoa-shell-accent-primary-alpha: 0.075;
+  --aoa-shell-accent-secondary-alpha: 0.055;
+  --aoa-shell-lift-rgb: 255, 255, 255;
+  --aoa-shell-lift-alpha: 0.72;
+  --aoa-shell-depth-rgb: 44, 62, 92;
+  --aoa-shell-depth-alpha: 0.045;
+}
+.aoa-root.agentops-theme--dark {
+  --aoa-theme-shadow-color: rgba(0, 0, 0, 0.22);
+  --aoa-shell-accent-primary-alpha: 0.085;
+  --aoa-shell-accent-secondary-alpha: 0.06;
+  --aoa-shell-lift-alpha: 0.045;
+  --aoa-shell-depth-rgb: 0, 0, 0;
+  --aoa-shell-depth-alpha: 0.16;
+}
+.aoa-root.agentops-theme--purple {
+  --aoa-theme-shadow-color: rgba(0, 0, 0, 0.22);
+  --aoa-shell-accent-primary-rgb: var(--aoa-color-info-rgb);
+  --aoa-shell-accent-secondary-rgb: var(--aoa-color-ink-rgb);
+  --aoa-shell-accent-primary-alpha: 0.09;
+  --aoa-shell-accent-secondary-alpha: 0.045;
+  --aoa-shell-lift-alpha: 0.045;
+  --aoa-shell-depth-alpha: 0.10;
+}
+.aoa-root.agentops-theme--glass {
+  --aoa-host-glass-blur: var(--transparent-blur, 18px);
+  --aoa-host-shell-blur: var(--transparent-blur, 18px);
+  --aoa-theme-shadow-color: rgba(3, 7, 18, 0.18);
+  --aoa-theme-inner-border-alpha: 0.16;
+  --aoa-shell-accent-primary-alpha: 0.12;
+  --aoa-shell-accent-secondary-alpha: 0.08;
+  --aoa-shell-lift-alpha: 0.075;
+  --aoa-shell-depth-alpha: 0.045;
+}
+/* 共享液态玻璃原语 — 跨组件复用，杜绝每个 vue 各画一套
+ * .aoa-donut：饼图容器与核心（主题色，统一 Page/SiteStatsWidget）
+ * 组件在饼图元素挂 .aoa-donut，再用 scoped CSS 设尺寸/inset 即可。
+ */
+.aoa-donut {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 16px rgba(var(--aoa-color-line-rgb), 0.18),
+    inset 0 -14px 24px rgba(0, 0, 0, 0.12),
+    0 7px 18px rgba(0, 0, 0, 0.055);
+}
+.aoa-donut::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(var(--aoa-color-line-rgb), var(--aoa-theme-donut-core-line-alpha)), transparent 48%),
+    rgba(var(--aoa-color-panel-rgb), var(--aoa-theme-donut-core-panel-alpha));
+  box-shadow:
+    inset 0 1px 0 rgba(var(--aoa-color-line-rgb), 0.08),
+    0 0 0 1px rgba(var(--aoa-color-line-rgb), 0.045);
+}
+.aoa-donut-core {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+/* signal 共享面板原语 — 跨组件复用的 panel/cell 基线
+ * 全局 CSS（非 scoped），用 .aoa-root 作为 scope。
+ * 子组件在 DOM 内是 .aoa-root 的后代，自动匹配，无需重复定义。
+ * 透明主题覆盖用 .aoa-root.agentops-theme--transparent 选择器（theme class 挂在 root 上）。
+ * 设计层次：外框 panel = MP 原生 surface；内框 cell = iOS 液态玻璃透白。 */
+/* ---- Page / section / grid geometry ---- */
+.aoa-root .aoa-page-stack,
+.aoa-root .aoa-section-stack {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  display: grid;
+  align-content: start;
+}
+.aoa-root .aoa-page-stack {
+  gap: var(--aoa-layout-page-gap);
+}
+.aoa-root .aoa-section-stack {
+  gap: var(--aoa-layout-section-gap);
+}
+.aoa-root .aoa-surface-grid {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--aoa-layout-grid-gap);
+}
+.aoa-root .aoa-surface-grid > * {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.aoa-root .aoa-surface-grid--metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+/* ---- Card / section surface hierarchy ---- */
+.aoa-root :is(.aoa-surface-card, .panel, .metric-card) {
+  position: relative;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+  border: var(--aoa-surface-card-border);
+  border-radius: var(--aoa-surface-card-radius);
+  background: var(--aoa-surface-card-background);
+  box-shadow: var(--aoa-surface-card-shadow);
+  backdrop-filter: var(--aoa-surface-card-backdrop);
+  -webkit-backdrop-filter: var(--aoa-surface-card-backdrop);
+}
+.aoa-root .aoa-surface-card--muted {
+  background: var(--aoa-surface-card-background-muted);
+}
+.aoa-root .aoa-surface-section {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  display: grid;
+  align-content: start;
+  gap: var(--aoa-layout-section-gap);
+  padding: var(--aoa-surface-card-padding);
+  border-radius: var(--aoa-surface-section-radius);
+}
+.aoa-root .panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--aoa-color-line-rgb), 0.28), transparent);
+  opacity: 0.50;
+  pointer-events: none;
+}
+.aoa-root .panel-head {
+  height: calc(var(--aoa-control-height-sm) + var(--aoa-space-1-5));
+  display: flex;
+  align-items: center;
+  gap: var(--aoa-space-2-5);
+  padding: 0 var(--aoa-space-3-5);
+}
+.aoa-root .panel-head h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--aoa-type-card-title-font-size);
+  line-height: var(--aoa-line-height-none);
+  font-weight: var(--aoa-type-card-title-font-weight);
+}
+.aoa-root .panel-note {
+  margin-left: auto;
+  color: rgba(var(--aoa-color-muted-rgb), 0.66);
+  font-size: var(--aoa-type-label-font-size);
+  font-weight: var(--aoa-font-weight-bold);
+  white-space: nowrap;
+}
+.aoa-root .panel-icon {
+  width: var(--aoa-space-5);
+  height: var(--aoa-space-5);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.aoa-root .panel-icon--cyan {
+  color: rgb(var(--aoa-color-info-rgb));
+}
+.aoa-root .panel-icon--blue {
+  color: rgb(var(--aoa-color-primary-rgb));
+}
+/* ---- Cell 基线（内框液态玻璃） ---- */
+.aoa-root .top-button,
+.aoa-root .alert-line,
+.aoa-root .site-stat,
+.aoa-root .site-card,
+.aoa-root .site-row-cell,
+.aoa-root .site-table,
+.aoa-root .site-table-row,
+.aoa-root .site-empty-row,
+.aoa-root .site-empty-main,
+.aoa-root .site-empty-stats,
+.aoa-root .site-empty-icon,
+.aoa-root .command-quick-card,
+.aoa-root .command-group,
+.aoa-root .cmd-btn,
+.aoa-root .downloader-card,
+.aoa-root .module {
+  border: var(--aoa-surface-cell-border);
+  border-radius: var(--aoa-surface-cell-radius);
+  background: var(--aoa-surface-cell-background);
+  box-shadow: var(--aoa-surface-cell-shadow);
+  backdrop-filter: var(--aoa-surface-cell-backdrop);
+  -webkit-backdrop-filter: var(--aoa-surface-cell-backdrop);
+}
+/* ---- Cell hover ---- */
+.aoa-root .top-button:hover,
+.aoa-root .command-quick-btn:hover,
+.aoa-root .cmd-btn:hover {
+  background: var(--aoa-surface-cell-background-hover);
+  box-shadow: var(--aoa-surface-cell-hover-shadow);
+}
+/* ---- Muted cell（图标容器等） ---- */
+.aoa-root .alert-icon,
+.aoa-root .metric-symbol,
+.aoa-root .donut-zone,
+.aoa-root .command-quick-btn,
+.aoa-root .cmd-icon {
+  border: var(--aoa-surface-cell-border);
+  border-radius: var(--aoa-surface-cell-radius);
+  background: var(--aoa-surface-cell-background-muted);
+  box-shadow: var(--aoa-surface-cell-shadow);
+  backdrop-filter: var(--aoa-surface-cell-backdrop);
+  -webkit-backdrop-filter: var(--aoa-surface-cell-backdrop);
+}
+/* ---- Shared interaction / status / feedback primitives ---- */
+.aoa-root :where(
+  .aoa-interactive,
+  .top-button,
+  .command-quick-btn,
+  .cmd-btn,
+  .aoa-config-btn,
+  .aoa-config-ghost-btn,
+  .aoa-action-btn,
+  .aoa-design-action-btn,
+  .aoa-action-operation-panel__close
+) {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: var(--aoa-interaction-transition);
+}
+.aoa-root :where(
+  .aoa-interactive,
+  .top-button,
+  .command-quick-btn,
+  .cmd-btn,
+  .aoa-config-btn,
+  .aoa-config-ghost-btn,
+  .aoa-action-btn,
+  .aoa-design-action-btn,
+  .aoa-action-operation-panel__close
+):focus-visible {
+  outline: var(--aoa-interaction-focus-outline);
+  outline-offset: var(--aoa-interaction-focus-offset);
+}
+.aoa-root :where(
+  .aoa-interactive,
+  .top-button,
+  .command-quick-btn,
+  .cmd-btn,
+  .aoa-config-btn,
+  .aoa-config-ghost-btn,
+  .aoa-action-btn,
+  .aoa-design-action-btn,
+  .aoa-action-operation-panel__close
+):not(:disabled):not([aria-disabled="true"]):hover {
+  transform: var(--aoa-interaction-hover-transform);
+}
+.aoa-root :where(
+  .aoa-interactive,
+  .top-button,
+  .command-quick-btn,
+  .cmd-btn,
+  .aoa-config-btn,
+  .aoa-config-ghost-btn,
+  .aoa-action-btn,
+  .aoa-design-action-btn,
+  .aoa-action-operation-panel__close
+):not(:disabled):not([aria-disabled="true"]):active {
+  transform: var(--aoa-interaction-pressed-transform);
+}
+.aoa-root :where(
+  .aoa-interactive,
+  .top-button,
+  .command-quick-btn,
+  .cmd-btn,
+  .aoa-config-btn,
+  .aoa-config-ghost-btn,
+  .aoa-action-btn,
+  .aoa-design-action-btn,
+  .aoa-action-operation-panel__close
+):disabled,
+.aoa-root :where(
+  .aoa-interactive,
+  .top-button,
+  .command-quick-btn,
+  .cmd-btn,
+  .aoa-config-btn,
+  .aoa-config-ghost-btn,
+  .aoa-action-btn,
+  .aoa-design-action-btn,
+  .aoa-action-operation-panel__close
+)[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: var(--aoa-interaction-disabled-opacity);
+  transform: none;
+}
+.aoa-root :where(
+  .aoa-interactive,
+  .top-button,
+  .command-quick-btn,
+  .cmd-btn,
+  .aoa-config-btn,
+  .aoa-config-ghost-btn,
+  .aoa-action-btn,
+  .aoa-design-action-btn,
+  .aoa-action-operation-panel__close
+)[aria-busy="true"] {
+  cursor: progress;
+  opacity: var(--aoa-interaction-loading-opacity);
+}
+.aoa-root .aoa-button {
+  min-block-size: var(--aoa-control-height-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--aoa-control-gap);
+  border-radius: var(--aoa-control-radius);
+  font-size: var(--aoa-type-label-font-size);
+  font-weight: var(--aoa-type-label-font-weight);
+  line-height: var(--aoa-type-label-line-height);
+}
+.aoa-root .aoa-icon-badge {
+  inline-size: var(--aoa-icon-badge-size);
+  block-size: var(--aoa-icon-badge-size);
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--aoa-interaction-neutral-border);
+  border-radius: var(--aoa-radius-pill);
+  background: var(--aoa-interaction-neutral-surface);
+  color: var(--aoa-interaction-neutral-color);
+}
+.aoa-root .aoa-status-chip {
+  min-block-size: var(--aoa-status-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--aoa-space-1);
+  padding-inline: var(--aoa-status-padding-inline);
+  border: 1px solid var(--aoa-interaction-neutral-border);
+  border-radius: var(--aoa-radius-pill);
+  background: var(--aoa-interaction-neutral-surface);
+  color: var(--aoa-interaction-neutral-color);
+  font-size: var(--aoa-type-micro-font-size);
+  font-weight: var(--aoa-type-micro-font-weight);
+  line-height: var(--aoa-type-micro-line-height);
+}
+.aoa-root :is(.aoa-feedback, .aoa-config-action-feedback) {
+  min-block-size: var(--aoa-feedback-height);
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--aoa-feedback-padding-inline);
+  border: 1px solid var(--aoa-interaction-neutral-border);
+  border-radius: var(--aoa-feedback-radius);
+  background: var(--aoa-interaction-neutral-surface);
+  color: var(--aoa-interaction-neutral-color);
+  font-size: var(--aoa-type-caption-font-size);
+  font-weight: var(--aoa-type-caption-font-weight);
+  line-height: var(--aoa-type-caption-line-height);
+}
+.aoa-root :is(.aoa-feedback[data-tone="success"], .aoa-config-action-feedback--ok) {
+  border-color: var(--aoa-feedback-success-border);
+  background: var(--aoa-feedback-success-surface);
+  color: var(--aoa-feedback-success-color);
+}
+.aoa-root :is(.aoa-feedback[data-tone="warning"], .aoa-status-chip[data-tone="warning"]) {
+  border-color: var(--aoa-feedback-warning-border);
+  background: var(--aoa-feedback-warning-surface);
+  color: var(--aoa-feedback-warning-color);
+}
+.aoa-root :is(.aoa-feedback[data-tone="error"], .aoa-config-action-feedback--err, .aoa-status-chip[data-tone="error"]) {
+  border-color: var(--aoa-feedback-error-border);
+  background: var(--aoa-feedback-error-surface);
+  color: var(--aoa-feedback-error-color);
+}
+.aoa-root :is(.aoa-feedback[data-tone="info"], .aoa-status-chip[data-tone="info"]) {
+  border-color: var(--aoa-feedback-info-border);
+  background: var(--aoa-feedback-info-surface);
+  color: var(--aoa-feedback-info-color);
+}
+.aoa-root .aoa-status-chip[data-tone="success"] {
+  border-color: var(--aoa-feedback-success-border);
+  background: var(--aoa-feedback-success-surface);
+  color: var(--aoa-feedback-success-color);
+}
+.aoa-root .aoa-loading-indicator {
+  inline-size: var(--aoa-loading-indicator-size);
+  block-size: var(--aoa-loading-indicator-size);
+  flex: 0 0 auto;
+  border: var(--aoa-loading-indicator-width) solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  animation: aoa-interaction-spin var(--aoa-loading-indicator-duration) linear infinite;
+}
+@keyframes aoa-interaction-spin {
+  to { transform: rotate(1turn); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aoa-root .aoa-loading-indicator {
+    animation: none;
+  }
+}
+/* ---- Scrollbar 基线（全局统一，杜绝各组件重复定义） ----
+ * MP 自由组件不一定挂在 .aoa-root 下，因此把其独立 surface 一并纳入。 */
+.aoa-root ::-webkit-scrollbar,
+.aoa-root::-webkit-scrollbar,
+.aoa-mp-free-widget ::-webkit-scrollbar,
+.aoa-mp-free-widget::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+.aoa-root ::-webkit-scrollbar-track,
+.aoa-root::-webkit-scrollbar-track,
+.aoa-root ::-webkit-scrollbar-track-piece,
+.aoa-root::-webkit-scrollbar-track-piece,
+.aoa-mp-free-widget ::-webkit-scrollbar-track,
+.aoa-mp-free-widget::-webkit-scrollbar-track,
+.aoa-mp-free-widget ::-webkit-scrollbar-track-piece,
+.aoa-mp-free-widget::-webkit-scrollbar-track-piece {
+  background: transparent !important;
+}
+.aoa-root ::-webkit-scrollbar-thumb,
+.aoa-root::-webkit-scrollbar-thumb,
+.aoa-mp-free-widget ::-webkit-scrollbar-thumb,
+.aoa-mp-free-widget::-webkit-scrollbar-thumb {
+  border: 0 !important;
+  border-radius: var(--aoa-radius-pill) !important;
+  background: transparent !important;
+}
+.aoa-root ::-webkit-scrollbar-button,
+.aoa-root::-webkit-scrollbar-button,
+.aoa-root ::-webkit-scrollbar-corner,
+.aoa-root::-webkit-scrollbar-corner,
+.aoa-mp-free-widget ::-webkit-scrollbar-button,
+.aoa-mp-free-widget::-webkit-scrollbar-button,
+.aoa-mp-free-widget ::-webkit-scrollbar-corner,
+.aoa-mp-free-widget::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  appearance: none !important;
+  background: transparent !important;
+  opacity: 0 !important;
+}
+.aoa-root,
+.aoa-root *,
+.aoa-mp-free-widget,
+.aoa-mp-free-widget * {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+@media (max-width: 720px) {
+  .aoa-root .aoa-surface-grid--metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 420px) {
+  .aoa-root .aoa-surface-grid--metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aoa-root .aoa-surface-section {
+    padding: var(--aoa-surface-compact-padding);
+  }
+}
+/* Signal configuration style manifest.
+ * Keep imports ordered from shared structure to business-domain overrides.
+ */
+
+/* AOA-OWNERSHIP: frontend-config shell host, root tokens and fixed top bar. */
+.aoa-config-scroll-host {
+  -ms-overflow-style: none;
+  display: flex !important;
+  flex-direction: column !important;
+  inline-size: 100% !important;
+  block-size: 100% !important;
+  height: 100% !important;
+  min-inline-size: 0 !important;
+  min-block-size: 0 !important;
+  max-inline-size: none !important;
+  max-block-size: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.aoa-config-single-surface-host {
+  display: flex !important;
+  flex-direction: column !important;
+  inline-size: 100% !important;
+  block-size: 100% !important;
+  height: 100% !important;
+  min-inline-size: 0 !important;
+  min-block-size: 0 !important;
+  max-inline-size: none !important;
+  max-block-size: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
+/* Keep the MP dialog card's native paint. Dashboard uses the same v-card
+ * composition, while Config owns only the layout and its single child shell. */
+
+/* Real MP dialog hosts often size via max-height, so percentage block-size on
+ * the shell resolves as auto and content grows past the host. Keep the shell a
+ * flex child clamped to the host box instead of a content-sized percentage. */
+.aoa-config-scroll-host > .aoa-config.aoa-plugin-shell {
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  inline-size: 100% !important;
+  block-size: 100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-inline-size: 0 !important;
+  min-block-size: 0 !important;
+  min-height: 0 !important;
+  max-inline-size: 100% !important;
+  max-block-size: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+.aoa-config-scroll-host::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+.aoa-config-scroll-host::-webkit-scrollbar-track,
+.aoa-config-scroll-host::-webkit-scrollbar-track-piece {
+  background: transparent !important;
+}
+.aoa-config-scroll-host::-webkit-scrollbar-thumb {
+  border-radius: var(--aoa-radius-pill) !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+.aoa-config-scroll-host::-webkit-scrollbar-thumb:hover {
+  background: transparent !important;
+}
+.aoa-config-scroll-host::-webkit-scrollbar-button,
+.aoa-config-scroll-host::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  appearance: none !important;
+  background: transparent !important;
+  opacity: 0 !important;
+}
+@supports (-moz-appearance: none) {
+.aoa-config-scroll-host {
+    scrollbar-width: none;
+    scrollbar-color: transparent transparent;
+}
+}
+.aoa-config {
+  /* Layout tokens. */
+  --aoa-block-gap: var(--aoa-space-4-5);
+  --aoa-config-tight-gap: var(--aoa-space-1);
+  --aoa-config-control-gap-y: var(--aoa-space-1-5);
+  --aoa-config-field-gap-y: var(--aoa-space-2);
+  --aoa-config-card-gap: var(--aoa-layout-section-gap);
+  /* Canonical configuration field primitives. FieldRow, FieldControl and Cron
+   * consume these tokens; feature cards only compose the resulting rows. */
+  --aoa-field-row-min-height: calc(var(--aoa-control-height-lg) + var(--aoa-space-1-5));
+  --aoa-field-row-padding-block: var(--aoa-space-2-5);
+  --aoa-field-row-padding-inline: var(--aoa-space-4);
+  --aoa-field-row-compact-min-height: calc(var(--aoa-control-height-lg) + var(--aoa-space-0-5));
+  --aoa-field-row-compact-padding-block: var(--aoa-space-1-5);
+  --aoa-field-row-compact-padding-inline: var(--aoa-space-2-5);
+  --aoa-field-control-height: var(--aoa-control-height-md);
+  --aoa-field-touch-target: calc(var(--aoa-control-height-md) + var(--aoa-space-1));
+  --aoa-field-switch-track-width: var(--aoa-field-touch-target);
+  --aoa-field-switch-track-height: calc(var(--aoa-space-6) + var(--aoa-space-0-5));
+  --aoa-field-switch-thumb-size: calc(var(--aoa-space-5) + var(--aoa-space-0-5));
+  --aoa-field-icon-size: var(--aoa-space-4);
+  --aoa-field-message-min-height: var(--aoa-space-4);
+  --aoa-field-disabled-opacity: var(--aoa-interaction-disabled-opacity);
+  --aoa-field-error-border: rgba(var(--aoa-color-error-rgb), 0.38);
+  --aoa-field-error-surface: rgba(var(--aoa-color-error-rgb), 0.055);
+  --aoa-config-desktop-block-size: clamp(640px, calc(100dvh - 112px), 912px);
+  --aoa-config-hero-radius: var(--app-surface-radius-lg, var(--aoa-space-6));
+  --aoa-config-section-radius: var(--aoa-surface-section-radius);
+  --aoa-config-field-radius: var(--aoa-surface-cell-radius);
+  --aoa-config-capsule-radius: var(--aoa-control-radius);
+  --aoa-config-card-surface: var(--aoa-surface-card-background);
+  /* Shared translucent white glass for every subtab hero; semantic color stays on badge/notice only. */
+  --aoa-config-hero-surface: var(--aoa-surface-card-background);
+  --aoa-config-hero-muted-surface: var(--aoa-surface-card-background-muted);
+  --aoa-config-field-surface: var(--aoa-surface-cell-background);
+  --aoa-config-capsule-surface: var(--aoa-interaction-neutral-surface);
+  --aoa-config-capsule-hover-surface: var(--aoa-interaction-neutral-hover-surface);
+  /* The action dock continues the one shared shell surface instead of adding a black local baseboard. */
+  --aoa-config-action-strip-surface: var(--aoa-plugin-shell-background-color);
+  --aoa-config-card-border: var(--aoa-surface-card-border);
+  --aoa-config-section-surface: var(--aoa-surface-card-background-muted);
+  --aoa-config-section-border: var(--aoa-surface-card-border);
+  --aoa-config-section-shadow: none;
+  --aoa-config-danger-section-surface: var(--aoa-feedback-error-surface);
+  --aoa-config-danger-section-border: var(--aoa-feedback-error-border);
+  --aoa-config-notice-blue: var(--aoa-feedback-info-color);
+  --aoa-config-notice-blue-surface: var(--aoa-feedback-info-surface);
+  --aoa-config-notice-blue-border: var(--aoa-feedback-info-border);
+  --aoa-config-notice-orange: var(--aoa-feedback-warning-color);
+  --aoa-config-notice-orange-surface: var(--aoa-feedback-warning-surface);
+  --aoa-config-notice-orange-border: var(--aoa-feedback-warning-border);
+  --aoa-config-notice-red: var(--aoa-feedback-error-color);
+  --aoa-config-notice-red-surface: var(--aoa-feedback-error-surface);
+  --aoa-config-notice-red-border: var(--aoa-feedback-error-border);
+  --aoa-config-field-border: var(--aoa-surface-cell-border);
+  --aoa-config-text-primary: rgba(var(--aoa-color-ink-rgb), 0.92);
+  --aoa-config-text-secondary: rgba(var(--aoa-color-muted-rgb), 0.68);
+  --aoa-config-text-muted: rgba(var(--aoa-color-muted-rgb), 0.56);
+  /* Real Vuetify controls inherit the design field shell instead of primary defaults. */
+  --aoa-control-surface: var(--aoa-config-field-surface);
+  --aoa-control-border: var(--aoa-interaction-neutral-border);
+  --aoa-control-text: var(--aoa-config-text-primary);
+  --aoa-control-placeholder: rgba(var(--aoa-color-ink-rgb), 0.48);
+  --aoa-control-focus-ring: rgba(var(--aoa-color-info-rgb), 0.34);
+  --aoa-control-switch-track: var(--aoa-interaction-neutral-border);
+  --aoa-control-switch-thumb: rgb(255, 255, 255);
+  --aoa-control-switch-track-active: rgb(var(--aoa-color-success-rgb));
+  --aoa-control-switch-thumb-active: rgb(255, 255, 255);
+  --aoa-control-switch-status-on: rgb(var(--aoa-color-success-rgb));
+  --aoa-control-switch-status-on-surface: rgba(var(--aoa-color-success-rgb), 0.18);
+  --aoa-control-chip-surface: var(--aoa-surface-cell-background-muted);
+  --aoa-control-chip-border: var(--aoa-interaction-neutral-border);
+  /* Numeric tokens retained for downstream references. */
+  --aoa-border-alpha: var(--aoa-theme-inner-border-alpha);
+  --aoa-hairline-alpha: 0.045;
+  /* Surface alpha tokens keep the shell aligned with MP theme surfaces. */
+  --aoa-surface-alpha: var(--aoa-host-opacity);
+  --aoa-surface-alpha-lo: var(--aoa-host-opacity-light);
+  /* Geometry: owned by .aoa-plugin-shell (inline-size:100%; block-size:100%)
+     Config must fill the host exactly like Dashboard, not center a narrow board. */
+  min-width: 0;
+  min-height: 0;
+  font-size: var(--aoa-type-body-font-size);
+  overflow: hidden;
+}
+@media (min-width: 761px) {
+.aoa-config-scroll-host {
+    height: clamp(640px, calc(100dvh - 112px), 912px) !important;
+    max-height: clamp(640px, calc(100dvh - 112px), 912px) !important;
+    overflow: hidden !important;
+}
+.aoa-config.aoa-plugin-shell {
+    block-size: min(100%, var(--aoa-config-desktop-block-size));
+    height: min(100%, var(--aoa-config-desktop-block-size));
+    max-block-size: 100%;
+    max-height: 100%;
+}
+.aoa-config-scroll-host > .aoa-config.aoa-plugin-shell {
+    block-size: min(100%, var(--aoa-config-desktop-block-size)) !important;
+    height: min(100%, var(--aoa-config-desktop-block-size)) !important;
+}
+}
+.aoa-config-top-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 84px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--aoa-config-section-border);
+}
+.aoa-config-brand {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.aoa-config-brand-icon {
+  inline-size: 40px;
+  block-size: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  line-height: 30px;
+  border-radius: 14px;
+  color: var(--aoa-config-text-primary);
+  border: 0;
+  background: var(--aoa-config-capsule-surface);
+  box-shadow: none;
+}
+.aoa-config-brand-icon svg {
+  font-weight: 900;
+  line-height: 20px;
+  transform: translateY(-0.25px);
+}
+.aoa-config-brand-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  transform: translateY(-0.75px);
+}
+.aoa-config-brand-copy strong {
+  color: var(--aoa-config-text-primary);
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.aoa-config-brand-copy small {
+  color: var(--aoa-config-text-secondary);
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 400;
+}
+.aoa-config-top-actions {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+}
+@media (max-width: 760px) {
+.aoa-config-top-bar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-height: 0;
+    padding: 14px 16px;
+}
+.aoa-config-top-actions {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+}
+}
+
+/* AOA-OWNERSHIP: frontend-config primary and secondary navigation layout. */
+.aoa-config-main-nav,
+.aoa-config-subtab-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+.aoa-config-main-nav {
+  flex-wrap: nowrap;
+  min-height: 72px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--aoa-config-section-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-padding-inline: 24px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+}
+.aoa-config-subtab-bar {
+  min-height: 61px;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--aoa-config-section-border);
+  overflow: visible;
+}
+.aoa-config-main-nav::-webkit-scrollbar,
+.aoa-config-subtab-bar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.aoa-config-subtab-bar .aoa-subtab-list {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0;
+  scroll-padding-inline: 8px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+}
+.aoa-config-subtab-bar .aoa-subtab-list::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.aoa-config-subtab-current {
+  flex: 0 0 auto;
+  margin-left: auto;
+  max-width: min(260px, 32vw);
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  overflow-wrap: anywhere;
+  color: var(--aoa-config-text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 400;
+  text-align: right;
+}
+.aoa-config-main-tab,
+.aoa-subtab {
+  appearance: none;
+  flex: 0 0 auto;
+  min-width: max-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--aoa-config-capsule-radius);
+  border: 1px solid transparent;
+  color: var(--aoa-config-text-secondary);
+  background: var(--aoa-config-capsule-surface);
+  box-shadow: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--aoa-transition-surface);
+}
+.aoa-config-main-tab {
+  min-width: max-content;
+  min-height: 43px;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.aoa-config-main-tab:hover,
+.aoa-config-main-tab--active,
+.aoa-subtab:hover,
+.aoa-subtab--active {
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-config-capsule-hover-surface);
+  box-shadow: 0 2px 8px var(--aoa-theme-shadow-color);
+}
+.aoa-config-main-tab:focus-visible,
+.aoa-subtab:focus-visible {
+  outline: 2px solid var(--aoa-control-focus-ring);
+  outline-offset: 2px;
+}
+.aoa-mdi-icon--nav {
+  transform: translateY(-0.25px) !important;
+}
+.aoa-mdi-icon--subtab {
+  transform: translateY(-0.375px) !important;
+}
+.aoa-subtabs {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+}
+.aoa-subtab-list {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  max-width: 48%;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+}
+.aoa-subtab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 15px;
+  border-radius: var(--aoa-config-radius-control);
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: var(--aoa-transition-tab);
+  white-space: nowrap;
+}
+.aoa-subtab:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+  color: rgb(var(--v-theme-primary));
+}
+.aoa-subtab--active {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+}
+.aoa-config-subtab-bar .aoa-subtab {
+  min-height: 34px;
+  padding: 8px 18px;
+  border-radius: var(--aoa-config-capsule-radius);
+  border: 0;
+  color: var(--aoa-config-text-secondary);
+  background: transparent;
+  box-shadow: none;
+}
+.aoa-config-subtab-bar .aoa-subtab:hover,
+.aoa-config-subtab-bar .aoa-subtab--active {
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-config-capsule-hover-surface);
+  box-shadow: 0 2px 8px var(--aoa-theme-shadow-color);
+}
+.aoa-subtab-desc {
+  display: block;
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: max-content;
+  max-width: calc(100% - 220px);
+  min-height: 36px;
+  min-width: 0;
+  padding-right: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 36px;
+  color: rgba(var(--v-theme-on-surface), 0.58);
+  text-align: right;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+.aoa-config-main-nav {
+    min-height: 58px;
+    padding: 10px 16px;
+}
+.aoa-config-main-tab {
+    min-width: 120px;
+    min-height: 38px;
+    padding: 8px 14px;
+    font-size: 12px;
+}
+.aoa-config-subtab-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    padding: 10px 16px;
+}
+.aoa-config-subtab-bar .aoa-subtab-list {
+    width: 100%;
+    max-width: 100%;
+}
+.aoa-config-subtab-current {
+    align-self: stretch;
+    justify-content: flex-start;
+    margin-left: 0;
+    max-width: 100%;
+    text-align: left;
+}
+.aoa-subtabs {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-right: 48px;
+}
+.aoa-subtab-list {
+    max-width: 100%;
+    width: 100%;
+}
+.aoa-subtab-desc {
+    max-width: 100%;
+    width: 100%;
+    min-height: 0;
+    padding-right: 0;
+    line-height: 1.4;
+    text-align: left;
+}
+}
+
+/* AOA-OWNERSHIP: frontend-config content scroll, Hero and page-stack layout. */
+.aoa-config-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  padding: 24px;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  -ms-overflow-style: none;
+}
+.aoa-config-scroll[data-config-scroll] {
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+.aoa-config-scroll[data-config-scroll]::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+.aoa-config-scroll[data-config-scroll]::-webkit-scrollbar-thumb,
+.aoa-config-scroll[data-config-scroll]::-webkit-scrollbar-track,
+.aoa-config-scroll[data-config-scroll]::-webkit-scrollbar-track-piece,
+.aoa-config-scroll[data-config-scroll]::-webkit-scrollbar-button,
+.aoa-config-scroll[data-config-scroll]::-webkit-scrollbar-corner {
+  background: transparent !important;
+  border: 0 !important;
+}
+.aoa-config-active-card,
+.aoa-config-hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 86px;
+  padding: 20px 24px;
+  border-radius: var(--aoa-config-hero-radius);
+  border: var(--aoa-config-card-border);
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-config-hero-surface);
+  box-shadow: var(--aoa-inner-shadow);
+}
+.aoa-config-hero-left {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.aoa-config-hero-icon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: var(--aoa-config-capsule-hover-surface);
+}
+.aoa-config-hero-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.aoa-config-hero-kicker {
+  color: var(--aoa-config-text-muted);
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 500;
+}
+.aoa-config-hero-title {
+  color: var(--aoa-config-text-primary);
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+.aoa-config-hero-desc {
+  max-width: 440px;
+  color: var(--aoa-config-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.aoa-config-hero-right {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.aoa-config-active-heading {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.aoa-config-active-heading span {
+  color: var(--aoa-config-text-secondary);
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 700;
+}
+.aoa-config-active-heading strong {
+  color: var(--aoa-config-text-primary);
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+.aoa-config-active-meta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.aoa-config-active-meta span {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--aoa-config-capsule-radius);
+  padding: 4px 10px;
+  color: var(--aoa-config-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--aoa-config-capsule-surface);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), calc(var(--aoa-border-alpha) * 0.56));
+}
+.aoa-config-content-stack {
+  padding: 0;
+  display: grid;
+  gap: var(--aoa-block-gap);
+}
+.aoa-config-hero-title {
+  transform: translateY(-0.25px);
+}
+.aoa-config .aoa-config-content-stack {
+  padding: 0;
+  display: grid;
+  gap: var(--aoa-block-gap);
+}
+.aoa-design-replica-stack {
+  display: grid;
+  gap: var(--aoa-block-gap);
+  min-width: 0;
+}
+@media (max-width: 760px) {
+.aoa-config-scroll {
+    padding: 16px;
+    gap: 16px;
+    grid-auto-rows: max-content;
+}
+.aoa-config-hero-card {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+    min-height: max-content;
+    padding: 16px;
+}
+.aoa-config-hero-left {
+    width: 100%;
+    align-items: flex-start;
+}
+.aoa-config-hero-info {
+    flex: 1 1 auto;
+}
+.aoa-config-hero-right {
+    width: 100%;
+    justify-content: flex-end;
+}
+.aoa-config-active-card {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    padding: 16px;
+}
+.aoa-config-active-meta {
+    justify-content: flex-start;
+}
+}
+
+/* Configuration card and section ownership. */
+.aoa-config-primary-setting-group {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: var(--aoa-config-card-border);
+  border-radius: var(--aoa-config-section-radius);
+  background: var(--aoa-config-card-surface);
+  box-shadow: var(--aoa-inner-shadow);
+}
+.aoa-config-primary-setting-group .aoa-design-section-card {
+  border: 0;
+  box-shadow: none;
+}
+.aoa-design-section-card {
+  min-width: 0;
+  min-height: 150.5px;
+  padding: 20px;
+  border: 1px solid var(--aoa-config-section-border);
+  border-radius: 20px;
+  background: var(--aoa-config-section-surface);
+  box-shadow: var(--aoa-config-section-shadow);
+  transform: translateY(-0.5px);
+}
+.aoa-design-section-card--danger {
+  border-color: var(--aoa-config-danger-section-border);
+  background: var(--aoa-config-danger-section-surface);
+}
+.aoa-design-section-title {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(calc(var(--aoa-control-height-lg) + var(--aoa-space-4)), 1fr) minmax(0, auto) minmax(calc(var(--aoa-control-height-lg) + var(--aoa-space-4)), 1fr);
+  align-items: center;
+  gap: var(--aoa-space-2-5);
+  margin-bottom: var(--aoa-space-1);
+  color: var(--aoa-config-text-primary);
+  font-size: var(--aoa-type-card-title-font-size);
+  line-height: var(--aoa-type-card-title-line-height);
+  font-weight: var(--aoa-type-card-title-font-weight);
+  text-align: center;
+}
+.aoa-design-section-title__leading,
+.aoa-design-section-title__trailing {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.aoa-design-section-title__leading {
+  justify-self: start;
+}
+.aoa-design-section-title__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.aoa-design-section-title__trailing {
+  justify-self: end;
+}
+.aoa-design-section-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin-inline-start: 0;
+  padding: 0 8px;
+  border: 1px solid var(--aoa-config-section-border);
+  border-radius: 999px;
+  color: var(--aoa-config-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.aoa-design-section-status--on {
+  border-color: color-mix(in srgb, rgb(var(--v-theme-success)) 42%, transparent);
+  color: rgb(var(--v-theme-success));
+}
+.aoa-design-section-status--off {
+  color: var(--aoa-config-text-muted);
+}
+.aoa-design-section-note {
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: 16px;
+  color: var(--aoa-config-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.aoa-config-card {
+  display: grid;
+  gap: var(--aoa-layout-section-gap);
+  min-width: 0;
+}
+.aoa-config-card__head {
+  margin-bottom: 0;
+}
+.aoa-config-card__icon {
+  justify-self: start;
+  width: calc(var(--aoa-control-height-md) - var(--aoa-space-0-5));
+  height: calc(var(--aoa-control-height-md) - var(--aoa-space-0-5));
+  flex: 0 0 calc(var(--aoa-control-height-md) - var(--aoa-space-0-5));
+  display: grid;
+  place-items: center;
+  border-radius: var(--aoa-config-field-radius);
+  color: rgb(var(--v-theme-primary));
+  background: var(--aoa-config-capsule-surface);
+}
+.aoa-config-card__copy {
+  min-width: 0;
+  min-height: calc(var(--aoa-control-height-md) - var(--aoa-space-0-5));
+  display: grid;
+  align-content: center;
+  text-align: center;
+}
+.aoa-config-card__trailing {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+}
+.aoa-config-card__trailing .aoa-status-chip {
+  white-space: nowrap;
+}
+.aoa-config-card__copy h3 {
+  margin: 0;
+  font-size: var(--aoa-type-card-title-font-size);
+  font-weight: var(--aoa-type-card-title-font-weight);
+  line-height: var(--aoa-type-card-title-line-height);
+}
+.aoa-config-card__copy p {
+  margin: var(--aoa-space-1) 0 0;
+  max-width: 100%;
+  color: var(--aoa-config-text-secondary);
+  font-size: var(--aoa-type-caption-font-size);
+  font-weight: var(--aoa-type-caption-font-weight);
+  line-height: var(--aoa-type-caption-line-height);
+}
+.aoa-config-card--notify .aoa-config-card__icon {
+  color: rgb(var(--v-theme-info));
+}
+.aoa-config-card--locked,
+.aoa-config-card--disabled {
+  opacity: var(--aoa-field-disabled-opacity);
+}
+.aoa-config-page-surface {
+  min-width: 0;
+  display: grid;
+  gap: var(--aoa-layout-section-gap);
+}
+.aoa-config-page-surface__categories,
+.aoa-config-page-surface__content {
+  min-width: 0;
+}
+.aoa-config-page-surface__categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--aoa-config-control-gap-y);
+}
+.aoa-config-page-surface__content {
+  display: grid;
+  gap: var(--aoa-layout-section-gap);
+}
+.aoa-config-section-card {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.aoa-design-advanced {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--aoa-config-section-border);
+  border-radius: 16px;
+  background: var(--aoa-config-section-surface);
+}
+.aoa-design-advanced summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  color: var(--aoa-config-text-secondary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.aoa-design-advanced summary::-webkit-details-marker {
+  display: none;
+}
+.aoa-design-advanced summary > span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.aoa-design-advanced__chevron {
+  flex: 0 0 auto;
+  opacity: 0.52;
+}
+.aoa-design-advanced-content {
+  padding: 0 20px 20px;
+}
+
+/* MoviePilot host styles can override the browser's native closed-details
+ * presentation. Keep collapsed advanced drawers out of layout explicitly so
+ * their fields cannot extend past and be clipped by the owning section card. */
+.aoa-design-advanced:not([open]) > .aoa-design-advanced-content {
+  display: none;
+}
+.aoa-setting-grid {
+  --aoa-row-x: var(--aoa-config-card-gap);
+  --aoa-row-y: var(--aoa-config-field-gap-y);
+  margin: calc(var(--aoa-row-y) / -2) calc(var(--aoa-row-x) / -2);
+}
+.aoa-design-advanced--embedded {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.aoa-design-advanced--embedded summary {
+  padding: 14px 16px;
+}
+.aoa-design-advanced--embedded .aoa-design-advanced-content {
+  min-width: 0;
+  padding: 0 16px 16px;
+}
+@media (max-width: 760px) {
+.aoa-design-section-note {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.aoa-design-section-card {
+    padding: 16px;
+}
+}
+@media (max-width: 620px) {
+.aoa-design-section-title {
+    grid-template-columns: minmax(calc(var(--aoa-control-height-lg) + var(--aoa-space-1-5)), 1fr) minmax(0, auto) minmax(calc(var(--aoa-control-height-lg) + var(--aoa-space-1-5)), 1fr);
+    gap: var(--aoa-space-1-5);
+}
+.aoa-design-advanced--embedded summary {
+    padding: 12px;
+}
+.aoa-design-advanced--embedded .aoa-design-advanced-content {
+    padding: 0 12px 12px;
+}
+}
+
+/* Canonical configuration field grids, rows, controls, switches and Cron UI. */
+.aoa-config-master-switch {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--aoa-config-text-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.aoa-config-master-switch__label {
+  color: var(--aoa-config-text-secondary);
+}
+.aoa-toggle-switch {
+  width: var(--aoa-field-switch-track-width);
+  height: var(--aoa-field-switch-track-height);
+  flex: 0 0 auto;
+  position: relative;
+  border: 0;
+  border-radius: var(--aoa-radius-pill);
+  padding: 0;
+  background: var(--aoa-control-switch-track);
+  box-shadow: inset 0 0 0 1px var(--aoa-control-border);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: var(--aoa-interaction-transition);
+}
+.aoa-toggle-switch--on {
+  background: var(--aoa-control-switch-track-active);
+}
+.aoa-toggle-switch__thumb {
+  position: absolute;
+  top: var(--aoa-space-0-5);
+  left: var(--aoa-space-0-5);
+  width: var(--aoa-field-switch-thumb-size);
+  height: var(--aoa-field-switch-thumb-size);
+  border-radius: var(--aoa-radius-pill);
+  background: var(--aoa-control-switch-thumb-active);
+  box-shadow: 0 1px 3px var(--aoa-theme-shadow-color);
+  pointer-events: none;
+  transition: transform var(--aoa-motion-standard) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.aoa-toggle-switch--on .aoa-toggle-switch__thumb {
+  transform: translateX(calc(var(--aoa-field-switch-track-width) - var(--aoa-field-switch-thumb-size) - var(--aoa-space-1)));
+}
+.aoa-toggle-switch:not(:disabled):not(.aoa-toggle-switch--disabled):hover {
+  box-shadow: inset 0 0 0 1px var(--aoa-control-border), 0 0 0 3px rgba(var(--aoa-color-info-rgb), 0.08);
+}
+.aoa-toggle-switch:not(:disabled):not(.aoa-toggle-switch--disabled):active {
+  transform: var(--aoa-interaction-pressed-transform);
+}
+.aoa-toggle-switch:disabled,
+.aoa-toggle-switch--disabled {
+  opacity: var(--aoa-field-disabled-opacity);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.aoa-toggle-switch:focus-visible {
+  outline: var(--aoa-interaction-focus-outline);
+  outline-offset: var(--aoa-interaction-focus-offset);
+}
+.aoa-toggle-switch--invalid {
+  box-shadow: inset 0 0 0 1px var(--aoa-field-error-border);
+}
+.aoa-config [data-control-kind="switch"] [class~="v-switch__track"] {
+  inline-size: var(--aoa-field-switch-track-width);
+  min-inline-size: var(--aoa-field-switch-track-width);
+  min-width: var(--aoa-field-switch-track-width);
+  block-size: var(--aoa-field-switch-track-height);
+  min-block-size: var(--aoa-field-switch-track-height);
+  min-height: var(--aoa-field-switch-track-height);
+  border-radius: var(--aoa-radius-pill);
+}
+.aoa-config [data-control-kind="switch"] [class~="v-switch__thumb"] {
+  inline-size: var(--aoa-field-switch-thumb-size);
+  block-size: var(--aoa-field-switch-thumb-size);
+  background: var(--aoa-control-switch-thumb-active);
+  border-radius: var(--aoa-radius-pill);
+}
+.aoa-config-field-grid,
+.aoa-design-field-grid {
+  display: grid;
+  row-gap: var(--aoa-config-field-gap-y);
+  column-gap: 10px;
+  min-width: 0;
+}
+.aoa-design-field-grid--grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.aoa-design-field-grid--grid-3 {
+  /* A compact field needs enough space for its label/control tracks. */
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+.aoa-design-field-grid--grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 1200px) {
+.aoa-design-field-grid--grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+}
+.aoa-design-field-grid--grid-4 .aoa-field-row {
+  --aoa-field-row-label-track: minmax(72px, 0.8fr);
+  --aoa-field-row-control-track: minmax(88px, 1.2fr);
+  column-gap: var(--aoa-space-2);
+  padding-inline: var(--aoa-space-2-5);
+}
+.aoa-field-row {
+  --aoa-field-row-label-track: minmax(132px, 1fr);
+  --aoa-field-row-control-track: minmax(120px, 1.25fr);
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: var(--aoa-field-row-min-height);
+  display: grid;
+  grid-template-columns: var(--aoa-field-row-label-track) var(--aoa-field-row-control-track);
+  align-items: center;
+  column-gap: var(--aoa-config-card-gap);
+  row-gap: var(--aoa-config-control-gap-y);
+  padding: var(--aoa-field-row-padding-block) var(--aoa-field-row-padding-inline);
+  border: var(--aoa-config-field-border);
+  border-radius: var(--aoa-config-field-radius);
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-config-field-surface);
+  font-size: var(--aoa-type-body-small-font-size);
+  margin: 0;
+  align-self: stretch;
+  transition: border-color var(--aoa-motion-fast) ease, background var(--aoa-motion-fast) ease, opacity var(--aoa-motion-fast) ease;
+}
+.aoa-field-row--switch {
+  grid-template-columns: minmax(0, 1fr) var(--aoa-field-touch-target);
+}
+.aoa-field-row--control-full {
+  grid-column: 1 / -1;
+}
+.aoa-field-row--multi,
+.aoa-field-row--control-full {
+  width: 100%;
+  min-width: 0;
+  --aoa-field-row-label-track: minmax(96px, 0.42fr);
+  --aoa-field-row-control-track: minmax(0, 2.4fr);
+  column-gap: var(--aoa-space-1-5);
+  padding-inline: var(--aoa-space-2-5);
+  align-items: start;
+  min-height: var(--aoa-field-row-min-height);
+  max-height: none;
+  overflow: visible;
+}
+.aoa-field-row--compact-multi {
+  --aoa-field-row-label-track: minmax(88px, 0.42fr);
+  --aoa-field-row-control-track: minmax(0, 1.8fr);
+  align-items: center;
+}
+.aoa-field-row:not(.aoa-field-row--control-full):not(.aoa-field-row--multi) [data-field-control] > [class~="v-input"],
+.aoa-field-row:not(.aoa-field-row--control-full):not(.aoa-field-row--multi) [data-field-control] [class~="v-field"],
+.aoa-field-row:not(.aoa-field-row--control-full):not(.aoa-field-row--multi) [data-field-control] [class~="v-field__field"],
+.aoa-field-row:not(.aoa-field-row--control-full):not(.aoa-field-row--multi) [data-field-control] [class~="v-field__input"] {
+  min-height: var(--aoa-field-control-height) !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible;
+}
+.aoa-config [data-multi-select-row="true"] [class~="v-field__input"],
+.aoa-config [data-full-row="true"] [class~="v-field__input"] {
+  display: flex !important;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  gap: var(--aoa-config-tight-gap);
+  height: auto !important;
+  max-height: none;
+  min-height: calc(var(--aoa-field-control-height) - var(--aoa-space-1));
+  overflow: visible;
+  padding-top: var(--aoa-space-1) !important;
+  padding-bottom: var(--aoa-space-1) !important;
+}
+.aoa-config [data-multi-select-row="true"] [class~="v-chip"],
+.aoa-config [data-full-row="true"] [class~="v-chip"] {
+  flex: 0 1 auto;
+  max-width: 100%;
+  height: var(--aoa-status-height) !important;
+  margin: 0 !important;
+  padding-inline: var(--aoa-space-1-5) !important;
+}
+.aoa-config [data-multi-select-row="true"] [class~="v-field"],
+.aoa-config [data-full-row="true"] [class~="v-field"] {
+  height: auto !important;
+  max-height: none;
+  min-height: calc(var(--aoa-field-control-height) - var(--aoa-space-1));
+  overflow: visible;
+}
+.aoa-field-row--disabled {
+  opacity: var(--aoa-field-disabled-opacity);
+}
+.aoa-field-row--error {
+  border-color: var(--aoa-field-error-border);
+  background: var(--aoa-field-error-surface);
+}
+.aoa-field-row__label,
+.aoa-field-row__control {
+  min-width: 0;
+  max-width: 100%;
+}
+.aoa-field-row__label {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: var(--aoa-config-tight-gap);
+  color: var(--aoa-config-text-primary);
+  font-size: var(--aoa-type-label-font-size);
+  font-weight: var(--aoa-font-weight-bold);
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.aoa-field-row__label--with-icon {
+  grid-template-columns: var(--aoa-field-icon-size) minmax(0, 1fr);
+}
+.aoa-field-row__label-text,
+.aoa-field-row__hint,
+.aoa-field-row__error {
+  grid-column: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.aoa-field-row__label--with-icon > :not(.aoa-field-row__icon) {
+  grid-column: 2;
+}
+.aoa-field-row__label-text {
+  display: inline;
+}
+.aoa-field-row__icon {
+  grid-column: 1;
+  grid-row: 1;
+  width: var(--aoa-field-icon-size);
+  height: var(--aoa-field-icon-size);
+  flex: 0 0 auto;
+  color: var(--aoa-config-text-muted);
+}
+.aoa-field-row__required {
+  color: rgb(var(--aoa-color-error-rgb));
+  font-weight: var(--aoa-font-weight-extrabold);
+  margin-inline-start: var(--aoa-space-0-5);
+}
+.aoa-field-row__hint,
+.aoa-field-row__error,
+.aoa-field-row__control-hint {
+  color: var(--aoa-config-text-secondary);
+  font-size: var(--aoa-type-caption-font-size);
+  font-weight: var(--aoa-font-weight-medium);
+  line-height: var(--aoa-line-height-relaxed);
+}
+.aoa-field-row__error {
+  min-height: var(--aoa-field-message-min-height);
+  color: rgb(var(--aoa-color-error-rgb));
+}
+.aoa-field-row__control {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+}
+.aoa-field-row--with-control-hint {
+  align-items: start;
+}
+.aoa-field-row--with-control-hint .aoa-field-row__control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--aoa-config-tight-gap);
+}
+.aoa-field-row__control-hint {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.aoa-field-row--switch .aoa-field-row__control {
+  width: var(--aoa-field-touch-target);
+  min-width: var(--aoa-field-touch-target);
+  min-height: var(--aoa-field-touch-target);
+  justify-self: end;
+  justify-content: flex-end;
+}
+.aoa-field-row--multi .aoa-field-row__control,
+.aoa-field-row--control-full .aoa-field-row__control,
+.aoa-field-row--multi .aoa-field-row__control [data-field-control],
+.aoa-field-row--control-full .aoa-field-row__control [data-field-control] {
+  width: 100%;
+  min-width: 0;
+}
+.aoa-field-control {
+  min-width: 0;
+  width: 100%;
+}
+.aoa-field-control [class~="v-field"],
+.aoa-field-control [class~="v-input"],
+.aoa-field-control [class~="v-selection-control"] {
+  min-width: 0;
+  width: 100%;
+}
+.aoa-field-control--switch {
+  width: auto;
+  min-width: var(--aoa-field-touch-target);
+  min-height: var(--aoa-field-touch-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.aoa-field-control textarea,
+.aoa-field-control input {
+  overflow-wrap: anywhere;
+}
+.aoa-field-control--multi,
+.aoa-field-control--full {
+  width: 100%;
+}
+.aoa-field-control--multi [class~="v-field__input"],
+.aoa-field-control--full [class~="v-field__input"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  gap: var(--aoa-config-tight-gap);
+  min-height: var(--aoa-field-control-height);
+  height: auto !important;
+  overflow: visible;
+}
+.aoa-field-control--multi [class~="v-field"],
+.aoa-field-control--full [class~="v-field"] {
+  height: auto !important;
+  min-height: var(--aoa-field-control-height);
+}
+.aoa-field-control--multi [class~="v-chip"],
+.aoa-field-control__chip {
+  max-width: 100%;
+  flex: 0 1 auto;
+  margin: 0 !important;
+}
+.aoa-field-control__chip {
+  padding-inline: var(--aoa-space-1-5);
+}
+.aoa-field-control__selection-count {
+  min-width: 0;
+  color: var(--aoa-config-text-primary);
+  font-size: var(--aoa-type-label-font-size);
+  font-weight: var(--aoa-font-weight-bold);
+  white-space: nowrap;
+}
+.aoa-field-row [data-field-control] [class~="v-field__prepend-inner"]:empty,
+.aoa-field-row [data-field-control] [class~="v-field__prepend-inner"]:not(:has(*)) {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.aoa-config [data-field-control] [class~="v-field"] {
+  position: relative;
+  display: grid;
+  grid-template-areas: "prepend field clear append";
+  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  min-height: var(--aoa-field-control-height);
+  border-radius: var(--aoa-config-field-radius);
+  color: var(--aoa-control-text);
+  background: var(--aoa-control-surface) !important;
+  box-shadow: inset 0 0 0 1px var(--aoa-control-border);
+  transition: background var(--aoa-motion-fast) ease, box-shadow var(--aoa-motion-fast) ease;
+}
+.aoa-config [data-field-control] [class~="v-input__control"],
+.aoa-config [data-field-control] .aoa-cron-field,
+.aoa-config [data-field-control] .aoa-cron-input {
+  min-width: 0;
+  width: 100%;
+}
+.aoa-config [data-field-control] [class~="v-field__overlay"],
+.aoa-config [data-field-control] [class~="v-field__loader"],
+.aoa-config [data-field-control] [class~="v-field__outline"] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.aoa-config [data-field-control] [class~="v-field__prepend-inner"] {
+  grid-area: prepend;
+}
+.aoa-config [data-field-control] [class~="v-field__field"] {
+  grid-area: field;
+  min-width: 0;
+  min-height: var(--aoa-field-control-height);
+  display: flex;
+  align-items: center;
+}
+.aoa-config [data-field-control] [class~="v-field__clearable"] {
+  grid-area: clear;
+}
+.aoa-config [data-field-control] [class~="v-field__append-inner"] {
+  grid-area: append;
+}
+.aoa-config [data-field-control] [class~="v-field__prepend-inner"],
+.aoa-config [data-field-control] [class~="v-field__clearable"],
+.aoa-config [data-field-control] [class~="v-field__append-inner"] {
+  min-width: var(--aoa-space-7);
+  min-height: var(--aoa-field-control-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.aoa-config [data-field-control] [class~="v-field-label"]:empty {
+  display: none;
+}
+.aoa-config [data-field-control] [class~="v-field__input"] {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: var(--aoa-field-control-height);
+  padding: 0 var(--aoa-space-2-5);
+  overflow-y: visible !important;
+}
+.aoa-config [data-control-kind="textarea"] textarea[class~="v-field__input"] {
+  overflow: hidden !important;
+}
+.aoa-config [data-field-control] input[class~="v-field__input"] {
+  display: block;
+}
+.aoa-config [data-field-control] [class~="v-field__input"]:not(input) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.aoa-config [data-field-control] [class~="v-select__selection"],
+.aoa-config [data-field-control] [class~="v-select__selection-text"] {
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+@media (max-width: 620px) {
+.aoa-field-row {
+    grid-column: 1;
+}
+.aoa-field-row:not(.aoa-field-row--switch) {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--aoa-config-control-gap-y);
+    padding: var(--aoa-space-1) var(--aoa-space-2);
+}
+.aoa-field-row:not(.aoa-field-row--switch) .aoa-field-row__control {
+    grid-column: 1;
+}
+.aoa-config [data-field-control] [class~="v-select__selection"],
+  .aoa-config [data-field-control] [class~="v-select__selection-text"] {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+}
+.aoa-config [data-field-row] [class~="v-icon"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.aoa-config [data-field-row] [class~="v-icon__svg"] {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+.aoa-config [data-schedule-card] [class~="v-icon"],
+.aoa-config [data-notify-card] [class~="v-icon"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.aoa-config [data-schedule-card] [class~="v-icon__svg"],
+.aoa-config [data-notify-card] [class~="v-icon__svg"] {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+.aoa-config [data-field-control] [class~="v-field__overlay"] {
+  opacity: 0 !important;
+}
+.aoa-config [data-field-control] [class~="v-field__outline"] {
+  --v-field-border-opacity: 0;
+  color: var(--aoa-control-border);
+  opacity: 1;
+}
+.aoa-config [data-field-control] [class~="v-field--focused"] {
+  box-shadow: inset 0 0 0 1px var(--aoa-control-border), 0 0 0 2px var(--aoa-control-focus-ring);
+}
+.aoa-field-control--error [class~="v-field"],
+.aoa-cron-field--error [class~="v-field"] {
+  box-shadow: inset 0 0 0 1px var(--aoa-field-error-border), 0 0 0 2px rgba(var(--aoa-color-error-rgb), 0.12);
+}
+.aoa-config [data-field-control] [class~="v-field__input"],
+.aoa-config [data-field-control] [class~="v-label"] {
+  color: var(--aoa-control-text);
+}
+.aoa-config [data-field-control] input::placeholder,
+.aoa-config [data-field-control] textarea::placeholder {
+  color: var(--aoa-control-placeholder);
+  opacity: 1;
+}
+.aoa-config [data-field-control] [class~="v-selection-control"] {
+  min-height: var(--aoa-field-touch-target);
+  color: var(--aoa-control-text);
+}
+.aoa-config [data-control-kind="switch"] [class~="v-input"] {
+  width: auto;
+  flex: 0 0 auto;
+}
+.aoa-config [data-control-kind="switch"] [class~="v-selection-control"] {
+  min-width: var(--aoa-field-touch-target);
+  min-height: var(--aoa-field-touch-target);
+  width: auto;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+.aoa-config [data-control-kind="switch"] [class~="v-label"] {
+  display: none;
+}
+.aoa-config [data-control-kind="switch"] [class~="v-selection-control__wrapper"] {
+  position: relative;
+  inline-size: var(--aoa-field-switch-track-width);
+  block-size: var(--aoa-field-switch-track-height);
+  flex: 0 0 var(--aoa-field-switch-track-width);
+  display: block;
+}
+.aoa-config [data-control-kind="switch"] [class~="v-switch__track"] {
+  position: absolute;
+  inset: 0;
+  min-width: var(--aoa-field-switch-track-width);
+  min-height: var(--aoa-field-switch-track-height);
+  border-radius: var(--aoa-radius-pill);
+  color: var(--aoa-control-switch-track);
+  background: var(--aoa-control-switch-track) !important;
+  opacity: 1 !important;
+  box-shadow: inset 0 0 0 1px var(--aoa-control-border);
+  transition: background var(--aoa-motion-fast) ease;
+}
+.aoa-config [data-control-kind="switch"] [class~="v-switch__thumb"] {
+  position: absolute;
+  inset: var(--aoa-space-0-5) auto auto var(--aoa-space-0-5);
+  inline-size: var(--aoa-field-switch-thumb-size);
+  block-size: var(--aoa-field-switch-thumb-size);
+  border-radius: var(--aoa-radius-pill);
+  color: var(--aoa-control-switch-thumb);
+  background: var(--aoa-control-switch-thumb) !important;
+  box-shadow: 0 1px 3px var(--aoa-theme-shadow-color);
+  transition: background var(--aoa-motion-fast) ease, transform var(--aoa-motion-fast) ease;
+}
+.aoa-config [data-control-kind="switch"] [class~="v-selection-control__input"] > input[type="checkbox"] {
+  position: absolute;
+  inset: calc((var(--aoa-field-switch-track-height) - var(--aoa-field-touch-target)) / 2) 0 auto;
+  z-index: 2;
+  inline-size: var(--aoa-field-touch-target);
+  block-size: var(--aoa-field-touch-target);
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.aoa-config [data-control-kind="switch"] [class~="v-selection-control--dirty"] [class~="v-switch__track"] {
+  color: var(--aoa-control-switch-track-active);
+  background: var(--aoa-control-switch-track-active) !important;
+}
+.aoa-config [data-control-kind="switch"] [class~="v-selection-control--dirty"] [class~="v-switch__thumb"] {
+  color: var(--aoa-control-switch-thumb-active);
+  background: var(--aoa-control-switch-thumb-active) !important;
+  transform: translateX(calc(var(--aoa-field-switch-track-width) - var(--aoa-field-switch-thumb-size) - var(--aoa-space-1)));
+}
+.aoa-config [data-field-control] [class~="v-chip"] {
+  color: var(--aoa-control-text);
+  background: var(--aoa-control-chip-surface) !important;
+  box-shadow: inset 0 0 0 1px var(--aoa-control-chip-border);
+}
+.aoa-config [data-field-control] [class~="v-input--disabled"] [class~="v-field"],
+.aoa-config [data-field-control] [class~="v-selection-control--disabled"] {
+  opacity: var(--aoa-field-disabled-opacity);
+}
+.aoa-cron-input--disabled {
+  cursor: not-allowed;
+}
+.aoa-cron-menu {
+  max-width: calc(100vw - var(--aoa-space-6, 24px));
+}
+.aoa-cron-input__menu-list {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: var(--aoa-space-2, 8px);
+  border: 1px solid rgba(var(--v-border-color, 255, 255, 255), 0.16);
+  border-radius: var(--app-surface-radius, 14px);
+  color: rgb(var(--v-theme-on-surface, 245, 245, 247));
+  background: rgb(var(--v-theme-surface, 24, 31, 44));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+}
+.aoa-cron-input__menu-item {
+  min-width: 0;
+  padding: 0;
+}
+@media (max-width: 960px) {
+  /* The host sidebar leaves a narrow configuration canvas at tablet widths.
+   * Stack ordinary field grids before controls lose their usable width. */
+.aoa-design-field-grid--grid-2,
+  .aoa-design-field-grid--grid-4 {
+    grid-template-columns: minmax(0, 1fr);
+}
+.aoa-design-field-grid--grid-2 > .aoa-field-row,
+  .aoa-design-field-grid--grid-4 > .aoa-field-row {
+    grid-column: 1 / -1;
+}
+}
+@media (max-width: 760px) {
+.aoa-config-master-switch {
+    flex: 1 1 auto;
+}
+.aoa-design-field-grid,
+  .aoa-design-field-grid--grid-2,
+  .aoa-design-field-grid--grid-3,
+  .aoa-design-field-grid--grid-4 {
+    grid-template-columns: 1fr;
+}
+.aoa-field-row {
+    --aoa-field-row-label-track: minmax(84px, 1fr);
+    --aoa-field-row-control-track: minmax(108px, 1.15fr);
+    grid-template-columns: var(--aoa-field-row-label-track) var(--aoa-field-row-control-track);
+    align-items: center;
+    min-height: var(--aoa-field-row-min-height);
+    max-height: none;
+    padding: var(--aoa-space-2) var(--aoa-space-3);
+    column-gap: var(--aoa-space-2);
+    row-gap: 0;
+}
+.aoa-field-row--switch {
+    grid-template-columns: minmax(0, 1fr) var(--aoa-field-touch-target);
+    max-height: none;
+}
+.aoa-field-row--control-full,
+  .aoa-field-row--multi {
+    grid-column: 1 / -1;
+    max-height: none;
+    overflow: visible;
+    /* Stack label above control on narrow viewports so chips keep full width and labels stay readable. */
+    --aoa-field-row-label-track: minmax(0, 1fr);
+    --aoa-field-row-control-track: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 0;
+    row-gap: 6px;
+    padding: 8px 8px;
+}
+.aoa-field-row--control-full .aoa-field-row__label,
+  .aoa-field-row--multi .aoa-field-row__label {
+    width: 100%;
+    max-width: 100%;
+}
+.aoa-field-row--control-full .aoa-field-row__control,
+  .aoa-field-row--multi .aoa-field-row__control {
+    width: 100%;
+    min-width: 0;
+}
+.aoa-field-row__label {
+    min-width: 0;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+}
+
+  /* Let embedded Cron and Vuetify controls shrink within the compact row. */
+.aoa-field-row__control,
+  .aoa-field-row__control *,
+  .aoa-field-row__control [data-field-control] {
+    min-width: 0 !important;
+    max-width: 100%;
+}
+}
+
+/* Configuration action controls and the persistent save/action strip.
+ * Shared confirmation dialogs remain owned by ActionOperationPanel.vue.
+ */
+.aoa-config-ghost-btn .aoa-mdi-icon--ghost {
+  transform: translateY(0.5px);
+}
+.aoa-config-ghost-btn {
+  min-width: 0;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 7px 16px;
+  border-radius: 10px;
+  color: var(--aoa-config-text-secondary);
+  border: var(--aoa-config-field-border);
+  background: transparent !important;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.aoa-config-ghost-btn:hover {
+  background: var(--aoa-config-capsule-hover-surface) !important;
+}
+.aoa-config-icon-btn {
+  inline-size: 34px;
+  block-size: 34px;
+  border-radius: var(--aoa-config-capsule-radius);
+  color: var(--aoa-config-text-primary);
+  border: var(--aoa-config-field-border);
+  background: var(--aoa-config-capsule-surface) !important;
+}
+.aoa-config-icon-btn:hover {
+  background: var(--aoa-config-capsule-hover-surface) !important;
+}
+.aoa-config-action-dock {
+  border-radius: var(--aoa-config-section-radius);
+  border: var(--aoa-config-card-border);
+}
+.aoa-config-action-strip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 65px;
+  padding: 14px 24px;
+  border-top: 1px solid rgba(var(--v-border-color), var(--aoa-hairline-alpha));
+  background: var(--aoa-config-action-strip-surface) !important;
+  backdrop-filter: var(--aoa-plugin-shell-backdrop);
+  -webkit-backdrop-filter: var(--aoa-plugin-shell-backdrop);
+}
+.aoa-config-action-strip-copy {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--aoa-config-text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+.aoa-config-action-context {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--aoa-config-capsule-radius);
+  padding: 3px 10px;
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-config-capsule-surface);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), calc(var(--aoa-border-alpha) * 0.48));
+}
+.aoa-config-action-hint {
+  overflow-wrap: anywhere;
+}
+.aoa-config-action-strip-copy strong {
+  max-width: min(460px, 48vw);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 18px;
+}
+.aoa-config-action-strip-buttons {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.aoa-config-btn {
+  min-width: 0;
+  min-height: var(--aoa-control-height-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--aoa-control-radius);
+  padding: var(--aoa-space-2) var(--aoa-control-padding-inline);
+  color: var(--aoa-config-text-primary);
+  background: transparent;
+  font: inherit;
+  font-size: var(--aoa-type-label-font-size);
+  line-height: var(--aoa-type-label-line-height);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--aoa-interaction-transition);
+}
+.aoa-config-btn--save {
+  width: auto;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 9px 24px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.aoa-config-action-strip-buttons [class~="v-btn"] {
+  min-height: 38px;
+  max-height: 44px;
+}
+.aoa-config-action-strip-buttons [class~="v-icon"] {
+  flex: 0 0 auto;
+  inline-size: 18px;
+  block-size: 18px;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.aoa-config-action-strip-buttons [class~="v-icon"] svg {
+  width: 18px !important;
+  height: 18px !important;
+  inline-size: 18px !important;
+  block-size: 18px !important;
+  max-width: 18px;
+  max-height: 18px;
+}
+.aoa-config-btn--save .aoa-mdi-icon--save {
+  margin-right: 4px;
+  line-height: 13px;
+  transform: translateY(-0.5px);
+}
+.aoa-design-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--aoa-config-field-gap-y);
+  transform: translateY(-1px);
+}
+.aoa-design-actions--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.aoa-design-actions--single .aoa-design-action-btn {
+  width: 100%;
+  max-width: 100%;
+  justify-self: stretch;
+}
+.aoa-design-action-btn {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 40.8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 24px;
+  border: var(--aoa-config-field-border);
+  border-radius: 50px;
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-config-capsule-hover-surface);
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.aoa-design-section-title .aoa-mdi-icon--section {
+  line-height: 15px;
+  transform: translateY(-0.25px);
+}
+.aoa-design-action-btn .aoa-mdi-icon--action {
+  line-height: 14px;
+  transform: translateY(-0.25px);
+}
+.aoa-design-action-btn:hover {
+  background: var(--aoa-config-capsule-hover-surface);
+}
+.aoa-design-action-btn--danger {
+  color: rgb(var(--v-theme-error));
+  background: rgba(var(--v-theme-error), 0.12);
+}
+.aoa-inline-action {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 2px 0 0;
+}
+.aoa-design-action-btn--disabled,
+.aoa-design-action-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
+}
+.aoa-action-btn {
+  min-height: var(--aoa-control-height-md);
+  border-radius: var(--aoa-control-radius);
+  font-weight: 600;
+  backdrop-filter: var(--aoa-plugin-shell-backdrop);
+  -webkit-backdrop-filter: var(--aoa-plugin-shell-backdrop);
+  background: var(--aoa-config-capsule-surface) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--v-border-color), var(--aoa-border-alpha));
+  transition: var(--aoa-interaction-transition);
+}
+.aoa-action-btn:hover {
+  background: var(--aoa-config-capsule-hover-surface) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--v-theme-primary), 0.20),
+    0 10px 24px rgba(var(--v-theme-primary), 0.10);
+}
+.aoa-actions {
+  padding: 12px 20px;
+}
+.aoa-actions [class~="v-icon"] {
+  flex: 0 0 auto;
+  inline-size: 18px;
+  block-size: 18px;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.aoa-actions [class~="v-icon"] svg {
+  width: 18px !important;
+  height: 18px !important;
+  inline-size: 18px !important;
+  block-size: 18px !important;
+  max-width: 18px;
+  max-height: 18px;
+  display: block;
+}
+@media (max-width: 760px) {
+.aoa-design-actions--single .aoa-design-action-btn {
+    width: 100%;
+    max-width: 100%;
+}
+.aoa-config-ghost-btn {
+    padding: 7px 16px;
+}
+.aoa-design-actions {
+    grid-template-columns: 1fr;
+}
+.aoa-design-action-btn {
+    min-height: 40px;
+    padding-inline: 16px;
+}
+.aoa-config-action-strip {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    padding: 14px 24px calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.aoa-config-action-strip-buttons {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+}
+
+/* Configuration status, save feedback and compact explanatory copy.
+ * Business-domain notices and component-scoped empty/loading states keep
+ * their existing owners.
+ */
+.aoa-config-status-badge {
+  min-height: var(--aoa-status-height);
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--aoa-feedback-warning-border);
+  border-radius: var(--aoa-feedback-radius);
+  padding-inline: var(--aoa-status-padding-inline);
+  color: var(--aoa-feedback-warning-color);
+  background: var(--aoa-feedback-warning-surface);
+  font-size: var(--aoa-type-micro-font-size);
+  line-height: var(--aoa-type-micro-line-height);
+  font-weight: var(--aoa-type-micro-font-weight);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.aoa-config-status-badge--on {
+  border-color: var(--aoa-feedback-success-border);
+  color: var(--aoa-feedback-success-color);
+  background: var(--aoa-feedback-success-surface);
+}
+.aoa-config-status-badge--mixed {
+  border-color: var(--aoa-feedback-warning-border);
+  color: var(--aoa-feedback-warning-color);
+  background: var(--aoa-feedback-warning-surface);
+}
+.aoa-config-action-feedback {
+  min-height: var(--aoa-feedback-height);
+  padding-inline: var(--aoa-feedback-padding-inline);
+  border: 1px solid var(--aoa-interaction-neutral-border);
+  border-radius: var(--aoa-feedback-radius);
+  background: var(--aoa-interaction-neutral-surface);
+  color: var(--aoa-interaction-neutral-color);
+  transition: var(--aoa-interaction-transition);
+}
+.aoa-config-action-feedback--ok {
+  border-color: var(--aoa-feedback-success-border);
+  background: var(--aoa-feedback-success-surface);
+  color: var(--aoa-feedback-success-color);
+}
+.aoa-config-action-feedback--err {
+  border-color: var(--aoa-feedback-error-border);
+  background: var(--aoa-feedback-error-surface);
+  color: var(--aoa-feedback-error-color);
+}
+.aoa-config-load-state {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 260px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--aoa-space-4);
+  padding: var(--aoa-space-6);
+  border: 1px solid var(--aoa-feedback-info-border);
+  border-radius: var(--aoa-config-radius-card);
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-feedback-info-surface);
+  box-shadow: var(--aoa-inner-shadow);
+}
+.aoa-config-load-state--error {
+  border-color: var(--aoa-feedback-error-border);
+  background: var(--aoa-feedback-error-surface);
+}
+.aoa-config-load-state__indicator {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--aoa-config-radius-emblem);
+  color: var(--aoa-feedback-info-color);
+  background: var(--aoa-config-capsule-surface);
+}
+.aoa-config-load-state--error .aoa-config-load-state__indicator {
+  color: var(--aoa-feedback-error-color);
+}
+.aoa-config-load-state__spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(var(--aoa-color-info-rgb), 0.24);
+  border-top-color: var(--aoa-feedback-info-color);
+  border-radius: var(--aoa-radius-pill);
+  animation: aoa-config-load-spin 0.8s linear infinite;
+}
+.aoa-config-load-state__copy {
+  min-width: 0;
+  display: grid;
+  gap: var(--aoa-space-1);
+}
+.aoa-config-load-state__copy > strong {
+  font-size: var(--aoa-type-card-title-font-size);
+  line-height: var(--aoa-type-card-title-line-height);
+  font-weight: var(--aoa-type-card-title-font-weight);
+  color: var(--aoa-config-text-primary);
+}
+.aoa-config-load-state__copy > span:not(.aoa-config-load-state__eyebrow) {
+  max-width: 620px;
+  color: var(--aoa-config-text-secondary);
+  font-size: var(--aoa-type-body-font-size);
+  line-height: var(--aoa-type-body-line-height);
+  overflow-wrap: anywhere;
+}
+.aoa-config-load-state__copy > small {
+  color: var(--aoa-config-text-muted);
+  font-size: var(--aoa-type-micro-font-size);
+  line-height: var(--aoa-type-micro-line-height);
+  overflow-wrap: anywhere;
+}
+.aoa-config-load-state__eyebrow {
+  color: var(--aoa-feedback-info-color);
+  font-size: var(--aoa-type-micro-font-size);
+  line-height: var(--aoa-type-micro-line-height);
+  font-weight: var(--aoa-type-micro-font-weight);
+}
+.aoa-config-load-state--error .aoa-config-load-state__eyebrow {
+  color: var(--aoa-feedback-error-color);
+}
+.aoa-config-load-state__retry {
+  min-height: var(--aoa-control-height-md);
+  padding-inline: var(--aoa-control-padding-inline);
+  border: 1px solid var(--aoa-feedback-error-border);
+  color: var(--aoa-feedback-error-color);
+  background: var(--aoa-config-capsule-surface);
+}
+.aoa-config-load-state__retry:hover {
+  background: var(--aoa-config-capsule-hover-surface);
+}
+.aoa-config-main-tab:disabled,
+.aoa-subtab:disabled {
+  cursor: not-allowed;
+  opacity: var(--aoa-interaction-disabled-opacity);
+  box-shadow: none;
+}
+@keyframes aoa-config-load-spin {
+to { transform: rotate(360deg);
+}
+}
+@media (prefers-reduced-motion: reduce) {
+.aoa-config-load-state__spinner {
+    animation-duration: 1.8s;
+}
+}
+.aoa-status-tile {
+  min-height: 58px;
+  padding: 10px 12px;
+  border-radius: var(--aoa-config-field-radius);
+  border: var(--aoa-config-field-border);
+  background: var(--aoa-config-field-surface);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+.aoa-status-tile span {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--aoa-config-text-muted);
+}
+.aoa-status-tile strong {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--aoa-config-text-primary);
+  overflow-wrap: anywhere;
+}
+.aoa-hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(var(--v-theme-on-surface), 0.52);
+  margin-top: 2px;
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-wrap: balance;
+}
+.aoa-line-hint {
+  min-width: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-wrap: balance;
+}
+.aoa-action-note {
+  max-width: 240px;
+  min-width: 150px;
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: rgba(var(--v-theme-on-surface), 0.52);
+  font-size: 12px;
+  line-height: 1.38;
+  text-wrap: balance;
+}
+@media (max-width: 760px) {
+.aoa-config-load-state {
+    min-height: 240px;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--aoa-space-3);
+    padding: var(--aoa-space-4);
+}
+.aoa-config-load-state__indicator {
+    width: 44px;
+    height: 44px;
+}
+.aoa-config-load-state__retry {
+    grid-column: 1 / -1;
+    width: 100%;
+}
+.aoa-action-note {
+    max-width: 100%;
+}
+}
+
+/* MoviePilot/Vuetify host overrides shared by every configuration domain. */
+.aoa-config [class~="v-icon"] {
+  inline-size: 1em !important;
+  block-size: 1em !important;
+  width: 1em !important;
+  height: 1em !important;
+  max-inline-size: 1em;
+  max-block-size: 1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+.aoa-config [class~="v-icon--size-default"] {
+  font-size: 20px;
+}
+.aoa-config [class~="v-icon"] svg {
+  width: 1em !important;
+  height: 1em !important;
+  inline-size: 1em !important;
+  block-size: 1em !important;
+  max-width: 1em;
+  max-height: 1em;
+  display: block;
+}
+
+/* Health-check and site-stat domain composition. Shared field primitives own controls. */
+.aoa-health-config,
+.aoa-site-stat-config {
+  min-width: 0;
+}
+.aoa-health-config > [data-config-field-grid],
+.aoa-site-stat-config > [data-config-field-grid] {
+  min-width: 0;
+  align-items: stretch;
+}
+.aoa-health-config > [data-html-action-row],
+.aoa-site-stat-config > [data-html-action-row] {
+  padding-block-start: var(--aoa-space-2-5);
+  border-block-start: var(--aoa-surface-cell-border);
+}
+[data-health-config-surface] [data-notify-channel],
+[data-site-stat-config-surface] [data-notify-channel] {
+  --aoa-health-notify-channel-owned: 1;
+}
+@media (max-width: 960px) {
+[data-config-page="hc"] [data-field-row]:not([data-switch-row="true"]) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: start;
+    row-gap: var(--aoa-config-control-gap-y);
+}
+[data-config-page="hc"] [data-field-row]:not([data-switch-row="true"]) .aoa-field-row__control {
+    grid-column: 1;
+    width: 100%;
+    max-width: 100%;
+}
+}
+
+/* Media and subscription notification composition. Shared field primitives own controls. */
+.aoa-media-notify-config,
+.aoa-subscribe-notify-config {
+  min-width: 0;
+  gap: var(--aoa-config-field-gap-y);
+}
+.aoa-media-notify-config > [data-config-field-grid],
+.aoa-subscribe-notify-config > [data-config-field-grid] {
+  min-width: 0;
+  align-items: stretch;
+}
+.aoa-subscribe-notify-config > [data-html-action-row] {
+  padding-block-start: var(--aoa-space-2-5);
+  border-block-start: var(--aoa-surface-cell-border);
+}
+
+/* Fusion takeover messaging and its daily schedule card. */
+.aoa-fusion-takeover-note {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px 8px;
+  width: 100%;
+  max-width: 100%;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border-radius: var(--aoa-config-field-radius);
+  color: var(--aoa-config-notice-blue);
+  background: var(--aoa-config-notice-blue-surface);
+  box-shadow: inset 0 0 0 1px var(--aoa-config-notice-blue-border);
+  font-size: 11.5px;
+  line-height: 1.3;
+  font-weight: 650;
+}
+.aoa-fusion-takeover-note__icon {
+  flex: 0 0 auto;
+}
+.aoa-fusion-takeover-note__copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.aoa-fusion-column-config {
+  min-width: 0;
+}
+.aoa-fusion-schedule-grid {
+  min-width: 0;
+}
+.aoa-fusion-operation-block {
+  display: grid;
+  gap: var(--aoa-config-field-gap-y);
+  min-width: 0;
+  padding-block-start: var(--aoa-space-2-5);
+  border-block-start: var(--aoa-surface-cell-border);
+}
+.aoa-fusion-operation-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+  color: var(--aoa-config-text-secondary);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.aoa-fusion-operation-status strong {
+  color: var(--aoa-config-text-primary);
+}
+.aoa-fusion-operation-status__error {
+  color: var(--aoa-feedback-error-color);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 620px) {
+.aoa-fusion-takeover-note {
+    align-items: flex-start;
+}
+.aoa-fusion-operation-block {
+    padding-block-start: var(--aoa-space-2);
+}
+}
+
+/* Single-page operational maintenance domains. Shared field primitives own controls. */
+.aoa-config-risk-note--orange {
+  color: var(--aoa-config-notice-orange);
+  background: var(--aoa-config-notice-orange-surface);
+  box-shadow: inset 0 0 0 1px var(--aoa-config-notice-orange-border);
+}
+.aoa-seed-clean-config,
+.aoa-downloader-helper-config,
+.aoa-log-clean-config {
+  min-width: 0;
+  width: 100%;
+}
+.aoa-seed-clean-config > [data-config-field-grid],
+.aoa-downloader-helper-config > [data-config-field-grid],
+.aoa-log-clean-config > [data-config-field-grid] {
+  min-width: 0;
+  align-items: stretch;
+}
+.aoa-seed-clean-config > [data-html-action-row],
+.aoa-downloader-helper-config > [data-html-action-row],
+.aoa-log-clean-config > [data-html-action-row] {
+  padding-block-start: var(--aoa-space-2-5);
+  border-block-start: var(--aoa-surface-cell-border);
+}
+.aoa-log-clean-field-grid {
+  row-gap: var(--aoa-config-field-gap-y);
+  column-gap: var(--aoa-config-card-gap);
+}
+.aoa-downloader-helper-boundary {
+  min-width: 0;
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: var(--aoa-config-field-radius, 14px);
+  color: var(--aoa-config-text-secondary);
+  background: var(--aoa-config-capsule-surface);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+[data-config-page="seedremove"] :is([data-seedclean-primary-fields], [data-seedclean-filter-fields]),
+[data-config-page="dltagmain"] [data-downloader-helper-fields] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+  row-gap: var(--aoa-config-field-gap-y);
+}
+.aoa-downloader-helper-config > .aoa-tracker-mapping-drawer {
+  border: 1px solid var(--aoa-config-section-border);
+  border-radius: var(--aoa-config-field-radius);
+  background: var(--aoa-config-capsule-surface);
+  box-shadow: none;
+}
+.aoa-tracker-mapping-drawer > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px 14px;
+}
+.aoa-tracker-mapping-drawer__state {
+  justify-self: end;
+  gap: var(--aoa-config-control-gap-y) !important;
+}
+.aoa-tracker-mapping-drawer__state small {
+  color: var(--aoa-config-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.aoa-tracker-mapping-drawer__chevron {
+  transition: transform .18s ease;
+}
+.aoa-tracker-mapping-drawer[open] .aoa-tracker-mapping-drawer__chevron {
+  transform: rotate(180deg);
+}
+.aoa-tracker-mapping-drawer[open] > summary {
+  border-bottom: 1px solid var(--aoa-config-section-border);
+}
+.aoa-tracker-mapping-drawer .aoa-design-advanced-content {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 14px;
+}
+[data-config-page="dltagmain"] [data-tracker-mapping-editor],
+[data-config-page="dltagmain"] [data-tracker-mapping-code-editor],
+[data-config-page="dltagmain"] [data-tracker-mapping-input] {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+[data-config-page="seedremove"] [data-config-field-grid] > [data-field-row][data-full-row="true"],
+[data-config-page="dltagmain"] [data-config-field-grid] > [data-field-row][data-full-row="true"] {
+  grid-column: 1 / -1;
+  box-sizing: border-box;
+}
+@media (min-width: 961px) and (max-width: 1100px) {
+[data-config-page="seedremove"] :is([data-seedclean-primary-fields], [data-seedclean-filter-fields]) [data-field-row]:not([data-switch-row="true"]):not([data-full-row="true"]) {
+    --aoa-field-row-label-track: minmax(120px, 1fr);
+}
+}
+.aoa-seedclean-status-dictionary {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--aoa-config-card-border);
+}
+.aoa-seedclean-status-dictionary__group {
+  min-width: 0;
+  align-self: start;
+  padding: 10px 12px;
+  border: 1px solid var(--aoa-config-card-border);
+  border-radius: 8px;
+  background: var(--aoa-config-capsule-surface);
+}
+.aoa-seedclean-status-dictionary__group h4 {
+  margin: 0 0 6px;
+  color: var(--aoa-config-text-primary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.aoa-seedclean-status-dictionary__group ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--aoa-config-text-secondary);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+[data-config-page="dltagmain"] [data-config-field-grid] > [data-field-row]:not([data-full-row="true"]) {
+  grid-column: auto;
+}
+@media (max-width: 960px) {
+[data-config-page="seedremove"] [data-field-row]:not([data-switch-row="true"]) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: start;
+    row-gap: var(--aoa-config-control-gap-y);
+}
+[data-config-page="seedremove"] [data-field-row]:not([data-switch-row="true"]) .aoa-field-row__control {
+    grid-column: 1;
+    width: 100%;
+    max-width: 100%;
+}
+[data-config-page="dltagmain"] .aoa-field-row--compact-multi {
+    grid-column: 1 / -1;
+}
+[data-config-page="seedremove"] [data-config-field-grid] > [data-field-row] {
+    grid-column: auto;
+}
+[data-config-page="dltagmain"] [data-config-field-grid] {
+    grid-template-columns: minmax(0, 1fr);
+}
+[data-config-page="dltagmain"] [data-config-field-grid] > [data-field-row] {
+    grid-column: 1 / -1;
+}
+}
+@media (max-width: 620px) {
+[data-config-page="seedremove"] :is([data-seedclean-primary-fields], [data-seedclean-filter-fields]),
+  .aoa-seedclean-status-dictionary {
+    grid-template-columns: minmax(0, 1fr);
+}
+[data-config-page="seedremove"] [data-config-field-grid] > [data-field-row] {
+    grid-column: 1 / -1;
+}
+.aoa-tracker-mapping-drawer > summary {
+    align-items: start;
+    padding: 11px 12px;
+}
+.aoa-tracker-mapping-drawer__state {
+    display: grid !important;
+    justify-items: end;
+    gap: var(--aoa-config-tight-gap) !important;
+}
+.aoa-tracker-mapping-drawer__state small {
+    white-space: normal;
+    text-align: right;
+}
+.aoa-tracker-mapping-drawer .aoa-design-advanced-content {
+    padding: 12px;
+}
+}
+
+/* Categorized configuration pages share one selector row, one active new card
+ * and card-owned actions. Domain components own behavior; this file owns the
+ * common layout for backup, subscription fill and update management. */
+[data-subfill-layout-container] {
+  container-type: inline-size;
+}
+.aoa-config-category-management {
+  min-width: 0;
+  display: grid;
+  gap: var(--aoa-layout-section-gap);
+}
+.aoa-config-category-selector {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: var(--aoa-config-control-gap-y);
+}
+.aoa-config-category-selector__item {
+  min-width: 0;
+  min-height: var(--aoa-control-height-lg);
+  display: grid;
+  grid-template-columns: var(--aoa-control-height-sm) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--aoa-config-field-gap-y);
+  padding: var(--aoa-space-2) var(--aoa-space-2-5);
+  border: 1px solid var(--aoa-config-section-border);
+  border-radius: var(--aoa-config-field-radius);
+  color: var(--aoa-config-text-secondary);
+  background: var(--aoa-config-capsule-surface);
+  cursor: pointer;
+  user-select: none;
+}
+.aoa-config-category-selector__item:hover,
+.aoa-config-category-selector__item--active {
+  border-color: var(--aoa-feedback-info-border);
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-config-capsule-hover-surface);
+}
+.aoa-config-category-selector__item:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+}
+.aoa-config-category-selector__icon {
+  width: var(--aoa-control-height-sm);
+  height: var(--aoa-control-height-sm);
+  display: grid;
+  place-items: center;
+  border-radius: var(--aoa-config-field-radius);
+  color: rgb(var(--v-theme-primary));
+  background: var(--aoa-config-field-surface);
+}
+.aoa-config-category-selector__item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--aoa-type-label-font-size);
+  font-weight: var(--aoa-type-label-font-weight);
+  line-height: var(--aoa-type-label-line-height);
+}
+.aoa-config-category-selector__toggle {
+  width: var(--aoa-field-switch-track-width);
+  height: var(--aoa-field-switch-track-height);
+}
+.aoa-config-category-detail > [data-config-field-grid],
+[data-subfill-detail-card="subfill_category"] > .aoa-subfill-editor-container + [data-config-field-grid] {
+  min-width: 0;
+}
+[data-subfill-detail-card="subfill_category"] > .aoa-subfill-editor-container + [data-config-field-grid] {
+  margin-top: var(--aoa-config-field-gap-y);
+}
+.aoa-config-category-detail .aoa-field-row--compact-multi {
+  grid-column: auto;
+}
+.aoa-config-category-detail [data-config-field-grid] > [data-field-layout-group-start="true"] {
+  grid-column: 1;
+}
+.aoa-config-category-actions {
+  min-width: 0;
+  margin-top: var(--aoa-config-control-gap-y);
+  padding-top: var(--aoa-config-field-gap-y);
+  border-top: 1px solid var(--aoa-config-section-border);
+}
+@media (max-width: 620px) {
+.aoa-config-category-selector {
+    grid-template-columns: minmax(0, 1fr);
+}
+.aoa-config-category-selector__item {
+    min-height: var(--aoa-control-height-md);
+    padding: var(--aoa-space-1-5) var(--aoa-space-2);
+}
+}
+
+/* Subscription-fill rule editor. The Vue component owns behavior only; this
+ * domain stylesheet owns its responsive projection and validation surface. */
+.aoa-subfill-editor-container {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  container-type: inline-size;
+}
+.aoa-subfill-editor-layout {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--aoa-config-card-gap);
+  align-items: start;
+}
+.aoa-subfill-code {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--aoa-config-field-gap-y);
+  overflow-x: clip;
+}
+.aoa-subfill-code__controls,
+.aoa-subfill-code__input,
+.aoa-subfill-projection-shell,
+.aoa-subfill-projection,
+.aoa-subfill-projection__list,
+.aoa-subfill-code-card,
+.aoa-subfill-code-card__content,
+.aoa-subfill-code-card__fields {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--aoa-config-field-gap-y);
+}
+.aoa-subfill-code__input {
+  gap: var(--aoa-config-control-gap-y);
+}
+.aoa-subfill-code__heading {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--aoa-config-field-gap-y);
+  color: var(--aoa-config-text-secondary);
+  font-size: 12px;
+}
+.aoa-subfill-code__heading strong {
+  color: var(--aoa-config-text-primary);
+  font-size: 12px;
+  font-weight: 750;
+}
+.aoa-subfill-code__heading small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.aoa-subfill-code__heading small[data-tone="error"] {
+  color: rgb(var(--v-theme-error));
+}
+.aoa-subfill-code__input textarea {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 154px;
+  max-height: 320px;
+  field-sizing: content;
+  resize: vertical;
+  overflow: auto;
+  padding: 11px 12px;
+  border: 1px solid var(--aoa-config-border);
+  border-radius: var(--aoa-config-field-radius);
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-config-field-surface);
+  font: 500 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.aoa-subfill-code__input textarea[aria-invalid="true"] {
+  border-color: rgba(var(--v-theme-error), .55);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-error), .16);
+}
+.aoa-subfill-code__help {
+  color: var(--aoa-config-text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.aoa-subfill-projection-shell {
+  align-content: start;
+}
+.aoa-subfill-projection-toggle {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: var(--aoa-config-field-gap-y);
+  padding: 8px 10px;
+  border: 1px solid var(--aoa-config-border);
+  border-radius: var(--aoa-config-field-radius);
+  color: var(--aoa-config-text-primary);
+  background: var(--aoa-config-field-surface);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.aoa-subfill-projection-toggle__label {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 750;
+}
+.aoa-subfill-projection-toggle__meta {
+  color: var(--aoa-config-text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.aoa-subfill-projection-toggle__meta--error {
+  color: rgb(var(--v-theme-error));
+}
+.aoa-subfill-projection-toggle__chevron,
+.aoa-subfill-code-card__chevron {
+  transition: transform .16s ease;
+}
+.aoa-subfill-projection-toggle__chevron--open,
+.aoa-subfill-code-card__chevron--open {
+  transform: rotate(180deg);
+}
+.aoa-subfill-projection {
+  align-content: start;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.aoa-subfill-projection__empty {
+  min-height: 88px;
+  display: grid;
+  place-items: center;
+  color: var(--aoa-config-text-secondary);
+  font-size: 12px;
+}
+.aoa-subfill-projection__list {
+  max-height: none;
+  overflow-x: clip;
+  overflow-y: visible;
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+.aoa-subfill-code-card {
+  border-radius: 8px;
+  background: var(--aoa-config-field-surface);
+  border: 1px solid var(--aoa-config-border);
+  overflow: hidden;
+}
+.aoa-subfill-code-card--error {
+  border-color: rgba(var(--v-theme-error), .42);
+}
+.aoa-subfill-code-card--error > .aoa-subfill-code-card__toggle {
+  background: rgba(var(--v-theme-error), .05);
+}
+.aoa-subfill-code-card__toggle {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: var(--aoa-config-field-gap-y);
+  padding: 8px 10px;
+  border: 0;
+  color: var(--aoa-config-text-primary);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.aoa-subfill-code-card__line,
+.aoa-subfill-code-card__summary {
+  color: var(--aoa-config-text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.aoa-subfill-code-card__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 780;
+}
+.aoa-subfill-code-card__content {
+  padding: 0 10px 10px;
+}
+.aoa-subfill-code-card__fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+.aoa-subfill-code-card__fields > div {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: 7px;
+  background: var(--aoa-config-capsule-surface);
+}
+.aoa-subfill-code-card__fields dt {
+  color: var(--aoa-config-text-secondary);
+  font-size: 11px;
+}
+.aoa-subfill-code-card__fields dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--aoa-config-text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.aoa-subfill-code-card__errors {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--aoa-config-tight-gap);
+  padding: 8px;
+  border-radius: 7px;
+  color: rgb(var(--v-theme-error));
+  background: rgba(var(--v-theme-error), .08);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.aoa-subfill-code button:focus-visible,
+.aoa-subfill-projection button:focus-visible,
+.aoa-subfill-code textarea:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+}
+.aoa-subfill-code textarea:disabled {
+  cursor: not-allowed;
+  opacity: .52;
+}
+.aoa-subfill-code--disabled {
+  opacity: .72;
+}
+@container (min-width: 760px) {
+.aoa-subfill-editor-layout[data-subfill-projection-open="true"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+}
+@media (max-width: 460px) {
+.aoa-subfill-code__heading {
+    display: grid;
+}
+.aoa-subfill-code__heading small {
+    text-align: left;
+}
+.aoa-subfill-projection-toggle {
+    grid-template-columns: minmax(0, 1fr) 18px;
+}
+.aoa-subfill-projection-toggle__meta {
+    grid-column: 1;
+    white-space: normal;
+}
+.aoa-subfill-projection-toggle__chevron {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+.aoa-subfill-code-card__toggle {
+    grid-template-columns: auto minmax(0, 1fr) 18px;
+}
+.aoa-subfill-code-card__summary {
+    grid-column: 2;
+    white-space: normal;
+}
+.aoa-subfill-code-card__title {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.aoa-subfill-code-card__chevron {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+}
+.aoa-subfill-code-card__fields {
+    grid-template-columns: minmax(0, 1fr);
+}
+}
+
+/* Automatic backup, WebDAV and one-click restore. Shared cards, fields,
+ * actions and feedback keep their base paint; this file owns backup layout. */
+[data-backup-management-surface] {
+  min-width: 0;
+  display: grid;
+  gap: var(--aoa-layout-section-gap);
+  overflow: visible;
+}
+.aoa-backup-config-panel {
+  min-width: 0;
+  display: grid;
+  gap: var(--aoa-layout-section-gap);
+}
+.aoa-backup-config-fields {
+  row-gap: var(--aoa-config-field-gap-y);
+  column-gap: var(--aoa-config-card-gap);
+}
+.aoa-backup-restore-panel {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.aoa-backup-restore-drawer__title,
+.aoa-backup-restore-drawer__state {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aoa-space-2);
+}
+.aoa-backup-restore-drawer__state {
+  justify-self: end;
+}
+.aoa-backup-restore-drawer__state small {
+  color: var(--aoa-config-text-secondary);
+  font-size: var(--aoa-type-caption-font-size);
+  line-height: var(--aoa-type-caption-line-height);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.aoa-backup-restore-drawer__chevron {
+  color: var(--aoa-config-text-muted);
+  transition: transform .18s ease;
+}
+.aoa-backup-restore-panel[open] .aoa-backup-restore-drawer__chevron {
+  transform: rotate(180deg);
+}
+.aoa-backup-restore-panel .aoa-backup-restore-drawer__content {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  gap: var(--aoa-layout-section-gap);
+  box-sizing: border-box;
+}
+.aoa-backup-restore-field--archive {
+  grid-column: 1 / -1;
+}
+.aoa-backup-restore-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+[data-backup-management-surface] > [data-backup-detail-actions] {
+  grid-column: 1 / -1;
+  margin-top: var(--aoa-config-control-gap-y);
+  padding-top: 0;
+  border-top: 0;
+  transform: none;
+  gap: var(--aoa-config-field-gap-y);
+}
+@media (max-width: 620px) {
+[data-backup-management-surface] {
+    gap: var(--aoa-config-card-gap);
+}
+[data-backup-management-surface] [data-backup-selector-card] {
+    grid-template-columns: calc(var(--aoa-control-height-sm) - var(--aoa-space-0-5)) minmax(0, 1fr) auto;
+    gap: var(--aoa-config-field-gap-y);
+    padding: var(--aoa-space-2) var(--aoa-space-2-5);
+}
+}
+@media (max-width: 760px) {
+.aoa-backup-restore-actions {
+    grid-template-columns: minmax(0, 1fr);
+}
+}

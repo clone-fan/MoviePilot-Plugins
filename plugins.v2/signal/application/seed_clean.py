@@ -123,6 +123,8 @@ class SeedCleanMixin:
                     outcome=outcome,
                     success=success,
                     component="seed_clean",
+                    task_key="seed_clean",
+                    task_group="维护任务",
                 )
             self._save_task_result(name, success, 0 if success else 1, text)
             return success
