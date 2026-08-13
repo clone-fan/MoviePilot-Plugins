@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { a1 as useTheme, am as _export_sfc, bI as mdiClose, c4 as mdiAlertOutline } from './mdi-DNDHBjvE.js';
+import { a1 as useTheme, am as _export_sfc, bI as mdiClose, c4 as mdiAlertOutline } from './mdi-DveizHBi.js';
 
 const hasOwn$1 = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
 
@@ -444,6 +444,18 @@ const actionDefinitions = [
       mpWidget: { iconKey: 'trash' },
     },
   }),
+  defineAction('run_agentopsassistant_purge', {
+    key: 'agentopsassistant_purge', component: 'plugin_uninstall', groupId: 'plugin_governance',
+    availabilityComponent: '', taskKey: '', requiresPlugin: false,
+    operationMode: ACTION_OPERATION_MODE.confirm, operationDanger: true,
+    parameters: [
+      { key: 'agentopsassistant_purge_confirm', value: true, type: 'boolean' },
+    ],
+    label: 'mp运维助手专杀', desc: '彻底清除 AgentOpsAssistant 及其运行、配置、数据和源码残留', icon: 'mdi-shield-remove-outline', tone: 'red',
+    presentations: {
+      config: { label: 'mp运维助手专杀' },
+    },
+  }),
 ];
 
 const actionRegistry = freeze(Object.fromEntries(
@@ -481,6 +493,7 @@ const configActionPaths = freeze([
   'run_plugin_update_reminder',
   'run_market_update',
   'run_plugin_uninstall',
+  'run_agentopsassistant_purge',
 ]);
 
 const mpWidgetActionPaths = quickActionPaths;
@@ -910,7 +923,9 @@ function useConfigActionRunner(form, api, installedPlugins, loadInstalledPlugins
       if (current.id === 'run_downloader_helper') {
         downloaderHelperPreview.value = res?.data?.confirm_required ? res.data : null;
       }
-      if (current.id === 'run_plugin_uninstall') await refreshAfterPluginUninstall(res);
+      if (['run_plugin_uninstall', 'run_agentopsassistant_purge'].includes(current.id)) {
+        await refreshAfterPluginUninstall(res);
+      }
     },
   });
 

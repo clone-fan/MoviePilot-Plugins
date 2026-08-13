@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, aX as mdiPlay, bu as mdiDeleteOutline, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, c4 as mdiAlertOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DNDHBjvE.js';
+import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, aX as mdiPlay, bu as mdiDeleteOutline, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, c4 as mdiAlertOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
 import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, b as buildConfigSavePayload, e as emitConfigSave, a as normalizeCurrentConfig, D as DEFAULT_DLTAG_CRON, f as dltagDeleteStrategyItems, g as dltagTaskItems, h as subscribeSubtypeItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-BE6FIqnc.js';
-import { g as getPluginApi, r as resolvePluginApi, a as getActionForSurface, A as ACTION_OPERATION_MODE, c as createPluginWorkflowClient, u as useAgentOpsTheme, b as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel } from './ActionOperationPanel-BhsDOXcn.js';
+import { g as getPluginApi, r as resolvePluginApi, a as getActionForSurface, A as ACTION_OPERATION_MODE, c as createPluginWorkflowClient, u as useAgentOpsTheme, b as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel } from './ActionOperationPanel-Bu1ZK3Qk.js';
 
 const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$l,createElementVNode:_createElementVNode$c,toDisplayString:_toDisplayString$c,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$d,normalizeClass:_normalizeClass$8} = await importShared('vue');
 
@@ -4019,6 +4019,54 @@ function useConfigActionOperation(options = {}) {
         cancelAttrs: { 'data-plugin-uninstall-confirm-cancel': '' },
       }
     }
+    if (current.id === 'run_agentopsassistant_purge') {
+      return {
+        action: current,
+        kicker: '高危专杀操作',
+        title: '确认专杀 mp 运维助手',
+        warning: '将立即彻底删除固定目标 AgentOpsAssistant，不会创建任何备份，删除后不可恢复。',
+        danger: true,
+        summaryPrimary: 'AgentOpsAssistant',
+        summarySecondary: '固定专杀目标',
+        sections: [
+          {
+            key: 'agentopsassistant-purge-target',
+            label: '固定目标',
+            attrs: { 'data-agentopsassistant-purge-confirm-target': '' },
+            items: [{
+              key: 'AgentOpsAssistant',
+              title: 'AgentOpsAssistant',
+              meta: '固定插件 ID',
+              detail: '目标不可修改，不读取通用插件卸载选择。',
+            }],
+          },
+          {
+            key: 'agentopsassistant-purge-effects',
+            label: '专杀后果',
+            attrs: { 'data-agentopsassistant-purge-confirm-effects': '' },
+            items: [
+              {
+                key: 'agentopsassistant-purge-no-backup',
+                title: '不会备份',
+                detail: '不保留 AgentOpsAssistant 的配置、数据、源码或运行残留。',
+              },
+              {
+                key: 'agentopsassistant-purge-irreversible',
+                title: '不可恢复',
+                detail: '确认后立即执行彻底清除，无法从 Signal 撤销。',
+              },
+            ],
+          },
+        ],
+        confirmLabel: '确认专杀',
+        cancelLabel: '取消',
+        confirmIconPath: mdiDeleteOutline,
+        returnFocusSelector: `[data-config-action-path="${current.path}"]`,
+        rootAttrs: { 'data-agentopsassistant-purge-confirm-dialog': '' },
+        confirmAttrs: { 'data-agentopsassistant-purge-confirm-submit': '' },
+        cancelAttrs: { 'data-agentopsassistant-purge-confirm-cancel': '' },
+      }
+    }
     if (current.id === 'run_downloader_helper') {
       return {
         action: current,
@@ -4565,6 +4613,7 @@ const iconPaths = {
   'mdi-plus-circle-outline': mdiPlusCircleOutline,
   'mdi-eye-outline': mdiEyeOutline,
   'mdi-shield-check-outline': mdiShieldCheckOutline,
+  'mdi-shield-remove-outline': mdiShieldRemoveOutline,
   'mdi-bell': mdiBell,
   'mdi-bell-outline': mdiBellOutline,
   'mdi-download': mdiDownload,
@@ -5060,7 +5109,7 @@ const replicaCards = computed(() => {
       {
         type: 'actions',
         danger: true,
-        actions: getActionsForSurface(['run_plugin_uninstall'], 'config'),
+        actions: getActionsForSurface(['run_plugin_uninstall', 'run_agentopsassistant_purge'], 'config'),
       },
     ],
   }), replicaItemSources.value));

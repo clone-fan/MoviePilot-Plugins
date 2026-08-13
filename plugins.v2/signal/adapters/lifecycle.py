@@ -24,14 +24,11 @@ class LifecycleMixin:
         self._runtime_timers = set()
         self._msg_seen = {}
         self._last_summary = self._build_summary()
-        try:
-            cleanup = self._cleanup_pending_plugin_uninstall_isolation()
-            if cleanup.get("errors"):
-                logger.warning(f"Signal 插件卸载临时目录续清理未完成：{'；'.join(cleanup['errors'][:3])}")
-        except Exception as err:
-            logger.warning(f"Signal 插件卸载临时目录续清理失败：{err}")
+        # Plugin initialization must not perform destructive filesystem work.
+        # Uninstall isolation is handled only by the explicitly confirmed
+        # uninstall workflow, never as an implicit startup side effect.
 
-    def _stop_runtime_state(self):
+    def _stop_runtime_state(self) -> bool:
         self._runtime_active = False
         self._runtime_generation = int(getattr(self, "_runtime_generation", 0) or 0) + 1
         cancel_event = getattr(self, "_runtime_cancel_event", None)
@@ -39,21 +36,143 @@ class LifecycleMixin:
             cancel_event = threading.Event()
             self._runtime_cancel_event = cancel_event
         cancel_event.set()
+        errors = []
         for timer in list(getattr(self, "_runtime_timers", set()) or set()):
             try:
                 timer.cancel()
-            except Exception:
-                pass
+            except Exception as err:
+                errors.append(f"{type(timer).__name__}: {err}")
         self._runtime_timers = set()
+        if errors:
+            logger.error(f"Signal 运行时停止未完成：定时器取消失败：{'；'.join(errors[:3])}")
+            return False
+        return True
 
-    def _cleanup_scheduler_jobs(self):
+    @classmethod
+    def _scheduler_nested_value_matches_plugin(cls, value: Any, plugin_id: str) -> bool:
+        if isinstance(value, dict):
+            return any(
+                cls._scheduler_nested_value_matches_plugin(key, plugin_id)
+                or cls._scheduler_nested_value_matches_plugin(item, plugin_id)
+                for key, item in value.items()
+            )
+        if isinstance(value, (list, tuple, set)):
+            return any(cls._scheduler_nested_value_matches_plugin(item, plugin_id) for item in value)
+        return cls._scheduler_value_matches_plugin(value, plugin_id)
+
+    @staticmethod
+    def _scheduler_value_matches_plugin(value: Any, plugin_id: str) -> bool:
+        target = str(plugin_id or "").strip().lower()
+        text = str(value or "").strip().lower()
+        if not target or not text:
+            return False
+        return text == target or any(
+            text.startswith(f"{target}{separator}")
+            for separator in (".", ":", "-", "_", "|")
+        )
+
+    @classmethod
+    def _scheduler_record_matches_plugin(cls, record: Any, plugin_id: str) -> bool:
+        if isinstance(record, dict):
+            values = [
+                record.get(key)
+                for key in ("pid", "plugin_id", "plugin", "id", "job_id", "provider", "provider_name", "kwargs")
+            ]
+        else:
+            values = [
+                getattr(record, key, "")
+                for key in ("pid", "plugin_id", "plugin", "id", "job_id", "provider", "provider_name", "kwargs")
+            ]
+        return any(cls._scheduler_nested_value_matches_plugin(value, plugin_id) for value in values)
+
+    @classmethod
+    def _verify_scheduler_jobs_removed(cls, scheduler: Any, plugin_id: str) -> Dict[str, Any]:
+        """Verify both MoviePilot's registry and APScheduler contain no plugin jobs."""
+        residues = []
+        errors = []
+        inspected = 0
+
+        def inspect_jobs(source: str, jobs: Any):
+            nonlocal inspected
+            inspected += 1
+            if isinstance(jobs, dict):
+                records = list(jobs.items())
+            else:
+                records = [(None, item) for item in list(jobs or [])]
+            for key, record in records:
+                if (
+                    (key is not None and cls._scheduler_value_matches_plugin(key, plugin_id))
+                    or cls._scheduler_record_matches_plugin(record, plugin_id)
+                ):
+                    identity = key if key is not None else getattr(record, "id", "") or getattr(record, "name", "")
+                    residues.append(f"{source}:{identity or type(record).__name__}")
+
+        if hasattr(scheduler, "_jobs"):
+            try:
+                inspect_jobs("registry", getattr(scheduler, "_jobs", None) or {})
+            except Exception as err:
+                errors.append(f"读取 MoviePilot 调度注册表失败：{err}")
+
+        if hasattr(scheduler, "_scheduler"):
+            backend = getattr(scheduler, "_scheduler", None)
+            if backend is None:
+                inspected += 1
+            else:
+                get_backend_jobs = getattr(backend, "get_jobs", None)
+                if callable(get_backend_jobs):
+                    try:
+                        inspect_jobs("apscheduler", get_backend_jobs() or [])
+                    except Exception as err:
+                        errors.append(f"读取 APScheduler 任务失败：{err}")
+                else:
+                    errors.append("APScheduler 不支持任务复核")
+
+        if not hasattr(scheduler, "_jobs") and not hasattr(scheduler, "_scheduler"):
+            list_jobs = getattr(scheduler, "list", None) or getattr(scheduler, "get_jobs", None)
+            if callable(list_jobs):
+                try:
+                    inspect_jobs("public", list_jobs() or [])
+                except Exception as err:
+                    errors.append(f"读取 MoviePilot 调度任务失败：{err}")
+
+        return {
+            "verified": inspected > 0 and not errors,
+            "residues": sorted(set(residues)),
+            "errors": errors,
+        }
+
+    def _cleanup_scheduler_jobs(self) -> bool:
         try:
             from app.scheduler import Scheduler
             scheduler = Scheduler()
-            if hasattr(scheduler, "remove_plugin_job"):
-                scheduler.remove_plugin_job("Signal")
         except Exception as err:
-            logger.warning(f"Signal scheduler cleanup failed: {err}")
+            logger.error(f"Signal 调度注销未完成：无法加载 MoviePilot 调度器：{err}")
+            return False
+
+        remove_plugin_job = getattr(scheduler, "remove_plugin_job", None)
+        if not callable(remove_plugin_job):
+            logger.error("Signal 调度注销未完成：MoviePilot 调度器缺少 remove_plugin_job")
+            return False
+        try:
+            removed = remove_plugin_job("Signal")
+        except Exception as err:
+            logger.error(f"Signal 调度注销未完成：remove_plugin_job 执行失败：{err}")
+            return False
+        if removed is False:
+            logger.error("Signal 调度注销未完成：remove_plugin_job 明确返回失败")
+            return False
+
+        verification = self._verify_scheduler_jobs_removed(scheduler, "Signal")
+        if verification["errors"]:
+            logger.error(f"Signal 调度注销未完成：{'；'.join(verification['errors'][:3])}")
+            return False
+        if not verification["verified"]:
+            logger.error("Signal 调度注销未完成：MoviePilot 未提供可验证的任务注册表")
+            return False
+        if verification["residues"]:
+            logger.error(f"Signal 调度注销未完成：复核仍有残留：{'；'.join(verification['residues'][:5])}")
+            return False
+        return True
 
     def _is_runtime_active(self, generation: Optional[int] = None) -> bool:
         if not bool(getattr(self, "_enabled", False)):

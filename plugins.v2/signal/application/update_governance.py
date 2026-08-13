@@ -292,7 +292,7 @@ class UpdateGovernanceMixin:
                 if not (apply and auto_install):
                     continue
                 # 安全：永不自动更新本插件自身；尊重排除/仅选名单；运行中不动
-                if pid.lower() in {"signal", "moviepilot"} or pid in exclude:
+                if pid.lower() in {"signal", "moviepilot", "agentopsassistant"} or pid in exclude:
                     out["skipped"].append({**info, "reason": "排除/本体"})
                     continue
                 if scope_mode == "include" and pid not in include:

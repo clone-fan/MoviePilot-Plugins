@@ -2648,6 +2648,9 @@ body[data-theme="transparent"] .aoa-root,
 .aoa-design-actions--single {
   grid-template-columns: minmax(0, 1fr);
 }
+.aoa-plugin-uninstall-actions .aoa-design-actions {
+  grid-template-columns: minmax(0, 1fr);
+}
 .aoa-design-actions--single .aoa-design-action-btn {
   width: 100%;
   max-width: 100%;

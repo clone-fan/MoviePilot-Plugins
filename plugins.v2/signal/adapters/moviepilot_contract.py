@@ -71,6 +71,8 @@ class PluginContractMixin:
             {"path": "/run_plugin_auto_install", "endpoint": self.api_run_plugin_auto_install, "auth": "bear", "methods": ["POST"], "summary": "执行插件自动安装"},
             {"path": "/preview_plugin_uninstall", "endpoint": self.api_preview_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "预览插件卸载与残留清理范围"},
             {"path": "/run_plugin_uninstall", "endpoint": self.api_run_plugin_uninstall, "auth": "bear", "methods": ["POST"], "summary": "执行插件卸载与残留清理"},
+            {"path": "/agentopsassistant_purge_status", "endpoint": self.api_agentopsassistant_purge_status, "auth": "bear", "methods": ["GET"], "summary": "只读检查 AgentOpsAssistant 固定目标残留"},
+            {"path": "/run_agentopsassistant_purge", "endpoint": self.api_run_agentopsassistant_purge, "auth": "bear", "methods": ["POST"], "summary": "无备份彻底专杀固定目标 AgentOpsAssistant"},
             {"path": "/run_seed_clean", "endpoint": self.api_run_seed_clean, "auth": "bear", "methods": ["POST"], "summary": "立即执行自动删种"},
             {"path": "/downloaders", "endpoint": self.api_downloaders, "auth": "bear", "methods": ["GET"], "summary": "已配置下载器列表，供自动删种下拉选择"},
             {"path": "/mediaservers", "endpoint": self.api_mediaservers, "auth": "bear", "methods": ["GET"], "summary": "已配置媒体服务器列表，供媒体库通知过滤"},
@@ -219,10 +221,14 @@ class PluginContractMixin:
 
     def stop_service(self):
         try:
-            self._stop_runtime_state()
+            runtime_stopped = self._stop_runtime_state()
+            if runtime_stopped is False:
+                logger.error("Signal 运行时停止未完成")
         except Exception as err:
-            logger.warning(f"Signal stop_service cleanup failed: {err}")
+            logger.error(f"Signal 运行时停止未完成：{err}")
         try:
-            self._cleanup_scheduler_jobs()
+            scheduler_cleaned = self._cleanup_scheduler_jobs()
+            if scheduler_cleaned is False:
+                logger.error("Signal 调度注销未完成")
         except Exception as err:
-            logger.warning(f"Signal scheduler cleanup failed: {err}")
+            logger.error(f"Signal 调度注销未完成：{err}")

@@ -1,12 +1,9 @@
 """Subscribe reminder service mixin."""
 
-import json
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Tuple
 
 from app.log import logger
-from app.schemas import NotificationType
 
 from ..domain.fusion_event import FusionEvent
 
@@ -58,33 +55,14 @@ class SubscribeReminderMixin:
             return False
     def _load_subscribereminder_today_realtime_locked(self) -> Tuple[bool, List[str]]:
         try:
-            return True, self._load_subscribereminder_today_fallback_impl()
+            return True, self._compute_today_subscribe_updates_impl()
         except Exception as err:
             logger.warning(f"Signal 订阅追新实时计算失败：{err}")
             return False, []
     def _load_subscribereminder_today_locked(self) -> List[str]:
-        try:
-            sub_file = Path("/config/agent/runtime/cache/subscribereminder_last_push.json")
-            if not sub_file.exists():
-                return []
-            data = json.loads(sub_file.read_text(encoding="utf-8"))
-            if not str(data.get("time") or "").startswith(self._today_prefix()):
-                return []
-            lines = []
-            for raw in str(data.get("text") or "").splitlines():
-                s = raw.strip()
-                if not s:
-                    continue
-                lines.append(s.lstrip("???").lstrip("??").strip())
-            return lines
-        except Exception:
-            return []
-    def _load_subscribereminder_today_fallback_locked(self) -> List[str]:
-        try:
-            return self._load_subscribereminder_today_fallback_impl()
-        except Exception:
-            return []
-    def _load_subscribereminder_today_fallback_impl(self) -> List[str]:
+        """Never consume another plugin's cache after live calculation fails."""
+        return []
+    def _compute_today_subscribe_updates_impl(self) -> List[str]:
         from app.chain.media import MediaChain
         from app.chain.tmdb import TmdbChain
         from app.db.subscribe_oper import SubscribeOper

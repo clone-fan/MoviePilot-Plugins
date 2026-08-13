@@ -1,6 +1,6 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-D2SSly3D.js","assets/__federation_fn_import-JrT3xvdd.js","assets/ActionOperationPanel-BhsDOXcn.js","assets/mdi-DNDHBjvE.js","assets/ActionOperationPanel-C4IH6C8_.css","assets/__federation_expose_Dashboard-CoLNkZ6x.css","assets/__federation_expose_Config-STE5ASjS.js","assets/__federation_expose_AppPageConfig-CxqT-0E3.js","assets/save-payload-BE6FIqnc.js","assets/__federation_expose_AppPageConfig-DzGtN0EQ.css"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-Cdh4RBVy.js","assets/__federation_fn_import-JrT3xvdd.js","assets/ActionOperationPanel-Bu1ZK3Qk.js","assets/mdi-DveizHBi.js","assets/ActionOperationPanel-C4IH6C8_.css","assets/__federation_expose_Dashboard-CoLNkZ6x.css","assets/__federation_expose_Config-ishGPSZb.js","assets/__federation_expose_AppPageConfig-BE8Qev10.js","assets/save-payload-BE6FIqnc.js","assets/__federation_expose_AppPageConfig-Z6t0Sf8v.css"])))=>i.map(i=>d[i]);
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { i as includes, a as isOn, e as eventName, p as propsFactory, g as getCurrentInstance$1, m as mergeDeep, t as toKebabCase, c as consoleWarn, b as pick, d as getObjectValueByPath, f as consoleError, h as padStart, j as createRange, I as IN_BROWSER, S as SUPPORTS_TOUCH, k as getCurrentInstanceName, l as clamp, r as refElement, n as templateRef, o as convertToUnit, q as findChildrenWithProvide, s as getUid, u as createTheme, T as ThemeSymbol, v as provideTheme, w as makeThemeProps, x as destructComputed, y as isCssColor, z as isParsableColor, A as parseColor, B as getForeground, C as SUPPORTS_INTERSECTION, D as deepEqual, E as wrapInArray, F as flattenFragments, G as hasEvent, H as isObject, J as keyCodes, K as EventProp, L as filterInputAttrs, M as matchesSelector, N as omit, O as only, P as focusableChildren, Q as deprecate, R as getPropertyFromItem, U as focusChild, V as defer, W as isClickInsideElement, X as getNextElement, Y as callEvent, Z as debounce, _ as ensureValidVNode, $ as checkPrintable, a0 as noop, a1 as useTheme, a2 as pickWithRest, a3 as keys, a4 as getEventCoordinates, a5 as HexToHSV, a6 as HSVtoHex, a7 as HSLtoHSV, a8 as HSVtoHSL, a9 as RGBtoHSV, aa as HSVtoRGB, ab as has, ac as getDecimals, ad as keyValues, ae as SUPPORTS_EYE_DROPPER, af as HSVtoCSS, ag as RGBtoCSS, ah as getContrast, ai as isComposingIgnoreKey, aj as isEmpty, ak as humanReadableFileSize, al as CircularBuffer, am as _export_sfc, an as chunkArray, ao as mdiWeight, ap as mdiWeb, aq as mdiViewGridOutline, ar as mdiViewDashboardOutline, as as mdiUpdate, at as mdiTuneVariant, au as mdiTimerOutline, av as mdiTimerCogOutline, aw as mdiTelevisionPlay, ax as mdiTelevision, ay as mdiTagPlusOutline, az as mdiTagOutline, aA as mdiTagMultipleOutline, aB as mdiSync, aC as mdiSignal, aD as mdiShieldSyncOutline, aE as mdiShieldOutline, aF as mdiShieldHalfFull, aG as mdiShieldCheckOutline, aH as mdiShieldAlertOutline, aI as mdiServerNetwork, aJ as mdiServer, aK as mdiSendOutline, aL as mdiScaleBalance, aM as mdiSatelliteUplink, aN as mdiRssBox, aO as mdiRocketLaunchOutline, aP as mdiRefresh, aQ as mdiPuzzleRemoveOutline, aR as mdiPuzzlePlusOutline, aS as mdiPuzzleOutline, aT as mdiPuzzleCheckOutline, aU as mdiPuzzle, aV as mdiPowerStandby, aW as mdiPlusCircleOutline, aX as mdiPlay, aY as mdiPercent, aZ as mdiPencilOutline, a_ as mdiNewspaperVariantOutline, a$ as mdiMovieOpenOutline, b0 as mdiMovieOpenCogOutline, b1 as mdiMessageBadgeOutline, b2 as mdiLockOutline, b3 as mdiLockCheckOutline, b4 as mdiLinkVariant, b5 as mdiLightningBoltOutline, b6 as mdiLayersTripleOutline, b7 as mdiLayersOutline, b8 as mdiInformationOutline, b9 as mdiHistory, ba as mdiHeartPulse, bb as mdiHarddisk, bc as mdiGauge, bd as mdiFormatListNumbered, be as mdiFormatListChecks, bf as mdiFormatListBulleted, bg as mdiFormTextbox, bh as mdiFolderOutline, bi as mdiFolderKeyOutline, bj as mdiFolderCheckOutline, bk as mdiFolderArrowUpOutline, bl as mdiFilterOutline, bm as mdiFileEyeOutline, bn as mdiFileDocumentRemoveOutline, bo as mdiEmailOutline, bp as mdiDownloadOutline, bq as mdiDownloadNetworkOutline, br as mdiDownloadCircleOutline, bs as mdiDownload, bt as mdiDeleteSweepOutline, bu as mdiDeleteOutline, bv as mdiDatabaseOutline, bw as mdiDatabaseCheckOutline, bx as mdiDatabaseArrowUpOutline, by as mdiCubeOutline, bz as mdiContentSaveOutline, bA as mdiContentCopy, bB as mdiCogOutline, bC as mdiCodeTags, bD as mdiCloudUploadOutline, bE as mdiCloudSyncOutline, bF as mdiCloudSearchOutline, bG as mdiCloudRefreshOutline, bH as mdiCloudOutline, bI as mdiClose, bJ as mdiChevronRight, bK as mdiCheckDecagramOutline, bL as mdiCheckCircleOutline, bM as mdiCheck, bN as mdiChartPie, bO as mdiChartLineVariant, bP as mdiChartLine, bQ as mdiChartBar, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, bT as mdiCalendarClock, bU as mdiBroom, bV as mdiBlockHelper, bW as mdiBellRingOutline, bX as mdiBellOutline, bY as mdiBellCogOutline, bZ as mdiBellBadgeOutline, b_ as mdiBell, b$ as mdiBackupRestore, c0 as mdiAutoFix, c1 as mdiArchiveSearchOutline, c2 as mdiArchiveArrowUpOutline, c3 as mdiAlphaMBoxOutline, c4 as mdiAlertOutline, c5 as mdiAlertCircleOutline, c6 as mdiAccountOutline } from './mdi-DNDHBjvE.js';
+import { i as includes, a as isOn, e as eventName, p as propsFactory, g as getCurrentInstance$1, m as mergeDeep, t as toKebabCase, c as consoleWarn, b as pick, d as getObjectValueByPath, f as consoleError, h as padStart, j as createRange, I as IN_BROWSER, S as SUPPORTS_TOUCH, k as getCurrentInstanceName, l as clamp, r as refElement, n as templateRef, o as convertToUnit, q as findChildrenWithProvide, s as getUid, u as createTheme, T as ThemeSymbol, v as provideTheme, w as makeThemeProps, x as destructComputed, y as isCssColor, z as isParsableColor, A as parseColor, B as getForeground, C as SUPPORTS_INTERSECTION, D as deepEqual, E as wrapInArray, F as flattenFragments, G as hasEvent, H as isObject, J as keyCodes, K as EventProp, L as filterInputAttrs, M as matchesSelector, N as omit, O as only, P as focusableChildren, Q as deprecate, R as getPropertyFromItem, U as focusChild, V as defer, W as isClickInsideElement, X as getNextElement, Y as callEvent, Z as debounce, _ as ensureValidVNode, $ as checkPrintable, a0 as noop, a1 as useTheme, a2 as pickWithRest, a3 as keys, a4 as getEventCoordinates, a5 as HexToHSV, a6 as HSVtoHex, a7 as HSLtoHSV, a8 as HSVtoHSL, a9 as RGBtoHSV, aa as HSVtoRGB, ab as has, ac as getDecimals, ad as keyValues, ae as SUPPORTS_EYE_DROPPER, af as HSVtoCSS, ag as RGBtoCSS, ah as getContrast, ai as isComposingIgnoreKey, aj as isEmpty, ak as humanReadableFileSize, al as CircularBuffer, am as _export_sfc, an as chunkArray, ao as mdiWeight, ap as mdiWeb, aq as mdiViewGridOutline, ar as mdiViewDashboardOutline, as as mdiUpdate, at as mdiTuneVariant, au as mdiTimerOutline, av as mdiTimerCogOutline, aw as mdiTelevisionPlay, ax as mdiTelevision, ay as mdiTagPlusOutline, az as mdiTagOutline, aA as mdiTagMultipleOutline, aB as mdiSync, aC as mdiSignal, aD as mdiShieldSyncOutline, aE as mdiShieldOutline, aF as mdiShieldHalfFull, aG as mdiShieldCheckOutline, aH as mdiShieldAlertOutline, aI as mdiServerNetwork, aJ as mdiServer, aK as mdiSendOutline, aL as mdiScaleBalance, aM as mdiSatelliteUplink, aN as mdiRssBox, aO as mdiRocketLaunchOutline, aP as mdiRefresh, aQ as mdiPuzzleRemoveOutline, aR as mdiPuzzlePlusOutline, aS as mdiPuzzleOutline, aT as mdiPuzzleCheckOutline, aU as mdiPuzzle, aV as mdiPowerStandby, aW as mdiPlusCircleOutline, aX as mdiPlay, aY as mdiPercent, aZ as mdiPencilOutline, a_ as mdiNewspaperVariantOutline, a$ as mdiMovieOpenOutline, b0 as mdiMovieOpenCogOutline, b1 as mdiMessageBadgeOutline, b2 as mdiLockOutline, b3 as mdiLockCheckOutline, b4 as mdiLinkVariant, b5 as mdiLightningBoltOutline, b6 as mdiLayersTripleOutline, b7 as mdiLayersOutline, b8 as mdiInformationOutline, b9 as mdiHistory, ba as mdiHeartPulse, bb as mdiHarddisk, bc as mdiGauge, bd as mdiFormatListNumbered, be as mdiFormatListChecks, bf as mdiFormatListBulleted, bg as mdiFormTextbox, bh as mdiFolderOutline, bi as mdiFolderKeyOutline, bj as mdiFolderCheckOutline, bk as mdiFolderArrowUpOutline, bl as mdiFilterOutline, bm as mdiFileEyeOutline, bn as mdiFileDocumentRemoveOutline, bo as mdiEmailOutline, bp as mdiDownloadOutline, bq as mdiDownloadNetworkOutline, br as mdiDownloadCircleOutline, bs as mdiDownload, bt as mdiDeleteSweepOutline, bu as mdiDeleteOutline, bv as mdiDatabaseOutline, bw as mdiDatabaseCheckOutline, bx as mdiDatabaseArrowUpOutline, by as mdiCubeOutline, bz as mdiContentSaveOutline, bA as mdiContentCopy, bB as mdiCogOutline, bC as mdiCodeTags, bD as mdiCloudUploadOutline, bE as mdiCloudSyncOutline, bF as mdiCloudSearchOutline, bG as mdiCloudRefreshOutline, bH as mdiCloudOutline, bI as mdiClose, bJ as mdiChevronRight, bK as mdiCheckDecagramOutline, bL as mdiCheckCircleOutline, bM as mdiCheck, bN as mdiChartPie, bO as mdiChartLineVariant, bP as mdiChartLine, bQ as mdiChartBar, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, bT as mdiCalendarClock, bU as mdiBroom, bV as mdiBlockHelper, bW as mdiBellRingOutline, bX as mdiBellOutline, bY as mdiBellCogOutline, bZ as mdiBellBadgeOutline, b_ as mdiBell, b$ as mdiBackupRestore, c0 as mdiAutoFix, c1 as mdiArchiveSearchOutline, c2 as mdiArchiveArrowUpOutline, c3 as mdiAlphaMBoxOutline, c4 as mdiAlertOutline, c5 as mdiAlertCircleOutline, c6 as mdiAccountOutline } from './mdi-DveizHBi.js';
 import { s as serializeConfigSavePayload, r as reloadConfigSavePayload } from './save-payload-BE6FIqnc.js';
 
 true&&(function polyfill() {
@@ -26765,6 +26765,7 @@ const downloaderOverview = {
 const listPayloads = {
   installed_plugins: [
     { id: 'Signal', plugin_name: 'Signal', plugin_version: '2.1.0', state: true },
+    { id: 'AgentOpsAssistant', plugin_name: 'MP 运维助手', plugin_version: '1.0.0', state: true },
     { id: 'TorrentRemover', plugin_name: 'Torrent remover', plugin_version: '1.2.0', state: true },
   ],
   tg_console_status: dashboard.tg_console,
@@ -26897,6 +26898,30 @@ const mockApi = {
           code: 0,
           msg: '插件卸载执行成功',
           data: { path: key, payload, uninstalled },
+        },
+      }
+    }
+    if (key === 'run_agentopsassistant_purge') {
+      if (payload?.agentopsassistant_purge_confirm !== true || Object.keys(payload || {}).length !== 1) {
+        return {
+          data: {
+            code: 1,
+            msg: '专杀确认参数无效',
+            data: { path: key },
+          },
+        }
+      }
+      listPayloads.installed_plugins = listPayloads.installed_plugins
+        .filter(plugin => plugin.id !== 'AgentOpsAssistant');
+      return {
+        data: {
+          code: 0,
+          msg: 'AgentOpsAssistant 专杀完成',
+          data: {
+            path: key,
+            payload,
+            uninstalled: [{ plugin_id: 'AgentOpsAssistant', success: true }],
+          },
         },
       }
     }
@@ -27142,13 +27167,13 @@ computed$h(() => {
 
 const DashboardComponent = defineAsyncComponent(() => (
   loaderMode.value === 'source'
-    ? __vitePreload(() => import('./__federation_expose_Dashboard-D2SSly3D.js'),true?__vite__mapDeps([0,1,2,3,4,5]):void 0).then(module => module.default)
+    ? __vitePreload(() => import('./__federation_expose_Dashboard-Cdh4RBVy.js'),true?__vite__mapDeps([0,1,2,3,4,5]):void 0).then(module => module.default)
     : loadAgentOpsRemoteComponent('./Dashboard', remoteEntryUrl)
 ));
 
 const ConfigComponent = defineAsyncComponent(() => (
   loaderMode.value === 'source'
-    ? __vitePreload(() => import('./__federation_expose_Config-STE5ASjS.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
+    ? __vitePreload(() => import('./__federation_expose_Config-ishGPSZb.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
     : loadAgentOpsRemoteComponent('./Config', remoteEntryUrl)
 ));
 const modeTitle = computed$h(() => {

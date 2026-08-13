@@ -412,6 +412,54 @@ class MpApiMixin:
         ok, data = self._run_plugin_uninstall_clean(override=override)
         return {"code": 0 if ok else 1, "msg": "插件卸载执行成功" if ok else "插件卸载未执行或失败，详情请查看插件日志。", "data": data}
 
+    def api_agentopsassistant_purge_status(self) -> Dict[str, Any]:
+        """Read-only fixed-target audit; never deletes or creates a backup."""
+        try:
+            data = self._build_agentopsassistant_purge_status()
+            if data.get("clean"):
+                msg = "AgentOpsAssistant 已彻底清除，未发现残留。"
+            else:
+                msg = f"检测到 {data.get('residue_count', 0)} 项 AgentOpsAssistant 残留。"
+            return {"code": 0 if data.get("success") else 1, "msg": msg, "data": data}
+        except Exception as err:
+            logger.error(f"Signal AgentOpsAssistant 专杀状态读取失败：{err}")
+            return {"code": 1, "msg": f"AgentOpsAssistant 专杀状态读取失败：{err}", "data": {}}
+
+    def api_run_agentopsassistant_purge(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Irreversibly purge the one hard-coded legacy target without backup."""
+        request = dict(payload or {})
+        confirmed = (
+            set(request) == {"agentopsassistant_purge_confirm"}
+            and type(request.get("agentopsassistant_purge_confirm")) is bool
+            and request.get("agentopsassistant_purge_confirm") is True
+        )
+        if not confirmed:
+            msg = "mp运维助手专杀只接受固定目标 AgentOpsAssistant 的一次性布尔确认；不会备份，操作不可恢复。"
+            return {
+                "code": 1,
+                "msg": msg,
+                "data": {
+                    "target": "AgentOpsAssistant",
+                    "confirm_required": True,
+                    "no_backup": True,
+                    "irreversible": True,
+                    "success": False,
+                    "errors": [msg],
+                },
+            }
+        try:
+            data = self._run_agentopsassistant_purge()
+            ok = bool(data.get("success"))
+            msg = "AgentOpsAssistant 专杀完成，终态复核无残留。" if ok else "AgentOpsAssistant 专杀未完成，终态复核仍有残留。"
+            return {"code": 0 if ok else 1, "msg": msg, "data": data}
+        except Exception as err:
+            logger.error(f"Signal AgentOpsAssistant 专杀执行失败：{err}")
+            return {
+                "code": 1,
+                "msg": f"AgentOpsAssistant 专杀执行失败：{err}",
+                "data": {"target": "AgentOpsAssistant", "no_backup": True, "success": False, "errors": [str(err)]},
+            }
+
     def api_tg_console_status(self) -> Dict[str, Any]:
         return {"code": 0, "data": self._tg_console_status_data()}
 
