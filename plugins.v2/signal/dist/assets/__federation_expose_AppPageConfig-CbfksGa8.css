@@ -2651,6 +2651,60 @@ body[data-theme="transparent"] .aoa-root,
 .aoa-plugin-uninstall-actions .aoa-design-actions {
   grid-template-columns: minmax(0, 1fr);
 }
+.aoa-plugin-uninstall-purge-field {
+  --aoa-field-row-label-track: minmax(0, 1fr);
+  --aoa-field-row-control-track: auto;
+}
+.aoa-plugin-uninstall-purge-field .aoa-field-row__label {
+  align-items: center;
+  column-gap: var(--aoa-space-1);
+}
+.aoa-plugin-uninstall-purge-field .aoa-field-row__label-text {
+  font-size: 11px;
+  line-height: 1.25;
+}
+.aoa-plugin-uninstall-purge-field .aoa-field-row__control {
+  width: auto;
+  min-width: 0;
+  justify-self: end;
+  justify-content: flex-end;
+}
+.aoa-plugin-uninstall-purge-button {
+  min-width: 52px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid rgba(var(--v-theme-error), 0.34);
+  border-radius: var(--aoa-radius-pill);
+  color: rgb(var(--v-theme-error));
+  background: rgba(var(--v-theme-error), 0.12);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: var(--aoa-font-weight-bold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--aoa-interaction-transition);
+}
+.aoa-plugin-uninstall-purge-button:not(:disabled):hover {
+  border-color: rgba(var(--v-theme-error), 0.52);
+  background: rgba(var(--v-theme-error), 0.18);
+}
+.aoa-plugin-uninstall-purge-button:not(:disabled):active {
+  transform: var(--aoa-interaction-pressed-transform);
+}
+.aoa-plugin-uninstall-purge-button:focus-visible {
+  outline: var(--aoa-interaction-focus-outline);
+  outline-offset: var(--aoa-interaction-focus-offset);
+}
+.aoa-plugin-uninstall-purge-button:disabled,
+.aoa-plugin-uninstall-purge-button--running {
+  opacity: var(--aoa-field-disabled-opacity);
+  cursor: not-allowed;
+}
 .aoa-design-actions--single .aoa-design-action-btn {
   width: 100%;
   max-width: 100%;

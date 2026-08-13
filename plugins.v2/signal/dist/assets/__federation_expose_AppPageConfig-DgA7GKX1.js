@@ -3,7 +3,7 @@ import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutlin
 import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, b as buildConfigSavePayload, e as emitConfigSave, a as normalizeCurrentConfig, D as DEFAULT_DLTAG_CRON, f as dltagDeleteStrategyItems, g as dltagTaskItems, h as subscribeSubtypeItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-BE6FIqnc.js';
 import { g as getPluginApi, r as resolvePluginApi, a as getActionForSurface, A as ACTION_OPERATION_MODE, c as createPluginWorkflowClient, u as useAgentOpsTheme, b as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel } from './ActionOperationPanel-Bu1ZK3Qk.js';
 
-const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$l,createElementVNode:_createElementVNode$c,toDisplayString:_toDisplayString$c,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$d,normalizeClass:_normalizeClass$8} = await importShared('vue');
+const {resolveComponent:_resolveComponent$5,createVNode:_createVNode$l,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$9} = await importShared('vue');
 
 
 const _hoisted_1$p = ["data-html-replica-card", "data-flat-config-section", "data-cron-card", "data-schedule-card", "data-notify-card"];
@@ -11,10 +11,10 @@ const _hoisted_2$h = {
   key: 0,
   class: "aoa-config-card__head aoa-design-section-title"
 };
-const _hoisted_3$c = { class: "aoa-config-card__icon aoa-design-section-title__leading" };
-const _hoisted_4$b = { class: "aoa-config-card__copy aoa-design-section-title__text" };
-const _hoisted_5$9 = { key: 0 };
-const _hoisted_6$9 = { class: "aoa-config-card__trailing aoa-design-section-title__trailing" };
+const _hoisted_3$d = { class: "aoa-config-card__icon aoa-design-section-title__leading" };
+const _hoisted_4$c = { class: "aoa-config-card__copy aoa-design-section-title__text" };
+const _hoisted_5$a = { key: 0 };
+const _hoisted_6$a = { class: "aoa-config-card__trailing aoa-design-section-title__trailing" };
 
 
 const _sfc_main$s = {
@@ -32,10 +32,10 @@ const _sfc_main$s = {
   setup(__props) {
 
 return (_ctx, _cache) => {
-  const _component_VIcon = _resolveComponent$4("VIcon");
+  const _component_VIcon = _resolveComponent$5("VIcon");
 
   return (_openBlock$s(), _createElementBlock$p("section", {
-    class: _normalizeClass$8(["aoa-config-card aoa-design-section-card", [`aoa-config-card--${__props.cardType}`, { 'aoa-surface-card': !__props.embedded, 'aoa-surface-section': !__props.embedded, 'aoa-config-card--locked': __props.locked, 'aoa-config-card--disabled': __props.disabled, 'aoa-config-card--embedded': __props.embedded }]]),
+    class: _normalizeClass$9(["aoa-config-card aoa-design-section-card", [`aoa-config-card--${__props.cardType}`, { 'aoa-surface-card': !__props.embedded, 'aoa-surface-section': !__props.embedded, 'aoa-config-card--locked': __props.locked, 'aoa-config-card--disabled': __props.disabled, 'aoa-config-card--embedded': __props.embedded }]]),
     "data-html-replica-card": __props.embedded ? null : '',
     "data-flat-config-section": __props.embedded ? '' : null,
     "data-section-tone": "neutral",
@@ -45,31 +45,31 @@ return (_ctx, _cache) => {
   }, [
     (!__props.embedded)
       ? (_openBlock$s(), _createElementBlock$p("header", _hoisted_2$h, [
-          _createElementVNode$c("span", _hoisted_3$c, [
+          _createElementVNode$d("span", _hoisted_3$d, [
             _createVNode$l(_component_VIcon, {
               icon: __props.icon,
               size: "20"
             }, null, 8, ["icon"])
           ]),
-          _createElementVNode$c("div", _hoisted_4$b, [
-            _createElementVNode$c("h3", null, _toDisplayString$c(__props.title), 1),
+          _createElementVNode$d("div", _hoisted_4$c, [
+            _createElementVNode$d("h3", null, _toDisplayString$d(__props.title), 1),
             (__props.note)
-              ? (_openBlock$s(), _createElementBlock$p("p", _hoisted_5$9, _toDisplayString$c(__props.note), 1))
+              ? (_openBlock$s(), _createElementBlock$p("p", _hoisted_5$a, _toDisplayString$d(__props.note), 1))
               : _createCommentVNode$c("", true)
           ]),
-          _createElementVNode$c("span", _hoisted_6$9, [
-            _renderSlot$d(_ctx.$slots, "actions")
+          _createElementVNode$d("span", _hoisted_6$a, [
+            _renderSlot$e(_ctx.$slots, "actions")
           ])
         ]))
       : _createCommentVNode$c("", true),
-    _renderSlot$d(_ctx.$slots, "default")
+    _renderSlot$e(_ctx.$slots, "default")
   ], 10, _hoisted_1$p))
 }
 }
 
 };
 
-const {renderSlot:_renderSlot$c,normalizeClass:_normalizeClass$7,withCtx:_withCtx$7,openBlock:_openBlock$r,createBlock:_createBlock$9} = await importShared('vue');
+const {renderSlot:_renderSlot$d,normalizeClass:_normalizeClass$8,withCtx:_withCtx$7,openBlock:_openBlock$r,createBlock:_createBlock$9} = await importShared('vue');
 
 
 const {computed: computed$m} = await importShared('vue');
@@ -92,7 +92,7 @@ const tone = computed$m(() => props.card?.danger ? 'danger' : 'neutral');
 
 return (_ctx, _cache) => {
   return (_openBlock$r(), _createBlock$9(_sfc_main$s, {
-    class: _normalizeClass$7(["aoa-config-section-card", { 'aoa-design-section-card--danger': tone.value === 'danger' }]),
+    class: _normalizeClass$8(["aoa-config-section-card", { 'aoa-design-section-card--danger': tone.value === 'danger' }]),
     title: __props.card.title || '配置项',
     note: __props.card.note || '',
     icon: __props.card.icon || 'mdi-tune-variant',
@@ -104,10 +104,10 @@ return (_ctx, _cache) => {
     "data-effective-state": __props.effectiveState || undefined
   }, {
     actions: _withCtx$7(() => [
-      _renderSlot$c(_ctx.$slots, "actions")
+      _renderSlot$d(_ctx.$slots, "actions")
     ]),
     default: _withCtx$7(() => [
-      _renderSlot$c(_ctx.$slots, "default")
+      _renderSlot$d(_ctx.$slots, "default")
     ]),
     _: 3
   }, 8, ["class", "title", "note", "icon", "card-type", "disabled", "locked", "data-config-section-card", "data-section-tone", "data-effective-state"]))
@@ -163,7 +163,7 @@ function getConfigPageLayout(pageId) {
   return CONFIG_PAGE_LAYOUTS[id] || single(id || 'unknown')
 }
 
-const {renderSlot:_renderSlot$b,openBlock:_openBlock$q,createElementBlock:_createElementBlock$o,createCommentVNode:_createCommentVNode$b,createElementVNode:_createElementVNode$b,normalizeClass:_normalizeClass$6} = await importShared('vue');
+const {renderSlot:_renderSlot$c,openBlock:_openBlock$q,createElementBlock:_createElementBlock$o,createCommentVNode:_createCommentVNode$b,createElementVNode:_createElementVNode$c,normalizeClass:_normalizeClass$7} = await importShared('vue');
 
 
 const _hoisted_1$o = ["data-config-page", "data-config-page-mode", "data-config-category-count", "data-config-active-category", "data-effective-state"];
@@ -173,7 +173,7 @@ const _hoisted_2$g = {
   "data-config-page-categories": "",
   "aria-label": "页面分类"
 };
-const _hoisted_3$b = {
+const _hoisted_3$c = {
   class: "aoa-config-page-surface__content",
   "data-config-page-content": ""
 };
@@ -199,7 +199,7 @@ const hasCategorySlot = computed$l(() => categorized.value && Boolean(slots.cate
 
 return (_ctx, _cache) => {
   return (_openBlock$q(), _createElementBlock$o("section", {
-    class: _normalizeClass$6(["aoa-config-page-surface", `aoa-config-page-surface--${__props.layout.mode}`]),
+    class: _normalizeClass$7(["aoa-config-page-surface", `aoa-config-page-surface--${__props.layout.mode}`]),
     "data-config-page-surface": "",
     "data-config-page": __props.layout.id,
     "data-config-page-mode": __props.layout.mode,
@@ -209,14 +209,14 @@ return (_ctx, _cache) => {
   }, [
     (hasCategorySlot.value)
       ? (_openBlock$q(), _createElementBlock$o("nav", _hoisted_2$g, [
-          _renderSlot$b(_ctx.$slots, "categories", {
+          _renderSlot$c(_ctx.$slots, "categories", {
             categories: categories.value,
             activeCategory: __props.activeCategory
           })
         ]))
       : _createCommentVNode$b("", true),
-    _createElementVNode$b("div", _hoisted_3$b, [
-      _renderSlot$b(_ctx.$slots, "default")
+    _createElementVNode$c("div", _hoisted_3$c, [
+      _renderSlot$c(_ctx.$slots, "default")
     ])
   ], 10, _hoisted_1$o))
 }
@@ -224,18 +224,18 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$a,normalizeClass:_normalizeClass$5,openBlock:_openBlock$p,createElementBlock:_createElementBlock$n,createCommentVNode:_createCommentVNode$a,resolveComponent:_resolveComponent$3,mergeProps:_mergeProps$5,createBlock:_createBlock$8,toDisplayString:_toDisplayString$b,createTextVNode:_createTextVNode$5,withCtx:_withCtx$6,createVNode:_createVNode$k,createSlots:_createSlots} = await importShared('vue');
+const {createElementVNode:_createElementVNode$b,normalizeClass:_normalizeClass$6,openBlock:_openBlock$p,createElementBlock:_createElementBlock$n,createCommentVNode:_createCommentVNode$a,resolveComponent:_resolveComponent$4,mergeProps:_mergeProps$5,createBlock:_createBlock$8,toDisplayString:_toDisplayString$c,createTextVNode:_createTextVNode$5,withCtx:_withCtx$6,createVNode:_createVNode$k,createSlots:_createSlots} = await importShared('vue');
 
 
 const _hoisted_1$n = ["data-control-kind", "data-switch-enabled", "data-multi-select", "data-disabled", "data-invalid", "data-control-state"];
 const _hoisted_2$f = ["aria-checked", "aria-label", "aria-describedby", "aria-required", "aria-invalid", "disabled"];
-const _hoisted_3$a = { class: "aoa-field-control__selection-count" };
-const _hoisted_4$a = {
+const _hoisted_3$b = { class: "aoa-field-control__selection-count" };
+const _hoisted_4$b = {
   key: 0,
   class: "aoa-field-control__selection-count"
 };
-const _hoisted_5$8 = { class: "aoa-field-control__selection-count" };
-const _hoisted_6$8 = {
+const _hoisted_5$9 = { class: "aoa-field-control__selection-count" };
+const _hoisted_6$9 = {
   key: 0,
   class: "aoa-field-control__selection-count"
 };
@@ -310,15 +310,15 @@ function selectionValue(item) {
 }
 
 return (_ctx, _cache) => {
-  const _component_VCronField = _resolveComponent$3("VCronField");
-  const _component_VChip = _resolveComponent$3("VChip");
-  const _component_VSelect = _resolveComponent$3("VSelect");
-  const _component_VCombobox = _resolveComponent$3("VCombobox");
-  const _component_VTextarea = _resolveComponent$3("VTextarea");
-  const _component_VTextField = _resolveComponent$3("VTextField");
+  const _component_VCronField = _resolveComponent$4("VCronField");
+  const _component_VChip = _resolveComponent$4("VChip");
+  const _component_VSelect = _resolveComponent$4("VSelect");
+  const _component_VCombobox = _resolveComponent$4("VCombobox");
+  const _component_VTextarea = _resolveComponent$4("VTextarea");
+  const _component_VTextField = _resolveComponent$4("VTextField");
 
   return (_openBlock$p(), _createElementBlock$n("div", {
-    class: _normalizeClass$5(["aoa-field-control", {
+    class: _normalizeClass$6(["aoa-field-control", {
       'aoa-field-control--switch': isSwitchControl.value,
       'aoa-field-control--switch-on': isSwitchControl.value && !!normalizedValue.value,
       'aoa-field-control--multi': isMultiControl.value,
@@ -338,7 +338,7 @@ return (_ctx, _cache) => {
       ? (_openBlock$p(), _createElementBlock$n("button", {
           key: 0,
           type: "button",
-          class: _normalizeClass$5(["aoa-toggle-switch", {
+          class: _normalizeClass$6(["aoa-toggle-switch", {
         'aoa-toggle-switch--on': !!normalizedValue.value,
         'aoa-toggle-switch--disabled': !!__props.field.disabled,
         'aoa-toggle-switch--invalid': !!__props.field.error,
@@ -353,7 +353,7 @@ return (_ctx, _cache) => {
           "data-field-switch": "",
           onClick: _cache[0] || (_cache[0] = $event => (normalizedValue.value = !normalizedValue.value))
         }, [...(_cache[6] || (_cache[6] = [
-          _createElementVNode$a("span", {
+          _createElementVNode$b("span", {
             class: "aoa-toggle-switch__thumb",
             "aria-hidden": "true"
           }, null, -1)
@@ -387,7 +387,7 @@ return (_ctx, _cache) => {
                 ? {
                     name: "prepend-inner",
                     fn: _withCtx$6(() => [
-                      _createElementVNode$a("span", _hoisted_3$a, _toDisplayString$b(selectionSummary.value), 1)
+                      _createElementVNode$b("span", _hoisted_3$b, _toDisplayString$c(selectionSummary.value), 1)
                     ]),
                     key: "0"
                   }
@@ -397,7 +397,7 @@ return (_ctx, _cache) => {
                     name: "selection",
                     fn: _withCtx$6(({ index }) => [
                       (index === 0)
-                        ? (_openBlock$p(), _createElementBlock$n("span", _hoisted_4$a, _toDisplayString$b(selectionSummary.value), 1))
+                        ? (_openBlock$p(), _createElementBlock$n("span", _hoisted_4$b, _toDisplayString$c(selectionSummary.value), 1))
                         : _createCommentVNode$a("", true)
                     ]),
                     key: "1"
@@ -411,7 +411,7 @@ return (_ctx, _cache) => {
                           variant: "tonal"
                         }), {
                           default: _withCtx$6(() => [
-                            _createTextVNode$5(_toDisplayString$b(selectionTitle(item)), 1)
+                            _createTextVNode$5(_toDisplayString$c(selectionTitle(item)), 1)
                           ]),
                           _: 2
                         }, 1040)
@@ -440,7 +440,7 @@ return (_ctx, _cache) => {
                   ? {
                       name: "prepend-inner",
                       fn: _withCtx$6(() => [
-                        _createElementVNode$a("span", _hoisted_5$8, _toDisplayString$b(selectionSummary.value), 1)
+                        _createElementVNode$b("span", _hoisted_5$9, _toDisplayString$c(selectionSummary.value), 1)
                       ]),
                       key: "0"
                     }
@@ -450,7 +450,7 @@ return (_ctx, _cache) => {
                       name: "selection",
                       fn: _withCtx$6(({ index }) => [
                         (index === 0)
-                          ? (_openBlock$p(), _createElementBlock$n("span", _hoisted_6$8, _toDisplayString$b(selectionSummary.value), 1))
+                          ? (_openBlock$p(), _createElementBlock$n("span", _hoisted_6$9, _toDisplayString$c(selectionSummary.value), 1))
                           : _createCommentVNode$a("", true)
                       ]),
                       key: "1"
@@ -463,7 +463,7 @@ return (_ctx, _cache) => {
                           variant: "tonal"
                         }), {
                           default: _withCtx$6(() => [
-                            _createTextVNode$5(_toDisplayString$b(selectionTitle(item)), 1)
+                            _createTextVNode$5(_toDisplayString$c(selectionTitle(item)), 1)
                           ]),
                           _: 2
                         }, 1040)
@@ -899,19 +899,19 @@ function createReplicaFieldControlProps(form, field) {
   }
 }
 
-const {resolveComponent:_resolveComponent$2,openBlock:_openBlock$o,createBlock:_createBlock$7,createCommentVNode:_createCommentVNode$9,toDisplayString:_toDisplayString$a,createTextVNode:_createTextVNode$4,Fragment:_Fragment$5,createElementBlock:_createElementBlock$m,createElementVNode:_createElementVNode$9,normalizeClass:_normalizeClass$4,createVNode:_createVNode$j} = await importShared('vue');
+const {resolveComponent:_resolveComponent$3,openBlock:_openBlock$o,createBlock:_createBlock$7,createCommentVNode:_createCommentVNode$9,toDisplayString:_toDisplayString$b,createTextVNode:_createTextVNode$4,Fragment:_Fragment$5,createElementBlock:_createElementBlock$m,createElementVNode:_createElementVNode$a,normalizeClass:_normalizeClass$5,createVNode:_createVNode$j} = await importShared('vue');
 
 
 const _hoisted_1$m = ["data-field-key", "data-field-control", "data-control-kind", "data-switch-row", "data-full-row", "data-multi-select-row", "data-has-control-hint", "data-required", "data-invalid", "data-disabled", "data-field-state", "aria-disabled"];
 const _hoisted_2$e = { class: "aoa-field-row__label-text" };
-const _hoisted_3$9 = {
+const _hoisted_3$a = {
   key: 1,
   class: "aoa-field-row__required",
   "aria-hidden": "true"
 };
-const _hoisted_4$9 = ["id"];
-const _hoisted_5$7 = ["id"];
-const _hoisted_6$7 = { class: "aoa-field-row__control" };
+const _hoisted_4$a = ["id"];
+const _hoisted_5$8 = ["id"];
+const _hoisted_6$8 = { class: "aoa-field-row__control" };
 const _hoisted_7$5 = ["id"];
 
 const {computed: computed$j} = await importShared('vue');
@@ -976,10 +976,10 @@ const rowClasses = computed$j(() => ({
 }));
 
 return (_ctx, _cache) => {
-  const _component_VIcon = _resolveComponent$2("VIcon");
+  const _component_VIcon = _resolveComponent$3("VIcon");
 
   return (_openBlock$o(), _createElementBlock$m("div", {
-    class: _normalizeClass$4(["aoa-field-row", [`aoa-field-row--${__props.field.control || 'text'}`, rowClasses.value]]),
+    class: _normalizeClass$5(["aoa-field-row", [`aoa-field-row--${__props.field.control || 'text'}`, rowClasses.value]]),
     "data-field-row": "",
     "data-html-field": "",
     "data-field-key": __props.field.key,
@@ -995,8 +995,8 @@ return (_ctx, _cache) => {
     "data-field-state": fieldState.value,
     "aria-disabled": __props.field.disabled ? 'true' : 'false'
   }, [
-    _createElementVNode$9("div", {
-      class: _normalizeClass$4(["aoa-field-row__label", { 'aoa-field-row__label--with-icon': !!__props.field.icon }])
+    _createElementVNode$a("div", {
+      class: _normalizeClass$5(["aoa-field-row__label", { 'aoa-field-row__label--with-icon': !!__props.field.icon }])
     }, [
       (__props.field.icon)
         ? (_openBlock$o(), _createBlock$7(_component_VIcon, {
@@ -1007,15 +1007,15 @@ return (_ctx, _cache) => {
             "aria-hidden": "true"
           }, null, 8, ["icon"]))
         : _createCommentVNode$9("", true),
-      _createElementVNode$9("span", _hoisted_2$e, [
-        _createTextVNode$4(_toDisplayString$a(__props.field.label), 1),
+      _createElementVNode$a("span", _hoisted_2$e, [
+        _createTextVNode$4(_toDisplayString$b(__props.field.label), 1),
         (__props.field.compactSelection)
           ? (_openBlock$o(), _createElementBlock$m(_Fragment$5, { key: 0 }, [
               _createTextVNode$4("：")
             ], 64))
           : _createCommentVNode$9("", true),
         (__props.field.required)
-          ? (_openBlock$o(), _createElementBlock$m("span", _hoisted_3$9, "*"))
+          ? (_openBlock$o(), _createElementBlock$m("span", _hoisted_3$a, "*"))
           : _createCommentVNode$9("", true)
       ]),
       (__props.field.hint)
@@ -1023,7 +1023,7 @@ return (_ctx, _cache) => {
             key: 1,
             id: hintId.value,
             class: "aoa-field-row__hint"
-          }, _toDisplayString$a(__props.field.hint), 9, _hoisted_4$9))
+          }, _toDisplayString$b(__props.field.hint), 9, _hoisted_4$a))
         : _createCommentVNode$9("", true),
       (__props.field.error)
         ? (_openBlock$o(), _createElementBlock$m("small", {
@@ -1032,10 +1032,10 @@ return (_ctx, _cache) => {
             class: "aoa-field-row__error",
             role: "alert",
             "aria-live": "polite"
-          }, _toDisplayString$a(__props.field.error), 9, _hoisted_5$7))
+          }, _toDisplayString$b(__props.field.error), 9, _hoisted_5$8))
         : _createCommentVNode$9("", true)
     ], 2),
-    _createElementVNode$9("div", _hoisted_6$7, [
+    _createElementVNode$a("div", _hoisted_6$8, [
       _createVNode$j(_sfc_main$p, {
         field: controlField.value,
         "model-value": __props.modelValue,
@@ -1047,7 +1047,7 @@ return (_ctx, _cache) => {
             id: controlHintId.value,
             class: "aoa-field-row__control-hint",
             "data-field-control-hint": ""
-          }, _toDisplayString$a(controlHint.value), 9, _hoisted_7$5))
+          }, _toDisplayString$b(controlHint.value), 9, _hoisted_7$5))
         : _createCommentVNode$9("", true)
     ])
   ], 10, _hoisted_1$m))
@@ -1089,7 +1089,7 @@ return (_ctx, _cache) => {
 
 });
 
-const {renderList:_renderList$4,Fragment:_Fragment$4,openBlock:_openBlock$m,createElementBlock:_createElementBlock$l,toDisplayString:_toDisplayString$9,createCommentVNode:_createCommentVNode$8,mergeProps:_mergeProps$3,createVNode:_createVNode$i,normalizeClass:_normalizeClass$3} = await importShared('vue');
+const {renderList:_renderList$4,Fragment:_Fragment$4,openBlock:_openBlock$m,createElementBlock:_createElementBlock$l,toDisplayString:_toDisplayString$a,createCommentVNode:_createCommentVNode$8,mergeProps:_mergeProps$3,createVNode:_createVNode$i,renderSlot:_renderSlot$b,normalizeClass:_normalizeClass$4} = await importShared('vue');
 
 
 const _hoisted_1$l = ["data-config-visible-field-count"];
@@ -1129,7 +1129,7 @@ function fieldRowAttrs(field, index) {
 
 return (_ctx, _cache) => {
   return (_openBlock$m(), _createElementBlock$l("div", {
-    class: _normalizeClass$3(["aoa-config-field-grid aoa-design-field-grid", `aoa-design-field-grid--${__props.grid}`]),
+    class: _normalizeClass$4(["aoa-config-field-grid aoa-design-field-grid", `aoa-design-field-grid--${__props.grid}`]),
     "data-config-field-grid": "",
     "data-config-visible-field-count": String(visibleFields.value.length)
   }, [
@@ -1142,7 +1142,7 @@ return (_ctx, _cache) => {
               key: 0,
               class: "aoa-config-field-group",
               "data-field-group-heading": field.layoutGroup || field.key
-            }, _toDisplayString$9(field.groupLabel), 9, _hoisted_2$d))
+            }, _toDisplayString$a(field.groupLabel), 9, _hoisted_2$d))
           : _createCommentVNode$8("", true),
         _createVNode$i(_sfc_main$n, _mergeProps$3({ ref_for: true }, { ...fieldProps(field), ...fieldRowAttrs(field, index) }, {
           "data-field-layout-group": field.layoutGroup || undefined,
@@ -1151,7 +1151,8 @@ return (_ctx, _cache) => {
           "data-subfill-inline-notify": __props.activeSub === 'subfill' && field.key === 'subfill_completion_notify_enabled' ? '' : undefined
         }), null, 16, ["data-field-layout-group", "data-field-layout-group-start", "data-notify-channel", "data-subfill-inline-notify"])
       ], 64))
-    }), 128))
+    }), 128)),
+    _renderSlot$b(_ctx.$slots, "append")
   ], 10, _hoisted_1$l))
 }
 }
@@ -1235,7 +1236,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$g,toDisplayString:_toDisplayString$8,createElementVNode:_createElementVNode$8,openBlock:_openBlock$k,createElementBlock:_createElementBlock$j,createCommentVNode:_createCommentVNode$7,renderSlot:_renderSlot$a} = await importShared('vue');
+const {createVNode:_createVNode$g,toDisplayString:_toDisplayString$9,createElementVNode:_createElementVNode$9,openBlock:_openBlock$k,createElementBlock:_createElementBlock$j,createCommentVNode:_createCommentVNode$7,renderSlot:_renderSlot$a} = await importShared('vue');
 
 
 const _hoisted_1$j = ["data-fusion-enabled", "data-effective-state"];
@@ -1243,18 +1244,18 @@ const _hoisted_2$c = {
   class: "aoa-fusion-operation-block",
   "data-fusion-operation-block": ""
 };
-const _hoisted_3$8 = {
+const _hoisted_3$9 = {
   class: "aoa-fusion-operation-status",
   "data-fusion-operation-status": "",
   role: "status",
   "aria-live": "polite"
 };
-const _hoisted_4$8 = { "data-fusion-card-status": "" };
-const _hoisted_5$6 = {
+const _hoisted_4$9 = { "data-fusion-card-status": "" };
+const _hoisted_5$7 = {
   key: 0,
   "data-fusion-card-updated": ""
 };
-const _hoisted_6$6 = {
+const _hoisted_6$7 = {
   key: 1,
   class: "aoa-fusion-operation-status__error",
   "data-fusion-card-error": ""
@@ -1302,14 +1303,14 @@ return (_ctx, _cache) => {
       "notification-type-items": __props.notificationTypeItems,
       "effective-state": __props.effectiveState
     }, null, 8, ["form", "fields", "notification-type-items", "effective-state"]),
-    _createElementVNode$8("div", _hoisted_2$c, [
-      _createElementVNode$8("div", _hoisted_3$8, [
-        _createElementVNode$8("strong", _hoisted_4$8, _toDisplayString$8(cardStatus.value), 1),
+    _createElementVNode$9("div", _hoisted_2$c, [
+      _createElementVNode$9("div", _hoisted_3$9, [
+        _createElementVNode$9("strong", _hoisted_4$9, _toDisplayString$9(cardStatus.value), 1),
         (updatedAt.value)
-          ? (_openBlock$k(), _createElementBlock$j("span", _hoisted_5$6, "最近刷新：" + _toDisplayString$8(updatedAt.value), 1))
+          ? (_openBlock$k(), _createElementBlock$j("span", _hoisted_5$7, "最近刷新：" + _toDisplayString$9(updatedAt.value), 1))
           : _createCommentVNode$7("", true),
         (lastError.value)
-          ? (_openBlock$k(), _createElementBlock$j("span", _hoisted_6$6, " 最近错误：" + _toDisplayString$8(lastError.value), 1))
+          ? (_openBlock$k(), _createElementBlock$j("span", _hoisted_6$7, " 最近错误：" + _toDisplayString$9(lastError.value), 1))
           : _createCommentVNode$7("", true)
       ]),
       _renderSlot$a(_ctx.$slots, "operations")
@@ -1320,7 +1321,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {unref:_unref$5,createElementVNode:_createElementVNode$7,openBlock:_openBlock$j,createElementBlock:_createElementBlock$i,toDisplayString:_toDisplayString$7} = await importShared('vue');
+const {unref:_unref$5,createElementVNode:_createElementVNode$8,openBlock:_openBlock$j,createElementBlock:_createElementBlock$i,toDisplayString:_toDisplayString$8} = await importShared('vue');
 
 
 const _hoisted_1$i = {
@@ -1337,8 +1338,8 @@ const _hoisted_2$b = {
   height: "18",
   "aria-hidden": "true"
 };
-const _hoisted_3$7 = ["d"];
-const _hoisted_4$7 = {
+const _hoisted_3$8 = ["d"];
+const _hoisted_4$8 = {
   class: "aoa-fusion-takeover-note__copy",
   "data-fusion-takeover-copy": ""
 };
@@ -1356,12 +1357,12 @@ const _sfc_main$j = {
 return (_ctx, _cache) => {
   return (_openBlock$j(), _createElementBlock$i("div", _hoisted_1$i, [
     (_openBlock$j(), _createElementBlock$i("svg", _hoisted_2$b, [
-      _createElementVNode$7("path", {
+      _createElementVNode$8("path", {
         d: _unref$5(mdiShieldCheckOutline),
         fill: "currentColor"
-      }, null, 8, _hoisted_3$7)
+      }, null, 8, _hoisted_3$8)
     ])),
-    _createElementVNode$7("span", _hoisted_4$7, _toDisplayString$7(__props.message), 1)
+    _createElementVNode$8("span", _hoisted_4$8, _toDisplayString$8(__props.message), 1)
   ]))
 }
 }
@@ -1769,27 +1770,27 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$a,unref:_unref$4,createElementVNode:_createElementVNode$6,openBlock:_openBlock$d,createElementBlock:_createElementBlock$c,createTextVNode:_createTextVNode$3,renderList:_renderList$3,Fragment:_Fragment$3,toDisplayString:_toDisplayString$6,renderSlot:_renderSlot$5} = await importShared('vue');
+const {createVNode:_createVNode$a,unref:_unref$4,createElementVNode:_createElementVNode$7,openBlock:_openBlock$d,createElementBlock:_createElementBlock$c,createTextVNode:_createTextVNode$3,renderList:_renderList$3,Fragment:_Fragment$3,toDisplayString:_toDisplayString$7,renderSlot:_renderSlot$5} = await importShared('vue');
 
 
 const _hoisted_1$c = ["data-seed-clean-notification-locked", "data-effective-state"];
 const _hoisted_2$a = ["data-effective-state"];
-const _hoisted_3$6 = {
+const _hoisted_3$7 = {
   class: "aoa-mdi-icon",
   viewBox: "0 0 24 24",
   width: "18",
   height: "18",
   "aria-hidden": "true"
 };
-const _hoisted_4$6 = ["d"];
-const _hoisted_5$5 = {
+const _hoisted_4$7 = ["d"];
+const _hoisted_5$6 = {
   class: "aoa-design-advanced__chevron aoa-mdi-icon",
   viewBox: "0 0 24 24",
   width: "15",
   height: "15",
   "aria-hidden": "true"
 };
-const _hoisted_6$5 = ["d"];
+const _hoisted_6$6 = ["d"];
 const _hoisted_7$4 = { class: "aoa-design-advanced-content" };
 const _hoisted_8$4 = {
   class: "aoa-seedclean-status-dictionary",
@@ -1880,31 +1881,31 @@ return (_ctx, _cache) => {
       "data-seedclean-primary-card": "",
       "data-seedclean-primary-fields": ""
     }, null, 8, ["form", "fields"]),
-    _createElementVNode$6("details", {
+    _createElementVNode$7("details", {
       class: "aoa-design-advanced aoa-design-advanced--embedded",
       "data-html-advanced": "",
       "data-seedclean-filter-drawer": "",
       "data-default-open": "false",
       "data-effective-state": __props.effectiveState || undefined
     }, [
-      _createElementVNode$6("summary", null, [
-        _createElementVNode$6("span", null, [
-          (_openBlock$d(), _createElementBlock$c("svg", _hoisted_3$6, [
-            _createElementVNode$6("path", {
+      _createElementVNode$7("summary", null, [
+        _createElementVNode$7("span", null, [
+          (_openBlock$d(), _createElementBlock$c("svg", _hoisted_3$7, [
+            _createElementVNode$7("path", {
               d: _unref$4(mdiFilterOutline),
               fill: "currentColor"
-            }, null, 8, _hoisted_4$6)
+            }, null, 8, _hoisted_4$7)
           ])),
           _cache[0] || (_cache[0] = _createTextVNode$3(" 筛选条件 ", -1))
         ]),
-        (_openBlock$d(), _createElementBlock$c("svg", _hoisted_5$5, [
-          _createElementVNode$6("path", {
+        (_openBlock$d(), _createElementBlock$c("svg", _hoisted_5$6, [
+          _createElementVNode$7("path", {
             d: _unref$4(mdiCogOutline),
             fill: "currentColor"
-          }, null, 8, _hoisted_6$5)
+          }, null, 8, _hoisted_6$6)
         ]))
       ]),
-      _createElementVNode$6("div", _hoisted_7$4, [
+      _createElementVNode$7("div", _hoisted_7$4, [
         _createVNode$a(_sfc_main$m, {
           form: __props.form,
           fields: __props.filterFields,
@@ -1912,7 +1913,7 @@ return (_ctx, _cache) => {
           "resolve-disabled": resolveDisabled,
           "data-seedclean-filter-fields": ""
         }, null, 8, ["form", "fields"]),
-        _createElementVNode$6("aside", _hoisted_8$4, [
+        _createElementVNode$7("aside", _hoisted_8$4, [
           (_openBlock$d(true), _createElementBlock$c(_Fragment$3, null, _renderList$3(_unref$4(statusDictionaries), (dictionary) => {
             return (_openBlock$d(), _createElementBlock$c("section", {
               key: dictionary.key,
@@ -1920,8 +1921,8 @@ return (_ctx, _cache) => {
               "data-seedclean-qb-status-dictionary": dictionary.key === 'qb' ? '' : undefined,
               "data-seedclean-tr-status-dictionary": dictionary.key === 'tr' ? '' : undefined
             }, [
-              _createElementVNode$6("h4", null, _toDisplayString$6(dictionary.title), 1),
-              _createElementVNode$6("ul", null, [
+              _createElementVNode$7("h4", null, _toDisplayString$7(dictionary.title), 1),
+              _createElementVNode$7("ul", null, [
                 (_openBlock$d(true), _createElementBlock$c(_Fragment$3, null, _renderList$3(dictionary.entries, (entry, index) => {
                   return (_openBlock$d(), _createElementBlock$c("li", {
                     key: entry[0],
@@ -1929,7 +1930,7 @@ return (_ctx, _cache) => {
                     "data-seedclean-status-key": entry[0],
                     "data-seedclean-status-index": String(index),
                     "data-seedclean-status-field": dictionary.field
-                  }, _toDisplayString$6(entry[0]) + "：" + _toDisplayString$6(entry[1]), 9, _hoisted_10$4))
+                  }, _toDisplayString$7(entry[0]) + "：" + _toDisplayString$7(entry[1]), 9, _hoisted_10$4))
                 }), 128))
               ])
             ], 8, _hoisted_9$4))
@@ -1944,15 +1945,15 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$5,toDisplayString:_toDisplayString$5,vModelText:_vModelText$1,withDirectives:_withDirectives$1,normalizeClass:_normalizeClass$2,openBlock:_openBlock$c,createElementBlock:_createElementBlock$b} = await importShared('vue');
+const {createElementVNode:_createElementVNode$6,toDisplayString:_toDisplayString$6,vModelText:_vModelText$1,withDirectives:_withDirectives$1,normalizeClass:_normalizeClass$3,openBlock:_openBlock$c,createElementBlock:_createElementBlock$b} = await importShared('vue');
 
 
 const _hoisted_1$b = ["data-disabled"];
 const _hoisted_2$9 = { class: "aoa-subfill-code__controls" };
-const _hoisted_3$5 = { class: "aoa-subfill-code__input" };
-const _hoisted_4$5 = { class: "aoa-subfill-code__heading" };
-const _hoisted_5$4 = { "data-tone": "neutral" };
-const _hoisted_6$4 = ["rows", "disabled", "placeholder"];
+const _hoisted_3$6 = { class: "aoa-subfill-code__input" };
+const _hoisted_4$6 = { class: "aoa-subfill-code__heading" };
+const _hoisted_5$5 = { "data-tone": "neutral" };
+const _hoisted_6$5 = ["rows", "disabled", "placeholder"];
 
 const {computed: computed$b} = await importShared('vue');
 
@@ -1990,17 +1991,17 @@ return (_ctx, _cache) => {
     "data-field-control": "textarea",
     "data-disabled": __props.disabled ? 'true' : undefined
   }, [
-    _createElementVNode$5("section", {
-      class: _normalizeClass$2(["aoa-subfill-code aoa-tracker-mapping-code", { 'aoa-subfill-code--disabled': __props.disabled }]),
+    _createElementVNode$6("section", {
+      class: _normalizeClass$3(["aoa-subfill-code aoa-tracker-mapping-code", { 'aoa-subfill-code--disabled': __props.disabled }]),
       "data-tracker-mapping-code-editor": ""
     }, [
-      _createElementVNode$5("div", _hoisted_2$9, [
-        _createElementVNode$5("label", _hoisted_3$5, [
-          _createElementVNode$5("span", _hoisted_4$5, [
-            _cache[1] || (_cache[1] = _createElementVNode$5("strong", null, "映射规则", -1)),
-            _createElementVNode$5("small", _hoisted_5$4, _toDisplayString$5(mappingSummary.value), 1)
+      _createElementVNode$6("div", _hoisted_2$9, [
+        _createElementVNode$6("label", _hoisted_3$6, [
+          _createElementVNode$6("span", _hoisted_4$6, [
+            _cache[1] || (_cache[1] = _createElementVNode$6("strong", null, "映射规则", -1)),
+            _createElementVNode$6("small", _hoisted_5$5, _toDisplayString$6(mappingSummary.value), 1)
           ]),
-          _withDirectives$1(_createElementVNode$5("textarea", {
+          _withDirectives$1(_createElementVNode$6("textarea", {
             "onUpdate:modelValue": _cache[0] || (_cache[0] = $event => ((mappingText).value = $event)),
             rows: __props.field.rows || 6,
             spellcheck: "false",
@@ -2008,10 +2009,10 @@ return (_ctx, _cache) => {
             "aria-describedby": "aoa-tracker-mapping-help",
             "data-tracker-mapping-input": "",
             placeholder: __props.field.placeholder || '每行一条，例如 tracker.example.com => 站点标签'
-          }, null, 8, _hoisted_6$4), [
+          }, null, 8, _hoisted_6$5), [
             [_vModelText$1, mappingText.value]
           ]),
-          _cache[2] || (_cache[2] = _createElementVNode$5("small", {
+          _cache[2] || (_cache[2] = _createElementVNode$6("small", {
             id: "aoa-tracker-mapping-help",
             class: "aoa-subfill-code__help"
           }, " 每行一条映射；支持 tracker.example.com => 站点标签，也支持 tracker.example.com = 站点标签。 ", -1))
@@ -2024,21 +2025,21 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$4,createVNode:_createVNode$9,unref:_unref$3,openBlock:_openBlock$b,createElementBlock:_createElementBlock$a,createTextVNode:_createTextVNode$2,toDisplayString:_toDisplayString$4,renderSlot:_renderSlot$4} = await importShared('vue');
+const {createElementVNode:_createElementVNode$5,createVNode:_createVNode$9,unref:_unref$3,openBlock:_openBlock$b,createElementBlock:_createElementBlock$a,createTextVNode:_createTextVNode$2,toDisplayString:_toDisplayString$5,renderSlot:_renderSlot$4} = await importShared('vue');
 
 
 const _hoisted_1$a = ["data-downloader-helper-notification-locked", "data-effective-state"];
 const _hoisted_2$8 = ["data-effective-state"];
-const _hoisted_3$4 = { class: "aoa-tracker-mapping-drawer__title" };
-const _hoisted_4$4 = {
+const _hoisted_3$5 = { class: "aoa-tracker-mapping-drawer__title" };
+const _hoisted_4$5 = {
   class: "aoa-mdi-icon",
   viewBox: "0 0 24 24",
   width: "18",
   height: "18",
   "aria-hidden": "true"
 };
-const _hoisted_5$3 = ["d"];
-const _hoisted_6$3 = { class: "aoa-tracker-mapping-drawer__state" };
+const _hoisted_5$4 = ["d"];
+const _hoisted_6$4 = { class: "aoa-tracker-mapping-drawer__state" };
 const _hoisted_7$3 = { "data-tracker-mapping-summary": "" };
 const _hoisted_8$3 = {
   class: "aoa-design-advanced__chevron aoa-tracker-mapping-drawer__chevron aoa-mdi-icon",
@@ -2093,7 +2094,7 @@ return (_ctx, _cache) => {
     role: "group",
     "aria-label": "下载器助手配置"
   }, [
-    _cache[1] || (_cache[1] = _createElementVNode$4("p", {
+    _cache[1] || (_cache[1] = _createElementVNode$5("p", {
       class: "aoa-downloader-helper-boundary",
       "data-downloader-helper-boundary-note": ""
     }, " 下载器助手负责标签、恢复做种与失效任务；按用户规则自动清理仍由“自动删种”页面负责。 ", -1)),
@@ -2104,34 +2105,34 @@ return (_ctx, _cache) => {
       "resolve-disabled": resolveDisabled,
       "data-downloader-helper-fields": ""
     }, null, 8, ["form", "fields"]),
-    _createElementVNode$4("details", {
+    _createElementVNode$5("details", {
       class: "aoa-design-advanced aoa-design-advanced--embedded aoa-tracker-mapping-drawer",
       "data-html-advanced": "",
       "data-dltag-tracker-drawer": "",
       "data-default-open": "false",
       "data-effective-state": __props.effectiveState || undefined
     }, [
-      _createElementVNode$4("summary", null, [
-        _createElementVNode$4("span", _hoisted_3$4, [
-          (_openBlock$b(), _createElementBlock$a("svg", _hoisted_4$4, [
-            _createElementVNode$4("path", {
+      _createElementVNode$5("summary", null, [
+        _createElementVNode$5("span", _hoisted_3$5, [
+          (_openBlock$b(), _createElementBlock$a("svg", _hoisted_4$5, [
+            _createElementVNode$5("path", {
               d: _unref$3(mdiLinkVariant),
               fill: "currentColor"
-            }, null, 8, _hoisted_5$3)
+            }, null, 8, _hoisted_5$4)
           ])),
           _cache[0] || (_cache[0] = _createTextVNode$2(" Tracker 映射 ", -1))
         ]),
-        _createElementVNode$4("span", _hoisted_6$3, [
-          _createElementVNode$4("small", _hoisted_7$3, _toDisplayString$4(trackerSummary.value), 1),
+        _createElementVNode$5("span", _hoisted_6$4, [
+          _createElementVNode$5("small", _hoisted_7$3, _toDisplayString$5(trackerSummary.value), 1),
           (_openBlock$b(), _createElementBlock$a("svg", _hoisted_8$3, [
-            _createElementVNode$4("path", {
+            _createElementVNode$5("path", {
               d: _unref$3(mdiChevronDown),
               fill: "currentColor"
             }, null, 8, _hoisted_9$3)
           ]))
         ])
       ]),
-      _createElementVNode$4("div", _hoisted_10$3, [
+      _createElementVNode$5("div", _hoisted_10$3, [
         _createVNode$9(_sfc_main$c, {
           values: __props.form,
           field: trackerField.value,
@@ -2146,16 +2147,16 @@ return (_ctx, _cache) => {
 
 };
 
-const {renderList:_renderList$2,Fragment:_Fragment$2,openBlock:_openBlock$a,createElementBlock:_createElementBlock$9,resolveComponent:_resolveComponent$1,createVNode:_createVNode$8,createElementVNode:_createElementVNode$3,toDisplayString:_toDisplayString$3,mergeProps:_mergeProps$2} = await importShared('vue');
+const {renderList:_renderList$2,Fragment:_Fragment$2,openBlock:_openBlock$a,createElementBlock:_createElementBlock$9,resolveComponent:_resolveComponent$2,createVNode:_createVNode$8,createElementVNode:_createElementVNode$4,toDisplayString:_toDisplayString$4,mergeProps:_mergeProps$2} = await importShared('vue');
 
 
 const _hoisted_1$9 = ["data-config-category-domain", "aria-label"];
 const _hoisted_2$7 = ["data-config-category-card", "aria-selected", "onClick", "onKeydown"];
-const _hoisted_3$3 = {
+const _hoisted_3$4 = {
   class: "aoa-config-category-selector__icon",
   "aria-hidden": "true"
 };
-const _hoisted_4$3 = ["aria-checked", "aria-label", "onClick"];
+const _hoisted_4$4 = ["aria-checked", "aria-label", "onClick"];
 
 
 const _sfc_main$a = {
@@ -2207,7 +2208,7 @@ function toggleModule(card, event) {
 }
 
 return (_ctx, _cache) => {
-  const _component_VIcon = _resolveComponent$1("VIcon");
+  const _component_VIcon = _resolveComponent$2("VIcon");
 
   return (_openBlock$a(), _createElementBlock$9("div", {
     class: "aoa-config-category-selector",
@@ -2228,14 +2229,14 @@ return (_ctx, _cache) => {
         onClick: $event => (selectModule(card, $event)),
         onKeydown: $event => (selectModuleWithKeyboard(card, $event))
       }), [
-        _createElementVNode$3("span", _hoisted_3$3, [
+        _createElementVNode$4("span", _hoisted_3$4, [
           _createVNode$8(_component_VIcon, {
             icon: card.icon || 'mdi-tune-variant',
             size: "18"
           }, null, 8, ["icon"])
         ]),
-        _createElementVNode$3("strong", null, _toDisplayString$3(card.title), 1),
-        _createElementVNode$3("button", _mergeProps$2({ type: "button" }, { ref_for: true }, toggleAttrs(card), {
+        _createElementVNode$4("strong", null, _toDisplayString$4(card.title), 1),
+        _createElementVNode$4("button", _mergeProps$2({ type: "button" }, { ref_for: true }, toggleAttrs(card), {
           class: ["aoa-toggle-switch aoa-config-category-selector__toggle", { 'aoa-toggle-switch--on': Boolean(__props.form[card.masterKey]) }],
           role: "switch",
           "aria-checked": Boolean(__props.form[card.masterKey]),
@@ -2243,11 +2244,11 @@ return (_ctx, _cache) => {
           "data-config-category-toggle": "",
           onClick: $event => (toggleModule(card, $event))
         }), [...(_cache[0] || (_cache[0] = [
-          _createElementVNode$3("span", {
+          _createElementVNode$4("span", {
             class: "aoa-toggle-switch__thumb",
             "aria-hidden": "true"
           }, null, -1)
-        ]))], 16, _hoisted_4$3)
+        ]))], 16, _hoisted_4$4)
       ], 16, _hoisted_2$7))
     }), 128))
   ], 8, _hoisted_1$9))
@@ -2256,15 +2257,15 @@ return (_ctx, _cache) => {
 
 };
 
-const {resolveComponent:_resolveComponent,createVNode:_createVNode$7,toDisplayString:_toDisplayString$2,createElementVNode:_createElementVNode$2,unref:_unref$2,openBlock:_openBlock$9,createElementBlock:_createElementBlock$8,createTextVNode:_createTextVNode$1,withCtx:_withCtx$5,createBlock:_createBlock$5,createCommentVNode:_createCommentVNode$6} = await importShared('vue');
+const {resolveComponent:_resolveComponent$1,createVNode:_createVNode$7,toDisplayString:_toDisplayString$3,createElementVNode:_createElementVNode$3,unref:_unref$2,openBlock:_openBlock$9,createElementBlock:_createElementBlock$8,createTextVNode:_createTextVNode$1,withCtx:_withCtx$5,createBlock:_createBlock$5,createCommentVNode:_createCommentVNode$6} = await importShared('vue');
 
 
 const _hoisted_1$8 = ["data-backup-restore-panel", "data-backup-restore-drawer", "aria-labelledby"];
 const _hoisted_2$6 = { class: "aoa-backup-restore-drawer__title" };
-const _hoisted_3$2 = ["id"];
-const _hoisted_4$2 = { class: "aoa-backup-restore-drawer__state" };
-const _hoisted_5$2 = { "data-backup-restore-status": "" };
-const _hoisted_6$2 = {
+const _hoisted_3$3 = ["id"];
+const _hoisted_4$3 = { class: "aoa-backup-restore-drawer__state" };
+const _hoisted_5$3 = { "data-backup-restore-status": "" };
+const _hoisted_6$3 = {
   class: "aoa-design-advanced__chevron aoa-backup-restore-drawer__chevron aoa-mdi-icon",
   viewBox: "0 0 24 24",
   width: "18",
@@ -2344,8 +2345,8 @@ function restoreRowAttrs(field) {
 }
 
 return (_ctx, _cache) => {
-  const _component_VIcon = _resolveComponent("VIcon");
-  const _component_VAlert = _resolveComponent("VAlert");
+  const _component_VIcon = _resolveComponent$1("VIcon");
+  const _component_VAlert = _resolveComponent$1("VAlert");
 
   return (_openBlock$9(), _createElementBlock$8("details", {
     class: "aoa-design-advanced aoa-design-advanced--embedded aoa-backup-restore-panel",
@@ -2354,25 +2355,25 @@ return (_ctx, _cache) => {
     "data-default-open": "false",
     "aria-labelledby": titleId.value
   }, [
-    _createElementVNode$2("summary", null, [
-      _createElementVNode$2("span", _hoisted_2$6, [
+    _createElementVNode$3("summary", null, [
+      _createElementVNode$3("span", _hoisted_2$6, [
         _createVNode$7(_component_VIcon, {
           icon: __props.archiveIcon,
           size: "18"
         }, null, 8, ["icon"]),
-        _createElementVNode$2("strong", { id: titleId.value }, _toDisplayString$2(__props.title), 9, _hoisted_3$2)
+        _createElementVNode$3("strong", { id: titleId.value }, _toDisplayString$3(__props.title), 9, _hoisted_3$3)
       ]),
-      _createElementVNode$2("span", _hoisted_4$2, [
-        _createElementVNode$2("small", _hoisted_5$2, _toDisplayString$2(__props.unavailable ? '暂不可用' : `${__props.archives.length} 份可用`), 1),
-        (_openBlock$9(), _createElementBlock$8("svg", _hoisted_6$2, [
-          _createElementVNode$2("path", {
+      _createElementVNode$3("span", _hoisted_4$3, [
+        _createElementVNode$3("small", _hoisted_5$3, _toDisplayString$3(__props.unavailable ? '暂不可用' : `${__props.archives.length} 份可用`), 1),
+        (_openBlock$9(), _createElementBlock$8("svg", _hoisted_6$3, [
+          _createElementVNode$3("path", {
             d: _unref$2(mdiChevronDown),
             fill: "currentColor"
           }, null, 8, _hoisted_7$2)
         ]))
       ])
     ]),
-    _createElementVNode$2("div", _hoisted_8$2, [
+    _createElementVNode$3("div", _hoisted_8$2, [
       (__props.unavailable)
         ? (_openBlock$9(), _createBlock$5(_component_VAlert, {
             key: 0,
@@ -2382,7 +2383,7 @@ return (_ctx, _cache) => {
             "data-backup-restore-unavailable": ""
           }, {
             default: _withCtx$5(() => [
-              _createTextVNode$1(_toDisplayString$2(__props.unavailableMessage), 1)
+              _createTextVNode$1(_toDisplayString$3(__props.unavailableMessage), 1)
             ]),
             _: 1
           }))
@@ -2395,8 +2396,8 @@ return (_ctx, _cache) => {
         "row-attrs": restoreRowAttrs,
         "data-backup-restore-fields": ""
       }, null, 8, ["fields", "form"]),
-      _createElementVNode$2("div", _hoisted_9$2, [
-        _createElementVNode$2("button", {
+      _createElementVNode$3("div", _hoisted_9$2, [
+        _createElementVNode$3("button", {
           type: "button",
           class: "aoa-design-action-btn",
           disabled: __props.unavailable || __props.archivesLoading,
@@ -2408,9 +2409,9 @@ return (_ctx, _cache) => {
             size: "18",
             "aria-hidden": "true"
           }, null, 8, ["icon"]),
-          _createElementVNode$2("span", null, _toDisplayString$2(__props.archivesLoading ? '正在刷新...' : __props.refreshLabel), 1)
+          _createElementVNode$3("span", null, _toDisplayString$3(__props.archivesLoading ? '正在刷新...' : __props.refreshLabel), 1)
         ], 8, _hoisted_10$2),
-        _createElementVNode$2("button", {
+        _createElementVNode$3("button", {
           type: "button",
           class: "aoa-design-action-btn",
           disabled: __props.unavailable || !__props.restore.archive || __props.restoreLoading,
@@ -2422,9 +2423,9 @@ return (_ctx, _cache) => {
             size: "18",
             "aria-hidden": "true"
           }),
-          _createElementVNode$2("span", null, _toDisplayString$2(__props.restoreLoading ? '正在处理...' : __props.previewLabel), 1)
+          _createElementVNode$3("span", null, _toDisplayString$3(__props.restoreLoading ? '正在处理...' : __props.previewLabel), 1)
         ], 8, _hoisted_11$2),
-        _createElementVNode$2("button", {
+        _createElementVNode$3("button", {
           type: "button",
           class: "aoa-design-action-btn aoa-design-action-btn--danger",
           disabled: __props.unavailable || !__props.restore.archive || !__props.restore.confirm || __props.restoreLoading,
@@ -2436,7 +2437,7 @@ return (_ctx, _cache) => {
             size: "18",
             "aria-hidden": "true"
           }, null, 8, ["icon"]),
-          _createElementVNode$2("span", null, _toDisplayString$2(__props.restoreLoading ? '正在恢复...' : __props.runLabel), 1)
+          _createElementVNode$3("span", null, _toDisplayString$3(__props.restoreLoading ? '正在恢复...' : __props.runLabel), 1)
         ], 8, _hoisted_12$2)
       ]),
       (__props.result)
@@ -2450,7 +2451,7 @@ return (_ctx, _cache) => {
             "aria-live": __props.result.code === 0 ? 'polite' : 'assertive'
           }, {
             default: _withCtx$5(() => [
-              _createTextVNode$1(_toDisplayString$2(__props.result.msg || __props.result.text || __props.fallbackResultText), 1)
+              _createTextVNode$1(_toDisplayString$3(__props.result.msg || __props.result.text || __props.fallbackResultText), 1)
             ]),
             _: 1
           }, 8, ["type", "role", "aria-live"]))
@@ -2875,15 +2876,15 @@ function validateSubfillRule(rule = {}) {
   return [...(rule.errors || [])]
 }
 
-const {unref:_unref$1,createElementVNode:_createElementVNode$1,toDisplayString:_toDisplayString$1,vModelText:_vModelText,withDirectives:_withDirectives,openBlock:_openBlock$5,createElementBlock:_createElementBlock$4,createCommentVNode:_createCommentVNode$4,createTextVNode:_createTextVNode,normalizeClass:_normalizeClass$1,renderList:_renderList$1,Fragment:_Fragment$1,mergeProps:_mergeProps$1} = await importShared('vue');
+const {unref:_unref$1,createElementVNode:_createElementVNode$2,toDisplayString:_toDisplayString$2,vModelText:_vModelText,withDirectives:_withDirectives,openBlock:_openBlock$5,createElementBlock:_createElementBlock$4,createCommentVNode:_createCommentVNode$4,createTextVNode:_createTextVNode,normalizeClass:_normalizeClass$2,renderList:_renderList$1,Fragment:_Fragment$1,mergeProps:_mergeProps$1} = await importShared('vue');
 
 
 const _hoisted_1$4 = ["data-subfill-rule-state"];
 const _hoisted_2$4 = ["data-subfill-projection-open"];
-const _hoisted_3$1 = ["data-subfill-projection-open"];
-const _hoisted_4$1 = { class: "aoa-subfill-code__controls" };
-const _hoisted_5$1 = { class: "aoa-subfill-code__input" };
-const _hoisted_6$1 = { class: "aoa-subfill-code__heading" };
+const _hoisted_3$2 = ["data-subfill-projection-open"];
+const _hoisted_4$2 = { class: "aoa-subfill-code__controls" };
+const _hoisted_5$2 = { class: "aoa-subfill-code__input" };
+const _hoisted_6$2 = { class: "aoa-subfill-code__heading" };
 const _hoisted_7$1 = ["data-tone"];
 const _hoisted_8$1 = ["disabled", "aria-invalid"];
 const _hoisted_9$1 = {
@@ -2999,25 +3000,25 @@ return (_ctx, _cache) => {
     "data-subfill-editor-container": "",
     "data-subfill-rule-state": ruleState.value
   }), [
-    _createElementVNode$1("div", {
+    _createElementVNode$2("div", {
       class: "aoa-subfill-editor-layout",
       "data-subfill-projection-open": projectionOpen.value ? 'true' : 'false',
       "data-subfill-editor-layout": ""
     }, [
-      _createElementVNode$1("section", {
-        class: _normalizeClass$1(["aoa-subfill-code", { 'aoa-subfill-code--disabled': __props.disabled }]),
+      _createElementVNode$2("section", {
+        class: _normalizeClass$2(["aoa-subfill-code", { 'aoa-subfill-code--disabled': __props.disabled }]),
         "data-subfill-code-editor": "",
         "data-subfill-projection-open": projectionOpen.value ? 'true' : 'false'
       }, [
-        _createElementVNode$1("div", _hoisted_4$1, [
-          _createElementVNode$1("label", _hoisted_5$1, [
-            _createElementVNode$1("span", _hoisted_6$1, [
-              _cache[1] || (_cache[1] = _createElementVNode$1("strong", null, "规则代码", -1)),
-              _createElementVNode$1("small", {
+        _createElementVNode$2("div", _hoisted_4$2, [
+          _createElementVNode$2("label", _hoisted_5$2, [
+            _createElementVNode$2("span", _hoisted_6$2, [
+              _cache[1] || (_cache[1] = _createElementVNode$2("strong", null, "规则代码", -1)),
+              _createElementVNode$2("small", {
                 "data-tone": ruleState.value === 'invalid' ? 'error' : 'neutral'
-              }, _toDisplayString$1(ruleSummary.value), 9, _hoisted_7$1)
+              }, _toDisplayString$2(ruleSummary.value), 9, _hoisted_7$1)
             ]),
-            _withDirectives(_createElementVNode$1("textarea", {
+            _withDirectives(_createElementVNode$2("textarea", {
               "onUpdate:modelValue": _cache[0] || (_cache[0] = $event => ((codeText).value = $event)),
               rows: "6",
               spellcheck: "false",
@@ -3029,14 +3030,14 @@ return (_ctx, _cache) => {
             }, null, 8, _hoisted_8$1), [
               [_vModelText, codeText.value]
             ]),
-            _cache[2] || (_cache[2] = _createElementVNode$1("small", {
+            _cache[2] || (_cache[2] = _createElementVNode$2("small", {
               id: "aoa-subfill-code-help",
               class: "aoa-subfill-code__help"
             }, " 每行一条规则；展开图形化后可逐项核对字段与错误，投影不会改写规则代码。 ", -1))
           ])
         ]),
-        _createElementVNode$1("div", _hoisted_9$1, [
-          _createElementVNode$1("button", {
+        _createElementVNode$2("div", _hoisted_9$1, [
+          _createElementVNode$2("button", {
             type: "button",
             class: "aoa-subfill-projection-toggle",
             "aria-expanded": projectionOpen.value,
@@ -3044,30 +3045,30 @@ return (_ctx, _cache) => {
             "data-subfill-projection-toggle": "",
             onClick: toggleProjection
           }, [
-            _createElementVNode$1("span", _hoisted_11$1, _toDisplayString$1(projectionOpen.value ? '收起图形化' : '展开图形化'), 1),
-            _createElementVNode$1("span", {
-              class: _normalizeClass$1(["aoa-subfill-projection-toggle__meta", { 'aoa-subfill-projection-toggle__meta--error': errorCount.value }])
+            _createElementVNode$2("span", _hoisted_11$1, _toDisplayString$2(projectionOpen.value ? '收起图形化' : '展开图形化'), 1),
+            _createElementVNode$2("span", {
+              class: _normalizeClass$2(["aoa-subfill-projection-toggle__meta", { 'aoa-subfill-projection-toggle__meta--error': errorCount.value }])
             }, [
-              _createTextVNode(_toDisplayString$1(rules.value.length) + " 条", 1),
+              _createTextVNode(_toDisplayString$2(rules.value.length) + " 条", 1),
               (errorCount.value)
-                ? (_openBlock$5(), _createElementBlock$4("span", _hoisted_12$1, " · " + _toDisplayString$1(errorCount.value) + " 个错误", 1))
+                ? (_openBlock$5(), _createElementBlock$4("span", _hoisted_12$1, " · " + _toDisplayString$2(errorCount.value) + " 个错误", 1))
                 : _createCommentVNode$4("", true)
             ], 2),
             (_openBlock$5(), _createElementBlock$4("svg", {
-              class: _normalizeClass$1(["aoa-subfill-projection-toggle__chevron", { 'aoa-subfill-projection-toggle__chevron--open': projectionOpen.value }]),
+              class: _normalizeClass$2(["aoa-subfill-projection-toggle__chevron", { 'aoa-subfill-projection-toggle__chevron--open': projectionOpen.value }]),
               viewBox: "0 0 24 24",
               width: "18",
               height: "18",
               "aria-hidden": "true"
             }, [
-              _createElementVNode$1("path", {
+              _createElementVNode$2("path", {
                 d: _unref$1(mdiChevronDown),
                 fill: "currentColor"
               }, null, 8, _hoisted_13$1)
             ], 2))
           ], 8, _hoisted_10$1)
         ])
-      ], 10, _hoisted_3$1),
+      ], 10, _hoisted_3$2),
       (projectionOpen.value)
         ? (_openBlock$5(), _createElementBlock$4("section", {
             key: 0,
@@ -3086,11 +3087,11 @@ return (_ctx, _cache) => {
                       ref: element => setRuleCardRef(rule.id, element),
                       id: `subfill-rule-panel-${rule.lineNumber}`,
                       key: rule.id,
-                      class: _normalizeClass$1(["aoa-subfill-code-card", { 'aoa-subfill-code-card--error': !rule.valid }]),
+                      class: _normalizeClass$2(["aoa-subfill-code-card", { 'aoa-subfill-code-card--error': !rule.valid }]),
                       "data-subfill-code-line": rule.lineNumber,
                       "data-subfill-code-valid": rule.valid
                     }, [
-                      _createElementVNode$1("button", {
+                      _createElementVNode$2("button", {
                         id: `subfill-rule-toggle-${rule.lineNumber}`,
                         type: "button",
                         class: "aoa-subfill-code-card__toggle",
@@ -3099,22 +3100,22 @@ return (_ctx, _cache) => {
                         title: isExpanded(rule.id) ? '收起' : '展开',
                         onClick: $event => (toggleRule(rule.id))
                       }, [
-                        _createElementVNode$1("span", _hoisted_18$1, "第 " + _toDisplayString$1(rule.lineNumber) + " 行", 1),
-                        _createElementVNode$1("span", _hoisted_19$1, _toDisplayString$1(rule.title), 1),
-                        _createElementVNode$1("span", _hoisted_20$1, [
-                          _createTextVNode(_toDisplayString$1(rule.fields.length) + " 个字段", 1),
+                        _createElementVNode$2("span", _hoisted_18$1, "第 " + _toDisplayString$2(rule.lineNumber) + " 行", 1),
+                        _createElementVNode$2("span", _hoisted_19$1, _toDisplayString$2(rule.title), 1),
+                        _createElementVNode$2("span", _hoisted_20$1, [
+                          _createTextVNode(_toDisplayString$2(rule.fields.length) + " 个字段", 1),
                           (rule.errors.length)
-                            ? (_openBlock$5(), _createElementBlock$4("span", _hoisted_21$1, " · " + _toDisplayString$1(rule.errors.length) + " 个错误", 1))
+                            ? (_openBlock$5(), _createElementBlock$4("span", _hoisted_21$1, " · " + _toDisplayString$2(rule.errors.length) + " 个错误", 1))
                             : _createCommentVNode$4("", true)
                         ]),
                         (_openBlock$5(), _createElementBlock$4("svg", {
-                          class: _normalizeClass$1(["aoa-subfill-code-card__chevron", { 'aoa-subfill-code-card__chevron--open': isExpanded(rule.id) }]),
+                          class: _normalizeClass$2(["aoa-subfill-code-card__chevron", { 'aoa-subfill-code-card__chevron--open': isExpanded(rule.id) }]),
                           viewBox: "0 0 24 24",
                           width: "18",
                           height: "18",
                           "aria-hidden": "true"
                         }, [
-                          _createElementVNode$1("path", {
+                          _createElementVNode$2("path", {
                             d: _unref$1(mdiChevronDown),
                             fill: "currentColor"
                           }, null, 8, _hoisted_22$1)
@@ -3135,13 +3136,13 @@ return (_ctx, _cache) => {
                                     return (_openBlock$5(), _createElementBlock$4("div", {
                                       key: `${field.key}-${fieldIndex}`
                                     }, [
-                                      _createElementVNode$1("dt", null, [
-                                        _createTextVNode(_toDisplayString$1(field.label), 1),
+                                      _createElementVNode$2("dt", null, [
+                                        _createTextVNode(_toDisplayString$2(field.label), 1),
                                         (field.duplicate)
                                           ? (_openBlock$5(), _createElementBlock$4("span", _hoisted_25$1, "（重复）"))
                                           : _createCommentVNode$4("", true)
                                       ]),
-                                      _createElementVNode$1("dd", null, _toDisplayString$1(field.value || '空值'), 1)
+                                      _createElementVNode$2("dd", null, _toDisplayString$2(field.value || '空值'), 1)
                                     ]))
                                   }), 128))
                                 ]))
@@ -3149,7 +3150,7 @@ return (_ctx, _cache) => {
                             (rule.errors.length)
                               ? (_openBlock$5(), _createElementBlock$4("div", _hoisted_26$1, [
                                   (_openBlock$5(true), _createElementBlock$4(_Fragment$1, null, _renderList$1(rule.errors, (error) => {
-                                    return (_openBlock$5(), _createElementBlock$4("span", { key: error }, _toDisplayString$1(error), 1))
+                                    return (_openBlock$5(), _createElementBlock$4("span", { key: error }, _toDisplayString$2(error), 1))
                                   }), 128))
                                 ]))
                               : _createCommentVNode$4("", true)
@@ -3330,11 +3331,15 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$1,renderSlot:_renderSlot,openBlock:_openBlock$2,createElementBlock:_createElementBlock$1,createCommentVNode:_createCommentVNode$1,withCtx:_withCtx$1} = await importShared('vue');
+const {resolveComponent:_resolveComponent,createVNode:_createVNode$1,createElementVNode:_createElementVNode$1,toDisplayString:_toDisplayString$1,normalizeClass:_normalizeClass$1,openBlock:_openBlock$2,createElementBlock:_createElementBlock$1,createCommentVNode:_createCommentVNode$1,withCtx:_withCtx$1,renderSlot:_renderSlot} = await importShared('vue');
 
 
 const _hoisted_1$1 = ["data-effective-state"];
-const _hoisted_2$1 = {
+const _hoisted_2$1 = ["data-effective-state"];
+const _hoisted_3$1 = { class: "aoa-field-row__label aoa-field-row__label--with-icon" };
+const _hoisted_4$1 = { class: "aoa-field-row__control" };
+const _hoisted_5$1 = ["disabled", "title", "aria-label", "data-disabled-reason", "data-config-action-path"];
+const _hoisted_6$1 = {
   key: 0,
   class: "aoa-plugin-uninstall-actions",
   "data-plugin-uninstall-actions": ""
@@ -3349,16 +3354,32 @@ const _sfc_main$2 = {
   form: { type: Object, required: true },
   card: { type: Object, required: true },
   actions: { type: Array, default: () => [] },
+  purgeActionState: { type: Object, default: () => ({}) },
   effectiveState: { type: String, default: '' },
 },
-  setup(__props) {
+  emits: ['run'],
+  setup(__props, { emit: __emit }) {
 
 const props = __props;
+
+const emit = __emit;
 
 const uninstallCard = computed$5(() => ({
   ...props.card,
   danger: true,
 }));
+
+const purgeAction = computed$5(() => props.actions.find(action => action.path === 'run_agentopsassistant_purge') || null);
+const uninstallActions = computed$5(() => props.actions.filter(action => action.path !== 'run_agentopsassistant_purge'));
+const purgeVisible = computed$5(() => Boolean(purgeAction.value && props.purgeActionState.visible !== false));
+const purgeDisabled = computed$5(() => Boolean(props.purgeActionState.disabled));
+const purgeRunning = computed$5(() => Boolean(props.purgeActionState.running));
+const purgeButtonLabel = computed$5(() => purgeRunning.value ? '执行中…' : '专杀');
+
+function runPurge() {
+  if (!purgeAction.value || purgeDisabled.value || purgeRunning.value) return
+  emit('run', purgeAction.value);
+}
 
 function uninstallFieldAttrs(field, index) {
   return {
@@ -3368,6 +3389,8 @@ function uninstallFieldAttrs(field, index) {
 }
 
 return (_ctx, _cache) => {
+  const _component_VIcon = _resolveComponent("VIcon");
+
   return (_openBlock$2(), _createElementBlock$1("div", {
     class: "aoa-plugin-uninstall-config aoa-design-replica-stack",
     "data-plugin-uninstall-config-surface": "",
@@ -3390,10 +3413,51 @@ return (_ctx, _cache) => {
           "field-defaults": { hideInlineLabel: true, hideDetails: true, density: 'compact' },
           "row-attrs": uninstallFieldAttrs,
           "data-plugin-uninstall-fields": ""
-        }, null, 8, ["fields", "form", "grid"]),
-        (__props.actions.length)
-          ? (_openBlock$2(), _createElementBlock$1("div", _hoisted_2$1, [
-              _renderSlot(_ctx.$slots, "actions", { actions: __props.actions })
+        }, {
+          append: _withCtx$1(() => [
+            (purgeVisible.value)
+              ? (_openBlock$2(), _createElementBlock$1("div", {
+                  key: 0,
+                  class: "aoa-field-row aoa-config-field-row aoa-plugin-uninstall-purge-field",
+                  "data-plugin-uninstall-purge-field": "",
+                  "data-plugin-uninstall-config-item": "agentopsassistant_purge",
+                  "data-control-kind": "action",
+                  "data-field-row": "",
+                  "data-effective-state": __props.effectiveState || undefined
+                }, [
+                  _createElementVNode$1("div", _hoisted_3$1, [
+                    _createVNode$1(_component_VIcon, {
+                      class: "aoa-field-row__icon",
+                      icon: purgeAction.value.icon,
+                      size: "16",
+                      "aria-hidden": "true"
+                    }, null, 8, ["icon"]),
+                    _cache[0] || (_cache[0] = _createElementVNode$1("span", {
+                      class: "aoa-field-row__label-text",
+                      "data-plugin-uninstall-purge-label": ""
+                    }, " mp运维助手专杀 ", -1))
+                  ]),
+                  _createElementVNode$1("div", _hoisted_4$1, [
+                    _createElementVNode$1("button", {
+                      type: "button",
+                      class: _normalizeClass$1(["aoa-plugin-uninstall-purge-button", { 'aoa-plugin-uninstall-purge-button--running': purgeRunning.value }]),
+                      disabled: purgeDisabled.value || purgeRunning.value,
+                      title: __props.purgeActionState.disabledReason || '无备份彻底清除 AgentOpsAssistant',
+                      "aria-label": __props.purgeActionState.disabledReason ? `mp运维助手专杀，${__props.purgeActionState.disabledReason}` : 'mp运维助手专杀',
+                      "data-disabled-reason": __props.purgeActionState.disabledReason || undefined,
+                      "data-config-action-path": purgeAction.value.path,
+                      "data-plugin-uninstall-purge-button": "",
+                      onClick: runPurge
+                    }, _toDisplayString$1(purgeButtonLabel.value), 11, _hoisted_5$1)
+                  ])
+                ], 8, _hoisted_2$1))
+              : _createCommentVNode$1("", true)
+          ]),
+          _: 1
+        }, 8, ["fields", "form", "grid"]),
+        (uninstallActions.value.length)
+          ? (_openBlock$2(), _createElementBlock$1("div", _hoisted_6$1, [
+              _renderSlot(_ctx.$slots, "actions", { actions: uninstallActions.value })
             ]))
           : _createCommentVNode$1("", true)
       ]),
@@ -4744,7 +4808,7 @@ const replicaItemSources = computed(() => ({
 
 const {
   action, notificationLockedByFusion,
-  getActionAvailability, actionDisabledMessage, isActionRunning, runAction,
+  getActionAvailability, actionDisabledMessage, isActionRunning, runningActionIds, runAction,
 } = useConfigActionRunner(form, apiHandle, installedPlugins, loadInstalledPlugins);
 const {
   actionOperationPortalStyle,
@@ -5168,6 +5232,17 @@ const pluginUninstallCard = computed(() => activeSub.value === 'clean'
 const pluginUninstallActionCard = computed(() => activeSub.value === 'clean'
   ? actionCards.value.find(card => card.actions?.some(item => item.path === 'run_plugin_uninstall')) || null
   : null);
+const pluginUninstallPurgeAction = computed(() => pluginUninstallActionCard.value?.actions
+  ?.find(item => item.path === 'run_agentopsassistant_purge') || null);
+const pluginUninstallPurgeActionState = computed(() => {
+  const item = pluginUninstallPurgeAction.value;
+  if (!item) return { visible: false, disabled: true, disabledReason: '', running: false }
+  const actionId = String(item.id || item.path || item.apiPath || '');
+  return {
+    ...getActionAvailability(item),
+    running: runningActionIds.value.includes(actionId),
+  }
+});
 const configActionHints = {
   fusion: '管理卡片状态，可建卡或刷新数据',
   server: '配置完成后即时生效',
@@ -5625,7 +5700,9 @@ return (_ctx, _cache) => {
                         form: _unref(form),
                         card: pluginUninstallCard.value,
                         actions: pluginUninstallActionCard.value?.actions || [],
-                        "effective-state": currentEffectiveState.value.code
+                        "purge-action-state": pluginUninstallPurgeActionState.value,
+                        "effective-state": currentEffectiveState.value.code,
+                        onRun: triggerConfigActionWithRefresh
                       }, {
                         actions: _withCtx(({ actions }) => [
                           _createVNode(_unref(CompactActionRow), {
@@ -5635,7 +5712,7 @@ return (_ctx, _cache) => {
                           }, null, 8, ["card", "effective-state"])
                         ]),
                         _: 1
-                      }, 8, ["form", "card", "actions", "effective-state"]))
+                      }, 8, ["form", "card", "actions", "purge-action-state", "effective-state"]))
                     : (_unref(activeSub) === 'backup')
                       ? (_openBlock$1(), _createBlock$1(_sfc_main$6, {
                           key: 1,
