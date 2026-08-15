@@ -18,8 +18,8 @@ class SeedCleanMixin:
     def _downloader_seed_map(self) -> Dict[str, int]:
         """汇总所有下载器的 {种子hash: 做种秒数}，供入库记录的 download_hash 互相印证做种时长。
         做种时长口径对齐官方“自动删种(TorrentRemover)”插件：优先用完成时间算 now−完成
-        （qb completion_on / tr date_done，未完成回退 added_on/date_added），取不到再退化到
-        seeding_time 字段。兼容 qbittorrent 与 transmission 的字段命名。"""
+        （qb completion_on / tr done_date，未完成回退 added_on/added_date），取不到再退化到
+        seeding_time 字段，分别对应 qbittorrent 与 transmission 的当前返回对象。"""
         seed_map: Dict[str, int] = {}
         try:
             from app.helper.downloader import DownloaderHelper
@@ -47,16 +47,16 @@ class SeedCleanMixin:
                 return 0
 
         def _seed_seconds(t) -> int:
-            comp = _f(t, "completion_on", "completionOn")          # qb 完成时间(秒)
+            comp = _f(t, "completion_on")                          # qb 完成时间(秒)
             if comp is not None and _since(comp):
                 return _since(comp)
-            dd = _f(t, "date_done", "done_date", "date_added", "added_date")  # tr 完成/添加(datetime)
+            dd = _f(t, "done_date", "added_date")                  # tr 完成/添加(datetime)
             if dd is not None and _since(dd):
                 return _since(dd)
-            add = _f(t, "added_on", "addedDate")                   # qb 添加时间(秒)回退
+            add = _f(t, "added_on")                                 # qb 添加时间(秒)回退
             if add is not None and _since(add):
                 return _since(add)
-            st = _f(t, "seeding_time", "seedingTime", "seconds_seeding", "secondsSeeding")  # 兜底
+            st = _f(t, "seeding_time")                              # 兜底
             try:
                 return int(st or 0)
             except Exception:
@@ -109,12 +109,12 @@ class SeedCleanMixin:
             completed = int(result.get("completed") or 0)
             failed = int(result.get("failed") or 0)
             success = failed == 0
-            if scheduled and attempted and self._task_outcome_notification_enabled(self._seedclean_notify):
+            if scheduled and (attempted or failed) and self._task_outcome_notification_enabled(self._seedclean_notify):
                 verb = str(result.get("verb") or "处理")
                 outcome = (
                     f"已{verb} {completed} 个种子"
                     if success
-                    else f"自动删种执行失败：成功 {completed} 个，失败 {failed} 个"
+                    else f"自动删种执行失败：成功处理 {completed} 个，失败 {failed} 项"
                 )
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._seedclean_notify_type),
@@ -177,45 +177,72 @@ class SeedCleanMixin:
         failed = 0
         action = self._seedclean_action
         candidate_groups = self._seed_clean_candidates()
+        candidate_error_text = {
+            "downloader_not_found": "未找到下载器实例，未执行",
+            "downloader_inactive": "下载器未连接，未执行",
+            "candidate_calculation_failed": "候选计算失败，未执行",
+        }
         for group in candidate_groups:
             dl_name = group.get("downloader")
+            group_error = str(group.get("error") or "")
+            if group_error:
+                failed += 1
+                lines.append(f"⦁ {dl_name}：{candidate_error_text.get(group_error, '候选计算失败，未执行')}")
+                continue
             service = services.get(dl_name)
             inst = getattr(service, "instance", None) if service else None
             if not inst:
-                lines.append(f"⦁ {dl_name}：未找到下载器实例，跳过")
+                failed += 1
+                lines.append(f"⦁ {dl_name}：未找到下载器实例，未执行")
                 continue
             try:
                 if hasattr(inst, "is_inactive") and inst.is_inactive():
-                    lines.append(f"⦁ {dl_name}：下载器未连接，跳过")
+                    failed += 1
+                    lines.append(f"⦁ {dl_name}：下载器未连接，未执行")
                     continue
             except Exception:
                 pass
             targets = group.get("items") or []
             if not targets:
+                lines.append(f"⦁ {dl_name}：没有符合条件的种子")
                 continue
             act = action
             done = 0
+            group_failed = 0
+            target_lines: List[str] = []
             for t in targets:
                 tid = t.get("id")
                 if act not in verb_map:
                     continue
+                try:
+                    size_text = StringUtils.str_filesize(t.get("size"))
+                except Exception:
+                    size_text = str(t.get("size") or "")
+                target_text = f"{t.get('name')}｜{size_text}｜{t.get('site') or ''}"
                 attempted += 1
                 try:
                     if act == "pause":
-                        inst.stop_torrents(ids=[tid])
+                        action_ok = inst.stop_torrents(ids=[tid])
                     elif act == "delete":
-                        inst.delete_torrents(delete_file=False, ids=[tid])
+                        action_ok = inst.delete_torrents(delete_file=False, ids=[tid])
                     elif act == "deletefile":
-                        inst.delete_torrents(delete_file=True, ids=[tid])
+                        action_ok = inst.delete_torrents(delete_file=True, ids=[tid])
+                    if not action_ok:
+                        raise RuntimeError("MoviePilot 下载器接口返回失败")
                     done += 1
                     completed += 1
+                    target_lines.append(f"  - 成功：{target_text}")
                     logger.info(f"自动删种 {verb_map.get(act, act)}：{t.get('name')}")
                 except Exception as e:
                     failed += 1
+                    group_failed += 1
+                    target_lines.append(f"  - 失败：{target_text}")
                     logger.warning(f"自动删种处理失败 {t.get('name')}：{e}")
-            lines.append(f"⦁ {dl_name}：{verb_map.get(act, act)} {done} 个")
-            for t in targets[:8]:
-                lines.append(f"  - {t.get('name')}｜{StringUtils.str_filesize(t.get('size'))}｜{t.get('site') or ''}")
+            summary = f"⦁ {dl_name}：{verb_map.get(act, act)} {done} 个"
+            if group_failed:
+                summary += f"，失败 {group_failed} 个"
+            lines.append(summary)
+            lines.extend(target_lines[:8])
         return {
             "lines": lines,
             "attempted": attempted,
@@ -306,7 +333,9 @@ class SeedCleanMixin:
                 has_error = bool(getattr(torrent, "error", 0) or getattr(torrent, "error_string", ""))
                 if status not in expected and not ("error" in expected and has_error):
                     return None
-            date_done = torrent.date_done or torrent.date_added
+            # MoviePilot's transmission-rpc contract exposes these canonical
+            # Python properties for the RPC doneDate/addedDate fields.
+            date_done = torrent.done_date or torrent.added_date
             seeding = (datetime.now().timestamp() - date_done.timestamp()) if date_done else 0
             uploaded = torrent.ratio * torrent.total_size
             avg_up = (uploaded / seeding) if seeding else 0
