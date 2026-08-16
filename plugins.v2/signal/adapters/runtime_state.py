@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import zipfile
 from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -15,15 +16,25 @@ from app.log import logger
 from app.schemas import NotificationType
 from app.utils.http import RequestUtils
 
+from ..application.backup_models import BACKUP_OPERATION_LOCK
 from ..domain import html_utils, site_helpers
 from .lifecycle import DEFAULT_LOCAL_PLUGIN_REPO
+
+
+def _serialize_backup_config_mutation(method):
+    """Serialize Signal config activation with backup and restore operations."""
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with BACKUP_OPERATION_LOCK:
+            return method(self, *args, **kwargs)
+    return wrapped
 
 
 class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "1.0.13"
+    plugin_version = "1.0.15"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -133,7 +144,6 @@ class RuntimeStateMixin:
     _log_clean_notify = True
     _log_clean_notify_type = "Plugin"
     _backup_enabled = False
-    _backup_schedule_enabled = False
     _backup_cron = "0 4 * * 1"
     _backup_keep_count = 5
     _backup_path = "/config/plugins/Signal/Backup"
@@ -144,6 +154,8 @@ class RuntimeStateMixin:
     _backup_webdav_login = ""
     _backup_webdav_password = ""
     _backup_webdav_max_count = 5
+    _backup_config: Dict[str, Any] = {}
+    _backup_legacy_config_keys: List[str] = []
     _mp_update_enabled = False
     _mp_update_schedule_enabled = False
     _mp_update_cron = "0 9 * * *"
@@ -246,7 +258,7 @@ class RuntimeStateMixin:
             "title": "站点数据",
             "subtitle": "上传下载增量、统计时间与站点占比",
             "md": 8,
-            "rows": 27,
+            "rows": 29,
             "density": "comfortable",
         },
         {
@@ -280,6 +292,7 @@ class RuntimeStateMixin:
         "subfill_category": "_subfill_category_enabled",
     }
 
+    @_serialize_backup_config_mutation
     def init_plugin(self, config: dict = None):
         config = config or {}
         self._load_plugin_config(config)
@@ -311,18 +324,6 @@ class RuntimeStateMixin:
         payload.update({"code": 1, "msg": msg, "message": msg, "skipped": True})
         payload.setdefault("success", False)
         return payload
-
-    @staticmethod
-    def _restore_confirm_required_data(msg: str) -> Dict[str, Any]:
-        return {
-            "success": False,
-            "dry_run": False,
-            "errors": [msg],
-            "warnings": [],
-            "restored": [],
-            "emergency_backup": "",
-            "confirm_required": True,
-        }
 
     @staticmethod
     def _config_bool(config: Dict[str, Any], key: str, default: bool = False) -> bool:

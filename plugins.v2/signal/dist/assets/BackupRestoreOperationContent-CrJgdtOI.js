@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { a1 as useTheme, am as _export_sfc, bI as mdiClose, c4 as mdiAlertOutline } from './mdi-DveizHBi.js';
+import { a1 as useTheme, am as _export_sfc, bI as mdiClose } from './mdi-DveizHBi.js';
 
 const hasOwn$1 = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
 
@@ -241,6 +241,13 @@ function freezeActionParameters(parameters = []) {
   }))
 }
 
+function defineActionRefresh(refresh = {}) {
+  return freeze({
+    siteChart: refresh.siteChart === true,
+    fusionCard: refresh.fusionCard === true,
+  })
+}
+
 function defineActionOperation(options = {}, parameters = []) {
   const mode = options.operationMode || ACTION_OPERATION_MODE.direct;
   if (!Object.values(ACTION_OPERATION_MODE).includes(mode)) {
@@ -298,6 +305,7 @@ function defineAction(id, options) {
     iconKey: options.iconKey || '',
     tone: options.tone,
     availability: defineAvailability(options),
+    refresh: defineActionRefresh(options.refresh),
     parameters,
     operation: defineActionOperation(options, parameters),
     presentations: freezePresentations(options.presentations),
@@ -317,22 +325,35 @@ const actionDefinitions = [
   defineAction('run_site_stat', {
     key: 'site_stat', component: 'site_stat', groupId: 'site_downloaders',
     label: '站点统计', desc: '刷新站点增量', icon: 'mdi-chart-pie', iconKey: 'chartPie', tone: 'blue',
+    refresh: { siteChart: true },
     presentations: { config: { label: '立即统计', icon: 'mdi-chart-line' } },
   }),
   defineAction('run_backup', {
     key: 'backup', component: 'backup', groupId: 'system_maintenance',
-    label: '配置备份', desc: '执行自动备份', icon: 'mdi-database-arrow-up-outline', iconKey: 'database', tone: 'violet',
-    presentations: { config: { label: '立即备份', icon: 'mdi-archive-arrow-up-outline' } },
+    label: '立即备份', desc: '生成完整归档并投递到已保存目标', icon: 'mdi-database-arrow-up-outline', iconKey: 'database', tone: 'violet',
+    presentations: { config: { icon: 'mdi-archive-arrow-up-outline' } },
+  }),
+  defineAction('run_backup_restore', {
+    key: 'backup_restore', groupId: 'system_maintenance',
+    availabilityComponent: '', taskKey: '',
+    operationMode: ACTION_OPERATION_MODE.confirm, operationDanger: true,
+    label: '立即恢复', desc: '选择受检归档和在线恢复范围', icon: 'mdi-backup-restore', iconKey: 'restore', tone: 'violet',
   }),
   defineAction('run_log_clean', {
     key: 'log_clean', component: 'log_clean', groupId: 'system_maintenance',
-    label: '日志清理', desc: '按保留行数截断日志', icon: 'mdi-broom', iconKey: 'broom', tone: 'violet',
-    presentations: { config: { label: '立即清理' } },
+    label: '清理日志', desc: '按已保存规则截断日志', icon: 'mdi-broom', iconKey: 'broom', tone: 'violet',
   }),
   defineAction('run_health_check', {
     key: 'health', component: 'health_check', groupId: 'system_maintenance',
     label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse', iconKey: 'heartPulse', tone: 'green',
-    presentations: { config: { label: '立即巡检', icon: 'mdi-heart-pulse-solid' } },
+    presentations: { config: { icon: 'mdi-heart-pulse-solid' } },
+  }),
+  defineAction('run_updates', {
+    key: 'updates', groupId: 'system_maintenance',
+    availabilityComponent: '', taskKey: '', componentLabel: '更新管理',
+    componentConfigKeys: ['mp_update_enabled', 'plugin_update_reminder_enabled', 'market_update_enabled'],
+    componentMode: 'any',
+    label: '更新检查', desc: '按已保存的更新管理配置执行', icon: 'mdi-update', iconKey: 'refresh', tone: 'amber',
   }),
   defineAction('run_mp_update', {
     key: 'mp_update', component: 'mp_update', groupId: 'system_maintenance',
@@ -353,6 +374,7 @@ const actionDefinitions = [
     key: 'fusion_build', component: 'fusion_notify', groupId: 'fusion',
     taskKey: '',
     label: '立即建卡', desc: '创建融合汇报卡', icon: 'mdi-card-plus-outline', iconKey: 'cardPlus', tone: 'blue',
+    refresh: { fusionCard: true },
     presentations: {
       config: { icon: 'mdi-plus-circle-outline' },
       dashboardFusion: { label: '建卡' },
@@ -362,6 +384,7 @@ const actionDefinitions = [
     key: 'fusion_refresh', component: 'daily_report', groupId: 'fusion',
     availabilityComponent: 'fusion_notify', taskKey: '',
     label: '立即刷新', desc: '刷新融合汇报', icon: 'mdi-refresh', iconKey: 'refresh', tone: 'blue',
+    refresh: { fusionCard: true },
     presentations: {
       config: { icon: 'mdi-sync' },
       dashboardFusion: { label: '刷新融合卡' },
@@ -370,13 +393,8 @@ const actionDefinitions = [
   defineAction('run_seed_clean', {
     key: 'seed_clean', component: 'seedclean', groupId: 'site_downloaders',
     taskKey: 'seed_clean',
-    operationMode: ACTION_OPERATION_MODE.confirm, operationDanger: true,
-    parameters: [
-      { key: 'seedclean_confirm', value: true, type: 'boolean' },
-    ],
-    label: '自动删种', desc: '按当前规则处理匹配种子', icon: 'mdi-play', tone: 'red',
+    label: '立即删种', desc: '按已保存规则处理匹配种子', icon: 'mdi-play', tone: 'red',
     presentations: {
-      config: { label: '执行自动删种' },
       dashboard: { iconKey: 'trash' },
       mpWidget: { iconKey: 'trash' },
     },
@@ -435,7 +453,6 @@ const actionDefinitions = [
       { key: 'plugin_uninstall_clear_config', source: 'config.plugin_uninstall_clear_config', type: 'boolean', default: false },
       { key: 'plugin_uninstall_clear_data', source: 'config.plugin_uninstall_clear_data', type: 'boolean', default: false },
       { key: 'plugin_uninstall_delete_source', source: 'config.plugin_uninstall_delete_source', type: 'boolean', default: false },
-      { key: 'plugin_uninstall_confirm', value: true, type: 'boolean' },
     ],
     label: '插件卸载', desc: '卸载选中的插件并执行所选清理项', icon: 'mdi-alert-outline', tone: 'red',
     presentations: {
@@ -465,11 +482,12 @@ const actionRegistry = freeze(Object.fromEntries(
 const manualActionPaths = freeze(actionDefinitions.map(action => action.id));
 
 const quickActionPaths = freeze([
-  'run_subscribe_reminder',
-  'run_today_transfer',
-  'run_site_stat',
   'run_backup',
+  'run_backup_restore',
   'run_health_check',
+  'run_seed_clean',
+  'run_log_clean',
+  'run_updates',
 ]);
 
 const fusionCardActionPaths = freeze([
@@ -488,10 +506,9 @@ const configActionPaths = freeze([
   'subfill_clear_history',
   'subfill_clear_handled',
   'run_backup',
+  'run_backup_restore',
   'run_log_clean',
-  'run_mp_update',
-  'run_plugin_update_reminder',
-  'run_market_update',
+  'run_updates',
   'run_plugin_uninstall',
   'run_agentopsassistant_purge',
 ]);
@@ -557,9 +574,15 @@ function resolveAction(itemOrId) {
     ...registered,
     ...itemOrId,
     availability: registered.availability,
+    refresh: registered.refresh,
     parameters: registered.parameters,
     operation: registered.operation,
   }
+}
+
+function actionRefreshes(itemOrId, target) {
+  const action = resolveAction(itemOrId);
+  return Boolean(action?.refresh?.[target])
 }
 
 function readComponentState(componentStates, key) {
@@ -682,7 +705,7 @@ freeze(quickActionGroupIds.map(groupId => {
   })
 }));
 
-const {computed: computed$2,reactive,ref: ref$1} = await importShared('vue');
+const {computed: computed$4,reactive: reactive$1,ref: ref$1} = await importShared('vue');
 
 function resolveMaybeRef(value) {
   if (typeof value === 'function') return value()
@@ -719,16 +742,16 @@ function useActionRunner(options = {}) {
     onSuccess = null,
     messageTimeoutMs = 5000,
   } = options;
-  const runningActions = reactive(new Map());
+  const runningActions = reactive$1(new Map());
   const inFlight = new Map();
   const actionMessage = ref$1('');
   const actionOk = ref$1(true);
   let clearTimer = 0;
 
-  const runningActionIds = computed$2(() => Array.from(runningActions.keys()));
-  const runningActionLabels = computed$2(() => Array.from(runningActions.values()).map(item => item.label));
-  const actionRunning = computed$2(() => runningActionIds.value[0] || '');
-  const runningActionLabel = computed$2(() => runningActions.get(actionRunning.value)?.label || '');
+  const runningActionIds = computed$4(() => Array.from(runningActions.keys()));
+  const runningActionLabels = computed$4(() => Array.from(runningActions.values()).map(item => item.label));
+  const actionRunning = computed$4(() => runningActionIds.value[0] || '');
+  const runningActionLabel = computed$4(() => runningActions.get(actionRunning.value)?.label || '');
 
   function cancelMessageClear() {
     if (!clearTimer) return
@@ -865,8 +888,9 @@ function useActionRunner(options = {}) {
 
 // Config action-operation orchestration lives in its feature composable; this adapter owns runner context and post-success refresh only.
 function useConfigActionRunner(form, api, installedPlugins, loadInstalledPlugins) {
-  const notificationLockedByFusion = computed$2(() => !!form.fusion_notify_enabled);
+  const notificationLockedByFusion = computed$4(() => !!form.fusion_notify_enabled);
   const downloaderHelperPreview = ref$1(null);
+  const operationPayloadSnapshot = ref$1(null);
   let runner = null;
 
   function configAction(itemOrPath, label = '') {
@@ -891,7 +915,7 @@ function useConfigActionRunner(form, api, installedPlugins, loadInstalledPlugins
   }
 
   function actionPayloadContext() {
-    return {
+    return operationPayloadSnapshot.value || {
       config: form,
       runtime: {
         downloaderHelperPreview: downloaderHelperPreview.value,
@@ -950,6 +974,11 @@ function useConfigActionRunner(form, api, installedPlugins, loadInstalledPlugins
       get: () => downloaderHelperPreview.value,
       set: value => { downloaderHelperPreview.value = value; },
     },
+    operationPayloadSnapshot: {
+      enumerable: true,
+      get: () => operationPayloadSnapshot.value,
+      set: value => { operationPayloadSnapshot.value = value; },
+    },
   });
 
   function executeConfigAction(path, label = '') {
@@ -967,7 +996,340 @@ function useConfigActionRunner(form, api, installedPlugins, loadInstalledPlugins
   }
 }
 
-const {computed: computed$1} = await importShared('vue');
+const {computed: computed$3,reactive} = await importShared('vue');
+
+const BACKUP_RESTORE_SOURCES = Object.freeze([
+  Object.freeze({ value: 'local', label: '本地归档' }),
+  Object.freeze({ value: 'webdav', label: '已保存 WebDAV' }),
+  Object.freeze({ value: 'temporary_webdav', label: '临时 WebDAV' }),
+  Object.freeze({ value: 'upload', label: '浏览器导入' }),
+]);
+
+const BACKUP_RESTORE_PLUGIN_SCOPES = Object.freeze([
+  Object.freeze({ value: 'all', label: '全部插件' }),
+  Object.freeze({ value: 'include', label: '仅恢复指定插件' }),
+  Object.freeze({ value: 'exclude', label: '排除指定插件' }),
+]);
+
+function resolveMaybeValue(value) {
+  if (typeof value === 'function') return value()
+  if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'value')) return value.value
+  return value
+}
+
+function responseMessage(response, fallback) {
+  return String(response?.msg || response?.data?.message || response?.text || fallback || '')
+}
+
+function cloneJson(value) {
+  try {
+    return JSON.parse(JSON.stringify(value))
+  } catch {
+    return {}
+  }
+}
+
+function normalizePluginOptions(inspection) {
+  const manifestItems = inspection?.manifest?.components?.plugins?.items;
+  const rawItems = Array.isArray(inspection?.plugin_options)
+    ? inspection.plugin_options
+    : Array.isArray(inspection?.descriptor?.plugins)
+      ? inspection.descriptor.plugins
+      : Array.isArray(manifestItems)
+        ? manifestItems
+        : [];
+  const seen = new Set();
+  return rawItems
+    .map(item => {
+      if (item && typeof item === 'object') {
+        const value = String(item.id || item.value || item.key || '').trim();
+        return value ? { value, label: String(item.label || item.name || value) } : null
+      }
+      const value = String(item || '').trim();
+      return value ? { value, label: value } : null
+    })
+    .filter(item => {
+      if (!item || seen.has(item.value)) return false
+      seen.add(item.value);
+      return true
+    })
+}
+
+function downloadBase64File(payload) {
+  if (typeof document === 'undefined' || typeof atob !== 'function') return false
+  const binary = atob(String(payload?.content_base64 || ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = String(payload?.name || 'signal-backup.zip');
+  anchor.click();
+  URL.revokeObjectURL(url);
+  return true
+}
+
+function useBackupRestore(api, options = {}) {
+  const client = createPluginWorkflowClient(api);
+  const state = reactive({
+    source: 'local',
+    archives: [],
+    archiveName: '',
+    inspection: null,
+    components: { moviepilot: true, plugins: true },
+    pluginScope: 'all',
+    pluginIds: [],
+    temporaryWebdav: {
+      hostname: '',
+      login: '',
+      password: '',
+      digest_auth: false,
+      disable_check: false,
+    },
+    message: '',
+    result: null,
+    operationStatus: null,
+  });
+  const loading = reactive({ list: false, inspect: false, import: false, download: false, execute: false, status: false });
+
+  const pluginEnabled = computed$3(() => resolveMaybeValue(options.pluginEnabled) !== false);
+  const unavailableMessage = computed$3(() => pluginEnabled.value ? '' : '插件总开关未启用，恢复操作不可用。');
+  const pluginOptions = computed$3(() => normalizePluginOptions(state.inspection));
+  const selectedComponents = computed$3(() => Object.entries(state.components)
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => key));
+  const scopeNeedsPlugins = computed$3(() => ['include', 'exclude'].includes(state.pluginScope));
+  const canExecute = computed$3(() => Boolean(
+    pluginEnabled.value
+    && state.inspection?.descriptor?.backup_id
+    && selectedComponents.value.length
+    && (!scopeNeedsPlugins.value || state.pluginIds.length),
+  ));
+  const busy = computed$3(() => Object.values(loading).some(Boolean));
+
+  function temporaryWebdavPayload() {
+    if (state.source !== 'temporary_webdav') return undefined
+    return cloneJson(state.temporaryWebdav)
+  }
+
+  function clearSelection() {
+    state.archives = [];
+    state.archiveName = '';
+    state.inspection = null;
+    state.pluginScope = 'all';
+    state.pluginIds = [];
+    state.message = '';
+    state.result = null;
+  }
+
+  function reset() {
+    state.source = 'local';
+    clearSelection();
+    state.components.moviepilot = true;
+    state.components.plugins = true;
+    state.temporaryWebdav.hostname = '';
+    state.temporaryWebdav.login = '';
+    state.temporaryWebdav.password = '';
+    state.temporaryWebdav.digest_auth = false;
+    state.temporaryWebdav.disable_check = false;
+    state.operationStatus = null;
+  }
+
+  function changeSource(source) {
+    state.source = String(source || 'local');
+    clearSelection();
+  }
+
+  async function loadArchives() {
+    if (!pluginEnabled.value || loading.list) return { code: 1, msg: unavailableMessage.value }
+    loading.list = true;
+    state.message = '';
+    try {
+      const response = await client.execute('backup_archives', {
+        source: state.source,
+        temporary_webdav: temporaryWebdavPayload(),
+      });
+      if (response?.code !== 0) throw new Error(responseMessage(response, '备份归档列表获取失败'))
+      state.archives = Array.isArray(response?.items)
+        ? response.items
+        : (Array.isArray(response?.data?.items) ? response.data.items : []);
+      state.archiveName = state.archives[0]?.name || '';
+      state.inspection = null;
+      state.message = state.archives.length ? '' : '当前来源没有可用归档。';
+      return response
+    } catch (error) {
+      state.archives = [];
+      state.archiveName = '';
+      state.inspection = null;
+      state.message = error?.message || '备份归档列表获取失败';
+      return { code: 1, msg: state.message }
+    } finally {
+      loading.list = false;
+    }
+  }
+
+  function applyInspection(response) {
+    if (response?.code !== 0 || !response?.data?.descriptor?.backup_id) {
+      throw new Error(responseMessage(response, '备份归档检查失败'))
+    }
+    state.inspection = response.data;
+    state.archiveName = response.data.descriptor.name || state.archiveName;
+    const online = new Set(response.data.online_components || []);
+    state.components.moviepilot = online.has('moviepilot');
+    state.components.plugins = online.has('plugins');
+    state.pluginScope = 'all';
+    state.pluginIds = [];
+    state.message = '';
+    return response
+  }
+
+  async function inspectArchive() {
+    if (!state.archiveName || loading.inspect) return { code: 1, msg: '请选择归档。' }
+    loading.inspect = true;
+    state.message = '';
+    try {
+      const response = await client.execute('backup_archive', {
+        source: state.source,
+        archive_name: state.archiveName,
+        temporary_webdav: temporaryWebdavPayload(),
+      });
+      return applyInspection(response)
+    } catch (error) {
+      state.inspection = null;
+      state.message = error?.message || '备份归档检查失败';
+      return { code: 1, msg: state.message }
+    } finally {
+      loading.inspect = false;
+    }
+  }
+
+  async function importArchive(filename, contentBase64) {
+    if (loading.import) return { code: 1, msg: '归档正在导入。' }
+    loading.import = true;
+    state.message = '';
+    try {
+      const response = await client.execute('import_backup_archive', {
+        filename: String(filename || 'signal-backup.zip'),
+        content_base64: String(contentBase64 || ''),
+      });
+      changeSource('upload');
+      return applyInspection(response)
+    } catch (error) {
+      state.inspection = null;
+      state.message = error?.message || '浏览器归档导入失败';
+      return { code: 1, msg: state.message }
+    } finally {
+      loading.import = false;
+    }
+  }
+
+  async function downloadArchive() {
+    if (!state.archiveName || loading.download) return { code: 1, msg: '请选择归档。' }
+    loading.download = true;
+    state.message = '';
+    try {
+      const response = await client.execute('download_backup_archive', {
+        source: state.source,
+        archive_name: state.archiveName,
+        temporary_webdav: temporaryWebdavPayload(),
+      });
+      if (response?.code !== 0 || !response?.data?.content_base64) {
+        throw new Error(responseMessage(response, '备份归档下载失败'))
+      }
+      downloadBase64File(response.data);
+      return response
+    } catch (error) {
+      state.message = error?.message || '备份归档下载失败';
+      return { code: 1, msg: state.message }
+    } finally {
+      loading.download = false;
+    }
+  }
+
+  async function queryOperationStatus() {
+    if (loading.status) return state.operationStatus
+    loading.status = true;
+    try {
+      state.operationStatus = await client.load('backup_operation_status');
+      return state.operationStatus
+    } catch (error) {
+      state.message = error?.message || '恢复状态查询失败';
+      return null
+    } finally {
+      loading.status = false;
+    }
+  }
+
+  function resultFromOperationStatus(status, backupId) {
+    const current = status?.current;
+    if (current?.backup_id === backupId) {
+      return { code: 1, msg: '恢复请求连接已中断，但服务端仍在执行，请稍后查询当前操作。', data: current, disconnected: true }
+    }
+    const recent = [...(status?.recent || [])].reverse().find(item => item?.backup_id === backupId);
+    if (!recent) return null
+    return {
+      code: ['success', 'partial'].includes(recent.status) ? 0 : 1,
+      msg: recent.message || '已从最近操作记录恢复结果。',
+      data: recent,
+      disconnected: true,
+    }
+  }
+
+  async function executeRestore() {
+    if (!canExecute.value || loading.execute) {
+      const message = unavailableMessage.value || '请先检查归档并完成恢复范围选择。';
+      state.result = { code: 1, msg: message };
+      return state.result
+    }
+    loading.execute = true;
+    state.message = '';
+    const backupId = state.inspection.descriptor.backup_id;
+    try {
+      state.result = await client.execute('run_backup_restore', {
+        backup_id: backupId,
+        components: selectedComponents.value,
+        plugin_scope: state.pluginScope,
+        plugin_ids: scopeNeedsPlugins.value ? [...state.pluginIds] : [],
+      });
+      return state.result
+    } catch (error) {
+      const status = await queryOperationStatus();
+      state.result = resultFromOperationStatus(status, backupId) || {
+        code: 1,
+        msg: error?.message || '备份恢复执行失败',
+        data: { status: 'unknown' },
+        disconnected: true,
+      };
+      return state.result
+    } finally {
+      loading.execute = false;
+    }
+  }
+
+  return {
+    state,
+    loading,
+    sources: BACKUP_RESTORE_SOURCES,
+    pluginScopes: BACKUP_RESTORE_PLUGIN_SCOPES,
+    pluginOptions,
+    selectedComponents,
+    scopeNeedsPlugins,
+    pluginEnabled,
+    unavailableMessage,
+    canExecute,
+    busy,
+    reset,
+    changeSource,
+    loadArchives,
+    inspectArchive,
+    importArchive,
+    downloadArchive,
+    queryOperationStatus,
+    executeRestore,
+  }
+}
+
+const {computed: computed$2} = await importShared('vue');
 
 const supportedThemes = ['transparent', 'dark', 'light', 'purple', 'glass', 'system'];
 
@@ -985,99 +1347,87 @@ function normalizeThemeName(value) {
 // selectors, which are removed from plugin CSS during the MoviePilot build.
 function useAgentOpsTheme() {
   const vuetifyTheme = useTheme();
-  const themeName = computed$1(() => normalizeThemeName(vuetifyTheme.global.name.value));
-  const rootThemeClass = computed$1(() => `agentops-theme--${themeName.value}`);
+  const themeName = computed$2(() => normalizeThemeName(vuetifyTheme.global.name.value));
+  const rootThemeClass = computed$2(() => `agentops-theme--${themeName.value}`);
 
   return { themeName, rootThemeClass }
 }
 
-const {toDisplayString:_toDisplayString,openBlock:_openBlock,createElementBlock:_createElementBlock,createCommentVNode:_createCommentVNode,createElementVNode:_createElementVNode,unref:_unref,normalizeClass:_normalizeClass,renderList:_renderList,Fragment:_Fragment,mergeProps:_mergeProps,vModelText:_vModelText,withDirectives:_withDirectives,withModifiers:_withModifiers,Teleport:_Teleport,createBlock:_createBlock} = await importShared('vue');
+const {toDisplayString:_toDisplayString$1,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1,createCommentVNode:_createCommentVNode$1,createElementVNode:_createElementVNode$1,unref:_unref,renderSlot:_renderSlot,vShow:_vShow,withDirectives:_withDirectives$1,mergeProps:_mergeProps,withModifiers:_withModifiers,Teleport:_Teleport,createBlock:_createBlock} = await importShared('vue');
 
 
-const _hoisted_1 = ["data-action-id", "data-action-mode"];
-const _hoisted_2 = ["aria-labelledby", "aria-describedby", "aria-busy"];
-const _hoisted_3 = { class: "aoa-action-operation-panel__head" };
-const _hoisted_4 = {
+const _hoisted_1$1 = ["data-action-id", "data-action-mode"];
+const _hoisted_2$1 = ["aria-labelledby", "aria-describedby", "aria-busy", "data-operation-state"];
+const _hoisted_3$1 = { class: "aoa-action-operation-panel__head" };
+const _hoisted_4$1 = {
   key: 0,
   class: "aoa-action-operation-panel__kicker"
 };
-const _hoisted_5 = ["id"];
-const _hoisted_6 = ["disabled"];
-const _hoisted_7 = {
+const _hoisted_5$1 = ["id"];
+const _hoisted_6$1 = ["disabled"];
+const _hoisted_7$1 = {
   viewBox: "0 0 24 24",
   width: "18",
   height: "18",
   "aria-hidden": "true"
 };
-const _hoisted_8 = ["d"];
-const _hoisted_9 = ["id", "data-tone"];
-const _hoisted_10 = {
-  viewBox: "0 0 24 24",
-  width: "19",
-  height: "19",
-  "aria-hidden": "true"
+const _hoisted_8$1 = ["d"];
+const _hoisted_9$1 = { class: "aoa-action-operation-panel__body" };
+const _hoisted_10$1 = {
+  class: "aoa-action-operation-panel__stage",
+  "data-operation-stage": "editing"
 };
-const _hoisted_11 = ["d"];
-const _hoisted_12 = ["id"];
-const _hoisted_13 = { key: 0 };
-const _hoisted_14 = { key: 1 };
-const _hoisted_15 = {
-  key: 2,
-  class: "aoa-action-operation-panel__fields",
-  "data-action-operation-fields": ""
+const _hoisted_11$1 = {
+  class: "aoa-action-operation-panel__stage",
+  "data-operation-stage": "running",
+  role: "status",
+  "aria-live": "polite"
 };
-const _hoisted_16 = ["id", "aria-describedby", "checked", "disabled", "onChange"];
-const _hoisted_17 = ["id", "aria-describedby", "value", "placeholder", "required", "disabled", "onInput"];
-const _hoisted_18 = ["id", "aria-describedby", "value", "multiple", "required", "disabled", "onChange"];
-const _hoisted_19 = ["value"];
-const _hoisted_20 = ["id", "aria-describedby", "type", "value", "placeholder", "required", "disabled", "onInput"];
-const _hoisted_21 = ["id"];
-const _hoisted_22 = ["data-section-kind"];
-const _hoisted_23 = { key: 0 };
-const _hoisted_24 = { key: 0 };
-const _hoisted_25 = { key: 1 };
-const _hoisted_26 = {
-  key: 0,
-  class: "aoa-action-operation-panel__empty"
-};
-const _hoisted_27 = {
-  key: 3,
-  class: "aoa-action-operation-panel__confirmation"
-};
-const _hoisted_28 = ["id", "placeholder", "autocomplete", "aria-describedby", "disabled"];
-const _hoisted_29 = ["id"];
-const _hoisted_30 = { class: "aoa-action-operation-panel__actions" };
-const _hoisted_31 = ["disabled"];
-const _hoisted_32 = ["disabled", "aria-busy"];
-const _hoisted_33 = {
+const _hoisted_12$1 = { class: "aoa-action-operation-panel__running" };
+const _hoisted_13$1 = ["id", "role", "aria-live"];
+const _hoisted_14$1 = ["data-tone"];
+const _hoisted_15$1 = { key: 0 };
+const _hoisted_16$1 = { class: "aoa-action-operation-panel__actions" };
+const _hoisted_17$1 = ["disabled"];
+const _hoisted_18$1 = ["disabled", "aria-busy"];
+const _hoisted_19$1 = {
   key: 0,
   viewBox: "0 0 24 24",
   width: "15",
   height: "15",
   "aria-hidden": "true"
 };
-const _hoisted_34 = ["d"];
+const _hoisted_20$1 = ["d"];
+const _hoisted_21$1 = {
+  key: 2,
+  type: "button",
+  class: "aoa-action-operation-panel__button aoa-action-operation-panel__button--confirm aoa-button",
+  disabled: ""
+};
 
-const {computed,nextTick,onBeforeUnmount,onMounted,ref,useAttrs,watch} = await importShared('vue');
+const {computed: computed$1,nextTick,onBeforeUnmount,onMounted,ref,useAttrs,watch} = await importShared('vue');
 
 
-const _sfc_main = /*@__PURE__*/Object.assign({ inheritAttrs: false }, {
+const _sfc_main$1 = /*@__PURE__*/Object.assign({ inheritAttrs: false }, {
   __name: 'ActionOperationPanel',
   props: {
   open: { type: Boolean, default: false },
   action: { type: Object, default: () => ({}) },
   title: { type: String, default: '' },
   kicker: { type: String, default: '' },
-  warning: { type: String, default: '' },
   danger: { type: Boolean, default: false },
-  summaryPrimary: { type: String, default: '' },
-  summarySecondary: { type: String, default: '' },
-  sections: { type: Array, default: () => [] },
-  fields: { type: Array, default: () => [] },
-  confirmationInput: { type: Object, default: null },
+  state: {
+    type: String,
+    default: 'editing',
+    validator: value => ['editing', 'running', 'result'].includes(value),
+  },
+  result: { type: Object, default: null },
   confirmLabel: { type: String, default: '确认执行' },
   cancelLabel: { type: String, default: '取消' },
+  closeLabel: { type: String, default: '关闭' },
+  runningLabel: { type: String, default: '正在执行…' },
   confirmIconPath: { type: String, default: '' },
+  confirmDisabled: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
   returnFocusSelector: { type: String, default: '' },
   themeClass: { type: [String, Array, Object], default: '' },
@@ -1086,7 +1436,7 @@ const _sfc_main = /*@__PURE__*/Object.assign({ inheritAttrs: false }, {
   confirmAttrs: { type: Object, default: () => ({}) },
   cancelAttrs: { type: Object, default: () => ({}) },
 },
-  emits: ['cancel', 'confirm', 'update:field'],
+  emits: ['cancel', 'confirm'],
   setup(__props, { emit: __emit }) {
 
 
@@ -1096,68 +1446,40 @@ const props = __props;
 const emit = __emit;
 const attrs = useAttrs();
 const dialogRef = ref(null);
-const confirmationValue = ref('');
 const confirmLocked = ref(false);
 let previousFocus = null;
 
-const actionId = computed(() => String(props.action?.id || props.action?.path || 'action'));
-const actionMode = computed(() => String(props.action?.operation?.mode || 'confirm'));
-const overlayAttrs = computed(() => ({ ...attrs, ...props.rootAttrs }));
-const dialogTitle = computed(() => props.title || props.action?.label || '确认操作');
-const dialogId = computed(() => `aoa-action-operation-${actionId.value.replace(/[^a-zA-Z0-9_-]/g, '-')}`);
-const warningId = computed(() => `${dialogId.value}-warning`);
-const summaryId = computed(() => `${dialogId.value}-summary`);
-const confirmationHintId = computed(() => `${dialogId.value}-confirmation-hint`);
-const dialogDescriptionIds = computed(() => [
-  props.warning ? warningId.value : '',
-  props.summaryPrimary || props.summarySecondary ? summaryId.value : '',
-].filter(Boolean).join(' ') || undefined);
-const expectedConfirmation = computed(() => String(props.confirmationInput?.expectedValue || ''));
-const confirmationReady = computed(() => {
-  if (!props.confirmationInput) return true
-  const current = props.confirmationInput.caseSensitive === false
-    ? confirmationValue.value.toLocaleLowerCase()
-    : confirmationValue.value;
-  const expected = props.confirmationInput.caseSensitive === false
-    ? expectedConfirmation.value.toLocaleLowerCase()
-    : expectedConfirmation.value;
-  return current === expected
+const actionId = computed$1(() => String(props.action?.id || props.action?.path || 'action'));
+const actionMode = computed$1(() => String(props.action?.operation?.mode || 'confirm'));
+const panelState = computed$1(() => props.busy ? 'running' : props.state);
+const isRunning = computed$1(() => panelState.value === 'running');
+const isResult = computed$1(() => panelState.value === 'result');
+const overlayAttrs = computed$1(() => ({ ...attrs, ...props.rootAttrs }));
+const dialogTitle = computed$1(() => props.title || props.action?.label || '确认操作');
+const dialogId = computed$1(() => `aoa-action-operation-${actionId.value.replace(/[^a-zA-Z0-9_-]/g, '-')}`);
+const resultId = computed$1(() => `${dialogId.value}-result`);
+const dialogDescriptionIds = computed$1(() => isResult.value ? resultId.value : undefined);
+const confirmButtonDisabled = computed$1(() => panelState.value !== 'editing' || confirmLocked.value || props.confirmDisabled);
+const resultOk = computed$1(() => {
+  if (props.result?.requestOk === true && props.result?.refreshOk === false) return false
+  if (typeof props.result?.ok === 'boolean') return props.result.ok
+  if (typeof props.result?.success === 'boolean') return props.result.success
+  return props.result?.code === 0
 });
-const confirmDisabled = computed(() => props.busy || confirmLocked.value || !confirmationReady.value);
-
-function fieldValue(field) {
-  return field?.value ?? field?.modelValue ?? (field?.multiple ? [] : '')
-}
-
-function optionValue(option) {
-  return option && typeof option === 'object' ? (option.value ?? option.id ?? option.key ?? '') : option
-}
-
-function optionLabel(option) {
-  return option && typeof option === 'object' ? (option.label ?? option.title ?? option.name ?? optionValue(option)) : option
-}
-
-function updateField(field, event) {
-  let value;
-  if (field.type === 'checkbox') value = event.target.checked;
-  else if (field.multiple) value = Array.from(event.target.selectedOptions || []).map(option => option.value);
-  else value = event.target.value;
-  emit('update:field', { key: field.key, value });
-}
-
-function fieldControlId(field, index) {
-  return String(field?.attrs?.id || `${dialogId.value}-field-${String(field?.key || index).replace(/[^a-zA-Z0-9_-]/g, '-')}`)
-}
-
-function fieldHintId(field, index) {
-  return `${fieldControlId(field, index)}-hint`
-}
-
-function fieldDescribedBy(field, index) {
-  return [field?.attrs?.['aria-describedby'], field?.hint ? fieldHintId(field, index) : '']
-    .filter(Boolean)
-    .join(' ') || undefined
-}
+const resultMessage = computed$1(() => String(
+  props.result?.message
+  || props.result?.msg
+  || props.result?.response?.msg
+  || props.result?.response?.data?.message
+  || props.result?.data?.message
+  || (resultOk.value ? '操作已完成。' : '操作未完成，请检查结果后重试。'),
+));
+const resultDetail = computed$1(() => {
+  if (props.result?.requestOk === true && props.result?.refreshOk === false) return '业务操作已完成，但界面刷新失败；请手动刷新页面核对最新状态。'
+  if (props.result?.partial === true || props.result?.data?.partial === true || props.result?.data?.status === 'partial') return '操作部分完成，请查看结果明细。'
+  if (props.result?.disconnected === true) return '连接中断后已查询服务端操作状态，请勿直接重复提交。'
+  return ''
+});
 
 function focusInitialControl() {
   nextTick(() => {
@@ -1195,17 +1517,14 @@ function restoreFocus() {
 }
 
 function requestCancel(reason = 'cancel') {
-  if (!props.open || props.busy || confirmLocked.value) return
+  if (!props.open || isRunning.value || confirmLocked.value) return
   emit('cancel', { reason, action: props.action });
 }
 
 function requestConfirm() {
-  if (!props.open || confirmDisabled.value) return
+  if (!props.open || confirmButtonDisabled.value) return
   confirmLocked.value = true;
-  emit('confirm', {
-    action: props.action,
-    confirmationValue: confirmationValue.value,
-  });
+  emit('confirm', { action: props.action });
 }
 
 function focusableElements() {
@@ -1244,31 +1563,28 @@ function handleWindowKeydown(event) {
 watch(() => props.open, open => {
   if (open) {
     previousFocus = typeof document !== 'undefined' ? document.activeElement : null;
-    confirmationValue.value = '';
     confirmLocked.value = false;
     focusInitialControl();
   } else {
     confirmLocked.value = false;
-    confirmationValue.value = '';
     restoreFocus();
   }
 });
 
 watch(actionId, () => {
-  confirmationValue.value = '';
   confirmLocked.value = false;
   if (props.open) focusInitialControl();
 });
 
-watch(() => props.busy, (busy, wasBusy) => {
-  if (!busy && wasBusy && props.open) confirmLocked.value = false;
+watch(panelState, state => {
+  if (state !== 'editing') confirmLocked.value = false;
+  if (props.open && state === 'result') focusInitialControl();
 });
 
 onMounted(() => {
   window.addEventListener('keydown', handleWindowKeydown);
   if (props.open) {
     previousFocus = document.activeElement;
-    confirmationValue.value = '';
     confirmLocked.value = false;
     focusInitialControl();
   }
@@ -1279,9 +1595,9 @@ onBeforeUnmount(() => {
 });
 
 return (_ctx, _cache) => {
-  return (_openBlock(), _createBlock(_Teleport, { to: "body" }, [
+  return (_openBlock$1(), _createBlock(_Teleport, { to: "body" }, [
     (__props.open)
-      ? (_openBlock(), _createElementBlock("div", _mergeProps({ key: 0 }, overlayAttrs.value, {
+      ? (_openBlock$1(), _createElementBlock$1("div", _mergeProps({ key: 0 }, overlayAttrs.value, {
           class: ["aoa-action-operation-overlay aoa-root", __props.themeClass],
           style: __props.portalStyle,
           "data-action-id": actionId.value,
@@ -1290,7 +1606,7 @@ return (_ctx, _cache) => {
           role: "presentation",
           onClick: _cache[3] || (_cache[3] = _withModifiers($event => (requestCancel('overlay')), ["self"]))
         }), [
-          _createElementVNode("section", {
+          _createElementVNode$1("section", {
             ref_key: "dialogRef",
             ref: dialogRef,
             class: "aoa-action-operation-panel",
@@ -1298,228 +1614,457 @@ return (_ctx, _cache) => {
             "aria-modal": "true",
             "aria-labelledby": dialogId.value,
             "aria-describedby": dialogDescriptionIds.value,
-            "aria-busy": __props.busy || confirmLocked.value ? 'true' : 'false',
+            "aria-busy": isRunning.value ? 'true' : 'false',
+            "data-operation-state": panelState.value,
             tabindex: "-1",
             onKeydown: handleDialogKeydown
           }, [
-            _createElementVNode("header", _hoisted_3, [
-              _createElementVNode("div", null, [
+            _createElementVNode$1("header", _hoisted_3$1, [
+              _createElementVNode$1("div", null, [
                 (__props.kicker)
-                  ? (_openBlock(), _createElementBlock("span", _hoisted_4, _toDisplayString(__props.kicker), 1))
-                  : _createCommentVNode("", true),
-                _createElementVNode("h2", { id: dialogId.value }, _toDisplayString(dialogTitle.value), 9, _hoisted_5)
+                  ? (_openBlock$1(), _createElementBlock$1("span", _hoisted_4$1, _toDisplayString$1(__props.kicker), 1))
+                  : _createCommentVNode$1("", true),
+                _createElementVNode$1("h2", { id: dialogId.value }, _toDisplayString$1(dialogTitle.value), 9, _hoisted_5$1)
               ]),
-              _createElementVNode("button", {
+              _createElementVNode$1("button", {
                 type: "button",
                 class: "aoa-action-operation-panel__close aoa-interactive",
                 "aria-label": "关闭操作面板",
                 title: "关闭",
                 "data-action-operation-close": "",
-                disabled: __props.busy || confirmLocked.value,
+                disabled: isRunning.value || confirmLocked.value,
                 onClick: _cache[0] || (_cache[0] = $event => (requestCancel('close')))
               }, [
-                (_openBlock(), _createElementBlock("svg", _hoisted_7, [
-                  _createElementVNode("path", {
+                (_openBlock$1(), _createElementBlock$1("svg", _hoisted_7$1, [
+                  _createElementVNode$1("path", {
                     d: _unref(mdiClose),
                     fill: "currentColor"
-                  }, null, 8, _hoisted_8)
+                  }, null, 8, _hoisted_8$1)
                 ]))
-              ], 8, _hoisted_6)
+              ], 8, _hoisted_6$1)
             ]),
-            (__props.warning)
-              ? (_openBlock(), _createElementBlock("div", {
-                  key: 0,
-                  id: warningId.value,
-                  class: _normalizeClass(["aoa-action-operation-panel__warning", { 'aoa-action-operation-panel__warning--danger': __props.danger }]),
-                  "data-tone": __props.danger ? 'danger' : 'warning'
-                }, [
-                  (_openBlock(), _createElementBlock("svg", _hoisted_10, [
-                    _createElementVNode("path", {
-                      d: _unref(mdiAlertOutline),
-                      fill: "currentColor"
-                    }, null, 8, _hoisted_11)
-                  ])),
-                  _createElementVNode("span", null, _toDisplayString(__props.warning), 1)
-                ], 10, _hoisted_9))
-              : _createCommentVNode("", true),
-            (__props.summaryPrimary || __props.summarySecondary)
-              ? (_openBlock(), _createElementBlock("div", {
-                  key: 1,
-                  id: summaryId.value,
-                  class: "aoa-action-operation-panel__summary"
-                }, [
-                  (__props.summaryPrimary)
-                    ? (_openBlock(), _createElementBlock("strong", _hoisted_13, _toDisplayString(__props.summaryPrimary), 1))
-                    : _createCommentVNode("", true),
-                  (__props.summarySecondary)
-                    ? (_openBlock(), _createElementBlock("span", _hoisted_14, _toDisplayString(__props.summarySecondary), 1))
-                    : _createCommentVNode("", true)
-                ], 8, _hoisted_12))
-              : _createCommentVNode("", true),
-            (__props.fields.length)
-              ? (_openBlock(), _createElementBlock("div", _hoisted_15, [
-                  (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(__props.fields, (field, fieldIndex) => {
-                    return (_openBlock(), _createElementBlock("label", {
-                      key: field.key,
-                      class: "aoa-action-operation-panel__field"
-                    }, [
-                      _createElementVNode("span", null, _toDisplayString(field.label), 1),
-                      (field.type === 'checkbox')
-                        ? (_openBlock(), _createElementBlock("input", _mergeProps({
-                            key: 0,
-                            ref_for: true
-                          }, field.attrs || {}, {
-                            id: fieldControlId(field, fieldIndex),
-                            "aria-describedby": fieldDescribedBy(field, fieldIndex),
-                            type: "checkbox",
-                            checked: Boolean(fieldValue(field)),
-                            disabled: __props.busy || confirmLocked.value || field.disabled,
-                            onChange: $event => (updateField(field, $event))
-                          }), null, 16, _hoisted_16))
-                        : (field.type === 'textarea')
-                          ? (_openBlock(), _createElementBlock("textarea", _mergeProps({
-                              key: 1,
-                              ref_for: true
-                            }, field.attrs || {}, {
-                              id: fieldControlId(field, fieldIndex),
-                              "aria-describedby": fieldDescribedBy(field, fieldIndex),
-                              value: fieldValue(field),
-                              placeholder: field.placeholder || '',
-                              required: field.required,
-                              disabled: __props.busy || confirmLocked.value || field.disabled,
-                              onInput: $event => (updateField(field, $event))
-                            }), null, 16, _hoisted_17))
-                          : (field.type === 'select')
-                            ? (_openBlock(), _createElementBlock("select", _mergeProps({
-                                key: 2,
-                                ref_for: true
-                              }, field.attrs || {}, {
-                                id: fieldControlId(field, fieldIndex),
-                                "aria-describedby": fieldDescribedBy(field, fieldIndex),
-                                value: fieldValue(field),
-                                multiple: field.multiple,
-                                required: field.required,
-                                disabled: __props.busy || confirmLocked.value || field.disabled,
-                                onChange: $event => (updateField(field, $event))
-                              }), [
-                                (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(field.options || [], (option) => {
-                                  return (_openBlock(), _createElementBlock("option", {
-                                    key: String(optionValue(option)),
-                                    value: optionValue(option)
-                                  }, _toDisplayString(optionLabel(option)), 9, _hoisted_19))
-                                }), 128))
-                              ], 16, _hoisted_18))
-                            : (_openBlock(), _createElementBlock("input", _mergeProps({
-                                key: 3,
-                                ref_for: true
-                              }, field.attrs || {}, {
-                                id: fieldControlId(field, fieldIndex),
-                                "aria-describedby": fieldDescribedBy(field, fieldIndex),
-                                type: field.type || 'text',
-                                value: fieldValue(field),
-                                placeholder: field.placeholder || '',
-                                required: field.required,
-                                disabled: __props.busy || confirmLocked.value || field.disabled,
-                                onInput: $event => (updateField(field, $event))
-                              }), null, 16, _hoisted_20)),
-                      (field.hint)
-                        ? (_openBlock(), _createElementBlock("small", {
-                            key: 4,
-                            id: fieldHintId(field, fieldIndex)
-                          }, _toDisplayString(field.hint), 9, _hoisted_21))
-                        : _createCommentVNode("", true)
-                    ]))
-                  }), 128))
-                ]))
-              : _createCommentVNode("", true),
-            (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(__props.sections, (section) => {
-              return (_openBlock(), _createElementBlock("section", {
-                key: section.key,
-                class: "aoa-action-operation-panel__section",
-                "data-section-kind": section.kind || 'summary'
+            _createElementVNode$1("div", _hoisted_9$1, [
+              _withDirectives$1(_createElementVNode$1("div", _hoisted_10$1, [
+                _renderSlot(_ctx.$slots, "editing", {}, () => [
+                  _renderSlot(_ctx.$slots, "default", {}, undefined, true)
+                ], true)
+              ], 512), [
+                [_vShow, panelState.value === 'editing']
+              ]),
+              _withDirectives$1(_createElementVNode$1("div", _hoisted_11$1, [
+                _renderSlot(_ctx.$slots, "running", {}, () => [
+                  _createElementVNode$1("div", _hoisted_12$1, [
+                    _cache[4] || (_cache[4] = _createElementVNode$1("span", {
+                      class: "aoa-action-operation-panel__spinner",
+                      "aria-hidden": "true"
+                    }, null, -1)),
+                    _createElementVNode$1("strong", null, _toDisplayString$1(__props.runningLabel), 1)
+                  ])
+                ], true)
+              ], 512), [
+                [_vShow, panelState.value === 'running']
+              ]),
+              _withDirectives$1(_createElementVNode$1("div", {
+                id: resultId.value,
+                class: "aoa-action-operation-panel__stage",
+                "data-operation-stage": "result",
+                role: resultOk.value ? 'status' : 'alert',
+                "aria-live": resultOk.value ? 'polite' : 'assertive'
               }, [
-                (section.label)
-                  ? (_openBlock(), _createElementBlock("h3", _hoisted_23, _toDisplayString(section.label), 1))
-                  : _createCommentVNode("", true),
-                _createElementVNode("div", _mergeProps({ ref_for: true }, section.attrs || {}, { class: "aoa-action-operation-panel__items" }), [
-                  (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(section.items || [], (item) => {
-                    return (_openBlock(), _createElementBlock("div", {
-                      key: item.key,
-                      class: "aoa-action-operation-panel__item"
-                    }, [
-                      _createElementVNode("strong", null, _toDisplayString(item.title), 1),
-                      (item.meta)
-                        ? (_openBlock(), _createElementBlock("span", _hoisted_24, _toDisplayString(item.meta), 1))
-                        : _createCommentVNode("", true),
-                      (item.detail)
-                        ? (_openBlock(), _createElementBlock("small", _hoisted_25, _toDisplayString(item.detail), 1))
-                        : _createCommentVNode("", true)
-                    ]))
-                  }), 128)),
-                  (!(section.items || []).length && section.emptyText)
-                    ? (_openBlock(), _createElementBlock("p", _hoisted_26, _toDisplayString(section.emptyText), 1))
-                    : _createCommentVNode("", true)
-                ], 16)
-              ], 8, _hoisted_22))
-            }), 128)),
-            (__props.confirmationInput)
-              ? (_openBlock(), _createElementBlock("label", _hoisted_27, [
-                  _createElementVNode("span", null, _toDisplayString(__props.confirmationInput.label || '二次确认'), 1),
-                  _withDirectives(_createElementVNode("input", {
-                    "onUpdate:modelValue": _cache[1] || (_cache[1] = $event => ((confirmationValue).value = $event)),
-                    id: `${dialogId.value}-confirmation-input`,
-                    type: "text",
-                    placeholder: __props.confirmationInput.placeholder || expectedConfirmation.value,
-                    autocomplete: __props.confirmationInput.autocomplete || 'off',
-                    "aria-describedby": __props.confirmationInput.hint ? confirmationHintId.value : undefined,
-                    disabled: __props.busy || confirmLocked.value,
-                    "data-action-operation-confirmation-input": ""
-                  }, null, 8, _hoisted_28), [
-                    [_vModelText, confirmationValue.value]
-                  ]),
-                  (__props.confirmationInput.hint)
-                    ? (_openBlock(), _createElementBlock("small", {
-                        key: 0,
-                        id: confirmationHintId.value
-                      }, _toDisplayString(__props.confirmationInput.hint), 9, _hoisted_29))
-                    : _createCommentVNode("", true)
-                ]))
-              : _createCommentVNode("", true),
-            _createElementVNode("footer", _hoisted_30, [
-              _createElementVNode("button", _mergeProps(__props.cancelAttrs, {
-                type: "button",
-                class: "aoa-action-operation-panel__button aoa-action-operation-panel__button--ghost aoa-button aoa-interactive",
-                "data-action-operation-cancel": "",
-                disabled: __props.busy || confirmLocked.value,
-                onClick: _cache[2] || (_cache[2] = $event => (requestCancel('cancel')))
-              }), _toDisplayString(__props.cancelLabel), 17, _hoisted_31),
-              _createElementVNode("button", _mergeProps(__props.confirmAttrs, {
-                type: "button",
-                class: ["aoa-action-operation-panel__button aoa-action-operation-panel__button--confirm aoa-button aoa-interactive", { 'aoa-action-operation-panel__button--danger': __props.danger }],
-                "data-action-operation-confirm": "",
-                disabled: confirmDisabled.value,
-                "aria-busy": __props.busy || confirmLocked.value ? 'true' : 'false',
-                onClick: requestConfirm
-              }), [
-                (__props.confirmIconPath)
-                  ? (_openBlock(), _createElementBlock("svg", _hoisted_33, [
-                      _createElementVNode("path", {
-                        d: __props.confirmIconPath,
-                        fill: "currentColor"
-                      }, null, 8, _hoisted_34)
-                    ]))
-                  : _createCommentVNode("", true),
-                _createElementVNode("span", null, _toDisplayString(__props.confirmLabel), 1)
-              ], 16, _hoisted_32)
+                _renderSlot(_ctx.$slots, "result", {
+                  result: __props.result,
+                  ok: resultOk.value,
+                  message: resultMessage.value,
+                  detail: resultDetail.value
+                }, () => [
+                  _createElementVNode$1("div", {
+                    class: "aoa-action-operation-panel__result",
+                    "data-tone": resultOk.value ? 'success' : 'error'
+                  }, [
+                    _createElementVNode$1("strong", null, _toDisplayString$1(resultMessage.value), 1),
+                    (resultDetail.value)
+                      ? (_openBlock$1(), _createElementBlock$1("span", _hoisted_15$1, _toDisplayString$1(resultDetail.value), 1))
+                      : _createCommentVNode$1("", true)
+                  ], 8, _hoisted_14$1)
+                ], true)
+              ], 8, _hoisted_13$1), [
+                [_vShow, panelState.value === 'result']
+              ])
+            ]),
+            _createElementVNode$1("footer", _hoisted_16$1, [
+              (panelState.value === 'editing')
+                ? (_openBlock$1(), _createElementBlock$1("button", _mergeProps({ key: 0 }, __props.cancelAttrs, {
+                    type: "button",
+                    class: "aoa-action-operation-panel__button aoa-action-operation-panel__button--ghost aoa-button aoa-interactive",
+                    "data-action-operation-cancel": "",
+                    disabled: confirmLocked.value,
+                    onClick: _cache[1] || (_cache[1] = $event => (requestCancel('cancel')))
+                  }), _toDisplayString$1(__props.cancelLabel), 17, _hoisted_17$1))
+                : _createCommentVNode$1("", true),
+              (panelState.value === 'editing')
+                ? (_openBlock$1(), _createElementBlock$1("button", _mergeProps({ key: 1 }, __props.confirmAttrs, {
+                    type: "button",
+                    class: ["aoa-action-operation-panel__button aoa-action-operation-panel__button--confirm aoa-button aoa-interactive", { 'aoa-action-operation-panel__button--danger': __props.danger }],
+                    "data-action-operation-confirm": "",
+                    disabled: confirmButtonDisabled.value,
+                    "aria-busy": confirmLocked.value ? 'true' : 'false',
+                    onClick: requestConfirm
+                  }), [
+                    (__props.confirmIconPath)
+                      ? (_openBlock$1(), _createElementBlock$1("svg", _hoisted_19$1, [
+                          _createElementVNode$1("path", {
+                            d: __props.confirmIconPath,
+                            fill: "currentColor"
+                          }, null, 8, _hoisted_20$1)
+                        ]))
+                      : _createCommentVNode$1("", true),
+                    _createElementVNode$1("span", null, _toDisplayString$1(__props.confirmLabel), 1)
+                  ], 16, _hoisted_18$1))
+                : (panelState.value === 'running')
+                  ? (_openBlock$1(), _createElementBlock$1("button", _hoisted_21$1, _toDisplayString$1(__props.runningLabel), 1))
+                  : (_openBlock$1(), _createElementBlock$1("button", {
+                      key: 3,
+                      type: "button",
+                      class: "aoa-action-operation-panel__button aoa-action-operation-panel__button--confirm aoa-button aoa-interactive",
+                      "data-action-operation-close-result": "",
+                      onClick: _cache[2] || (_cache[2] = $event => (requestCancel('result-close')))
+                    }, _toDisplayString$1(__props.closeLabel), 1))
             ])
-          ], 40, _hoisted_2)
-        ], 16, _hoisted_1))
-      : _createCommentVNode("", true)
+          ], 40, _hoisted_2$1)
+        ], 16, _hoisted_1$1))
+      : _createCommentVNode$1("", true)
   ]))
 }
 }
 
 });
-const ActionOperationPanel = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-b57fe838"]]);
+const ActionOperationPanel = /*#__PURE__*/_export_sfc(_sfc_main$1, [['__scopeId',"data-v-f7cef3a7"]]);
 
-export { ACTION_OPERATION_MODE as A, getActionForSurface as a, useConfigActionRunner as b, createPluginWorkflowClient as c, getActionsForSurface as d, ActionOperationPanel as e, getPluginApiEnvelope as f, getPluginApi as g, createV31QuickActions as h, useActionRunner as i, resolveActionAvailability as j, actionGroupRegistry as k, ACTION_DISABLED_REASON as l, resolvePluginApi as r, useAgentOpsTheme as u };
+const {createElementVNode:_createElementVNode,renderList:_renderList,Fragment:_Fragment,openBlock:_openBlock,createElementBlock:_createElementBlock,toDisplayString:_toDisplayString,vModelText:_vModelText,withDirectives:_withDirectives,createCommentVNode:_createCommentVNode,createTextVNode:_createTextVNode} = await importShared('vue');
+
+
+const _hoisted_1 = {
+  class: "aoa-backup-restore-operation",
+  "data-backup-restore-operation": ""
+};
+const _hoisted_2 = { class: "aoa-backup-restore-operation__grid" };
+const _hoisted_3 = ["value", "disabled"];
+const _hoisted_4 = ["value"];
+const _hoisted_5 = {
+  key: 1,
+  class: "aoa-backup-restore-operation__file"
+};
+const _hoisted_6 = ["disabled"];
+const _hoisted_7 = { class: "aoa-backup-restore-operation__archive" };
+const _hoisted_8 = ["value", "disabled"];
+const _hoisted_9 = ["value"];
+const _hoisted_10 = { class: "aoa-backup-restore-operation__tools" };
+const _hoisted_11 = ["disabled"];
+const _hoisted_12 = ["disabled"];
+const _hoisted_13 = {
+  key: 0,
+  class: "aoa-backup-restore-operation__selection",
+  "data-backup-restore-selection": ""
+};
+const _hoisted_14 = { class: "aoa-backup-restore-operation__archive-meta" };
+const _hoisted_15 = ["checked"];
+const _hoisted_16 = ["checked"];
+const _hoisted_17 = { key: 0 };
+const _hoisted_18 = ["value"];
+const _hoisted_19 = ["value"];
+const _hoisted_20 = {
+  key: 1,
+  class: "aoa-backup-restore-operation__plugin-picker",
+  "data-backup-restore-plugin-picker": ""
+};
+const _hoisted_21 = { class: "aoa-backup-restore-operation__plugin-picker-head" };
+const _hoisted_22 = { class: "aoa-backup-restore-operation__plugin-count" };
+const _hoisted_23 = { class: "aoa-backup-restore-operation__plugin-tools" };
+const _hoisted_24 = ["disabled"];
+const _hoisted_25 = ["disabled"];
+const _hoisted_26 = {
+  key: 0,
+  class: "aoa-backup-restore-operation__plugin-list",
+  role: "group",
+  "aria-label": "选择要处理的插件"
+};
+const _hoisted_27 = ["value", "checked", "onChange"];
+const _hoisted_28 = {
+  key: 1,
+  class: "aoa-backup-restore-operation__plugin-empty",
+  role: "status"
+};
+const _hoisted_29 = ["disabled"];
+const _hoisted_30 = {
+  key: 1,
+  class: "aoa-backup-restore-operation__message",
+  role: "alert"
+};
+
+const {computed} = await importShared('vue');
+
+
+
+const _sfc_main = {
+  __name: 'BackupRestoreOperationContent',
+  props: {
+  workflow: { type: Object, required: true },
+},
+  setup(__props) {
+
+const props = __props;
+
+const state = computed(() => props.workflow.state || {});
+const loading = computed(() => props.workflow.loading || {});
+const pluginOptions = computed(() => props.workflow.pluginOptions?.value || props.workflow.pluginOptions || []);
+const scopeNeedsPlugins = computed(() => props.workflow.scopeNeedsPlugins?.value ?? props.workflow.scopeNeedsPlugins ?? false);
+const busy = computed(() => Boolean(props.workflow.busy?.value ?? props.workflow.busy ?? false));
+const selectedPluginCount = computed(() => Array.isArray(state.value.pluginIds) ? state.value.pluginIds.length : 0);
+const pluginOptionCount = computed(() => pluginOptions.value.length);
+
+function sourceChanged(event) {
+  props.workflow.changeSource?.(event.target.value);
+}
+
+function archiveChanged(event) {
+  state.value.archiveName = event.target.value;
+  state.value.inspection = null;
+}
+
+function componentChanged(key, event) {
+  state.value.components[key] = event.target.checked;
+}
+
+function scopeChanged(event) {
+  state.value.pluginScope = event.target.value;
+  state.value.pluginIds = [];
+}
+
+function togglePlugin(pluginId, event) {
+  const current = new Set(Array.isArray(state.value.pluginIds) ? state.value.pluginIds : []);
+  if (event.target.checked) current.add(pluginId);
+  else current.delete(pluginId);
+  state.value.pluginIds = pluginOptions.value
+    .map(item => item.value)
+    .filter(value => current.has(value));
+}
+
+function selectAllPlugins() {
+  state.value.pluginIds = pluginOptions.value.map(item => item.value);
+}
+
+function clearPlugins() {
+  state.value.pluginIds = [];
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || '').split(',', 2).at(-1) || '');
+    reader.onerror = () => reject(reader.error || new Error('读取归档失败'));
+    reader.readAsDataURL(file);
+  })
+}
+
+async function importSelectedFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return
+  try {
+    await props.workflow.importArchive?.(file.name, await fileToBase64(file));
+  } finally {
+    event.target.value = '';
+  }
+}
+
+return (_ctx, _cache) => {
+  return (_openBlock(), _createElementBlock("div", _hoisted_1, [
+    _createElementVNode("div", _hoisted_2, [
+      _createElementVNode("label", null, [
+        _cache[8] || (_cache[8] = _createElementVNode("span", null, "归档来源", -1)),
+        _createElementVNode("select", {
+          value: state.value.source,
+          disabled: busy.value,
+          onChange: sourceChanged
+        }, [
+          (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(__props.workflow.sources || [], (source) => {
+            return (_openBlock(), _createElementBlock("option", {
+              key: source.value,
+              value: source.value
+            }, _toDisplayString(source.label), 9, _hoisted_4))
+          }), 128))
+        ], 40, _hoisted_3)
+      ]),
+      (state.value.source === 'temporary_webdav')
+        ? (_openBlock(), _createElementBlock(_Fragment, { key: 0 }, [
+            _createElementVNode("label", null, [
+              _cache[9] || (_cache[9] = _createElementVNode("span", null, "WebDAV 地址", -1)),
+              _withDirectives(_createElementVNode("input", {
+                "onUpdate:modelValue": _cache[0] || (_cache[0] = $event => ((state.value.temporaryWebdav.hostname) = $event)),
+                type: "url",
+                autocomplete: "off"
+              }, null, 512), [
+                [_vModelText, state.value.temporaryWebdav.hostname]
+              ])
+            ]),
+            _createElementVNode("label", null, [
+              _cache[10] || (_cache[10] = _createElementVNode("span", null, "账号", -1)),
+              _withDirectives(_createElementVNode("input", {
+                "onUpdate:modelValue": _cache[1] || (_cache[1] = $event => ((state.value.temporaryWebdav.login) = $event)),
+                type: "text",
+                autocomplete: "off"
+              }, null, 512), [
+                [_vModelText, state.value.temporaryWebdav.login]
+              ])
+            ]),
+            _createElementVNode("label", null, [
+              _cache[11] || (_cache[11] = _createElementVNode("span", null, "密码", -1)),
+              _withDirectives(_createElementVNode("input", {
+                "onUpdate:modelValue": _cache[2] || (_cache[2] = $event => ((state.value.temporaryWebdav.password) = $event)),
+                type: "password",
+                autocomplete: "new-password"
+              }, null, 512), [
+                [_vModelText, state.value.temporaryWebdav.password]
+              ])
+            ])
+          ], 64))
+        : _createCommentVNode("", true),
+      (state.value.source === 'upload')
+        ? (_openBlock(), _createElementBlock("label", _hoisted_5, [
+            _cache[12] || (_cache[12] = _createElementVNode("span", null, "浏览器归档", -1)),
+            _createElementVNode("input", {
+              type: "file",
+              accept: ".zip,application/zip",
+              disabled: loading.value.import,
+              onChange: importSelectedFile
+            }, null, 40, _hoisted_6)
+          ]))
+        : (_openBlock(), _createElementBlock(_Fragment, { key: 2 }, [
+            _createElementVNode("label", _hoisted_7, [
+              _cache[14] || (_cache[14] = _createElementVNode("span", null, "备份归档", -1)),
+              _createElementVNode("select", {
+                value: state.value.archiveName,
+                disabled: loading.value.list || !state.value.archives.length,
+                onChange: archiveChanged
+              }, [
+                _cache[13] || (_cache[13] = _createElementVNode("option", { value: "" }, "请选择归档", -1)),
+                (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(state.value.archives, (archive) => {
+                  return (_openBlock(), _createElementBlock("option", {
+                    key: archive.name,
+                    value: archive.name
+                  }, _toDisplayString(archive.name), 9, _hoisted_9))
+                }), 128))
+              ], 40, _hoisted_8)
+            ]),
+            _createElementVNode("div", _hoisted_10, [
+              _createElementVNode("button", {
+                type: "button",
+                disabled: loading.value.list,
+                onClick: _cache[3] || (_cache[3] = $event => (__props.workflow.loadArchives?.()))
+              }, _toDisplayString(loading.value.list ? '读取中…' : '读取归档'), 9, _hoisted_11),
+              _createElementVNode("button", {
+                type: "button",
+                disabled: !state.value.archiveName || loading.value.inspect,
+                onClick: _cache[4] || (_cache[4] = $event => (__props.workflow.inspectArchive?.()))
+              }, _toDisplayString(loading.value.inspect ? '检查中…' : '检查归档'), 9, _hoisted_12)
+            ])
+          ], 64))
+    ]),
+    (state.value.inspection)
+      ? (_openBlock(), _createElementBlock("div", _hoisted_13, [
+          _createElementVNode("div", _hoisted_14, [
+            _createElementVNode("strong", null, _toDisplayString(state.value.inspection.descriptor?.name), 1),
+            _createElementVNode("span", null, _toDisplayString(state.value.inspection.descriptor?.created_at || ''), 1)
+          ]),
+          _createElementVNode("fieldset", null, [
+            _cache[17] || (_cache[17] = _createElementVNode("legend", null, "在线恢复范围", -1)),
+            _createElementVNode("label", null, [
+              _createElementVNode("input", {
+                type: "checkbox",
+                checked: state.value.components.moviepilot,
+                onChange: _cache[5] || (_cache[5] = $event => (componentChanged('moviepilot', $event)))
+              }, null, 40, _hoisted_15),
+              _cache[15] || (_cache[15] = _createTextVNode("MoviePilot 配置", -1))
+            ]),
+            _createElementVNode("label", null, [
+              _createElementVNode("input", {
+                type: "checkbox",
+                checked: state.value.components.plugins,
+                onChange: _cache[6] || (_cache[6] = $event => (componentChanged('plugins', $event)))
+              }, null, 40, _hoisted_16),
+              _cache[16] || (_cache[16] = _createTextVNode("插件状态", -1))
+            ])
+          ]),
+          (state.value.components.plugins)
+            ? (_openBlock(), _createElementBlock("label", _hoisted_17, [
+                _cache[18] || (_cache[18] = _createElementVNode("span", null, "插件范围", -1)),
+                _createElementVNode("select", {
+                  value: state.value.pluginScope,
+                  onChange: scopeChanged
+                }, [
+                  (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(__props.workflow.pluginScopes || [], (scope) => {
+                    return (_openBlock(), _createElementBlock("option", {
+                      key: scope.value,
+                      value: scope.value
+                    }, _toDisplayString(scope.label), 9, _hoisted_19))
+                  }), 128))
+                ], 40, _hoisted_18)
+              ]))
+            : _createCommentVNode("", true),
+          (state.value.components.plugins && scopeNeedsPlugins.value)
+            ? (_openBlock(), _createElementBlock("div", _hoisted_20, [
+                _createElementVNode("div", _hoisted_21, [
+                  _cache[19] || (_cache[19] = _createElementVNode("span", null, "插件", -1)),
+                  _createElementVNode("span", _hoisted_22, "已选 " + _toDisplayString(selectedPluginCount.value) + " / " + _toDisplayString(pluginOptionCount.value), 1),
+                  _createElementVNode("div", _hoisted_23, [
+                    _createElementVNode("button", {
+                      type: "button",
+                      disabled: !pluginOptionCount.value,
+                      onClick: selectAllPlugins
+                    }, "全选", 8, _hoisted_24),
+                    _createElementVNode("button", {
+                      type: "button",
+                      disabled: !selectedPluginCount.value,
+                      onClick: clearPlugins
+                    }, "清空", 8, _hoisted_25)
+                  ])
+                ]),
+                (pluginOptionCount.value)
+                  ? (_openBlock(), _createElementBlock("div", _hoisted_26, [
+                      (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(pluginOptions.value, (plugin) => {
+                        return (_openBlock(), _createElementBlock("label", {
+                          key: plugin.value,
+                          class: "aoa-backup-restore-operation__plugin-option"
+                        }, [
+                          _createElementVNode("input", {
+                            type: "checkbox",
+                            value: plugin.value,
+                            checked: state.value.pluginIds.includes(plugin.value),
+                            onChange: $event => (togglePlugin(plugin.value, $event))
+                          }, null, 40, _hoisted_27),
+                          _createElementVNode("span", null, _toDisplayString(plugin.label), 1)
+                        ]))
+                      }), 128))
+                    ]))
+                  : (_openBlock(), _createElementBlock("p", _hoisted_28, "此归档没有可选择的插件。"))
+              ]))
+            : _createCommentVNode("", true),
+          _createElementVNode("button", {
+            type: "button",
+            class: "aoa-backup-restore-operation__download",
+            disabled: loading.value.download,
+            onClick: _cache[7] || (_cache[7] = $event => (__props.workflow.downloadArchive?.()))
+          }, _toDisplayString(loading.value.download ? '准备下载…' : '下载完整归档'), 9, _hoisted_29),
+          _cache[20] || (_cache[20] = _createElementVNode("p", { class: "aoa-backup-restore-operation__sensitive" }, "归档未加密，包含敏感离线恢复材料。", -1))
+        ]))
+      : _createCommentVNode("", true),
+    (state.value.message)
+      ? (_openBlock(), _createElementBlock("p", _hoisted_30, _toDisplayString(state.value.message), 1))
+      : _createCommentVNode("", true)
+  ]))
+}
+}
+
+};
+const BackupRestoreOperationContent = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-074fff7c"]]);
+
+export { ACTION_OPERATION_MODE as A, BackupRestoreOperationContent as B, getActionForSurface as a, useBackupRestore as b, useConfigActionRunner as c, getActionsForSurface as d, ActionOperationPanel as e, actionRefreshes as f, getPluginApi as g, getPluginApiEnvelope as h, createV31QuickActions as i, useActionRunner as j, resolveActionAvailability as k, actionGroupRegistry as l, ACTION_DISABLED_REASON as m, resolvePluginApi as r, useAgentOpsTheme as u };

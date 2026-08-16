@@ -505,6 +505,44 @@ class UpdateGovernanceMixin:
         # update check and must not create a second execution path.
         return self.run_plugin_update_reminder(scheduled=scheduled)
 
+    def run_updates(self, scheduled: bool = False) -> bool:
+        """Run the three saved update-management modules through one action.
+
+        Disabled modules are reported as ``skipped``; they are not silently
+        treated as failures.  The manual action never calls a read-only
+        preview endpoint and uses the same saved configuration as the timers.
+        """
+        ok, msg = self._guard_task("更新检查")
+        if not ok:
+            return False
+        modules = []
+        enabled = []
+        runners = (
+            ("moviepilot", "mp_update", "系统更新", self._mp_update_enabled, self.run_mp_update_check),
+            ("plugins", "plugin_update_reminder", "插件更新", self._plugin_update_reminder_enabled, self.run_plugin_update_reminder),
+            ("market", "market_update", "插件库同步", self._market_update_enabled, self.run_market_update),
+        )
+        for key, component, label, enabled_flag, runner in runners:
+            if not enabled_flag:
+                modules.append({"key": key, "component": component, "status": "skipped", "message": "配置已关闭"})
+                continue
+            enabled.append(key)
+            try:
+                success = bool(runner(scheduled=scheduled))
+                modules.append({"key": key, "component": component, "status": "success" if success else "failed", "message": label})
+            except Exception as err:
+                modules.append({"key": key, "component": component, "status": "failed", "message": str(err)})
+        if not enabled:
+            success = False
+            message = "更新管理的三个主模块均已关闭，当前动作不可用。"
+        else:
+            success = all(item["status"] == "success" for item in modules if item["key"] in enabled)
+            message = "更新检查完成" if success else "更新检查完成，但有模块失败。"
+        result = {"success": success, "modules": modules, "enabled": enabled, "message": message}
+        self._last_updates_result = result
+        self._save_task_result("更新检查", success, 0 if success else 1, message)
+        return success
+
     def _api_run_task(self, name: str, runner, component: Optional[str] = None) -> Dict[str, Any]:
         ok, msg = self._can_run_task(name, component)
         if not ok:

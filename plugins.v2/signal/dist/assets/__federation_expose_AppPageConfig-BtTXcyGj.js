@@ -1,9 +1,9 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, aX as mdiPlay, bu as mdiDeleteOutline, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, c4 as mdiAlertOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
+import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, am as _export_sfc, c4 as mdiAlertOutline, bu as mdiDeleteOutline, aX as mdiPlay, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
 import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, b as buildConfigSavePayload, e as emitConfigSave, a as normalizeCurrentConfig, D as DEFAULT_DLTAG_CRON, f as dltagDeleteStrategyItems, g as dltagTaskItems, h as subscribeSubtypeItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-BE6FIqnc.js';
-import { g as getPluginApi, r as resolvePluginApi, a as getActionForSurface, A as ACTION_OPERATION_MODE, c as createPluginWorkflowClient, u as useAgentOpsTheme, b as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel } from './ActionOperationPanel-Bu1ZK3Qk.js';
+import { g as getPluginApi, r as resolvePluginApi, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-CrJgdtOI.js';
 
-const {resolveComponent:_resolveComponent$5,createVNode:_createVNode$l,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$9} = await importShared('vue');
+const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$k,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$a} = await importShared('vue');
 
 
 const _hoisted_1$p = ["data-html-replica-card", "data-flat-config-section", "data-cron-card", "data-schedule-card", "data-notify-card"];
@@ -32,10 +32,10 @@ const _sfc_main$s = {
   setup(__props) {
 
 return (_ctx, _cache) => {
-  const _component_VIcon = _resolveComponent$5("VIcon");
+  const _component_VIcon = _resolveComponent$4("VIcon");
 
   return (_openBlock$s(), _createElementBlock$p("section", {
-    class: _normalizeClass$9(["aoa-config-card aoa-design-section-card", [`aoa-config-card--${__props.cardType}`, { 'aoa-surface-card': !__props.embedded, 'aoa-surface-section': !__props.embedded, 'aoa-config-card--locked': __props.locked, 'aoa-config-card--disabled': __props.disabled, 'aoa-config-card--embedded': __props.embedded }]]),
+    class: _normalizeClass$a(["aoa-config-card aoa-design-section-card", [`aoa-config-card--${__props.cardType}`, { 'aoa-surface-card': !__props.embedded, 'aoa-surface-section': !__props.embedded, 'aoa-config-card--locked': __props.locked, 'aoa-config-card--disabled': __props.disabled, 'aoa-config-card--embedded': __props.embedded }]]),
     "data-html-replica-card": __props.embedded ? null : '',
     "data-flat-config-section": __props.embedded ? '' : null,
     "data-section-tone": "neutral",
@@ -46,7 +46,7 @@ return (_ctx, _cache) => {
     (!__props.embedded)
       ? (_openBlock$s(), _createElementBlock$p("header", _hoisted_2$h, [
           _createElementVNode$d("span", _hoisted_3$d, [
-            _createVNode$l(_component_VIcon, {
+            _createVNode$k(_component_VIcon, {
               icon: __props.icon,
               size: "20"
             }, null, 8, ["icon"])
@@ -69,10 +69,10 @@ return (_ctx, _cache) => {
 
 };
 
-const {renderSlot:_renderSlot$d,normalizeClass:_normalizeClass$8,withCtx:_withCtx$7,openBlock:_openBlock$r,createBlock:_createBlock$9} = await importShared('vue');
+const {renderSlot:_renderSlot$d,normalizeClass:_normalizeClass$9,withCtx:_withCtx$6,openBlock:_openBlock$r,createBlock:_createBlock$8} = await importShared('vue');
 
 
-const {computed: computed$m} = await importShared('vue');
+const {computed: computed$k} = await importShared('vue');
 
 
 const _sfc_main$r = {
@@ -87,12 +87,12 @@ const _sfc_main$r = {
 
 const props = __props;
 
-const cardType = computed$m(() => props.card?.type === 'advanced' ? 'advanced' : 'section');
-const tone = computed$m(() => props.card?.danger ? 'danger' : 'neutral');
+const cardType = computed$k(() => props.card?.type === 'advanced' ? 'advanced' : 'section');
+const tone = computed$k(() => props.card?.danger ? 'danger' : 'neutral');
 
 return (_ctx, _cache) => {
-  return (_openBlock$r(), _createBlock$9(_sfc_main$s, {
-    class: _normalizeClass$8(["aoa-config-section-card", { 'aoa-design-section-card--danger': tone.value === 'danger' }]),
+  return (_openBlock$r(), _createBlock$8(_sfc_main$s, {
+    class: _normalizeClass$9(["aoa-config-section-card", { 'aoa-design-section-card--danger': tone.value === 'danger' }]),
     title: __props.card.title || '配置项',
     note: __props.card.note || '',
     icon: __props.card.icon || 'mdi-tune-variant',
@@ -103,10 +103,10 @@ return (_ctx, _cache) => {
     "data-section-tone": tone.value,
     "data-effective-state": __props.effectiveState || undefined
   }, {
-    actions: _withCtx$7(() => [
+    actions: _withCtx$6(() => [
       _renderSlot$d(_ctx.$slots, "actions")
     ]),
-    default: _withCtx$7(() => [
+    default: _withCtx$6(() => [
       _renderSlot$d(_ctx.$slots, "default")
     ]),
     _: 3
@@ -163,7 +163,7 @@ function getConfigPageLayout(pageId) {
   return CONFIG_PAGE_LAYOUTS[id] || single(id || 'unknown')
 }
 
-const {renderSlot:_renderSlot$c,openBlock:_openBlock$q,createElementBlock:_createElementBlock$o,createCommentVNode:_createCommentVNode$b,createElementVNode:_createElementVNode$c,normalizeClass:_normalizeClass$7} = await importShared('vue');
+const {renderSlot:_renderSlot$c,openBlock:_openBlock$q,createElementBlock:_createElementBlock$o,createCommentVNode:_createCommentVNode$b,createElementVNode:_createElementVNode$c,normalizeClass:_normalizeClass$8} = await importShared('vue');
 
 
 const _hoisted_1$o = ["data-config-page", "data-config-page-mode", "data-config-category-count", "data-config-active-category", "data-effective-state"];
@@ -178,7 +178,7 @@ const _hoisted_3$c = {
   "data-config-page-content": ""
 };
 
-const {computed: computed$l,useSlots} = await importShared('vue');
+const {computed: computed$j,useSlots} = await importShared('vue');
 
 
 const _sfc_main$q = {
@@ -193,13 +193,13 @@ const _sfc_main$q = {
 const props = __props;
 
 const slots = useSlots();
-const categorized = computed$l(() => props.layout?.mode === CONFIG_PAGE_LAYOUT_MODES.CATEGORIZED);
-const categories = computed$l(() => Array.isArray(props.layout?.categories) ? props.layout.categories : []);
-const hasCategorySlot = computed$l(() => categorized.value && Boolean(slots.categories));
+const categorized = computed$j(() => props.layout?.mode === CONFIG_PAGE_LAYOUT_MODES.CATEGORIZED);
+const categories = computed$j(() => Array.isArray(props.layout?.categories) ? props.layout.categories : []);
+const hasCategorySlot = computed$j(() => categorized.value && Boolean(slots.categories));
 
 return (_ctx, _cache) => {
   return (_openBlock$q(), _createElementBlock$o("section", {
-    class: _normalizeClass$7(["aoa-config-page-surface", `aoa-config-page-surface--${__props.layout.mode}`]),
+    class: _normalizeClass$8(["aoa-config-page-surface", `aoa-config-page-surface--${__props.layout.mode}`]),
     "data-config-page-surface": "",
     "data-config-page": __props.layout.id,
     "data-config-page-mode": __props.layout.mode,
@@ -224,7 +224,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$b,normalizeClass:_normalizeClass$6,openBlock:_openBlock$p,createElementBlock:_createElementBlock$n,createCommentVNode:_createCommentVNode$a,resolveComponent:_resolveComponent$4,mergeProps:_mergeProps$5,createBlock:_createBlock$8,toDisplayString:_toDisplayString$c,createTextVNode:_createTextVNode$5,withCtx:_withCtx$6,createVNode:_createVNode$k,createSlots:_createSlots} = await importShared('vue');
+const {createElementVNode:_createElementVNode$b,normalizeClass:_normalizeClass$7,openBlock:_openBlock$p,createElementBlock:_createElementBlock$n,createCommentVNode:_createCommentVNode$a,resolveComponent:_resolveComponent$3,mergeProps:_mergeProps$6,createBlock:_createBlock$7,toDisplayString:_toDisplayString$c,createTextVNode:_createTextVNode$4,withCtx:_withCtx$5,createVNode:_createVNode$j,createSlots:_createSlots} = await importShared('vue');
 
 
 const _hoisted_1$n = ["data-control-kind", "data-switch-enabled", "data-multi-select", "data-disabled", "data-invalid", "data-control-state"];
@@ -240,7 +240,7 @@ const _hoisted_6$9 = {
   class: "aoa-field-control__selection-count"
 };
 
-const {computed: computed$k} = await importShared('vue');
+const {computed: computed$i} = await importShared('vue');
 
 
 
@@ -266,28 +266,28 @@ function emitValue(next) {
   emit('update:modelValue', value);
 }
 
-const normalizedValue = computed$k({
+const normalizedValue = computed$i({
   get: () => props.modelValue,
   set: next => emitValue(next),
 });
 
-const control = computed$k(() => props.field.control || 'text');
-const isSwitchControl = computed$k(() => control.value === 'switch');
-const isMultiControl = computed$k(() => !!(props.field.multiple || props.field.chips || control.value === 'combobox'));
-const isFullControl = computed$k(() => !!(props.field.fullRow || isMultiControl.value || control.value === 'textarea'));
-const controlState = computed$k(() => {
+const control = computed$i(() => props.field.control || 'text');
+const isSwitchControl = computed$i(() => control.value === 'switch');
+const isMultiControl = computed$i(() => !!(props.field.multiple || props.field.chips || control.value === 'combobox'));
+const isFullControl = computed$i(() => !!(props.field.fullRow || isMultiControl.value || control.value === 'textarea'));
+const controlState = computed$i(() => {
   if (props.field.error) return 'invalid'
   if (props.field.disabled) return 'disabled'
   if (isSwitchControl.value && normalizedValue.value) return 'active'
   return 'idle'
 });
-const selectionCount = computed$k(() => Array.isArray(normalizedValue.value) ? normalizedValue.value.length : 0);
-const selectionSummary = computed$k(() => (
+const selectionCount = computed$i(() => Array.isArray(normalizedValue.value) ? normalizedValue.value.length : 0);
+const selectionSummary = computed$i(() => (
   selectionCount.value === 0 && props.field.emptySelectionText
     ? props.field.emptySelectionText
     : `已选 ${selectionCount.value} 项`
 ));
-const commonProps = computed$k(() => ({
+const commonProps = computed$i(() => ({
   label: undefined,
   hint: '',
   persistentHint: false,
@@ -310,15 +310,15 @@ function selectionValue(item) {
 }
 
 return (_ctx, _cache) => {
-  const _component_VCronField = _resolveComponent$4("VCronField");
-  const _component_VChip = _resolveComponent$4("VChip");
-  const _component_VSelect = _resolveComponent$4("VSelect");
-  const _component_VCombobox = _resolveComponent$4("VCombobox");
-  const _component_VTextarea = _resolveComponent$4("VTextarea");
-  const _component_VTextField = _resolveComponent$4("VTextField");
+  const _component_VCronField = _resolveComponent$3("VCronField");
+  const _component_VChip = _resolveComponent$3("VChip");
+  const _component_VSelect = _resolveComponent$3("VSelect");
+  const _component_VCombobox = _resolveComponent$3("VCombobox");
+  const _component_VTextarea = _resolveComponent$3("VTextarea");
+  const _component_VTextField = _resolveComponent$3("VTextField");
 
   return (_openBlock$p(), _createElementBlock$n("div", {
-    class: _normalizeClass$6(["aoa-field-control", {
+    class: _normalizeClass$7(["aoa-field-control", {
       'aoa-field-control--switch': isSwitchControl.value,
       'aoa-field-control--switch-on': isSwitchControl.value && !!normalizedValue.value,
       'aoa-field-control--multi': isMultiControl.value,
@@ -338,7 +338,7 @@ return (_ctx, _cache) => {
       ? (_openBlock$p(), _createElementBlock$n("button", {
           key: 0,
           type: "button",
-          class: _normalizeClass$6(["aoa-toggle-switch", {
+          class: _normalizeClass$7(["aoa-toggle-switch", {
         'aoa-toggle-switch--on': !!normalizedValue.value,
         'aoa-toggle-switch--disabled': !!__props.field.disabled,
         'aoa-toggle-switch--invalid': !!__props.field.error,
@@ -359,7 +359,7 @@ return (_ctx, _cache) => {
           }, null, -1)
         ]))], 10, _hoisted_2$f))
       : (control.value === 'cron')
-        ? (_openBlock$p(), _createBlock$8(_component_VCronField, _mergeProps$5({
+        ? (_openBlock$p(), _createBlock$7(_component_VCronField, _mergeProps$6({
             key: 1,
             modelValue: normalizedValue.value,
             "onUpdate:modelValue": _cache[1] || (_cache[1] = $event => ((normalizedValue).value = $event))
@@ -367,7 +367,7 @@ return (_ctx, _cache) => {
             placeholder: __props.field.placeholder || undefined
           }), null, 16, ["modelValue", "placeholder"]))
         : (control.value === 'select')
-          ? (_openBlock$p(), _createBlock$8(_component_VSelect, _mergeProps$5({
+          ? (_openBlock$p(), _createBlock$7(_component_VSelect, _mergeProps$6({
               key: 2,
               modelValue: normalizedValue.value,
               "onUpdate:modelValue": _cache[2] || (_cache[2] = $event => ((normalizedValue).value = $event))
@@ -386,7 +386,7 @@ return (_ctx, _cache) => {
               (__props.field.compactSelection && selectionCount.value === 0)
                 ? {
                     name: "prepend-inner",
-                    fn: _withCtx$6(() => [
+                    fn: _withCtx$5(() => [
                       _createElementVNode$b("span", _hoisted_3$b, _toDisplayString$c(selectionSummary.value), 1)
                     ]),
                     key: "0"
@@ -395,7 +395,7 @@ return (_ctx, _cache) => {
               (__props.field.compactSelection)
                 ? {
                     name: "selection",
-                    fn: _withCtx$6(({ index }) => [
+                    fn: _withCtx$5(({ index }) => [
                       (index === 0)
                         ? (_openBlock$p(), _createElementBlock$n("span", _hoisted_4$b, _toDisplayString$c(selectionSummary.value), 1))
                         : _createCommentVNode$a("", true)
@@ -405,13 +405,13 @@ return (_ctx, _cache) => {
                 : (__props.field.multiple || __props.field.chips)
                   ? {
                       name: "chip",
-                      fn: _withCtx$6(({ item, props: chipProps }) => [
-                        _createVNode$k(_component_VChip, _mergeProps$5(chipProps, {
+                      fn: _withCtx$5(({ item, props: chipProps }) => [
+                        _createVNode$j(_component_VChip, _mergeProps$6(chipProps, {
                           class: "aoa-field-control__chip",
                           variant: "tonal"
                         }), {
-                          default: _withCtx$6(() => [
-                            _createTextVNode$5(_toDisplayString$c(selectionTitle(item)), 1)
+                          default: _withCtx$5(() => [
+                            _createTextVNode$4(_toDisplayString$c(selectionTitle(item)), 1)
                           ]),
                           _: 2
                         }, 1040)
@@ -421,7 +421,7 @@ return (_ctx, _cache) => {
                   : undefined
             ]), 1040, ["modelValue", "items", "loading", "multiple", "chips", "closable-chips", "clearable", "prepend-inner-icon", "placeholder"]))
           : (control.value === 'combobox')
-            ? (_openBlock$p(), _createBlock$8(_component_VCombobox, _mergeProps$5({
+            ? (_openBlock$p(), _createBlock$7(_component_VCombobox, _mergeProps$6({
                 key: 3,
                 modelValue: normalizedValue.value,
                 "onUpdate:modelValue": _cache[3] || (_cache[3] = $event => ((normalizedValue).value = $event))
@@ -439,7 +439,7 @@ return (_ctx, _cache) => {
                 (__props.field.compactSelection && selectionCount.value === 0)
                   ? {
                       name: "prepend-inner",
-                      fn: _withCtx$6(() => [
+                      fn: _withCtx$5(() => [
                         _createElementVNode$b("span", _hoisted_5$9, _toDisplayString$c(selectionSummary.value), 1)
                       ]),
                       key: "0"
@@ -448,7 +448,7 @@ return (_ctx, _cache) => {
                 (__props.field.compactSelection)
                   ? {
                       name: "selection",
-                      fn: _withCtx$6(({ index }) => [
+                      fn: _withCtx$5(({ index }) => [
                         (index === 0)
                           ? (_openBlock$p(), _createElementBlock$n("span", _hoisted_6$9, _toDisplayString$c(selectionSummary.value), 1))
                           : _createCommentVNode$a("", true)
@@ -457,13 +457,13 @@ return (_ctx, _cache) => {
                     }
                   : {
                       name: "chip",
-                      fn: _withCtx$6(({ item, props: chipProps }) => [
-                        _createVNode$k(_component_VChip, _mergeProps$5(chipProps, {
+                      fn: _withCtx$5(({ item, props: chipProps }) => [
+                        _createVNode$j(_component_VChip, _mergeProps$6(chipProps, {
                           class: "aoa-field-control__chip",
                           variant: "tonal"
                         }), {
-                          default: _withCtx$6(() => [
-                            _createTextVNode$5(_toDisplayString$c(selectionTitle(item)), 1)
+                          default: _withCtx$5(() => [
+                            _createTextVNode$4(_toDisplayString$c(selectionTitle(item)), 1)
                           ]),
                           _: 2
                         }, 1040)
@@ -472,7 +472,7 @@ return (_ctx, _cache) => {
                     }
               ]), 1040, ["modelValue", "items", "multiple", "chips", "closable-chips", "clearable", "prepend-inner-icon", "placeholder"]))
             : (control.value === 'textarea')
-              ? (_openBlock$p(), _createBlock$8(_component_VTextarea, _mergeProps$5({
+              ? (_openBlock$p(), _createBlock$7(_component_VTextarea, _mergeProps$6({
                   key: 4,
                   modelValue: normalizedValue.value,
                   "onUpdate:modelValue": _cache[4] || (_cache[4] = $event => ((normalizedValue).value = $event))
@@ -482,7 +482,7 @@ return (_ctx, _cache) => {
                   rows: __props.field.rows || 3,
                   "auto-grow": ""
                 }), null, 16, ["modelValue", "placeholder", "prepend-inner-icon", "rows"]))
-              : (_openBlock$p(), _createBlock$8(_component_VTextField, _mergeProps$5({
+              : (_openBlock$p(), _createBlock$7(_component_VTextField, _mergeProps$6({
                   key: 5,
                   modelValue: normalizedValue.value,
                   "onUpdate:modelValue": _cache[5] || (_cache[5] = $event => ((normalizedValue).value = $event))
@@ -899,7 +899,7 @@ function createReplicaFieldControlProps(form, field) {
   }
 }
 
-const {resolveComponent:_resolveComponent$3,openBlock:_openBlock$o,createBlock:_createBlock$7,createCommentVNode:_createCommentVNode$9,toDisplayString:_toDisplayString$b,createTextVNode:_createTextVNode$4,Fragment:_Fragment$5,createElementBlock:_createElementBlock$m,createElementVNode:_createElementVNode$a,normalizeClass:_normalizeClass$5,createVNode:_createVNode$j} = await importShared('vue');
+const {resolveComponent:_resolveComponent$2,openBlock:_openBlock$o,createBlock:_createBlock$6,createCommentVNode:_createCommentVNode$9,toDisplayString:_toDisplayString$b,createTextVNode:_createTextVNode$3,Fragment:_Fragment$6,createElementBlock:_createElementBlock$m,createElementVNode:_createElementVNode$a,normalizeClass:_normalizeClass$6,createVNode:_createVNode$i} = await importShared('vue');
 
 
 const _hoisted_1$m = ["data-field-key", "data-field-control", "data-control-kind", "data-switch-row", "data-full-row", "data-multi-select-row", "data-has-control-hint", "data-required", "data-invalid", "data-disabled", "data-field-state", "aria-disabled"];
@@ -914,7 +914,7 @@ const _hoisted_5$8 = ["id"];
 const _hoisted_6$8 = { class: "aoa-field-row__control" };
 const _hoisted_7$5 = ["id"];
 
-const {computed: computed$j} = await importShared('vue');
+const {computed: computed$h} = await importShared('vue');
 
 
 const _sfc_main$o = {
@@ -930,31 +930,31 @@ const props = __props;
 
 
 
-const control = computed$j(() => props.field.control || 'text');
-const isSwitch = computed$j(() => control.value === 'switch');
-const isMulti = computed$j(() => !!(props.field.multiple || props.field.chips || control.value === 'combobox'));
-const isCompactMulti = computed$j(() => !!(props.field.compactMulti && isMulti.value));
-const isFullRow = computed$j(() => isReplicaFullRowField(props.field));
-const fieldState = computed$j(() => {
+const control = computed$h(() => props.field.control || 'text');
+const isSwitch = computed$h(() => control.value === 'switch');
+const isMulti = computed$h(() => !!(props.field.multiple || props.field.chips || control.value === 'combobox'));
+const isCompactMulti = computed$h(() => !!(props.field.compactMulti && isMulti.value));
+const isFullRow = computed$h(() => isReplicaFullRowField(props.field));
+const fieldState = computed$h(() => {
   if (props.field.error) return 'invalid'
   if (props.field.disabled) return 'disabled'
   if (isSwitch.value && props.modelValue) return 'active'
   return 'idle'
 });
-const fieldId = computed$j(() => String(props.field.key || 'field').replace(/[^a-zA-Z0-9_-]/g, '-'));
-const hintId = computed$j(() => props.field.hint ? `aoa-field-hint-${fieldId.value}` : undefined);
-const errorId = computed$j(() => props.field.error ? `aoa-field-error-${fieldId.value}` : undefined);
-const controlHint = computed$j(() => String(props.field.controlHint || '').trim());
-const controlHintId = computed$j(() => controlHint.value
+const fieldId = computed$h(() => String(props.field.key || 'field').replace(/[^a-zA-Z0-9_-]/g, '-'));
+const hintId = computed$h(() => props.field.hint ? `aoa-field-hint-${fieldId.value}` : undefined);
+const errorId = computed$h(() => props.field.error ? `aoa-field-error-${fieldId.value}` : undefined);
+const controlHint = computed$h(() => String(props.field.controlHint || '').trim());
+const controlHintId = computed$h(() => controlHint.value
   ? `aoa-field-control-hint-${fieldId.value}`
   : undefined);
-const describedBy = computed$j(() => [
+const describedBy = computed$h(() => [
   props.field.ariaDescribedby,
   hintId.value,
   errorId.value,
   controlHintId.value,
 ].filter(Boolean).join(' ') || undefined);
-const controlField = computed$j(() => ({
+const controlField = computed$h(() => ({
   ...props.field,
   icon: undefined,
   label: '',
@@ -963,7 +963,7 @@ const controlField = computed$j(() => ({
   ariaLabel: props.field.ariaLabel || props.field.label || props.field.key,
   ariaDescribedby: describedBy.value,
 }));
-const rowClasses = computed$j(() => ({
+const rowClasses = computed$h(() => ({
   'aoa-field-row--disabled': !!props.field.disabled,
   'aoa-field-row--error': !!props.field.error,
   'aoa-field-row--switch': isSwitch.value,
@@ -976,10 +976,10 @@ const rowClasses = computed$j(() => ({
 }));
 
 return (_ctx, _cache) => {
-  const _component_VIcon = _resolveComponent$3("VIcon");
+  const _component_VIcon = _resolveComponent$2("VIcon");
 
   return (_openBlock$o(), _createElementBlock$m("div", {
-    class: _normalizeClass$5(["aoa-field-row", [`aoa-field-row--${__props.field.control || 'text'}`, rowClasses.value]]),
+    class: _normalizeClass$6(["aoa-field-row", [`aoa-field-row--${__props.field.control || 'text'}`, rowClasses.value]]),
     "data-field-row": "",
     "data-html-field": "",
     "data-field-key": __props.field.key,
@@ -996,10 +996,10 @@ return (_ctx, _cache) => {
     "aria-disabled": __props.field.disabled ? 'true' : 'false'
   }, [
     _createElementVNode$a("div", {
-      class: _normalizeClass$5(["aoa-field-row__label", { 'aoa-field-row__label--with-icon': !!__props.field.icon }])
+      class: _normalizeClass$6(["aoa-field-row__label", { 'aoa-field-row__label--with-icon': !!__props.field.icon }])
     }, [
       (__props.field.icon)
-        ? (_openBlock$o(), _createBlock$7(_component_VIcon, {
+        ? (_openBlock$o(), _createBlock$6(_component_VIcon, {
             key: 0,
             class: "aoa-field-row__icon",
             icon: __props.field.icon,
@@ -1008,10 +1008,10 @@ return (_ctx, _cache) => {
           }, null, 8, ["icon"]))
         : _createCommentVNode$9("", true),
       _createElementVNode$a("span", _hoisted_2$e, [
-        _createTextVNode$4(_toDisplayString$b(__props.field.label), 1),
+        _createTextVNode$3(_toDisplayString$b(__props.field.label), 1),
         (__props.field.compactSelection)
-          ? (_openBlock$o(), _createElementBlock$m(_Fragment$5, { key: 0 }, [
-              _createTextVNode$4("：")
+          ? (_openBlock$o(), _createElementBlock$m(_Fragment$6, { key: 0 }, [
+              _createTextVNode$3("：")
             ], 64))
           : _createCommentVNode$9("", true),
         (__props.field.required)
@@ -1036,7 +1036,7 @@ return (_ctx, _cache) => {
         : _createCommentVNode$9("", true)
     ], 2),
     _createElementVNode$a("div", _hoisted_6$8, [
-      _createVNode$j(_sfc_main$p, {
+      _createVNode$i(_sfc_main$p, {
         field: controlField.value,
         "model-value": __props.modelValue,
         "onUpdate:modelValue": _cache[0] || (_cache[0] = value => _ctx.$emit('update:modelValue', value))
@@ -1056,7 +1056,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {mergeProps:_mergeProps$4,openBlock:_openBlock$n,createBlock:_createBlock$6} = await importShared('vue');
+const {mergeProps:_mergeProps$5,openBlock:_openBlock$n,createBlock:_createBlock$5} = await importShared('vue');
 
 
 const _sfc_main$n = /*@__PURE__*/Object.assign({
@@ -1077,7 +1077,7 @@ const _sfc_main$n = /*@__PURE__*/Object.assign({
 
 
 return (_ctx, _cache) => {
-  return (_openBlock$n(), _createBlock$6(_sfc_main$o, _mergeProps$4(_ctx.$attrs, {
+  return (_openBlock$n(), _createBlock$5(_sfc_main$o, _mergeProps$5(_ctx.$attrs, {
     class: "aoa-config-field-row",
     "data-config-field-row": "",
     field: __props.field,
@@ -1089,13 +1089,13 @@ return (_ctx, _cache) => {
 
 });
 
-const {renderList:_renderList$4,Fragment:_Fragment$4,openBlock:_openBlock$m,createElementBlock:_createElementBlock$l,toDisplayString:_toDisplayString$a,createCommentVNode:_createCommentVNode$8,mergeProps:_mergeProps$3,createVNode:_createVNode$i,renderSlot:_renderSlot$b,normalizeClass:_normalizeClass$4} = await importShared('vue');
+const {renderList:_renderList$5,Fragment:_Fragment$5,openBlock:_openBlock$m,createElementBlock:_createElementBlock$l,toDisplayString:_toDisplayString$a,createCommentVNode:_createCommentVNode$8,mergeProps:_mergeProps$4,createVNode:_createVNode$h,renderSlot:_renderSlot$b,normalizeClass:_normalizeClass$5} = await importShared('vue');
 
 
 const _hoisted_1$l = ["data-config-visible-field-count"];
 const _hoisted_2$d = ["data-field-group-heading"];
 
-const {computed: computed$i} = await importShared('vue');
+const {computed: computed$g} = await importShared('vue');
 
 
 const _sfc_main$m = {
@@ -1113,7 +1113,7 @@ const _sfc_main$m = {
 
 const props = __props;
 
-const visibleFields = computed$i(() => resolveReplicaFields(
+const visibleFields = computed$g(() => resolveReplicaFields(
   props.fields.map(field => ({ ...props.fieldDefaults, ...field })),
   props.form,
   props.resolveDisabled,
@@ -1129,12 +1129,12 @@ function fieldRowAttrs(field, index) {
 
 return (_ctx, _cache) => {
   return (_openBlock$m(), _createElementBlock$l("div", {
-    class: _normalizeClass$4(["aoa-config-field-grid aoa-design-field-grid", `aoa-design-field-grid--${__props.grid}`]),
+    class: _normalizeClass$5(["aoa-config-field-grid aoa-design-field-grid", `aoa-design-field-grid--${__props.grid}`]),
     "data-config-field-grid": "",
     "data-config-visible-field-count": String(visibleFields.value.length)
   }, [
-    (_openBlock$m(true), _createElementBlock$l(_Fragment$4, null, _renderList$4(visibleFields.value, (field, index) => {
-      return (_openBlock$m(), _createElementBlock$l(_Fragment$4, {
+    (_openBlock$m(true), _createElementBlock$l(_Fragment$5, null, _renderList$5(visibleFields.value, (field, index) => {
+      return (_openBlock$m(), _createElementBlock$l(_Fragment$5, {
         key: field.key
       }, [
         (field.groupLabel)
@@ -1144,7 +1144,7 @@ return (_ctx, _cache) => {
               "data-field-group-heading": field.layoutGroup || field.key
             }, _toDisplayString$a(field.groupLabel), 9, _hoisted_2$d))
           : _createCommentVNode$8("", true),
-        _createVNode$i(_sfc_main$n, _mergeProps$3({ ref_for: true }, { ...fieldProps(field), ...fieldRowAttrs(field, index) }, {
+        _createVNode$h(_sfc_main$n, _mergeProps$4({ ref_for: true }, { ...fieldProps(field), ...fieldRowAttrs(field, index) }, {
           "data-field-layout-group": field.layoutGroup || undefined,
           "data-field-layout-group-start": field.layoutGroupStart ? 'true' : undefined,
           "data-notify-channel": field.key?.endsWith('_notify_type') || field.key === 'subscribe_reminder_msgtype' ? '' : undefined,
@@ -1159,12 +1159,12 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$h,openBlock:_openBlock$l,createElementBlock:_createElementBlock$k} = await importShared('vue');
+const {createVNode:_createVNode$g,openBlock:_openBlock$l,createElementBlock:_createElementBlock$k} = await importShared('vue');
 
 
 const _hoisted_1$k = ["data-effective-state"];
 
-const {computed: computed$h} = await importShared('vue');
+const {computed: computed$f} = await importShared('vue');
 
 
 const _sfc_main$l = {
@@ -1179,9 +1179,9 @@ const _sfc_main$l = {
 
 const props = __props;
 
-const fieldsByKey = computed$h(() => new Map(props.fields.map(field => [field.key, field])));
+const fieldsByKey = computed$f(() => new Map(props.fields.map(field => [field.key, field])));
 const fieldFor = (key, fallback) => fieldsByKey.value.get(key) || fallback;
-const fusionFields = computed$h(() => [
+const fusionFields = computed$f(() => [
   fieldFor('fusion_card_create_cron', {
     key: 'fusion_card_create_cron',
     control: 'cron',
@@ -1224,7 +1224,7 @@ return (_ctx, _cache) => {
     role: "group",
     "aria-label": "融合卡片调度与通知渠道"
   }, [
-    _createVNode$h(_sfc_main$m, {
+    _createVNode$g(_sfc_main$m, {
       fields: fusionFields.value,
       form: __props.form,
       grid: "grid-2",
@@ -1236,7 +1236,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$g,toDisplayString:_toDisplayString$9,createElementVNode:_createElementVNode$9,openBlock:_openBlock$k,createElementBlock:_createElementBlock$j,createCommentVNode:_createCommentVNode$7,renderSlot:_renderSlot$a} = await importShared('vue');
+const {createVNode:_createVNode$f,toDisplayString:_toDisplayString$9,createElementVNode:_createElementVNode$9,openBlock:_openBlock$k,createElementBlock:_createElementBlock$j,createCommentVNode:_createCommentVNode$7,renderSlot:_renderSlot$a} = await importShared('vue');
 
 
 const _hoisted_1$j = ["data-fusion-enabled", "data-effective-state"];
@@ -1261,7 +1261,7 @@ const _hoisted_6$7 = {
   "data-fusion-card-error": ""
 };
 
-const {computed: computed$g} = await importShared('vue');
+const {computed: computed$e} = await importShared('vue');
 
 
 const _sfc_main$k = {
@@ -1278,10 +1278,10 @@ const _sfc_main$k = {
 
 const props = __props;
 
-const messageId = computed$g(() => Number(props.status?.message_id || 0));
-const updatedAt = computed$g(() => props.status?.date || props.status?.updated_at || props.status?.last_updated || '');
-const lastError = computed$g(() => String(props.status?.last_error || '').trim());
-const cardStatus = computed$g(() => {
+const messageId = computed$e(() => Number(props.status?.message_id || 0));
+const updatedAt = computed$e(() => props.status?.date || props.status?.updated_at || props.status?.last_updated || '');
+const lastError = computed$e(() => String(props.status?.last_error || '').trim());
+const cardStatus = computed$e(() => {
   if (props.loading) return '正在读取融合卡片状态'
   if (messageId.value > 0) return `当前卡片 #${messageId.value}`
   return '尚未创建融合卡片'
@@ -1297,7 +1297,7 @@ return (_ctx, _cache) => {
     role: "group",
     "aria-label": "融合通知配置"
   }, [
-    _createVNode$g(_sfc_main$l, {
+    _createVNode$f(_sfc_main$l, {
       form: __props.form,
       fields: __props.fields,
       "notification-type-items": __props.notificationTypeItems,
@@ -1369,12 +1369,12 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$f,renderSlot:_renderSlot$9,openBlock:_openBlock$i,createElementBlock:_createElementBlock$h} = await importShared('vue');
+const {createVNode:_createVNode$e,renderSlot:_renderSlot$9,openBlock:_openBlock$i,createElementBlock:_createElementBlock$h} = await importShared('vue');
 
 
 const _hoisted_1$h = ["data-health-selected-count", "data-health-notification-locked", "data-effective-state"];
 
-const {computed: computed$f} = await importShared('vue');
+const {computed: computed$d} = await importShared('vue');
 
 
 const _sfc_main$i = {
@@ -1395,9 +1395,9 @@ const _sfc_main$i = {
 
 const props = __props;
 
-const fieldsByKey = computed$f(() => new Map(props.fields.map(field => [field.key, field])));
+const fieldsByKey = computed$d(() => new Map(props.fields.map(field => [field.key, field])));
 const fieldFor = (key, fallback) => fieldsByKey.value.get(key) || fallback;
-const fieldItemSources = computed$f(() => ({
+const fieldItemSources = computed$d(() => ({
   health_check_items: props.healthCheckItems,
   health_check_database_targets: props.healthDatabaseTargets,
   health_check_storage_targets: props.healthStorageTargets,
@@ -1406,7 +1406,7 @@ const fieldItemSources = computed$f(() => ({
   health_check_completion_notify_type: props.notificationTypeItems,
 }));
 const optionalField = key => fieldsByKey.value.get(key) || null;
-const healthFields = computed$f(() => [
+const healthFields = computed$d(() => [
   fieldFor('health_check_cron', { key: 'health_check_cron', control: 'cron', icon: 'mdi-calendar-clock', label: '巡查时间' }),
   fieldFor('health_check_storage_threshold', { key: 'health_check_storage_threshold', control: 'number', icon: 'mdi-gauge', label: '容量阈值', min: 1, max: 99, suffix: '%' }),
   fieldFor('health_check_items', { key: 'health_check_items', control: 'select', icon: 'mdi-format-list-checks', label: '巡查项目', items: props.healthCheckItems, multiple: true, chips: true, closableChips: true, compactSelection: true, clearable: true }),
@@ -1448,7 +1448,7 @@ return (_ctx, _cache) => {
     role: "group",
     "aria-label": "健康巡检配置"
   }, [
-    _createVNode$f(_sfc_main$m, {
+    _createVNode$e(_sfc_main$m, {
       form: __props.form,
       fields: healthFields.value,
       grid: "grid-2",
@@ -1462,12 +1462,12 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$e,renderSlot:_renderSlot$8,openBlock:_openBlock$h,createElementBlock:_createElementBlock$g} = await importShared('vue');
+const {createVNode:_createVNode$d,renderSlot:_renderSlot$8,openBlock:_openBlock$h,createElementBlock:_createElementBlock$g} = await importShared('vue');
 
 
 const _hoisted_1$g = ["data-site-stat-notification-locked", "data-effective-state"];
 
-const {computed: computed$e} = await importShared('vue');
+const {computed: computed$c} = await importShared('vue');
 
 
 const _sfc_main$h = {
@@ -1484,9 +1484,9 @@ const _sfc_main$h = {
 
 const props = __props;
 
-const fieldsByKey = computed$e(() => new Map(props.fields.map(field => [field.key, field])));
+const fieldsByKey = computed$c(() => new Map(props.fields.map(field => [field.key, field])));
 const fieldFor = (key, fallback) => fieldsByKey.value.get(key) || fallback;
-const siteFields = computed$e(() => [
+const siteFields = computed$c(() => [
   fieldFor('site_stat_cron', { key: 'site_stat_cron', control: 'cron', icon: 'mdi-calendar-clock', label: '统计时间' }),
   fieldFor('site_stat_dashboard_type', { key: 'site_stat_dashboard_type', control: 'select', icon: 'mdi-database-outline', label: '数据范围', items: props.siteStatRangeItems }),
   fieldFor('site_stat_schedule_notify_enabled', { key: 'site_stat_schedule_notify_enabled', control: 'switch', icon: 'mdi-bell-outline', label: '定时执行后通知' }),
@@ -1518,7 +1518,7 @@ return (_ctx, _cache) => {
     role: "group",
     "aria-label": "站点统计配置"
   }, [
-    _createVNode$e(_sfc_main$m, {
+    _createVNode$d(_sfc_main$m, {
       form: __props.form,
       fields: siteFields.value,
       grid: "grid-2",
@@ -1532,12 +1532,12 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$d,openBlock:_openBlock$g,createElementBlock:_createElementBlock$f} = await importShared('vue');
+const {createVNode:_createVNode$c,openBlock:_openBlock$g,createElementBlock:_createElementBlock$f} = await importShared('vue');
 
 
 const _hoisted_1$f = ["data-media-notification-locked", "data-effective-state"];
 
-const {computed: computed$d} = await importShared('vue');
+const {computed: computed$b} = await importShared('vue');
 
 
 const _sfc_main$g = {
@@ -1555,9 +1555,9 @@ const _sfc_main$g = {
 
 const props = __props;
 
-const fieldsByKey = computed$d(() => new Map(props.fields.map(field => [field.key, field])));
+const fieldsByKey = computed$b(() => new Map(props.fields.map(field => [field.key, field])));
 const fieldFor = (key, fallback) => fieldsByKey.value.get(key) || fallback;
-const mediaFields = computed$d(() => [
+const mediaFields = computed$b(() => [
   fieldFor('msgnotify_types', {
     key: 'msgnotify_types',
     control: 'select',
@@ -1618,7 +1618,7 @@ return (_ctx, _cache) => {
     role: "group",
     "aria-label": "媒体通知配置"
   }, [
-    _createVNode$d(_sfc_main$m, {
+    _createVNode$c(_sfc_main$m, {
       form: __props.form,
       fields: mediaFields.value,
       grid: "grid-2",
@@ -1630,12 +1630,12 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$c,renderSlot:_renderSlot$7,openBlock:_openBlock$f,createElementBlock:_createElementBlock$e} = await importShared('vue');
+const {createVNode:_createVNode$b,renderSlot:_renderSlot$7,openBlock:_openBlock$f,createElementBlock:_createElementBlock$e} = await importShared('vue');
 
 
 const _hoisted_1$e = ["data-subscribe-notification-locked", "data-effective-state"];
 
-const {computed: computed$c} = await importShared('vue');
+const {computed: computed$a} = await importShared('vue');
 
 
 const _sfc_main$f = {
@@ -1652,9 +1652,9 @@ const _sfc_main$f = {
 
 const props = __props;
 
-const fieldsByKey = computed$c(() => new Map(props.fields.map(field => [field.key, field])));
+const fieldsByKey = computed$a(() => new Map(props.fields.map(field => [field.key, field])));
 const fieldFor = (key, fallback) => fieldsByKey.value.get(key) || fallback;
-const subscribeFields = computed$c(() => [
+const subscribeFields = computed$a(() => [
   fieldFor('subscribe_reminder_cron', {
     key: 'subscribe_reminder_cron',
     control: 'cron',
@@ -1707,7 +1707,7 @@ return (_ctx, _cache) => {
     role: "group",
     "aria-label": "订阅提醒配置"
   }, [
-    _createVNode$c(_sfc_main$m, {
+    _createVNode$b(_sfc_main$m, {
       form: __props.form,
       fields: subscribeFields.value,
       grid: "grid-2",
@@ -1720,7 +1720,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$b,renderSlot:_renderSlot$6,openBlock:_openBlock$e,createElementBlock:_createElementBlock$d} = await importShared('vue');
+const {createVNode:_createVNode$a,renderSlot:_renderSlot$6,openBlock:_openBlock$e,createElementBlock:_createElementBlock$d} = await importShared('vue');
 
 
 const _hoisted_1$d = ["data-log-clean-notification-locked", "data-effective-state"];
@@ -1755,7 +1755,7 @@ return (_ctx, _cache) => {
     role: "group",
     "aria-label": "日志清理配置"
   }, [
-    _createVNode$b(_sfc_main$m, {
+    _createVNode$a(_sfc_main$m, {
       form: __props.form,
       fields: __props.fields,
       grid: "grid-2",
@@ -1770,7 +1770,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$a,unref:_unref$4,createElementVNode:_createElementVNode$7,openBlock:_openBlock$d,createElementBlock:_createElementBlock$c,createTextVNode:_createTextVNode$3,renderList:_renderList$3,Fragment:_Fragment$3,toDisplayString:_toDisplayString$7,renderSlot:_renderSlot$5} = await importShared('vue');
+const {createVNode:_createVNode$9,unref:_unref$4,createElementVNode:_createElementVNode$7,openBlock:_openBlock$d,createElementBlock:_createElementBlock$c,createTextVNode:_createTextVNode$2,renderList:_renderList$4,Fragment:_Fragment$4,toDisplayString:_toDisplayString$7,renderSlot:_renderSlot$5} = await importShared('vue');
 
 
 const _hoisted_1$c = ["data-seed-clean-notification-locked", "data-effective-state"];
@@ -1873,7 +1873,7 @@ return (_ctx, _cache) => {
     role: "group",
     "aria-label": "自动删种配置"
   }, [
-    _createVNode$a(_sfc_main$m, {
+    _createVNode$9(_sfc_main$m, {
       form: __props.form,
       fields: __props.primaryFields,
       grid: "grid-2",
@@ -1896,7 +1896,7 @@ return (_ctx, _cache) => {
               fill: "currentColor"
             }, null, 8, _hoisted_4$7)
           ])),
-          _cache[0] || (_cache[0] = _createTextVNode$3(" 筛选条件 ", -1))
+          _cache[0] || (_cache[0] = _createTextVNode$2(" 筛选条件 ", -1))
         ]),
         (_openBlock$d(), _createElementBlock$c("svg", _hoisted_5$6, [
           _createElementVNode$7("path", {
@@ -1906,7 +1906,7 @@ return (_ctx, _cache) => {
         ]))
       ]),
       _createElementVNode$7("div", _hoisted_7$4, [
-        _createVNode$a(_sfc_main$m, {
+        _createVNode$9(_sfc_main$m, {
           form: __props.form,
           fields: __props.filterFields,
           grid: "grid-2",
@@ -1914,7 +1914,7 @@ return (_ctx, _cache) => {
           "data-seedclean-filter-fields": ""
         }, null, 8, ["form", "fields"]),
         _createElementVNode$7("aside", _hoisted_8$4, [
-          (_openBlock$d(true), _createElementBlock$c(_Fragment$3, null, _renderList$3(_unref$4(statusDictionaries), (dictionary) => {
+          (_openBlock$d(true), _createElementBlock$c(_Fragment$4, null, _renderList$4(_unref$4(statusDictionaries), (dictionary) => {
             return (_openBlock$d(), _createElementBlock$c("section", {
               key: dictionary.key,
               class: "aoa-seedclean-status-dictionary__group",
@@ -1923,7 +1923,7 @@ return (_ctx, _cache) => {
             }, [
               _createElementVNode$7("h4", null, _toDisplayString$7(dictionary.title), 1),
               _createElementVNode$7("ul", null, [
-                (_openBlock$d(true), _createElementBlock$c(_Fragment$3, null, _renderList$3(dictionary.entries, (entry, index) => {
+                (_openBlock$d(true), _createElementBlock$c(_Fragment$4, null, _renderList$4(dictionary.entries, (entry, index) => {
                   return (_openBlock$d(), _createElementBlock$c("li", {
                     key: entry[0],
                     "data-seedclean-status-entry": "",
@@ -1945,7 +1945,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$6,toDisplayString:_toDisplayString$6,vModelText:_vModelText$1,withDirectives:_withDirectives$1,normalizeClass:_normalizeClass$3,openBlock:_openBlock$c,createElementBlock:_createElementBlock$b} = await importShared('vue');
+const {createElementVNode:_createElementVNode$6,toDisplayString:_toDisplayString$6,vModelText:_vModelText$1,withDirectives:_withDirectives$1,normalizeClass:_normalizeClass$4,openBlock:_openBlock$c,createElementBlock:_createElementBlock$b} = await importShared('vue');
 
 
 const _hoisted_1$b = ["data-disabled"];
@@ -1955,7 +1955,7 @@ const _hoisted_4$6 = { class: "aoa-subfill-code__heading" };
 const _hoisted_5$5 = { "data-tone": "neutral" };
 const _hoisted_6$5 = ["rows", "disabled", "placeholder"];
 
-const {computed: computed$b} = await importShared('vue');
+const {computed: computed$9} = await importShared('vue');
 
 
 
@@ -1970,16 +1970,16 @@ const _sfc_main$c = {
 
 const props = __props;
 
-const mappingText = computed$b({
+const mappingText = computed$9({
   get: () => String(props.values.dltag_tracker_mappings ?? ''),
   set: value => { props.values.dltag_tracker_mappings = String(value ?? ''); },
 });
-const mappingCount = computed$b(() => mappingText.value
+const mappingCount = computed$9(() => mappingText.value
   .split(/\r?\n/u)
   .map(line => line.trim())
   .filter(line => line && !line.startsWith('#'))
   .length);
-const mappingSummary = computed$b(() => mappingCount.value
+const mappingSummary = computed$9(() => mappingCount.value
   ? `${mappingCount.value} 条映射`
   : '尚未配置映射');
 
@@ -1992,7 +1992,7 @@ return (_ctx, _cache) => {
     "data-disabled": __props.disabled ? 'true' : undefined
   }, [
     _createElementVNode$6("section", {
-      class: _normalizeClass$3(["aoa-subfill-code aoa-tracker-mapping-code", { 'aoa-subfill-code--disabled': __props.disabled }]),
+      class: _normalizeClass$4(["aoa-subfill-code aoa-tracker-mapping-code", { 'aoa-subfill-code--disabled': __props.disabled }]),
       "data-tracker-mapping-code-editor": ""
     }, [
       _createElementVNode$6("div", _hoisted_2$9, [
@@ -2025,7 +2025,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$5,createVNode:_createVNode$9,unref:_unref$3,openBlock:_openBlock$b,createElementBlock:_createElementBlock$a,createTextVNode:_createTextVNode$2,toDisplayString:_toDisplayString$5,renderSlot:_renderSlot$4} = await importShared('vue');
+const {createElementVNode:_createElementVNode$5,createVNode:_createVNode$8,unref:_unref$3,openBlock:_openBlock$b,createElementBlock:_createElementBlock$a,createTextVNode:_createTextVNode$1,toDisplayString:_toDisplayString$5,renderSlot:_renderSlot$4} = await importShared('vue');
 
 
 const _hoisted_1$a = ["data-downloader-helper-notification-locked", "data-effective-state"];
@@ -2051,7 +2051,7 @@ const _hoisted_8$3 = {
 const _hoisted_9$3 = ["d"];
 const _hoisted_10$3 = { class: "aoa-design-advanced-content" };
 
-const {computed: computed$a} = await importShared('vue');
+const {computed: computed$8} = await importShared('vue');
 
 
 const _sfc_main$b = {
@@ -2074,13 +2074,13 @@ function resolveDisabled(field) {
   )
 }
 
-const trackerField = computed$a(() => props.trackerFields[0] || {});
-const trackerMappingCount = computed$a(() => String(props.form.dltag_tracker_mappings ?? '')
+const trackerField = computed$8(() => props.trackerFields[0] || {});
+const trackerMappingCount = computed$8(() => String(props.form.dltag_tracker_mappings ?? '')
   .split(/\r?\n/u)
   .map(line => line.trim())
   .filter(line => line && !line.startsWith('#'))
   .length);
-const trackerSummary = computed$a(() => trackerMappingCount.value
+const trackerSummary = computed$8(() => trackerMappingCount.value
   ? `${trackerMappingCount.value} 条映射`
   : '尚未配置');
 
@@ -2098,7 +2098,7 @@ return (_ctx, _cache) => {
       class: "aoa-downloader-helper-boundary",
       "data-downloader-helper-boundary-note": ""
     }, " 下载器助手负责标签、恢复做种与失效任务；按用户规则自动清理仍由“自动删种”页面负责。 ", -1)),
-    _createVNode$9(_sfc_main$m, {
+    _createVNode$8(_sfc_main$m, {
       form: __props.form,
       fields: __props.fields,
       grid: "grid-2",
@@ -2120,7 +2120,7 @@ return (_ctx, _cache) => {
               fill: "currentColor"
             }, null, 8, _hoisted_5$4)
           ])),
-          _cache[0] || (_cache[0] = _createTextVNode$2(" Tracker 映射 ", -1))
+          _cache[0] || (_cache[0] = _createTextVNode$1(" Tracker 映射 ", -1))
         ]),
         _createElementVNode$5("span", _hoisted_6$4, [
           _createElementVNode$5("small", _hoisted_7$3, _toDisplayString$5(trackerSummary.value), 1),
@@ -2133,7 +2133,7 @@ return (_ctx, _cache) => {
         ])
       ]),
       _createElementVNode$5("div", _hoisted_10$3, [
-        _createVNode$9(_sfc_main$c, {
+        _createVNode$8(_sfc_main$c, {
           values: __props.form,
           field: trackerField.value,
           disabled: resolveDisabled(trackerField.value)
@@ -2147,7 +2147,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {renderList:_renderList$2,Fragment:_Fragment$2,openBlock:_openBlock$a,createElementBlock:_createElementBlock$9,resolveComponent:_resolveComponent$2,createVNode:_createVNode$8,createElementVNode:_createElementVNode$4,toDisplayString:_toDisplayString$4,mergeProps:_mergeProps$2} = await importShared('vue');
+const {renderList:_renderList$3,Fragment:_Fragment$3,openBlock:_openBlock$a,createElementBlock:_createElementBlock$9,resolveComponent:_resolveComponent$1,createVNode:_createVNode$7,createElementVNode:_createElementVNode$4,toDisplayString:_toDisplayString$4,mergeProps:_mergeProps$3} = await importShared('vue');
 
 
 const _hoisted_1$9 = ["data-config-category-domain", "aria-label"];
@@ -2208,7 +2208,7 @@ function toggleModule(card, event) {
 }
 
 return (_ctx, _cache) => {
-  const _component_VIcon = _resolveComponent$2("VIcon");
+  const _component_VIcon = _resolveComponent$1("VIcon");
 
   return (_openBlock$a(), _createElementBlock$9("div", {
     class: "aoa-config-category-selector",
@@ -2217,8 +2217,8 @@ return (_ctx, _cache) => {
     role: "tablist",
     "aria-label": `${__props.domain} 分类`
   }, [
-    (_openBlock$a(true), _createElementBlock$9(_Fragment$2, null, _renderList$2(__props.selectors, (card) => {
-      return (_openBlock$a(), _createElementBlock$9("article", _mergeProps$2({
+    (_openBlock$a(true), _createElementBlock$9(_Fragment$3, null, _renderList$3(__props.selectors, (card) => {
+      return (_openBlock$a(), _createElementBlock$9("article", _mergeProps$3({
         key: card.module
       }, { ref_for: true }, selectorAttrs(card), {
         class: ["aoa-config-category-selector__item", { 'aoa-config-category-selector__item--active': __props.activeModule === card.module }],
@@ -2230,13 +2230,13 @@ return (_ctx, _cache) => {
         onKeydown: $event => (selectModuleWithKeyboard(card, $event))
       }), [
         _createElementVNode$4("span", _hoisted_3$4, [
-          _createVNode$8(_component_VIcon, {
+          _createVNode$7(_component_VIcon, {
             icon: card.icon || 'mdi-tune-variant',
             size: "18"
           }, null, 8, ["icon"])
         ]),
         _createElementVNode$4("strong", null, _toDisplayString$4(card.title), 1),
-        _createElementVNode$4("button", _mergeProps$2({ type: "button" }, { ref_for: true }, toggleAttrs(card), {
+        _createElementVNode$4("button", _mergeProps$3({ type: "button" }, { ref_for: true }, toggleAttrs(card), {
           class: ["aoa-toggle-switch aoa-config-category-selector__toggle", { 'aoa-toggle-switch--on': Boolean(__props.form[card.masterKey]) }],
           role: "switch",
           "aria-checked": Boolean(__props.form[card.masterKey]),
@@ -2257,246 +2257,30 @@ return (_ctx, _cache) => {
 
 };
 
-const {resolveComponent:_resolveComponent$1,createVNode:_createVNode$7,toDisplayString:_toDisplayString$3,createElementVNode:_createElementVNode$3,unref:_unref$2,openBlock:_openBlock$9,createElementBlock:_createElementBlock$8,createTextVNode:_createTextVNode$1,withCtx:_withCtx$5,createBlock:_createBlock$5,createCommentVNode:_createCommentVNode$6} = await importShared('vue');
+const {createVNode:_createVNode$6,openBlock:_openBlock$9,createElementBlock:_createElementBlock$8} = await importShared('vue');
 
 
-const _hoisted_1$8 = ["data-backup-restore-panel", "data-backup-restore-drawer", "aria-labelledby"];
-const _hoisted_2$6 = { class: "aoa-backup-restore-drawer__title" };
-const _hoisted_3$3 = ["id"];
-const _hoisted_4$3 = { class: "aoa-backup-restore-drawer__state" };
-const _hoisted_5$3 = { "data-backup-restore-status": "" };
-const _hoisted_6$3 = {
-  class: "aoa-design-advanced__chevron aoa-backup-restore-drawer__chevron aoa-mdi-icon",
-  viewBox: "0 0 24 24",
-  width: "18",
-  height: "18",
-  "aria-hidden": "true"
-};
-const _hoisted_7$2 = ["d"];
-const _hoisted_8$2 = { class: "aoa-design-advanced-content aoa-backup-restore-drawer__content" };
-const _hoisted_9$2 = {
-  class: "aoa-design-actions aoa-backup-restore-actions",
-  "data-backup-restore-actions": ""
-};
-const _hoisted_10$2 = ["disabled"];
-const _hoisted_11$2 = ["disabled"];
-const _hoisted_12$2 = ["disabled"];
+const _hoisted_1$8 = ["data-backup-config-disabled"];
 
-const {computed: computed$9} = await importShared('vue');
+const {computed: computed$7} = await importShared('vue');
 
 
 const _sfc_main$9 = {
-  __name: 'BackupRestorePanel',
-  props: {
-  channel: { type: String, default: 'local' },
-  title: { type: String, required: true },
-  note: { type: String, default: '' },
-  restore: { type: Object, required: true },
-  archives: { type: Array, default: () => [] },
-  archivesLoading: { type: Boolean, default: false },
-  restoreLoading: { type: Boolean, default: false },
-  result: { type: Object, default: null },
-  unavailable: { type: Boolean, default: false },
-  unavailableMessage: { type: String, default: '' },
-  archiveLabel: { type: String, default: '选择备份包' },
-  archiveIcon: { type: String, default: 'mdi-archive-search-outline' },
-  noDataText: { type: String, default: '暂无可恢复备份包' },
-  refreshLabel: { type: String, default: '刷新列表' },
-  refreshIcon: { type: String, default: 'mdi-refresh' },
-  confirmLabel: { type: String, default: '确认覆盖当前配置' },
-  previewLabel: { type: String, default: '预览恢复' },
-  runLabel: { type: String, default: '一键恢复' },
-  runIcon: { type: String, default: 'mdi-backup-restore' },
-  fallbackResultText: { type: String, default: '备份恢复已返回结果' },
-},
-  emits: ['refresh', 'preview', 'run'],
-  setup(__props, { emit: __emit }) {
-
-const props = __props;
-
-const emit = __emit;
-const titleId = computed$9(() => `aoa-backup-restore-${String(props.channel || 'local').replace(/[^a-zA-Z0-9_-]/g, '-')}`);
-const archiveItems = computed$9(() => props.archives.map(archive => ({
-  title: archive?.name || String(archive || ''),
-  value: archive?.name || String(archive || ''),
-})));
-const restoreFields = computed$9(() => [
-  {
-    key: 'archive',
-    control: 'select',
-    icon: props.archiveIcon,
-    label: props.archiveLabel,
-    items: archiveItems.value,
-    loading: props.archivesLoading,
-    disabled: props.unavailable || props.archivesLoading,
-    placeholder: props.noDataText,
-  },
-  { key: 'restore_config', control: 'switch', icon: 'mdi-file-cog-outline', label: '恢复配置文件', disabled: props.unavailable },
-  { key: 'restore_cookies', control: 'switch', icon: 'mdi-cookie-outline', label: '恢复 Cookies', disabled: props.unavailable },
-  { key: 'restore_database', control: 'switch', icon: 'mdi-database-refresh-outline', label: '恢复数据库', disabled: props.unavailable },
-  { key: 'confirm', control: 'switch', icon: 'mdi-alert-outline', label: props.confirmLabel, disabled: props.unavailable },
-]);
-
-function restoreRowAttrs(field) {
-  return {
-    'data-backup-restore-field': field.key,
-    class: field.key === 'archive' ? 'aoa-backup-restore-field--archive' : undefined,
-  }
-}
-
-return (_ctx, _cache) => {
-  const _component_VIcon = _resolveComponent$1("VIcon");
-  const _component_VAlert = _resolveComponent$1("VAlert");
-
-  return (_openBlock$9(), _createElementBlock$8("details", {
-    class: "aoa-design-advanced aoa-design-advanced--embedded aoa-backup-restore-panel",
-    "data-backup-restore-panel": __props.channel,
-    "data-backup-restore-drawer": __props.channel,
-    "data-default-open": "false",
-    "aria-labelledby": titleId.value
-  }, [
-    _createElementVNode$3("summary", null, [
-      _createElementVNode$3("span", _hoisted_2$6, [
-        _createVNode$7(_component_VIcon, {
-          icon: __props.archiveIcon,
-          size: "18"
-        }, null, 8, ["icon"]),
-        _createElementVNode$3("strong", { id: titleId.value }, _toDisplayString$3(__props.title), 9, _hoisted_3$3)
-      ]),
-      _createElementVNode$3("span", _hoisted_4$3, [
-        _createElementVNode$3("small", _hoisted_5$3, _toDisplayString$3(__props.unavailable ? '暂不可用' : `${__props.archives.length} 份可用`), 1),
-        (_openBlock$9(), _createElementBlock$8("svg", _hoisted_6$3, [
-          _createElementVNode$3("path", {
-            d: _unref$2(mdiChevronDown),
-            fill: "currentColor"
-          }, null, 8, _hoisted_7$2)
-        ]))
-      ])
-    ]),
-    _createElementVNode$3("div", _hoisted_8$2, [
-      (__props.unavailable)
-        ? (_openBlock$9(), _createBlock$5(_component_VAlert, {
-            key: 0,
-            type: "warning",
-            variant: "tonal",
-            density: "comfortable",
-            "data-backup-restore-unavailable": ""
-          }, {
-            default: _withCtx$5(() => [
-              _createTextVNode$1(_toDisplayString$3(__props.unavailableMessage), 1)
-            ]),
-            _: 1
-          }))
-        : _createCommentVNode$6("", true),
-      _createVNode$7(_sfc_main$m, {
-        fields: restoreFields.value,
-        form: __props.restore,
-        grid: "grid-2",
-        "field-defaults": { hideInlineLabel: true, hideDetails: true, density: 'compact' },
-        "row-attrs": restoreRowAttrs,
-        "data-backup-restore-fields": ""
-      }, null, 8, ["fields", "form"]),
-      _createElementVNode$3("div", _hoisted_9$2, [
-        _createElementVNode$3("button", {
-          type: "button",
-          class: "aoa-design-action-btn",
-          disabled: __props.unavailable || __props.archivesLoading,
-          "data-backup-restore-refresh": "",
-          onClick: _cache[0] || (_cache[0] = $event => (emit('refresh')))
-        }, [
-          _createVNode$7(_component_VIcon, {
-            icon: __props.refreshIcon,
-            size: "18",
-            "aria-hidden": "true"
-          }, null, 8, ["icon"]),
-          _createElementVNode$3("span", null, _toDisplayString$3(__props.archivesLoading ? '正在刷新...' : __props.refreshLabel), 1)
-        ], 8, _hoisted_10$2),
-        _createElementVNode$3("button", {
-          type: "button",
-          class: "aoa-design-action-btn",
-          disabled: __props.unavailable || !__props.restore.archive || __props.restoreLoading,
-          "data-backup-restore-preview": "",
-          onClick: _cache[1] || (_cache[1] = $event => (emit('preview')))
-        }, [
-          _createVNode$7(_component_VIcon, {
-            icon: "mdi-file-eye-outline",
-            size: "18",
-            "aria-hidden": "true"
-          }),
-          _createElementVNode$3("span", null, _toDisplayString$3(__props.restoreLoading ? '正在处理...' : __props.previewLabel), 1)
-        ], 8, _hoisted_11$2),
-        _createElementVNode$3("button", {
-          type: "button",
-          class: "aoa-design-action-btn aoa-design-action-btn--danger",
-          disabled: __props.unavailable || !__props.restore.archive || !__props.restore.confirm || __props.restoreLoading,
-          "data-backup-restore-run": "",
-          onClick: _cache[2] || (_cache[2] = $event => (emit('run')))
-        }, [
-          _createVNode$7(_component_VIcon, {
-            icon: __props.runIcon,
-            size: "18",
-            "aria-hidden": "true"
-          }, null, 8, ["icon"]),
-          _createElementVNode$3("span", null, _toDisplayString$3(__props.restoreLoading ? '正在恢复...' : __props.runLabel), 1)
-        ], 8, _hoisted_12$2)
-      ]),
-      (__props.result)
-        ? (_openBlock$9(), _createBlock$5(_component_VAlert, {
-            key: 1,
-            type: __props.result.code === 0 ? 'success' : 'error',
-            variant: "tonal",
-            density: "comfortable",
-            "data-backup-restore-feedback": "",
-            role: __props.result.code === 0 ? 'status' : 'alert',
-            "aria-live": __props.result.code === 0 ? 'polite' : 'assertive'
-          }, {
-            default: _withCtx$5(() => [
-              _createTextVNode$1(_toDisplayString$3(__props.result.msg || __props.result.text || __props.fallbackResultText), 1)
-            ]),
-            _: 1
-          }, 8, ["type", "role", "aria-live"]))
-        : _createCommentVNode$6("", true)
-    ])
-  ], 8, _hoisted_1$8))
-}
-}
-
-};
-
-const {createVNode:_createVNode$6,openBlock:_openBlock$8,createElementBlock:_createElementBlock$7} = await importShared('vue');
-
-
-const _hoisted_1$7 = ["data-backup-config-disabled"];
-
-const {computed: computed$8} = await importShared('vue');
-
-
-const _sfc_main$8 = {
   __name: 'BackupLocalConfig',
   props: {
   form: { type: Object, required: true },
   fields: { type: Array, default: () => [] },
-  backupRestoreUnavailable: { type: Boolean, default: false },
-  backupRestoreUnavailableMessage: { type: String, default: '' },
-  backupArchives: { type: Array, default: () => [] },
-  backupArchivesLoading: { type: Boolean, default: false },
-  backupRestoreLoading: { type: Boolean, default: false },
-  backupRestoreResult: { type: Object, default: null },
-  backupRestore: { type: Object, required: true },
 },
-  emits: ['loadBackupArchives', 'previewBackupRestore', 'runBackupRestore'],
-  setup(__props, { emit: __emit }) {
+  setup(__props) {
 
 const props = __props;
-
-const emit = __emit;
 
 const fallbackFields = Object.freeze([
   { key: 'backup_path', control: 'text', icon: 'mdi-folder-outline', label: '本地备份路径' },
   { key: 'backup_keep_count', control: 'number', icon: 'mdi-content-copy', label: '本地保留份数', min: 1, max: 30 },
 ]);
-const configDisabled = computed$8(() => !props.form.enabled || !props.form.backup_enabled);
-const localFields = computed$8(() => (props.fields.length ? props.fields : fallbackFields).map(field => ({
+const configDisabled = computed$7(() => !props.form.enabled || !props.form.backup_enabled);
+const localFields = computed$7(() => (props.fields.length ? props.fields : fallbackFields).map(field => ({
   ...field,
   min: field.key === 'backup_keep_count' ? (field.min ?? 1) : field.min,
   max: field.key === 'backup_keep_count' ? (field.max ?? 30) : field.max,
@@ -2504,7 +2288,7 @@ const localFields = computed$8(() => (props.fields.length ? props.fields : fallb
 })));
 
 return (_ctx, _cache) => {
-  return (_openBlock$8(), _createElementBlock$7("div", {
+  return (_openBlock$9(), _createElementBlock$8("div", {
     class: "aoa-backup-config-panel",
     "data-backup-config-panel": "local",
     "data-backup-config-disabled": configDisabled.value ? 'true' : 'false'
@@ -2517,74 +2301,39 @@ return (_ctx, _cache) => {
       grid: "grid-2",
       "active-sub": "backup",
       "field-defaults": { hideInlineLabel: true, hideDetails: true, density: 'compact' }
-    }, null, 8, ["fields", "form"]),
-    _createVNode$6(_sfc_main$9, {
-      channel: "local",
-      title: "恢复本地备份",
-      note: "从本插件生成的本地备份包恢复配置、Cookies 或数据库",
-      restore: __props.backupRestore,
-      archives: __props.backupArchives,
-      "archives-loading": __props.backupArchivesLoading,
-      "restore-loading": __props.backupRestoreLoading,
-      result: __props.backupRestoreResult,
-      unavailable: __props.backupRestoreUnavailable,
-      "unavailable-message": __props.backupRestoreUnavailableMessage,
-      "archive-label": "选择备份包",
-      "archive-icon": "mdi-archive-search-outline",
-      "no-data-text": "暂无可恢复备份包",
-      "refresh-label": "刷新列表",
-      "refresh-icon": "mdi-refresh",
-      "confirm-label": "确认覆盖当前配置",
-      "preview-label": "预览恢复",
-      "run-label": "一键恢复",
-      "run-icon": "mdi-backup-restore",
-      "fallback-result-text": "备份恢复已返回结果",
-      onRefresh: _cache[0] || (_cache[0] = $event => (emit('loadBackupArchives'))),
-      onPreview: _cache[1] || (_cache[1] = $event => (emit('previewBackupRestore'))),
-      onRun: _cache[2] || (_cache[2] = $event => (emit('runBackupRestore')))
-    }, null, 8, ["restore", "archives", "archives-loading", "restore-loading", "result", "unavailable", "unavailable-message"])
-  ], 8, _hoisted_1$7))
+    }, null, 8, ["fields", "form"])
+  ], 8, _hoisted_1$8))
 }
 }
 
 };
 
-const {createVNode:_createVNode$5,openBlock:_openBlock$7,createElementBlock:_createElementBlock$6} = await importShared('vue');
+const {createVNode:_createVNode$5,openBlock:_openBlock$8,createElementBlock:_createElementBlock$7} = await importShared('vue');
 
 
-const _hoisted_1$6 = ["data-backup-configured", "data-backup-config-disabled"];
+const _hoisted_1$7 = ["data-backup-configured", "data-backup-config-disabled"];
 
-const {computed: computed$7} = await importShared('vue');
+const {computed: computed$6} = await importShared('vue');
 
 
-const _sfc_main$7 = {
+const _sfc_main$8 = {
   __name: 'BackupWebdavConfig',
   props: {
   form: { type: Object, required: true },
   fields: { type: Array, default: () => [] },
   keepCountPresets: { type: Array, default: () => [] },
-  webdavBackupRestoreUnavailable: { type: Boolean, default: false },
-  webdavBackupRestoreUnavailableMessage: { type: String, default: '' },
-  webdavBackupArchives: { type: Array, default: () => [] },
-  webdavBackupArchivesLoading: { type: Boolean, default: false },
-  webdavBackupRestoreLoading: { type: Boolean, default: false },
-  webdavBackupRestoreResult: { type: Object, default: null },
-  webdavBackupRestore: { type: Object, required: true },
 },
-  emits: ['loadWebdavBackupArchives', 'previewWebdavBackupRestore', 'runWebdavBackupRestore'],
-  setup(__props, { emit: __emit }) {
+  setup(__props) {
 
 const props = __props;
 
-const emit = __emit;
-
-const webdavConfigured = computed$7(() => Boolean(props.form.backup_webdav_enabled) && [
+const webdavConfigured = computed$6(() => Boolean(props.form.backup_webdav_enabled) && [
   props.form.backup_webdav_hostname,
   props.form.backup_webdav_login,
   props.form.backup_webdav_password,
 ].every(value => String(value || '').trim().length > 0));
-const configDisabled = computed$7(() => !props.form.enabled || !props.form.backup_webdav_enabled);
-const fallbackFields = computed$7(() => [
+const configDisabled = computed$6(() => !props.form.enabled || !props.form.backup_webdav_enabled);
+const fallbackFields = computed$6(() => [
   { key: 'backup_webdav_hostname', control: 'text', icon: 'mdi-web', label: 'WebDAV 地址', placeholder: 'https://dav.example.com/backup' },
   { key: 'backup_webdav_login', control: 'text', icon: 'mdi-account-outline', label: '账号' },
   { key: 'backup_webdav_password', control: 'text', icon: 'mdi-lock-outline', label: '密码', sensitive: true },
@@ -2600,7 +2349,7 @@ const fallbackFields = computed$7(() => [
   { key: 'backup_webdav_digest_auth', control: 'switch', icon: 'mdi-shield-outline', label: '使用 Digest 认证' },
   { key: 'backup_webdav_disable_check', control: 'switch', icon: 'mdi-lock-check-outline', label: '跳过证书校验（自签名时启用）' },
 ]);
-const webdavFields = computed$7(() => (props.fields.length ? props.fields : fallbackFields.value).map(field => ({
+const webdavFields = computed$6(() => (props.fields.length ? props.fields : fallbackFields.value).map(field => ({
   ...field,
   min: field.key === 'backup_webdav_max_count' ? (field.min ?? 1) : field.min,
   max: field.key === 'backup_webdav_max_count' ? (field.max ?? 30) : field.max,
@@ -2608,7 +2357,7 @@ const webdavFields = computed$7(() => (props.fields.length ? props.fields : fall
 })));
 
 return (_ctx, _cache) => {
-  return (_openBlock$7(), _createElementBlock$6("div", {
+  return (_openBlock$8(), _createElementBlock$7("div", {
     class: "aoa-backup-config-panel",
     "data-backup-config-panel": "webdav",
     "data-backup-configured": webdavConfigured.value ? 'true' : 'false',
@@ -2622,50 +2371,25 @@ return (_ctx, _cache) => {
       grid: "grid-2",
       "active-sub": "backup",
       "field-defaults": { hideInlineLabel: true, hideDetails: true, density: 'compact' }
-    }, null, 8, ["fields", "form"]),
-    _createVNode$5(_sfc_main$9, {
-      channel: "webdav",
-      title: "恢复远端备份",
-      note: "从远端备份包下载到本地后恢复配置、Cookies 或数据库",
-      restore: __props.webdavBackupRestore,
-      archives: __props.webdavBackupArchives,
-      "archives-loading": __props.webdavBackupArchivesLoading,
-      "restore-loading": __props.webdavBackupRestoreLoading,
-      result: __props.webdavBackupRestoreResult,
-      unavailable: __props.webdavBackupRestoreUnavailable,
-      "unavailable-message": __props.webdavBackupRestoreUnavailableMessage,
-      "archive-label": "选择远端备份包",
-      "archive-icon": "mdi-cloud-search-outline",
-      "no-data-text": "暂无远端可恢复备份包",
-      "refresh-label": "刷新远端",
-      "refresh-icon": "mdi-cloud-sync-outline",
-      "confirm-label": "确认下载并覆盖当前配置",
-      "preview-label": "预览远端恢复",
-      "run-label": "恢复远端备份",
-      "run-icon": "mdi-cloud-refresh-outline",
-      "fallback-result-text": "WebDAV 备份恢复已返回结果",
-      onRefresh: _cache[0] || (_cache[0] = $event => (emit('loadWebdavBackupArchives'))),
-      onPreview: _cache[1] || (_cache[1] = $event => (emit('previewWebdavBackupRestore'))),
-      onRun: _cache[2] || (_cache[2] = $event => (emit('runWebdavBackupRestore')))
-    }, null, 8, ["restore", "archives", "archives-loading", "restore-loading", "result", "unavailable", "unavailable-message"])
-  ], 8, _hoisted_1$6))
+    }, null, 8, ["fields", "form"])
+  ], 8, _hoisted_1$7))
 }
 }
 
 };
 
-const {createVNode:_createVNode$4,openBlock:_openBlock$6,createBlock:_createBlock$4,createCommentVNode:_createCommentVNode$5,renderSlot:_renderSlot$3,createElementBlock:_createElementBlock$5,withCtx:_withCtx$4} = await importShared('vue');
+const {createVNode:_createVNode$4,openBlock:_openBlock$7,createBlock:_createBlock$4,createCommentVNode:_createCommentVNode$6,renderSlot:_renderSlot$3,createElementBlock:_createElementBlock$6,withCtx:_withCtx$4} = await importShared('vue');
 
 
-const _hoisted_1$5 = ["data-backup-active-module"];
-const _hoisted_2$5 = {
+const _hoisted_1$6 = ["data-backup-active-module"];
+const _hoisted_2$6 = {
   key: 2,
   class: "aoa-config-category-actions",
   "data-backup-detail-actions": ""
 };
 
 
-const _sfc_main$6 = {
+const _sfc_main$7 = {
   __name: 'BackupManagementConfig',
   props: {
   form: { type: Object, required: true },
@@ -2675,30 +2399,8 @@ const _sfc_main$6 = {
   activeModule: { type: String, default: '' },
   effectiveState: { type: String, default: '' },
   keepCountPresets: { type: Array, default: () => [] },
-  backupRestoreUnavailable: { type: Boolean, default: false },
-  backupRestoreUnavailableMessage: { type: String, default: '' },
-  backupArchives: { type: Array, default: () => [] },
-  backupArchivesLoading: { type: Boolean, default: false },
-  backupRestoreLoading: { type: Boolean, default: false },
-  backupRestoreResult: { type: Object, default: null },
-  backupRestore: { type: Object, required: true },
-  webdavBackupRestoreUnavailable: { type: Boolean, default: false },
-  webdavBackupRestoreUnavailableMessage: { type: String, default: '' },
-  webdavBackupArchives: { type: Array, default: () => [] },
-  webdavBackupArchivesLoading: { type: Boolean, default: false },
-  webdavBackupRestoreLoading: { type: Boolean, default: false },
-  webdavBackupRestoreResult: { type: Object, default: null },
-  webdavBackupRestore: { type: Object, required: true },
 },
-  emits: [
-  'selectModule',
-  'loadBackupArchives',
-  'previewBackupRestore',
-  'runBackupRestore',
-  'loadWebdavBackupArchives',
-  'previewWebdavBackupRestore',
-  'runWebdavBackupRestore',
-],
+  emits: ['selectModule'],
   setup(__props, { emit: __emit }) {
 
 
@@ -2706,7 +2408,7 @@ const _sfc_main$6 = {
 const emit = __emit;
 
 return (_ctx, _cache) => {
-  return (_openBlock$6(), _createElementBlock$5("div", {
+  return (_openBlock$7(), _createElementBlock$6("div", {
     class: "aoa-config-category-management aoa-backup-management-config",
     "data-backup-management-surface": "",
     "data-backup-active-module": __props.activeModule || undefined
@@ -2719,7 +2421,7 @@ return (_ctx, _cache) => {
       onSelectModule: _cache[0] || (_cache[0] = $event => (emit('selectModule', $event)))
     }, null, 8, ["form", "selectors", "active-module"]),
     (__props.detail)
-      ? (_openBlock$6(), _createBlock$4(_sfc_main$r, {
+      ? (_openBlock$7(), _createBlock$4(_sfc_main$r, {
           key: 0,
           card: __props.detail,
           "effective-state": __props.effectiveState,
@@ -2729,47 +2431,27 @@ return (_ctx, _cache) => {
         }, {
           default: _withCtx$4(() => [
             (__props.detail.module === 'backup_webdav')
-              ? (_openBlock$6(), _createBlock$4(_sfc_main$7, {
+              ? (_openBlock$7(), _createBlock$4(_sfc_main$8, {
                   key: 0,
                   form: __props.form,
                   fields: __props.detail.fields,
-                  "keep-count-presets": __props.keepCountPresets,
-                  "webdav-backup-restore-unavailable": __props.webdavBackupRestoreUnavailable,
-                  "webdav-backup-restore-unavailable-message": __props.webdavBackupRestoreUnavailableMessage,
-                  "webdav-backup-archives": __props.webdavBackupArchives,
-                  "webdav-backup-archives-loading": __props.webdavBackupArchivesLoading,
-                  "webdav-backup-restore-loading": __props.webdavBackupRestoreLoading,
-                  "webdav-backup-restore-result": __props.webdavBackupRestoreResult,
-                  "webdav-backup-restore": __props.webdavBackupRestore,
-                  onLoadWebdavBackupArchives: _cache[1] || (_cache[1] = $event => (emit('loadWebdavBackupArchives'))),
-                  onPreviewWebdavBackupRestore: _cache[2] || (_cache[2] = $event => (emit('previewWebdavBackupRestore'))),
-                  onRunWebdavBackupRestore: _cache[3] || (_cache[3] = $event => (emit('runWebdavBackupRestore')))
-                }, null, 8, ["form", "fields", "keep-count-presets", "webdav-backup-restore-unavailable", "webdav-backup-restore-unavailable-message", "webdav-backup-archives", "webdav-backup-archives-loading", "webdav-backup-restore-loading", "webdav-backup-restore-result", "webdav-backup-restore"]))
-              : (_openBlock$6(), _createBlock$4(_sfc_main$8, {
+                  "keep-count-presets": __props.keepCountPresets
+                }, null, 8, ["form", "fields", "keep-count-presets"]))
+              : (_openBlock$7(), _createBlock$4(_sfc_main$9, {
                   key: 1,
                   form: __props.form,
-                  fields: __props.detail.fields,
-                  "backup-restore-unavailable": __props.backupRestoreUnavailable,
-                  "backup-restore-unavailable-message": __props.backupRestoreUnavailableMessage,
-                  "backup-archives": __props.backupArchives,
-                  "backup-archives-loading": __props.backupArchivesLoading,
-                  "backup-restore-loading": __props.backupRestoreLoading,
-                  "backup-restore-result": __props.backupRestoreResult,
-                  "backup-restore": __props.backupRestore,
-                  onLoadBackupArchives: _cache[4] || (_cache[4] = $event => (emit('loadBackupArchives'))),
-                  onPreviewBackupRestore: _cache[5] || (_cache[5] = $event => (emit('previewBackupRestore'))),
-                  onRunBackupRestore: _cache[6] || (_cache[6] = $event => (emit('runBackupRestore')))
-                }, null, 8, ["form", "fields", "backup-restore-unavailable", "backup-restore-unavailable-message", "backup-archives", "backup-archives-loading", "backup-restore-loading", "backup-restore-result", "backup-restore"])),
+                  fields: __props.detail.fields
+                }, null, 8, ["form", "fields"])),
             (__props.actions.length)
-              ? (_openBlock$6(), _createElementBlock$5("div", _hoisted_2$5, [
+              ? (_openBlock$7(), _createElementBlock$6("div", _hoisted_2$6, [
                   _renderSlot$3(_ctx.$slots, "actions", { actions: __props.actions })
                 ]))
-              : _createCommentVNode$5("", true)
+              : _createCommentVNode$6("", true)
           ]),
           _: 3
         }, 8, ["card", "effective-state", "data-backup-detail-card", "data-task-detail-card"]))
-      : _createCommentVNode$5("", true)
-  ], 8, _hoisted_1$5))
+      : _createCommentVNode$6("", true)
+  ], 8, _hoisted_1$6))
 }
 }
 
@@ -2876,22 +2558,22 @@ function validateSubfillRule(rule = {}) {
   return [...(rule.errors || [])]
 }
 
-const {unref:_unref$1,createElementVNode:_createElementVNode$2,toDisplayString:_toDisplayString$2,vModelText:_vModelText,withDirectives:_withDirectives,openBlock:_openBlock$5,createElementBlock:_createElementBlock$4,createCommentVNode:_createCommentVNode$4,createTextVNode:_createTextVNode,normalizeClass:_normalizeClass$2,renderList:_renderList$1,Fragment:_Fragment$1,mergeProps:_mergeProps$1} = await importShared('vue');
+const {unref:_unref$2,createElementVNode:_createElementVNode$3,toDisplayString:_toDisplayString$3,vModelText:_vModelText,withDirectives:_withDirectives,openBlock:_openBlock$6,createElementBlock:_createElementBlock$5,createCommentVNode:_createCommentVNode$5,createTextVNode:_createTextVNode,normalizeClass:_normalizeClass$3,renderList:_renderList$2,Fragment:_Fragment$2,mergeProps:_mergeProps$2} = await importShared('vue');
 
 
-const _hoisted_1$4 = ["data-subfill-rule-state"];
-const _hoisted_2$4 = ["data-subfill-projection-open"];
-const _hoisted_3$2 = ["data-subfill-projection-open"];
-const _hoisted_4$2 = { class: "aoa-subfill-code__controls" };
-const _hoisted_5$2 = { class: "aoa-subfill-code__input" };
-const _hoisted_6$2 = { class: "aoa-subfill-code__heading" };
-const _hoisted_7$1 = ["data-tone"];
-const _hoisted_8$1 = ["disabled", "aria-invalid"];
-const _hoisted_9$1 = {
+const _hoisted_1$5 = ["data-subfill-rule-state"];
+const _hoisted_2$5 = ["data-subfill-projection-open"];
+const _hoisted_3$3 = ["data-subfill-projection-open"];
+const _hoisted_4$3 = { class: "aoa-subfill-code__controls" };
+const _hoisted_5$3 = { class: "aoa-subfill-code__input" };
+const _hoisted_6$3 = { class: "aoa-subfill-code__heading" };
+const _hoisted_7$2 = ["data-tone"];
+const _hoisted_8$2 = ["disabled", "aria-invalid"];
+const _hoisted_9$2 = {
   class: "aoa-subfill-projection-shell",
   "data-subfill-projection-shell": ""
 };
-const _hoisted_10$1 = ["aria-expanded"];
+const _hoisted_10$2 = ["aria-expanded"];
 const _hoisted_11$1 = { class: "aoa-subfill-projection-toggle__label" };
 const _hoisted_12$1 = { key: 0 };
 const _hoisted_13$1 = ["d"];
@@ -2925,10 +2607,10 @@ const _hoisted_26$1 = {
   "data-subfill-code-errors": ""
 };
 
-const {computed: computed$6,nextTick: nextTick$1,ref: ref$7,useAttrs} = await importShared('vue');
+const {computed: computed$5,nextTick: nextTick$1,ref: ref$6,useAttrs} = await importShared('vue');
 
 
-const _sfc_main$5 = /*@__PURE__*/Object.assign({ inheritAttrs: false }, {
+const _sfc_main$6 = /*@__PURE__*/Object.assign({ inheritAttrs: false }, {
   __name: 'SubfillRuleEditor',
   props: {
   values: { type: Object, required: true },
@@ -2942,21 +2624,21 @@ const emit = __emit;
 
 const attrs = useAttrs();
 
-const projectionOpen = ref$7(false);
-const expandedRuleId = ref$7(null);
-const projectionPanel = ref$7(null);
+const projectionOpen = ref$6(false);
+const expandedRuleId = ref$6(null);
+const projectionPanel = ref$6(null);
 const ruleCards = new Map();
-const codeText = computed$6({
+const codeText = computed$5({
   get: () => String(props.values.subfill_category_confs ?? ''),
   set: value => { props.values.subfill_category_confs = String(value ?? ''); },
 });
-const rules = computed$6(() => parseSubfillRules(codeText.value));
-const errorCount = computed$6(() => rules.value.reduce((count, rule) => count + validateSubfillRule(rule).length, 0));
-const ruleState = computed$6(() => {
+const rules = computed$5(() => parseSubfillRules(codeText.value));
+const errorCount = computed$5(() => rules.value.reduce((count, rule) => count + validateSubfillRule(rule).length, 0));
+const ruleState = computed$5(() => {
   if (!codeText.value.trim()) return 'empty'
   return errorCount.value > 0 ? 'invalid' : 'valid'
 });
-const ruleSummary = computed$6(() => {
+const ruleSummary = computed$5(() => {
   if (ruleState.value === 'empty') return '尚未配置规则'
   if (ruleState.value === 'invalid') return `${rules.value.length} 条规则，${errorCount.value} 个错误`
   return `${rules.value.length} 条规则，校验通过`
@@ -2995,30 +2677,30 @@ async function toggleProjection() {
 }
 
 return (_ctx, _cache) => {
-  return (_openBlock$5(), _createElementBlock$4("div", _mergeProps$1(_unref$1(attrs), {
+  return (_openBlock$6(), _createElementBlock$5("div", _mergeProps$2(_unref$2(attrs), {
     class: "aoa-subfill-editor-container",
     "data-subfill-editor-container": "",
     "data-subfill-rule-state": ruleState.value
   }), [
-    _createElementVNode$2("div", {
+    _createElementVNode$3("div", {
       class: "aoa-subfill-editor-layout",
       "data-subfill-projection-open": projectionOpen.value ? 'true' : 'false',
       "data-subfill-editor-layout": ""
     }, [
-      _createElementVNode$2("section", {
-        class: _normalizeClass$2(["aoa-subfill-code", { 'aoa-subfill-code--disabled': __props.disabled }]),
+      _createElementVNode$3("section", {
+        class: _normalizeClass$3(["aoa-subfill-code", { 'aoa-subfill-code--disabled': __props.disabled }]),
         "data-subfill-code-editor": "",
         "data-subfill-projection-open": projectionOpen.value ? 'true' : 'false'
       }, [
-        _createElementVNode$2("div", _hoisted_4$2, [
-          _createElementVNode$2("label", _hoisted_5$2, [
-            _createElementVNode$2("span", _hoisted_6$2, [
-              _cache[1] || (_cache[1] = _createElementVNode$2("strong", null, "规则代码", -1)),
-              _createElementVNode$2("small", {
+        _createElementVNode$3("div", _hoisted_4$3, [
+          _createElementVNode$3("label", _hoisted_5$3, [
+            _createElementVNode$3("span", _hoisted_6$3, [
+              _cache[1] || (_cache[1] = _createElementVNode$3("strong", null, "规则代码", -1)),
+              _createElementVNode$3("small", {
                 "data-tone": ruleState.value === 'invalid' ? 'error' : 'neutral'
-              }, _toDisplayString$2(ruleSummary.value), 9, _hoisted_7$1)
+              }, _toDisplayString$3(ruleSummary.value), 9, _hoisted_7$2)
             ]),
-            _withDirectives(_createElementVNode$2("textarea", {
+            _withDirectives(_createElementVNode$3("textarea", {
               "onUpdate:modelValue": _cache[0] || (_cache[0] = $event => ((codeText).value = $event)),
               rows: "6",
               spellcheck: "false",
@@ -3027,17 +2709,17 @@ return (_ctx, _cache) => {
               "aria-describedby": "aoa-subfill-code-help",
               "data-subfill-code-input": "",
               placeholder: "category:动画/日番#resolution:1080p#include:简体#sites:观众,青蛙"
-            }, null, 8, _hoisted_8$1), [
+            }, null, 8, _hoisted_8$2), [
               [_vModelText, codeText.value]
             ]),
-            _cache[2] || (_cache[2] = _createElementVNode$2("small", {
+            _cache[2] || (_cache[2] = _createElementVNode$3("small", {
               id: "aoa-subfill-code-help",
               class: "aoa-subfill-code__help"
             }, " 每行一条规则；展开图形化后可逐项核对字段与错误，投影不会改写规则代码。 ", -1))
           ])
         ]),
-        _createElementVNode$2("div", _hoisted_9$1, [
-          _createElementVNode$2("button", {
+        _createElementVNode$3("div", _hoisted_9$2, [
+          _createElementVNode$3("button", {
             type: "button",
             class: "aoa-subfill-projection-toggle",
             "aria-expanded": projectionOpen.value,
@@ -3045,32 +2727,32 @@ return (_ctx, _cache) => {
             "data-subfill-projection-toggle": "",
             onClick: toggleProjection
           }, [
-            _createElementVNode$2("span", _hoisted_11$1, _toDisplayString$2(projectionOpen.value ? '收起图形化' : '展开图形化'), 1),
-            _createElementVNode$2("span", {
-              class: _normalizeClass$2(["aoa-subfill-projection-toggle__meta", { 'aoa-subfill-projection-toggle__meta--error': errorCount.value }])
+            _createElementVNode$3("span", _hoisted_11$1, _toDisplayString$3(projectionOpen.value ? '收起图形化' : '展开图形化'), 1),
+            _createElementVNode$3("span", {
+              class: _normalizeClass$3(["aoa-subfill-projection-toggle__meta", { 'aoa-subfill-projection-toggle__meta--error': errorCount.value }])
             }, [
-              _createTextVNode(_toDisplayString$2(rules.value.length) + " 条", 1),
+              _createTextVNode(_toDisplayString$3(rules.value.length) + " 条", 1),
               (errorCount.value)
-                ? (_openBlock$5(), _createElementBlock$4("span", _hoisted_12$1, " · " + _toDisplayString$2(errorCount.value) + " 个错误", 1))
-                : _createCommentVNode$4("", true)
+                ? (_openBlock$6(), _createElementBlock$5("span", _hoisted_12$1, " · " + _toDisplayString$3(errorCount.value) + " 个错误", 1))
+                : _createCommentVNode$5("", true)
             ], 2),
-            (_openBlock$5(), _createElementBlock$4("svg", {
-              class: _normalizeClass$2(["aoa-subfill-projection-toggle__chevron", { 'aoa-subfill-projection-toggle__chevron--open': projectionOpen.value }]),
+            (_openBlock$6(), _createElementBlock$5("svg", {
+              class: _normalizeClass$3(["aoa-subfill-projection-toggle__chevron", { 'aoa-subfill-projection-toggle__chevron--open': projectionOpen.value }]),
               viewBox: "0 0 24 24",
               width: "18",
               height: "18",
               "aria-hidden": "true"
             }, [
-              _createElementVNode$2("path", {
-                d: _unref$1(mdiChevronDown),
+              _createElementVNode$3("path", {
+                d: _unref$2(mdiChevronDown),
                 fill: "currentColor"
               }, null, 8, _hoisted_13$1)
             ], 2))
-          ], 8, _hoisted_10$1)
+          ], 8, _hoisted_10$2)
         ])
-      ], 10, _hoisted_3$2),
+      ], 10, _hoisted_3$3),
       (projectionOpen.value)
-        ? (_openBlock$5(), _createElementBlock$4("section", {
+        ? (_openBlock$6(), _createElementBlock$5("section", {
             key: 0,
             ref_key: "projectionPanel",
             ref: projectionPanel,
@@ -3079,19 +2761,19 @@ return (_ctx, _cache) => {
             "data-subfill-code-projection": ""
           }, [
             (!rules.value.length)
-              ? (_openBlock$5(), _createElementBlock$4("div", _hoisted_14$1, " 暂无规则 "))
-              : (_openBlock$5(), _createElementBlock$4("div", _hoisted_15$1, [
-                  (_openBlock$5(true), _createElementBlock$4(_Fragment$1, null, _renderList$1(rules.value, (rule) => {
-                    return (_openBlock$5(), _createElementBlock$4("article", {
+              ? (_openBlock$6(), _createElementBlock$5("div", _hoisted_14$1, " 暂无规则 "))
+              : (_openBlock$6(), _createElementBlock$5("div", _hoisted_15$1, [
+                  (_openBlock$6(true), _createElementBlock$5(_Fragment$2, null, _renderList$2(rules.value, (rule) => {
+                    return (_openBlock$6(), _createElementBlock$5("article", {
                       ref_for: true,
                       ref: element => setRuleCardRef(rule.id, element),
                       id: `subfill-rule-panel-${rule.lineNumber}`,
                       key: rule.id,
-                      class: _normalizeClass$2(["aoa-subfill-code-card", { 'aoa-subfill-code-card--error': !rule.valid }]),
+                      class: _normalizeClass$3(["aoa-subfill-code-card", { 'aoa-subfill-code-card--error': !rule.valid }]),
                       "data-subfill-code-line": rule.lineNumber,
                       "data-subfill-code-valid": rule.valid
                     }, [
-                      _createElementVNode$2("button", {
+                      _createElementVNode$3("button", {
                         id: `subfill-rule-toggle-${rule.lineNumber}`,
                         type: "button",
                         class: "aoa-subfill-code-card__toggle",
@@ -3100,29 +2782,29 @@ return (_ctx, _cache) => {
                         title: isExpanded(rule.id) ? '收起' : '展开',
                         onClick: $event => (toggleRule(rule.id))
                       }, [
-                        _createElementVNode$2("span", _hoisted_18$1, "第 " + _toDisplayString$2(rule.lineNumber) + " 行", 1),
-                        _createElementVNode$2("span", _hoisted_19$1, _toDisplayString$2(rule.title), 1),
-                        _createElementVNode$2("span", _hoisted_20$1, [
-                          _createTextVNode(_toDisplayString$2(rule.fields.length) + " 个字段", 1),
+                        _createElementVNode$3("span", _hoisted_18$1, "第 " + _toDisplayString$3(rule.lineNumber) + " 行", 1),
+                        _createElementVNode$3("span", _hoisted_19$1, _toDisplayString$3(rule.title), 1),
+                        _createElementVNode$3("span", _hoisted_20$1, [
+                          _createTextVNode(_toDisplayString$3(rule.fields.length) + " 个字段", 1),
                           (rule.errors.length)
-                            ? (_openBlock$5(), _createElementBlock$4("span", _hoisted_21$1, " · " + _toDisplayString$2(rule.errors.length) + " 个错误", 1))
-                            : _createCommentVNode$4("", true)
+                            ? (_openBlock$6(), _createElementBlock$5("span", _hoisted_21$1, " · " + _toDisplayString$3(rule.errors.length) + " 个错误", 1))
+                            : _createCommentVNode$5("", true)
                         ]),
-                        (_openBlock$5(), _createElementBlock$4("svg", {
-                          class: _normalizeClass$2(["aoa-subfill-code-card__chevron", { 'aoa-subfill-code-card__chevron--open': isExpanded(rule.id) }]),
+                        (_openBlock$6(), _createElementBlock$5("svg", {
+                          class: _normalizeClass$3(["aoa-subfill-code-card__chevron", { 'aoa-subfill-code-card__chevron--open': isExpanded(rule.id) }]),
                           viewBox: "0 0 24 24",
                           width: "18",
                           height: "18",
                           "aria-hidden": "true"
                         }, [
-                          _createElementVNode$2("path", {
-                            d: _unref$1(mdiChevronDown),
+                          _createElementVNode$3("path", {
+                            d: _unref$2(mdiChevronDown),
                             fill: "currentColor"
                           }, null, 8, _hoisted_22$1)
                         ], 2))
                       ], 8, _hoisted_17$1),
                       (isExpanded(rule.id))
-                        ? (_openBlock$5(), _createElementBlock$4("div", {
+                        ? (_openBlock$6(), _createElementBlock$5("div", {
                             key: 0,
                             id: `subfill-rule-content-${rule.lineNumber}`,
                             class: "aoa-subfill-code-card__content",
@@ -3131,55 +2813,55 @@ return (_ctx, _cache) => {
                             "data-subfill-rule-content": ""
                           }, [
                             (rule.fields.length)
-                              ? (_openBlock$5(), _createElementBlock$4("dl", _hoisted_24$1, [
-                                  (_openBlock$5(true), _createElementBlock$4(_Fragment$1, null, _renderList$1(rule.fields, (field, fieldIndex) => {
-                                    return (_openBlock$5(), _createElementBlock$4("div", {
+                              ? (_openBlock$6(), _createElementBlock$5("dl", _hoisted_24$1, [
+                                  (_openBlock$6(true), _createElementBlock$5(_Fragment$2, null, _renderList$2(rule.fields, (field, fieldIndex) => {
+                                    return (_openBlock$6(), _createElementBlock$5("div", {
                                       key: `${field.key}-${fieldIndex}`
                                     }, [
-                                      _createElementVNode$2("dt", null, [
-                                        _createTextVNode(_toDisplayString$2(field.label), 1),
+                                      _createElementVNode$3("dt", null, [
+                                        _createTextVNode(_toDisplayString$3(field.label), 1),
                                         (field.duplicate)
-                                          ? (_openBlock$5(), _createElementBlock$4("span", _hoisted_25$1, "（重复）"))
-                                          : _createCommentVNode$4("", true)
+                                          ? (_openBlock$6(), _createElementBlock$5("span", _hoisted_25$1, "（重复）"))
+                                          : _createCommentVNode$5("", true)
                                       ]),
-                                      _createElementVNode$2("dd", null, _toDisplayString$2(field.value || '空值'), 1)
+                                      _createElementVNode$3("dd", null, _toDisplayString$3(field.value || '空值'), 1)
                                     ]))
                                   }), 128))
                                 ]))
-                              : _createCommentVNode$4("", true),
+                              : _createCommentVNode$5("", true),
                             (rule.errors.length)
-                              ? (_openBlock$5(), _createElementBlock$4("div", _hoisted_26$1, [
-                                  (_openBlock$5(true), _createElementBlock$4(_Fragment$1, null, _renderList$1(rule.errors, (error) => {
-                                    return (_openBlock$5(), _createElementBlock$4("span", { key: error }, _toDisplayString$2(error), 1))
+                              ? (_openBlock$6(), _createElementBlock$5("div", _hoisted_26$1, [
+                                  (_openBlock$6(true), _createElementBlock$5(_Fragment$2, null, _renderList$2(rule.errors, (error) => {
+                                    return (_openBlock$6(), _createElementBlock$5("span", { key: error }, _toDisplayString$3(error), 1))
                                   }), 128))
                                 ]))
-                              : _createCommentVNode$4("", true)
+                              : _createCommentVNode$5("", true)
                           ], 8, _hoisted_23$1))
-                        : _createCommentVNode$4("", true)
+                        : _createCommentVNode$5("", true)
                     ], 10, _hoisted_16$1))
                   }), 128))
                 ]))
           ], 512))
-        : _createCommentVNode$4("", true)
-    ], 8, _hoisted_2$4)
-  ], 16, _hoisted_1$4))
+        : _createCommentVNode$5("", true)
+    ], 8, _hoisted_2$5)
+  ], 16, _hoisted_1$5))
 }
 }
 
 });
 
-const {createVNode:_createVNode$3,openBlock:_openBlock$4,createBlock:_createBlock$3,createCommentVNode:_createCommentVNode$3,renderSlot:_renderSlot$2,createElementBlock:_createElementBlock$3,withCtx:_withCtx$3} = await importShared('vue');
+const {createVNode:_createVNode$3,openBlock:_openBlock$5,createBlock:_createBlock$3,createCommentVNode:_createCommentVNode$4,renderSlot:_renderSlot$2,createElementBlock:_createElementBlock$4,withCtx:_withCtx$3} = await importShared('vue');
 
 
-const _hoisted_1$3 = ["data-subfill-active-module"];
-const _hoisted_2$3 = {
+const _hoisted_1$4 = ["data-subfill-active-module"];
+const _hoisted_2$4 = {
   key: 1,
   class: "aoa-config-category-actions",
   "data-subfill-detail-actions": ""
 };
 
 
-const _sfc_main$4 = {
+const _sfc_main$5 = {
   __name: 'SubscriptionFillConfig',
   props: {
   form: { type: Object, required: true },
@@ -3197,7 +2879,7 @@ const _sfc_main$4 = {
 const emit = __emit;
 
 return (_ctx, _cache) => {
-  return (_openBlock$4(), _createElementBlock$3("div", {
+  return (_openBlock$5(), _createElementBlock$4("div", {
     class: "aoa-config-category-management aoa-subfill-management-config",
     "data-subfill-management-surface": "",
     "data-subfill-layout-container": "",
@@ -3211,7 +2893,7 @@ return (_ctx, _cache) => {
       onSelectModule: _cache[0] || (_cache[0] = $event => (emit('selectModule', $event)))
     }, null, 8, ["form", "selectors", "active-module"]),
     (__props.detail)
-      ? (_openBlock$4(), _createBlock$3(_sfc_main$r, {
+      ? (_openBlock$5(), _createBlock$3(_sfc_main$r, {
           key: 0,
           card: __props.detail,
           "effective-state": __props.effectiveState,
@@ -3222,13 +2904,13 @@ return (_ctx, _cache) => {
         }, {
           default: _withCtx$3(() => [
             (__props.detail.module === 'subfill_category')
-              ? (_openBlock$4(), _createBlock$3(_sfc_main$5, {
+              ? (_openBlock$5(), _createBlock$3(_sfc_main$6, {
                   key: 0,
                   values: __props.form,
                   "data-effective-state": __props.effectiveState || undefined,
                   onProjectionChange: _cache[1] || (_cache[1] = $event => (emit('projectionChange', $event)))
                 }, null, 8, ["values", "data-effective-state"]))
-              : _createCommentVNode$3("", true),
+              : _createCommentVNode$4("", true),
             _createVNode$3(_sfc_main$m, {
               fields: __props.detail.fields || [],
               form: __props.form,
@@ -3238,28 +2920,28 @@ return (_ctx, _cache) => {
               "data-subfill-detail-fields": ""
             }, null, 8, ["fields", "form", "grid"]),
             (__props.actions.length)
-              ? (_openBlock$4(), _createElementBlock$3("div", _hoisted_2$3, [
+              ? (_openBlock$5(), _createElementBlock$4("div", _hoisted_2$4, [
                   _renderSlot$2(_ctx.$slots, "actions", { actions: __props.actions })
                 ]))
-              : _createCommentVNode$3("", true)
+              : _createCommentVNode$4("", true)
           ]),
           _: 3
         }, 8, ["card", "effective-state", "data-subfill-detail-card", "data-subfill-module-card", "data-task-detail-card"]))
-      : _createCommentVNode$3("", true)
-  ], 8, _hoisted_1$3))
+      : _createCommentVNode$4("", true)
+  ], 8, _hoisted_1$4))
 }
 }
 
 };
 
-const {createVNode:_createVNode$2,renderSlot:_renderSlot$1,openBlock:_openBlock$3,createElementBlock:_createElementBlock$2,createCommentVNode:_createCommentVNode$2,withCtx:_withCtx$2,createBlock:_createBlock$2} = await importShared('vue');
+const {createVNode:_createVNode$2,renderSlot:_renderSlot$1,openBlock:_openBlock$4,createElementBlock:_createElementBlock$3,createCommentVNode:_createCommentVNode$3,withCtx:_withCtx$2,createBlock:_createBlock$2} = await importShared('vue');
 
 
-const _hoisted_1$2 = ["data-update-active-module", "data-effective-state"];
-const _hoisted_2$2 = ["data-update-detail-actions"];
+const _hoisted_1$3 = ["data-update-active-module", "data-effective-state"];
+const _hoisted_2$3 = ["data-update-detail-actions"];
 
 
-const _sfc_main$3 = {
+const _sfc_main$4 = {
   __name: 'UpdateManagementConfig',
   props: {
   form: { type: Object, required: true },
@@ -3276,7 +2958,7 @@ const _sfc_main$3 = {
 const emit = __emit;
 
 return (_ctx, _cache) => {
-  return (_openBlock$3(), _createElementBlock$2("div", {
+  return (_openBlock$4(), _createElementBlock$3("div", {
     class: "aoa-config-category-management aoa-update-management-config",
     "data-update-management-surface": "",
     "data-update-active-module": __props.activeModule || undefined,
@@ -3292,7 +2974,7 @@ return (_ctx, _cache) => {
       onSelectModule: _cache[0] || (_cache[0] = $event => (emit('selectModule', $event)))
     }, null, 8, ["form", "selectors", "active-module"]),
     (__props.detail)
-      ? (_openBlock$3(), _createBlock$2(_sfc_main$r, {
+      ? (_openBlock$4(), _createBlock$2(_sfc_main$r, {
           key: 0,
           card: __props.detail,
           "effective-state": __props.effectiveState,
@@ -3311,7 +2993,7 @@ return (_ctx, _cache) => {
               "data-update-detail-fields": ""
             }, null, 8, ["fields", "form", "grid"]),
             (__props.detail.actions?.length)
-              ? (_openBlock$3(), _createElementBlock$2("div", {
+              ? (_openBlock$4(), _createElementBlock$3("div", {
                   key: 0,
                   class: "aoa-config-category-actions",
                   "data-update-detail-actions": __props.detail.module
@@ -3319,36 +3001,36 @@ return (_ctx, _cache) => {
                   _renderSlot$1(_ctx.$slots, "actions", {
                     actions: __props.detail.actions
                   })
-                ], 8, _hoisted_2$2))
-              : _createCommentVNode$2("", true)
+                ], 8, _hoisted_2$3))
+              : _createCommentVNode$3("", true)
           ]),
           _: 3
         }, 8, ["card", "effective-state", "data-update-detail-card", "data-update-module-card", "data-task-detail-card"]))
-      : _createCommentVNode$2("", true)
-  ], 8, _hoisted_1$2))
+      : _createCommentVNode$3("", true)
+  ], 8, _hoisted_1$3))
 }
 }
 
 };
 
-const {resolveComponent:_resolveComponent,createVNode:_createVNode$1,createElementVNode:_createElementVNode$1,toDisplayString:_toDisplayString$1,normalizeClass:_normalizeClass$1,openBlock:_openBlock$2,createElementBlock:_createElementBlock$1,createCommentVNode:_createCommentVNode$1,withCtx:_withCtx$1,renderSlot:_renderSlot} = await importShared('vue');
+const {resolveComponent:_resolveComponent,createVNode:_createVNode$1,createElementVNode:_createElementVNode$2,toDisplayString:_toDisplayString$2,normalizeClass:_normalizeClass$2,openBlock:_openBlock$3,createElementBlock:_createElementBlock$2,createCommentVNode:_createCommentVNode$2,withCtx:_withCtx$1,renderSlot:_renderSlot} = await importShared('vue');
 
 
-const _hoisted_1$1 = ["data-effective-state"];
-const _hoisted_2$1 = ["data-effective-state"];
-const _hoisted_3$1 = { class: "aoa-field-row__label aoa-field-row__label--with-icon" };
-const _hoisted_4$1 = { class: "aoa-field-row__control" };
-const _hoisted_5$1 = ["disabled", "title", "aria-label", "data-disabled-reason", "data-config-action-path"];
-const _hoisted_6$1 = {
+const _hoisted_1$2 = ["data-effective-state"];
+const _hoisted_2$2 = ["data-effective-state"];
+const _hoisted_3$2 = { class: "aoa-field-row__label aoa-field-row__label--with-icon" };
+const _hoisted_4$2 = { class: "aoa-field-row__control" };
+const _hoisted_5$2 = ["disabled", "title", "aria-label", "data-disabled-reason", "data-config-action-path"];
+const _hoisted_6$2 = {
   key: 0,
   class: "aoa-plugin-uninstall-actions",
   "data-plugin-uninstall-actions": ""
 };
 
-const {computed: computed$5} = await importShared('vue');
+const {computed: computed$4} = await importShared('vue');
 
 
-const _sfc_main$2 = {
+const _sfc_main$3 = {
   __name: 'PluginUninstallConfig',
   props: {
   form: { type: Object, required: true },
@@ -3364,17 +3046,17 @@ const props = __props;
 
 const emit = __emit;
 
-const uninstallCard = computed$5(() => ({
+const uninstallCard = computed$4(() => ({
   ...props.card,
   danger: true,
 }));
 
-const purgeAction = computed$5(() => props.actions.find(action => action.path === 'run_agentopsassistant_purge') || null);
-const uninstallActions = computed$5(() => props.actions.filter(action => action.path !== 'run_agentopsassistant_purge'));
-const purgeVisible = computed$5(() => Boolean(purgeAction.value && props.purgeActionState.visible !== false));
-const purgeDisabled = computed$5(() => Boolean(props.purgeActionState.disabled));
-const purgeRunning = computed$5(() => Boolean(props.purgeActionState.running));
-const purgeButtonLabel = computed$5(() => purgeRunning.value ? '执行中…' : '专杀');
+const purgeAction = computed$4(() => props.actions.find(action => action.path === 'run_agentopsassistant_purge') || null);
+const uninstallActions = computed$4(() => props.actions.filter(action => action.path !== 'run_agentopsassistant_purge'));
+const purgeVisible = computed$4(() => Boolean(purgeAction.value && props.purgeActionState.visible !== false));
+const purgeDisabled = computed$4(() => Boolean(props.purgeActionState.disabled));
+const purgeRunning = computed$4(() => Boolean(props.purgeActionState.running));
+const purgeButtonLabel = computed$4(() => purgeRunning.value ? '执行中…' : '专杀');
 
 function runPurge() {
   if (!purgeAction.value || purgeDisabled.value || purgeRunning.value) return
@@ -3391,7 +3073,7 @@ function uninstallFieldAttrs(field, index) {
 return (_ctx, _cache) => {
   const _component_VIcon = _resolveComponent("VIcon");
 
-  return (_openBlock$2(), _createElementBlock$1("div", {
+  return (_openBlock$3(), _createElementBlock$2("div", {
     class: "aoa-plugin-uninstall-config aoa-design-replica-stack",
     "data-plugin-uninstall-config-surface": "",
     "data-effective-state": __props.effectiveState || undefined,
@@ -3416,7 +3098,7 @@ return (_ctx, _cache) => {
         }, {
           append: _withCtx$1(() => [
             (purgeVisible.value)
-              ? (_openBlock$2(), _createElementBlock$1("div", {
+              ? (_openBlock$3(), _createElementBlock$2("div", {
                   key: 0,
                   class: "aoa-field-row aoa-config-field-row aoa-plugin-uninstall-purge-field",
                   "data-plugin-uninstall-purge-field": "",
@@ -3425,22 +3107,22 @@ return (_ctx, _cache) => {
                   "data-field-row": "",
                   "data-effective-state": __props.effectiveState || undefined
                 }, [
-                  _createElementVNode$1("div", _hoisted_3$1, [
+                  _createElementVNode$2("div", _hoisted_3$2, [
                     _createVNode$1(_component_VIcon, {
                       class: "aoa-field-row__icon",
                       icon: purgeAction.value.icon,
                       size: "16",
                       "aria-hidden": "true"
                     }, null, 8, ["icon"]),
-                    _cache[0] || (_cache[0] = _createElementVNode$1("span", {
+                    _cache[0] || (_cache[0] = _createElementVNode$2("span", {
                       class: "aoa-field-row__label-text",
                       "data-plugin-uninstall-purge-label": ""
                     }, " mp运维助手专杀 ", -1))
                   ]),
-                  _createElementVNode$1("div", _hoisted_4$1, [
-                    _createElementVNode$1("button", {
+                  _createElementVNode$2("div", _hoisted_4$2, [
+                    _createElementVNode$2("button", {
                       type: "button",
-                      class: _normalizeClass$1(["aoa-plugin-uninstall-purge-button", { 'aoa-plugin-uninstall-purge-button--running': purgeRunning.value }]),
+                      class: _normalizeClass$2(["aoa-plugin-uninstall-purge-button", { 'aoa-plugin-uninstall-purge-button--running': purgeRunning.value }]),
                       disabled: purgeDisabled.value || purgeRunning.value,
                       title: __props.purgeActionState.disabledReason || '无备份彻底清除 AgentOpsAssistant',
                       "aria-label": __props.purgeActionState.disabledReason ? `mp运维助手专杀，${__props.purgeActionState.disabledReason}` : 'mp运维助手专杀',
@@ -3448,26 +3130,123 @@ return (_ctx, _cache) => {
                       "data-config-action-path": purgeAction.value.path,
                       "data-plugin-uninstall-purge-button": "",
                       onClick: runPurge
-                    }, _toDisplayString$1(purgeButtonLabel.value), 11, _hoisted_5$1)
+                    }, _toDisplayString$2(purgeButtonLabel.value), 11, _hoisted_5$2)
                   ])
-                ], 8, _hoisted_2$1))
-              : _createCommentVNode$1("", true)
+                ], 8, _hoisted_2$2))
+              : _createCommentVNode$2("", true)
           ]),
           _: 1
         }, 8, ["fields", "form", "grid"]),
         (uninstallActions.value.length)
-          ? (_openBlock$2(), _createElementBlock$1("div", _hoisted_6$1, [
+          ? (_openBlock$3(), _createElementBlock$2("div", _hoisted_6$2, [
               _renderSlot(_ctx.$slots, "actions", { actions: uninstallActions.value })
             ]))
-          : _createCommentVNode$1("", true)
+          : _createCommentVNode$2("", true)
       ]),
       _: 3
     }, 8, ["card", "effective-state"])
+  ], 8, _hoisted_1$2))
+}
+}
+
+};
+
+const {unref:_unref$1,createElementVNode:_createElementVNode$1,openBlock:_openBlock$2,createElementBlock:_createElementBlock$1,toDisplayString:_toDisplayString$1,normalizeClass:_normalizeClass$1,createCommentVNode:_createCommentVNode$1,renderList:_renderList$1,Fragment:_Fragment$1,mergeProps:_mergeProps$1} = await importShared('vue');
+
+
+const _hoisted_1$1 = ["data-operation-content"];
+const _hoisted_2$1 = {
+  viewBox: "0 0 24 24",
+  width: "19",
+  height: "19",
+  "aria-hidden": "true"
+};
+const _hoisted_3$1 = ["d"];
+const _hoisted_4$1 = {
+  key: 1,
+  class: "aoa-config-operation-content__summary"
+};
+const _hoisted_5$1 = { key: 0 };
+const _hoisted_6$1 = { key: 1 };
+const _hoisted_7$1 = { key: 0 };
+const _hoisted_8$1 = { key: 0 };
+const _hoisted_9$1 = { key: 1 };
+const _hoisted_10$1 = { key: 0 };
+
+
+const _sfc_main$2 = {
+  __name: 'ConfigActionOperationContent',
+  props: {
+  spec: { type: Object, required: true },
+},
+  setup(__props) {
+
+
+
+return (_ctx, _cache) => {
+  return (_openBlock$2(), _createElementBlock$1("div", {
+    class: "aoa-config-operation-content",
+    "data-operation-content": __props.spec.action?.id || __props.spec.action?.path
+  }, [
+    (__props.spec.warning)
+      ? (_openBlock$2(), _createElementBlock$1("div", {
+          key: 0,
+          class: _normalizeClass$1(["aoa-config-operation-content__warning", { 'aoa-config-operation-content__warning--danger': __props.spec.danger }])
+        }, [
+          (_openBlock$2(), _createElementBlock$1("svg", _hoisted_2$1, [
+            _createElementVNode$1("path", {
+              d: _unref$1(mdiAlertOutline),
+              fill: "currentColor"
+            }, null, 8, _hoisted_3$1)
+          ])),
+          _createElementVNode$1("span", null, _toDisplayString$1(__props.spec.warning), 1)
+        ], 2))
+      : _createCommentVNode$1("", true),
+    (__props.spec.summaryPrimary || __props.spec.summarySecondary)
+      ? (_openBlock$2(), _createElementBlock$1("div", _hoisted_4$1, [
+          (__props.spec.summaryPrimary)
+            ? (_openBlock$2(), _createElementBlock$1("strong", _hoisted_5$1, _toDisplayString$1(__props.spec.summaryPrimary), 1))
+            : _createCommentVNode$1("", true),
+          (__props.spec.summarySecondary)
+            ? (_openBlock$2(), _createElementBlock$1("span", _hoisted_6$1, _toDisplayString$1(__props.spec.summarySecondary), 1))
+            : _createCommentVNode$1("", true)
+        ]))
+      : _createCommentVNode$1("", true),
+    (_openBlock$2(true), _createElementBlock$1(_Fragment$1, null, _renderList$1(__props.spec.sections || [], (section) => {
+      return (_openBlock$2(), _createElementBlock$1("section", {
+        key: section.key,
+        class: "aoa-config-operation-content__section"
+      }, [
+        (section.label)
+          ? (_openBlock$2(), _createElementBlock$1("h3", _hoisted_7$1, _toDisplayString$1(section.label), 1))
+          : _createCommentVNode$1("", true),
+        _createElementVNode$1("div", _mergeProps$1({ ref_for: true }, section.attrs || {}, { class: "aoa-config-operation-content__items" }), [
+          (_openBlock$2(true), _createElementBlock$1(_Fragment$1, null, _renderList$1(section.items || [], (item) => {
+            return (_openBlock$2(), _createElementBlock$1("div", {
+              key: item.key,
+              class: "aoa-config-operation-content__item"
+            }, [
+              _createElementVNode$1("strong", null, _toDisplayString$1(item.title), 1),
+              (item.meta)
+                ? (_openBlock$2(), _createElementBlock$1("span", _hoisted_8$1, _toDisplayString$1(item.meta), 1))
+                : _createCommentVNode$1("", true),
+              (item.detail)
+                ? (_openBlock$2(), _createElementBlock$1("small", _hoisted_9$1, _toDisplayString$1(item.detail), 1))
+                : _createCommentVNode$1("", true)
+            ]))
+          }), 128)),
+          (!(section.items || []).length && section.emptyText)
+            ? (_openBlock$2(), _createElementBlock$1("p", _hoisted_10$1, _toDisplayString$1(section.emptyText), 1))
+            : _createCommentVNode$1("", true)
+        ], 16)
+      ]))
+    }), 128))
   ], 8, _hoisted_1$1))
 }
 }
 
 };
+const ConfigActionOperationContent = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-e049f82e"]]);
 
 const EFFECTIVE_STATE = Object.freeze({
   ACTIVE: 'active',
@@ -3537,14 +3316,14 @@ const subTabs = {
   ],
 };
 
-const {ref: ref$6} = await importShared('vue');
+const {ref: ref$5} = await importShared('vue');
 
 // 远程数据加载 — 插件列表 / TG 控制台 / 插件市场 / 下载器 / 媒体服务器
 // 入参：api(MP 插件 API 句柄)
 function useDataLoader(api) {
   // 已安装插件列表（插件卸载用）
-  const installedPlugins = ref$6([]);
-  const installedLoading = ref$6(false);
+  const installedPlugins = ref$5([]);
+  const installedLoading = ref$5(false);
   async function loadInstalledPlugins({ throwOnError = false } = {}) {
     installedLoading.value = true;
     try {
@@ -3561,8 +3340,8 @@ function useDataLoader(api) {
   }
 
   // TG 控制台状态
-  const tgConsoleStatus = ref$6({});
-  const tgConsoleLoading = ref$6(false);
+  const tgConsoleStatus = ref$5({});
+  const tgConsoleLoading = ref$5(false);
   async function loadTgConsoleStatus() {
     tgConsoleLoading.value = true;
     try {
@@ -3577,8 +3356,8 @@ function useDataLoader(api) {
   }
 
   // 插件库仓库（更新黑名单用）
-  const pluginMarkets = ref$6([]);
-  const marketsLoading = ref$6(false);
+  const pluginMarkets = ref$5([]);
+  const marketsLoading = ref$5(false);
   async function loadPluginMarkets() {
     marketsLoading.value = true;
     try {
@@ -3592,8 +3371,8 @@ function useDataLoader(api) {
   }
 
   // 下载器列表（自动删种用）
-  const downloaderOptions = ref$6([]);
-  const downloadersLoading = ref$6(false);
+  const downloaderOptions = ref$5([]);
+  const downloadersLoading = ref$5(false);
   async function loadDownloaders() {
     downloadersLoading.value = true;
     try {
@@ -3607,8 +3386,8 @@ function useDataLoader(api) {
   }
 
   // 媒体服务器列表（媒体库通知按服务器过滤用）
-  const mediaserverOptions = ref$6([]);
-  const mediaserversLoading = ref$6(false);
+  const mediaserverOptions = ref$5([]);
+  const mediaserversLoading = ref$5(false);
   async function loadMediaservers() {
     mediaserversLoading.value = true;
     try {
@@ -3642,7 +3421,7 @@ function useDataLoader(api) {
   }
 }
 
-const {computed: computed$4,reactive: reactive$2,watch: watch$4} = await importShared('vue');
+const {computed: computed$3,reactive: reactive$1,watch: watch$3} = await importShared('vue');
 
 const own = (source, key) => Object.prototype.hasOwnProperty.call(source, key);
 
@@ -3731,8 +3510,8 @@ function hydrateConfigForm(rawConfig = {}) {
 const snapshot = value => JSON.parse(JSON.stringify(value || {}));
 
 function useConfigLifecycle({ initialConfig, configRecordState, api, pluginId, emit, validateSave, onValidationError }) {
-  const form = reactive$2({});
-  const savedSnapshot = reactive$2({});
+  const form = reactive$1({});
+  const savedSnapshot = reactive$1({});
 
   function applyHydratedConfig(rawConfig) {
     const hydrated = hydrateConfigForm(rawConfig);
@@ -3742,9 +3521,9 @@ function useConfigLifecycle({ initialConfig, configRecordState, api, pluginId, e
     Object.assign(savedSnapshot, snapshot(hydrated));
   }
 
-  watch$4([initialConfig, configRecordState], ([value]) => applyHydratedConfig(value), { immediate: true, deep: true });
+  watch$3([initialConfig, configRecordState], ([value]) => applyHydratedConfig(value), { immediate: true, deep: true });
 
-  const isDirty = computed$4(() => JSON.stringify(buildConfigSavePayload(form)) !== JSON.stringify(buildConfigSavePayload(savedSnapshot)));
+  const isDirty = computed$3(() => JSON.stringify(buildConfigSavePayload(form)) !== JSON.stringify(buildConfigSavePayload(savedSnapshot)));
 
   async function saveConfig() {
     if (validateSave && !validateSave()) {
@@ -3763,7 +3542,7 @@ function useConfigLifecycle({ initialConfig, configRecordState, api, pluginId, e
   return { form, isDirty, saveConfig, hydrateConfigForm: applyHydratedConfig }
 }
 
-const {ref: ref$5} = await importShared('vue');
+const {ref: ref$4} = await importShared('vue');
 
 
 const CARD_TYPE_TO_MODULE = Object.freeze({
@@ -3780,10 +3559,10 @@ const CARD_TYPE_TO_MODULE = Object.freeze({
 
 /** Owns the detail-card selection and transient page state below the main config tabs. */
 function useConfigPageSession() {
-  const activeUpdateModule = ref$5('mp_update');
-  const activeBackupModule = ref$5('backup');
-  const activeSubfillModule = ref$5('subfill_download');
-  const subfillProjectionOpen = ref$5(false);
+  const activeUpdateModule = ref$4('mp_update');
+  const activeBackupModule = ref$4('backup');
+  const activeSubfillModule = ref$4('subfill_download');
+  const subfillProjectionOpen = ref$4(false);
 
   const moduleRefs = {
     update: activeUpdateModule,
@@ -3830,14 +3609,14 @@ function useConfigPageSession() {
   }
 }
 
-const {computed: computed$3,nextTick,reactive: reactive$1,ref: ref$4,watch: watch$3} = await importShared('vue');
+const {computed: computed$2,nextTick,reactive,ref: ref$3,watch: watch$2} = await importShared('vue');
 
 const firstSubFor = mainKey => subTabs[mainKey]?.[0]?.key || '';
 
 /** Owns config page navigation, sub-page session state and horizontal tab reveal. */
 function useConfigNavigation({ pluginId = 'Signal', emit, saveConfig, onSubChange, root = null, pageSession = useConfigPageSession() } = {}) {
-  const activeMain = ref$4(mainTabs[0]?.key || 'notify');
-  const activeSub = ref$4(firstSubFor(activeMain.value));
+  const activeMain = ref$3(mainTabs[0]?.key || 'notify');
+  const activeSub = ref$3(firstSubFor(activeMain.value));
   const {
     activeUpdateModule,
     activeBackupModule,
@@ -3848,15 +3627,15 @@ function useConfigNavigation({ pluginId = 'Signal', emit, saveConfig, onSubChang
     setSubfillProjectionOpen,
     resetSubfillProjection,
   } = pageSession;
-  const saving = ref$4(false);
-  const saveFeedback = reactive$1({ message: '', ok: true });
-  const mainNav = ref$4(null);
-  const subtabList = ref$4(null);
+  const saving = ref$3(false);
+  const saveFeedback = reactive({ message: '', ok: true });
+  const mainNav = ref$3(null);
+  const subtabList = ref$3(null);
 
-  const currentMain = computed$3(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0]);
-  const currentSubs = computed$3(() => subTabs[activeMain.value] || []);
-  const currentSub = computed$3(() => currentSubs.value.find(item => item.key === activeSub.value) || currentSubs.value[0] || null);
-  const currentSubTitle = computed$3(() => currentSub.value?.title || currentMain.value?.title || '');
+  const currentMain = computed$2(() => mainTabs.find(item => item.key === activeMain.value) || mainTabs[0]);
+  const currentSubs = computed$2(() => subTabs[activeMain.value] || []);
+  const currentSub = computed$2(() => currentSubs.value.find(item => item.key === activeSub.value) || currentSubs.value[0] || null);
+  const currentSubTitle = computed$2(() => currentSub.value?.title || currentMain.value?.title || '');
 
   function selectMain(key) {
     if (!subTabs[key] || activeMain.value === key) return
@@ -3889,8 +3668,8 @@ function useConfigNavigation({ pluginId = 'Signal', emit, saveConfig, onSubChang
     });
   }
 
-  watch$3([activeMain, activeSub], () => revealActiveCategories());
-  watch$3(activeSub, value => {
+  watch$2([activeMain, activeSub], () => revealActiveCategories());
+  watch$2(activeSub, value => {
     if (value !== 'subfill') resetSubfillProjection();
     onSubChange?.(value);
   });
@@ -3942,9 +3721,32 @@ function useConfigNavigation({ pluginId = 'Signal', emit, saveConfig, onSubChang
   }
 }
 
-const {computed: computed$2,ref: ref$3,watch: watch$2} = await importShared('vue');
+const {computed: computed$1,ref: ref$2} = await importShared('vue');
 
 const actionId = action => String(action?.id || action?.path || action?.apiPath || '');
+const SEED_CLEAN_FILTER_KEYS = Object.freeze([
+  'seedclean_size',
+  'seedclean_ratio',
+  'seedclean_time',
+  'seedclean_upspeed',
+  'seedclean_labels',
+  'seedclean_pathkeywords',
+  'seedclean_trackerkeywords',
+  'seedclean_errorkeywords',
+  'seedclean_torrentstates',
+  'seedclean_torrentcategorys',
+  'seedclean_trtorrentstates',
+]);
+
+const hasSeedCleanFilter = config => SEED_CLEAN_FILTER_KEYS.some(key => String(config?.[key] ?? '').trim());
+
+function cloneJson(value, fallback = {}) {
+  try {
+    return JSON.parse(JSON.stringify(value ?? fallback))
+  } catch {
+    return fallback
+  }
+}
 
 function resolveList(value) {
   const resolved = value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'value')
@@ -3963,15 +3765,23 @@ function useConfigActionOperation(options = {}) {
     actionDisabledMessage = () => '',
     isActionRunning = () => false,
     runAction = async () => null,
+    backupRestore = null,
   } = options;
 
-  const activeActionOperationId = ref$3('');
-  const actionOperationPortalStyle = ref$3({});
-  const actionOperationSubmitting = ref$3(false);
+  const activeActionOperationId = ref$2('');
+  const actionOperationPortalStyle = ref$2({});
+  const actionOperationSubmitting = ref$2(false);
+  const actionOperationState = ref$2('editing');
+  const actionOperationResult = ref$2(null);
+  const actionOperationSnapshot = ref$2(null);
+  const operationConfig = computed$1(() => actionOperationSnapshot.value?.config || form);
+  const operationDownloaderPreview = computed$1(() => (
+    actionOperationSnapshot.value?.runtime?.downloaderHelperPreview || action.downloaderHelperPreview
+  ));
 
-  const downloaderHelperPreviewItems = computed$2(() => action.downloaderHelperPreview?.items || []);
-  const selectedPluginUninstallItems = computed$2(() => {
-    const selected = Array.isArray(form.plugin_uninstall_ids) ? form.plugin_uninstall_ids : [];
+  const downloaderHelperPreviewItems = computed$1(() => operationDownloaderPreview.value?.items || []);
+  const selectedPluginUninstallItems = computed$1(() => {
+    const selected = Array.isArray(operationConfig.value.plugin_uninstall_ids) ? operationConfig.value.plugin_uninstall_ids : [];
     const installed = resolveList(installedPlugins);
     return selected.map(id => {
       const value = String(id);
@@ -3979,69 +3789,34 @@ function useConfigActionOperation(options = {}) {
       return { value, title: String(item?.title ?? item?.name ?? value) }
     })
   });
-  const pluginUninstallActionItems = computed$2(() => [
+  const pluginUninstallActionItems = computed$1(() => [
     { key: 'uninstall_plugin', label: '卸载插件本体', detail: '始终移出已安装列表、停止运行实例并删除运行目录' },
     ...[
       { key: 'plugin_uninstall_clear_config', label: '清除插件配置', detail: '删除 MoviePilot 保存的插件配置' },
       { key: 'plugin_uninstall_clear_data', label: '清除插件数据', detail: '删除插件运行数据' },
       { key: 'plugin_uninstall_delete_source', label: '删除源码', detail: '删除 MoviePilot 运行源码、本地插件源码目录及历史源码残留' },
-    ].filter(item => Boolean(form[item.key])),
+    ].filter(item => Boolean(operationConfig.value[item.key])),
   ]);
-  const seedCleanActionMeta = computed$2(() => ({
-    pause: { label: '暂停种子', confirm: '确认暂停', risk: '所选种子将停止上传和下载，可在下载器中重新开始。' },
-    delete: { label: '删除种子', confirm: '确认删除', risk: '所选任务将从下载器移除，但保留已下载文件。' },
-    deletefile: { label: '删除种子和文件', confirm: '确认删除种子和文件', risk: '所选任务及其已下载文件将被永久删除，无法恢复。' },
-  }[String(form.seedclean_action || 'pause')] || { label: '处理种子', confirm: '确认执行', risk: '将按当前动作处理匹配条件的种子。' }));
-  const seedCleanFilterSummary = computed$2(() => {
-    const rows = [
-      ['大小', form.seedclean_size && `${form.seedclean_size} GB`],
-      ['分享率', form.seedclean_ratio],
-      ['做种时长', form.seedclean_time && `${form.seedclean_time} 小时`],
-      ['上传上限', form.seedclean_upspeed && `${form.seedclean_upspeed} KB/s`],
-      ['标签', form.seedclean_labels],
-      ['路径正则', form.seedclean_pathkeywords],
-      ['Tracker 正则', form.seedclean_trackerkeywords],
-      ['qB 状态', form.seedclean_torrentstates],
-      ['qB 分类', form.seedclean_torrentcategorys],
-      ['TR 状态', form.seedclean_trtorrentstates],
-      ['TR 错误', form.seedclean_errorkeywords],
-    ].filter(([, value]) => String(value || '').trim());
-    return rows.length ? rows.map(([label, value]) => `${label}：${value}`).join('；') : '未设置筛选条件'
-  });
-
-  const activeActionOperation = computed$2(() => activeActionOperationId.value
+  const activeActionOperation = computed$1(() => activeActionOperationId.value
     ? getActionForSurface(activeActionOperationId.value, 'config')
     : null);
 
-  const actionOperationSpec = computed$2(() => {
+  const actionOperationSpec = computed$1(() => {
     const current = activeActionOperation.value;
     if (!current) return null
-    if (current.id === 'run_seed_clean') {
+    if (current.id === 'run_backup_restore') {
       return {
         action: current,
-        kicker: '请确认本次处理',
-        title: seedCleanActionMeta.value.label,
-        warning: seedCleanActionMeta.value.risk,
-        danger: form.seedclean_action !== 'pause',
-        summaryPrimary: `${form.seedclean_downloaders?.length || 0} 个下载器`,
-        summarySecondary: '按当前条件执行',
-        sections: [{
-          key: 'seed-clean-scope',
-          attrs: { 'data-seedclean-confirm-items': '' },
-          items: [{
-            key: 'seed-clean-current-scope',
-            title: form.seedclean_downloaders?.join('、') || '未选择下载器',
-            meta: seedCleanActionMeta.value.label,
-            detail: seedCleanFilterSummary.value,
-          }],
-        }],
-        confirmLabel: seedCleanActionMeta.value.confirm,
-        cancelLabel: '返回修改',
-        confirmIconPath: mdiPlay,
+        kicker: '受检归档恢复',
+        title: '立即恢复',
+        danger: true,
+        confirmLabel: '开始恢复',
+        cancelLabel: '取消',
+        confirmDisabled: backupRestore ? !backupRestore.canExecute.value : true,
         returnFocusSelector: `[data-config-action-path="${current.path}"]`,
-        rootAttrs: { 'data-seedclean-confirm-dialog': '' },
-        confirmAttrs: { 'data-seedclean-confirm-submit': '' },
-        cancelAttrs: { 'data-seedclean-confirm-cancel': '' },
+        rootAttrs: { 'data-backup-restore-dialog': '' },
+        confirmAttrs: { 'data-backup-restore-confirm': '' },
+        cancelAttrs: { 'data-backup-restore-cancel': '' },
       }
     }
     if (current.id === 'run_plugin_uninstall') {
@@ -4086,42 +3861,9 @@ function useConfigActionOperation(options = {}) {
     if (current.id === 'run_agentopsassistant_purge') {
       return {
         action: current,
-        kicker: '高危专杀操作',
-        title: '确认专杀 mp 运维助手',
-        warning: '将立即彻底删除固定目标 AgentOpsAssistant，不会创建任何备份，删除后不可恢复。',
+        title: '确认专杀 MP 运维助手',
+        warning: '将彻底删除 AgentOpsAssistant，且无法恢复。',
         danger: true,
-        summaryPrimary: 'AgentOpsAssistant',
-        summarySecondary: '固定专杀目标',
-        sections: [
-          {
-            key: 'agentopsassistant-purge-target',
-            label: '固定目标',
-            attrs: { 'data-agentopsassistant-purge-confirm-target': '' },
-            items: [{
-              key: 'AgentOpsAssistant',
-              title: 'AgentOpsAssistant',
-              meta: '固定插件 ID',
-              detail: '目标不可修改，不读取通用插件卸载选择。',
-            }],
-          },
-          {
-            key: 'agentopsassistant-purge-effects',
-            label: '专杀后果',
-            attrs: { 'data-agentopsassistant-purge-confirm-effects': '' },
-            items: [
-              {
-                key: 'agentopsassistant-purge-no-backup',
-                title: '不会备份',
-                detail: '不保留 AgentOpsAssistant 的配置、数据、源码或运行残留。',
-              },
-              {
-                key: 'agentopsassistant-purge-irreversible',
-                title: '不可恢复',
-                detail: '确认后立即执行彻底清除，无法从 Signal 撤销。',
-              },
-            ],
-          },
-        ],
         confirmLabel: '确认专杀',
         cancelLabel: '取消',
         confirmIconPath: mdiDeleteOutline,
@@ -4163,7 +3905,7 @@ function useConfigActionOperation(options = {}) {
     return null
   });
 
-  const actionOperationBusy = computed$2(() => actionOperationSubmitting.value || isActionRunning(activeActionOperation.value));
+  const actionOperationBusy = computed$1(() => actionOperationSubmitting.value || isActionRunning(activeActionOperation.value));
 
   function setActionMessage(message, ok = false) {
     action.ok = Boolean(ok);
@@ -4191,29 +3933,41 @@ function useConfigActionOperation(options = {}) {
       setActionMessage(message);
       return false
     }
-    if (currentId === 'run_seed_clean' && (!Array.isArray(form.seedclean_downloaders) || !form.seedclean_downloaders.length)) {
-      setActionMessage('请先选择下载器。');
-      return false
-    }
-    if (currentId === 'run_seed_clean' && seedCleanFilterSummary.value === '未设置筛选条件') {
-      setActionMessage('请至少设置一项筛选条件。');
-      return false
-    }
     if (currentId === 'run_plugin_uninstall' && !pluginUninstallActionItems.value.length) {
       setActionMessage('请至少选择一项卸载或清理操作。');
       return false
     }
+    const snapshot = {
+      config: cloneJson(form),
+      runtime: {
+        downloaderHelperPreview: cloneJson(action.downloaderHelperPreview, null),
+      },
+    };
     captureActionOperationPortalStyle();
+    actionOperationSnapshot.value = snapshot;
+    action.operationPayloadSnapshot = snapshot;
+    actionOperationState.value = 'editing';
+    actionOperationResult.value = null;
     activeActionOperationId.value = currentId;
+    if (currentId === 'run_backup_restore' && backupRestore) {
+      backupRestore.reset();
+      void backupRestore.loadArchives();
+    }
     return true
   }
 
   function closeActionOperationPanel({ clearDownloaderPreview = true } = {}) {
+    if (actionOperationState.value === 'running') return ''
     const closingActionId = activeActionOperationId.value;
     activeActionOperationId.value = '';
     if (clearDownloaderPreview && closingActionId === 'run_downloader_helper') {
       action.downloaderHelperPreview = null;
     }
+    if (closingActionId === 'run_backup_restore') backupRestore?.reset();
+    actionOperationState.value = 'editing';
+    actionOperationResult.value = null;
+    actionOperationSnapshot.value = null;
+    action.operationPayloadSnapshot = null;
     return closingActionId
   }
 
@@ -4226,11 +3980,33 @@ function useConfigActionOperation(options = {}) {
     const current = activeActionOperation.value;
     if (!current) return null
     actionOperationSubmitting.value = true;
-    closeActionOperationPanel({ clearDownloaderPreview: false });
+    actionOperationState.value = 'running';
+    actionOperationResult.value = null;
     try {
-      return await runAction(current)
+      if (current.id === 'run_backup_restore') {
+        const response = await backupRestore.executeRestore();
+        actionOperationResult.value = {
+          ...response,
+          ok: response?.code === 0,
+          success: response?.code === 0,
+          partial: response?.data?.partial === true || response?.data?.status === 'partial',
+          message: response?.msg || response?.data?.message || '',
+        };
+      } else {
+        actionOperationResult.value = await runAction(current);
+      }
+      return actionOperationResult.value
+    } catch (error) {
+      actionOperationResult.value = {
+        ok: false,
+        success: false,
+        code: 1,
+        message: error?.message || '操作执行失败，请稍后重试。',
+      };
+      return actionOperationResult.value
     } finally {
       if (current.id === 'run_downloader_helper') action.downloaderHelperPreview = null;
+      actionOperationState.value = 'result';
       actionOperationSubmitting.value = false;
     }
   }
@@ -4253,39 +4029,27 @@ function useConfigActionOperation(options = {}) {
       setActionMessage('该动作缺少共享操作面板配置，已阻止直接执行。');
       return { started: false, ok: false, reason: 'panel-required', action: item }
     }
+    if (item.path === 'run_seed_clean' && !actionDisabledMessage(item)) {
+      if (!Array.isArray(form.seedclean_downloaders) || !form.seedclean_downloaders.length) {
+        setActionMessage('请先选择下载器。');
+        return { started: false, ok: false, reason: 'seed-clean-downloader-required', action: item }
+      }
+      if (!hasSeedCleanFilter(form)) {
+        setActionMessage('请至少设置一项筛选条件。');
+        return { started: false, ok: false, reason: 'seed-clean-filter-required', action: item }
+      }
+    }
     return await runAction(item)
   }
-
-  watch$2(() => [
-    form.seedclean_action,
-    form.seedclean_downloaders,
-    form.seedclean_size,
-    form.seedclean_ratio,
-    form.seedclean_time,
-    form.seedclean_upspeed,
-    form.seedclean_labels,
-    form.seedclean_pathkeywords,
-    form.seedclean_trackerkeywords,
-    form.seedclean_errorkeywords,
-    form.seedclean_torrentstates,
-    form.seedclean_trtorrentstates,
-    form.seedclean_torrentcategorys,
-    form.seedclean_samedata,
-    form.seedclean_mponly,
-  ], () => {
-    if (activeActionOperationId.value === 'run_seed_clean') closeActionOperationPanel();
-  }, { deep: true });
-
-  watch$2(() => [form.dltag_downloaders, form.dltag_tasks], () => {
-    action.downloaderHelperPreview = null;
-    if (activeActionOperationId.value === 'run_downloader_helper') closeActionOperationPanel();
-  }, { deep: true });
 
   return {
     activeActionOperationId,
     activeActionOperation,
     actionOperationPortalStyle,
     actionOperationSubmitting,
+    actionOperationState,
+    actionOperationResult,
+    actionOperationSnapshot,
     actionOperationSpec,
     actionOperationBusy,
     openActionOperationPanel,
@@ -4293,202 +4057,6 @@ function useConfigActionOperation(options = {}) {
     cancelActionOperationPanel,
     confirmActionOperationPanel,
     triggerConfigAction,
-  }
-}
-
-const {computed: computed$1,reactive,ref: ref$2} = await importShared('vue');
-
-// 本地与 WebDAV 恢复保留两套独立状态和原有一键恢复协议。
-function useBackupRestore(form, api) {
-  const client = createPluginWorkflowClient(api);
-  const backupArchives = ref$2([]);
-  const backupArchivesLoading = ref$2(false);
-  const backupRestoreLoading = ref$2(false);
-  const backupRestoreResult = ref$2(null);
-  const backupRestore = reactive({
-    archive: '',
-    restore_config: true,
-    restore_cookies: true,
-    restore_database: true,
-    confirm: false,
-  });
-
-  const webdavBackupArchives = ref$2([]);
-  const webdavBackupArchivesLoading = ref$2(false);
-  const webdavBackupRestoreLoading = ref$2(false);
-  const webdavBackupRestoreResult = ref$2(null);
-  const webdavBackupRestore = reactive({
-    archive: '',
-    restore_config: true,
-    restore_cookies: true,
-    restore_database: true,
-    confirm: false,
-  });
-
-  const backupRestoreUnavailable = computed$1(() => !form.enabled || !form.backup_enabled);
-  const backupRestoreUnavailableMessage = computed$1(() => {
-    if (!form.enabled) return '插件总开关未启用，备份恢复已跳过。'
-    if (!form.backup_enabled) return '自动备份组件未启用，备份恢复已跳过。'
-    return ''
-  });
-  const webdavConfigured = computed$1(() => [
-    form.backup_webdav_hostname,
-    form.backup_webdav_login,
-    form.backup_webdav_password,
-  ].every(value => String(value || '').trim().length > 0));
-  const webdavBackupRestoreUnavailable = computed$1(() => (
-    !form.enabled || !form.backup_webdav_enabled || !webdavConfigured.value
-  ));
-  const webdavBackupRestoreUnavailableMessage = computed$1(() => {
-    if (!form.enabled) return '插件总开关未启用，WebDAV 恢复已跳过。'
-    if (!form.backup_webdav_enabled) return '远端备份未启用，WebDAV 恢复已跳过。'
-    if (!webdavConfigured.value) return 'WebDAV 地址、账号或密码未完整配置，恢复已跳过。'
-    return ''
-  });
-
-  async function loadBackupArchives() {
-    backupArchivesLoading.value = true;
-    try {
-      const response = await client.load('backup_archives');
-      backupArchives.value = Array.isArray(response) ? response : (response?.data || []);
-      if (!backupRestore.archive && backupArchives.value.length) {
-        backupRestore.archive = backupArchives.value[0].name || backupArchives.value[0].value || '';
-      }
-    } catch {
-      backupArchives.value = [];
-    } finally {
-      backupArchivesLoading.value = false;
-    }
-  }
-
-  async function loadWebdavBackupArchives() {
-    if (webdavBackupRestoreUnavailable.value) {
-      webdavBackupArchives.value = [];
-      return
-    }
-    webdavBackupArchivesLoading.value = true;
-    try {
-      const response = await client.load('webdav_backup_archives');
-      webdavBackupArchives.value = Array.isArray(response) ? response : (response?.data || []);
-      if (!webdavBackupRestore.archive && webdavBackupArchives.value.length) {
-        webdavBackupRestore.archive = webdavBackupArchives.value[0].name || webdavBackupArchives.value[0].value || '';
-      }
-    } catch {
-      webdavBackupArchives.value = [];
-    } finally {
-      webdavBackupArchivesLoading.value = false;
-    }
-  }
-
-  function backupRestorePayload() {
-    return {
-      archive: backupRestore.archive,
-      restore_config: Boolean(backupRestore.restore_config),
-      restore_cookies: Boolean(backupRestore.restore_cookies),
-      restore_database: Boolean(backupRestore.restore_database),
-      confirm: Boolean(backupRestore.confirm),
-    }
-  }
-
-  function webdavBackupRestorePayload() {
-    return {
-      archive: webdavBackupRestore.archive,
-      restore_config: Boolean(webdavBackupRestore.restore_config),
-      restore_cookies: Boolean(webdavBackupRestore.restore_cookies),
-      restore_database: Boolean(webdavBackupRestore.restore_database),
-      confirm: Boolean(webdavBackupRestore.confirm),
-    }
-  }
-
-  async function previewBackupRestore() {
-    if (!backupRestore.archive || backupRestoreLoading.value) return
-    if (backupRestoreUnavailable.value) {
-      backupRestoreResult.value = { code: 1, msg: backupRestoreUnavailableMessage.value };
-      return
-    }
-    backupRestoreLoading.value = true;
-    try {
-      backupRestoreResult.value = await client.execute('preview_backup_restore', backupRestorePayload());
-    } catch (error) {
-      backupRestoreResult.value = { code: 1, msg: error?.message || '备份恢复预览失败' };
-    } finally {
-      backupRestoreLoading.value = false;
-    }
-  }
-
-  async function previewWebdavBackupRestore() {
-    if (!webdavBackupRestore.archive || webdavBackupRestoreLoading.value) return
-    if (webdavBackupRestoreUnavailable.value) {
-      webdavBackupRestoreResult.value = { code: 1, msg: webdavBackupRestoreUnavailableMessage.value };
-      return
-    }
-    webdavBackupRestoreLoading.value = true;
-    try {
-      webdavBackupRestoreResult.value = await client.execute('preview_webdav_backup_restore', webdavBackupRestorePayload());
-    } catch (error) {
-      webdavBackupRestoreResult.value = { code: 1, msg: error?.message || 'WebDAV 备份恢复预览失败' };
-    } finally {
-      webdavBackupRestoreLoading.value = false;
-    }
-  }
-
-  async function runBackupRestore() {
-    if (!backupRestore.archive || !backupRestore.confirm || backupRestoreLoading.value) return
-    if (backupRestoreUnavailable.value) {
-      backupRestoreResult.value = { code: 1, msg: backupRestoreUnavailableMessage.value };
-      return
-    }
-    backupRestoreLoading.value = true;
-    try {
-      backupRestoreResult.value = await client.execute('run_backup_restore', backupRestorePayload());
-      await loadBackupArchives();
-    } catch (error) {
-      backupRestoreResult.value = { code: 1, msg: error?.message || '备份恢复执行失败' };
-    } finally {
-      backupRestore.confirm = false;
-      backupRestoreLoading.value = false;
-    }
-  }
-
-  async function runWebdavBackupRestore() {
-    if (!webdavBackupRestore.archive || !webdavBackupRestore.confirm || webdavBackupRestoreLoading.value) return
-    if (webdavBackupRestoreUnavailable.value) {
-      webdavBackupRestoreResult.value = { code: 1, msg: webdavBackupRestoreUnavailableMessage.value };
-      return
-    }
-    webdavBackupRestoreLoading.value = true;
-    try {
-      webdavBackupRestoreResult.value = await client.execute('run_webdav_backup_restore', webdavBackupRestorePayload());
-      await loadWebdavBackupArchives();
-    } catch (error) {
-      webdavBackupRestoreResult.value = { code: 1, msg: error?.message || 'WebDAV 备份恢复执行失败' };
-    } finally {
-      webdavBackupRestore.confirm = false;
-      webdavBackupRestoreLoading.value = false;
-    }
-  }
-
-  return {
-    backupArchives,
-    backupArchivesLoading,
-    backupRestoreLoading,
-    backupRestoreResult,
-    backupRestore,
-    webdavBackupArchives,
-    webdavBackupArchivesLoading,
-    webdavBackupRestoreLoading,
-    webdavBackupRestoreResult,
-    webdavBackupRestore,
-    backupRestoreUnavailable,
-    backupRestoreUnavailableMessage,
-    webdavBackupRestoreUnavailable,
-    webdavBackupRestoreUnavailableMessage,
-    loadBackupArchives,
-    loadWebdavBackupArchives,
-    previewBackupRestore,
-    previewWebdavBackupRestore,
-    runBackupRestore,
-    runWebdavBackupRestore,
   }
 }
 
@@ -4717,41 +4285,30 @@ const configLoadBusy = computed(() => props.configLoadState === 'loading');
 const configReadLocked = computed(() => !configLoadReady.value);
 const configLoadErrorDetail = computed(() => String(props.configLoadError || '').trim());
 
+function configSaveValidationMessage() {
+  if (!subfillRulesValid.value) return '二级分类规则存在错误，请先修正后再保存'
+  if (form.backup_webdav_enabled) {
+    const complete = [form.backup_webdav_hostname, form.backup_webdav_login, form.backup_webdav_password]
+      .every(value => String(value || '').trim());
+    if (!complete) return 'WebDAV 已启用，请先完整填写地址、账号和密码'
+  }
+  return ''
+}
+
 const lifecycle = useConfigLifecycle({
   initialConfig: () => props.initialConfig,
   configRecordState: () => props.configRecordState,
   api: apiHandle,
   pluginId: props.pluginId,
   emit,
-  validateSave: () => subfillRulesValid.value,
-  onValidationError: message => {
+  validateSave: () => !configSaveValidationMessage(),
+  onValidationError: () => {
     action.ok = false;
-    action.message = message;
+    action.message = configSaveValidationMessage();
   },
 });
 const { form, isDirty, saveConfig } = lifecycle;
-const {
-  backupArchives,
-  backupArchivesLoading,
-  backupRestoreLoading,
-  backupRestoreResult,
-  backupRestore,
-  webdavBackupArchives,
-  webdavBackupArchivesLoading,
-  webdavBackupRestoreLoading,
-  webdavBackupRestoreResult,
-  webdavBackupRestore,
-  backupRestoreUnavailable,
-  backupRestoreUnavailableMessage,
-  webdavBackupRestoreUnavailable,
-  webdavBackupRestoreUnavailableMessage,
-  loadBackupArchives,
-  loadWebdavBackupArchives,
-  previewBackupRestore,
-  previewWebdavBackupRestore,
-  runBackupRestore,
-  runWebdavBackupRestore,
-} = useBackupRestore(form, apiHandle);
+const backupRestore = useBackupRestore(apiHandle, { pluginEnabled: () => form.enabled !== false });
 const subfillRulesValid = computed(() => {
   if (!form.subfill_category_enabled) return true
   const rules = parseSubfillRules(form.subfill_category_confs);
@@ -4812,6 +4369,8 @@ const {
 } = useConfigActionRunner(form, apiHandle, installedPlugins, loadInstalledPlugins);
 const {
   actionOperationPortalStyle,
+  actionOperationState,
+  actionOperationResult,
   actionOperationSpec,
   actionOperationBusy,
   triggerConfigAction,
@@ -4825,14 +4384,13 @@ const {
   actionDisabledMessage,
   isActionRunning,
   runAction,
+  backupRestore,
 });
 
-const fusionActionIds = new Set(['create_tg_console_card', 'run_daily_report']);
 async function triggerConfigActionWithRefresh(item) {
   if (configReadLocked.value) return { ok: false, reason: 'config-not-ready' }
   const result = await triggerConfigAction(item);
-  const actionId = String(item?.id || item?.path || item?.apiPath || '');
-  if (fusionActionIds.has(actionId) && result?.ok) await loadTgConsoleStatus();
+  if (actionRefreshes(item, 'fusionCard') && result?.ok) await loadTgConsoleStatus();
   return result
 }
 
@@ -5124,7 +4682,7 @@ const replicaCards = computed(() => {
         { key: 'backup_webdav_digest_auth', icon: 'mdi-shield-outline', label: 'Digest 认证', value: onOff(form.backup_webdav_digest_auth) },
         { key: 'backup_webdav_disable_check', icon: 'mdi-lock-check-outline', label: '跳过证书校验', value: onOff(form.backup_webdav_disable_check) },
       ] },
-      { type: 'actions', actions: getActionsForSurface(['run_backup'], 'config') },
+      { type: 'actions', actions: getActionsForSurface(['run_backup', 'run_backup_restore'], 'config') },
     ],
     logs: [
       { type: 'section', icon: 'mdi-file-document-remove-outline', title: '配置项', grid: 'grid-2', fields: [
@@ -5145,7 +4703,7 @@ const replicaCards = computed(() => {
         { key: 'mp_update_types', icon: 'mdi-cube-outline', label: '检查范围', value: arrNames(form.mp_update_types) },
         { key: 'mp_update_scheduled_notify', icon: 'mdi-bell-outline', label: '更新结果通知', value: onOff(form.mp_update_scheduled_notify) },
         { key: 'mp_update_notify_type', icon: 'mdi-email-outline', label: '通知渠道', value: valOr(form.mp_update_notify_type, 'Plugin'), disabled: Boolean(form.fusion_notify_enabled) },
-      ], actions: getActionsForSurface(['run_mp_update'], 'config') },
+      ], actions: getActionsForSurface(['run_updates'], 'config') },
       { type: 'update-detail', module: 'plugin_update_reminder', icon: 'mdi-puzzle-outline', title: '插件更新', grid: 'grid-2', fields: [
         { key: 'plugin_update_reminder_cron', icon: 'mdi-calendar-clock', label: '检查时间', value: cronVal(form.plugin_update_reminder_cron), retainInCard: true, layoutGroup: 'plugin-update-check' },
         { key: 'plugin_update_reminder_scheduled_notify', icon: 'mdi-bell-outline', label: '更新结果通知', value: onOff(form.plugin_update_reminder_scheduled_notify), layoutGroup: 'plugin-update-check' },
@@ -5156,12 +4714,12 @@ const replicaCards = computed(() => {
         { key: 'plugin_auto_install_scope_mode', icon: 'mdi-format-list-bulleted', label: '安装范围', value: form.plugin_auto_install_scope_mode || 'all', layoutGroup: 'plugin-auto-install' },
         { key: 'plugin_auto_install_install_ids', icon: 'mdi-puzzle-outline', label: '指定插件', value: arrNames(form.plugin_auto_install_install_ids), layoutGroup: 'plugin-auto-install' },
         { key: 'plugin_auto_install_exclude_ids', icon: 'mdi-shield-outline', label: '排除插件', value: arrNames(form.plugin_auto_install_exclude_ids), layoutGroup: 'plugin-auto-install' },
-      ], actions: getActionsForSurface(['run_plugin_update_reminder'], 'config') },
+      ], actions: getActionsForSurface(['run_updates'], 'config') },
       { type: 'update-detail', module: 'market_update', icon: 'mdi-database-sync-outline', title: '插件库同步', grid: 'grid-2', fields: [
         { key: 'market_update_cron', icon: 'mdi-calendar-clock', label: '同步时间', value: cronVal(form.market_update_cron), retainInCard: true, layoutGroup: 'market-sync' },
         { key: 'market_update_scheduled_notify', icon: 'mdi-bell-outline', label: '同步结果通知', value: onOff(form.market_update_scheduled_notify), layoutGroup: 'market-sync' },
         { key: 'market_update_notify_type', icon: 'mdi-email-outline', label: '通知渠道', value: valOr(form.market_update_notify_type, 'Plugin'), disabled: Boolean(form.fusion_notify_enabled), layoutGroup: 'market-sync' },
-      ], actions: getActionsForSurface(['run_market_update'], 'config') },
+      ], actions: getActionsForSurface(['run_updates'], 'config') },
     ],
     clean: [
       { type: 'section', icon: 'mdi-alert-outline', title: '卸载设置', grid: 'grid-4', fields: [
@@ -5249,7 +4807,7 @@ const configActionHints = {
   subscribe: '手动推送今日订阅更新',
   sites: '立即刷新站点统计面板',
   hc: '手动执行一次完整巡检',
-  seedremove: '确认后按当前下载器和筛选条件执行',
+  seedremove: '按已保存的下载器和筛选规则直接执行',
   dltagmain: '执行标签、做种与失效任务检查',
   subfill: '清理记录可触发重新填充',
   backup: '按当前设置立即备份一次',
@@ -5277,7 +4835,7 @@ const fusionTakeoverNotice = computed(() => {
   return fusionTakeoverNoticeBySub[activeSub.value] || null
 });
 const seedCleanRiskNotice = computed(() => activeSub.value === 'seedremove'
-  ? '自动删种会按当前筛选条件暂停或删除任务；执行前请确认动作与范围。'
+  ? '自动删种会按已保存的筛选规则暂停或删除任务；执行前请核对动作与范围。'
   : null);
 
 function compactIcon(name, className = 'aoa-mdi-icon') {
@@ -5337,9 +4895,7 @@ const CompactActionRow = defineComponent({
         if (!availability.visible) return []
         const isDisabled = availability.disabled;
         const title = availability.disabledReason;
-        const buttonLabel = isActionRunning(actionItem)
-          ? '正在执行...'
-          : actionItem.label;
+        const running = isActionRunning(actionItem);
         return [h('button', {
           key: actionItem.label,
           type: 'button',
@@ -5348,6 +4904,7 @@ const CompactActionRow = defineComponent({
             'aoa-design-action-btn--disabled': isDisabled,
           }],
           disabled: isDisabled,
+          'aria-busy': running ? 'true' : 'false',
           title,
           'aria-label': title ? `${actionItem.label}，${title}` : actionItem.label,
           'data-disabled-reason': title || undefined,
@@ -5357,7 +4914,7 @@ const CompactActionRow = defineComponent({
             if (isDisabled) return
             emit('run', actionItem);
           },
-        }, [actionIcon(actionItem.icon), h('span', buttonLabel)])]
+        }, [actionIcon(actionItem.icon), h('span', actionItem.label)])]
       });
 
       return h('div', {
@@ -5390,7 +4947,6 @@ async function loadRemoteData() {
     loadDownloaders(),
     loadMediaservers(),
   ]);
-  if (apiHandle.value?.get) await loadBackupArchives();
 }
 
 onMounted$1(() => {
@@ -5401,12 +4957,6 @@ onMounted$1(() => {
 
 watch$1(apiHandle, (api, previousApi) => {
   if (api && api !== previousApi) loadRemoteData();
-});
-
-watch$1(activeBackupModule, module => {
-  if (!apiHandle.value?.get) return
-  if (module === 'backup_webdav') loadWebdavBackupArchives();
-  else if (module === 'backup' && !backupArchives.value.length) loadBackupArchives();
 });
 
 onBeforeUnmount(() => {
@@ -5695,7 +5245,7 @@ return (_ctx, _cache) => {
               }, {
                 default: _withCtx(() => [
                   (_unref(activeSub) === 'clean')
-                    ? (_openBlock$1(), _createBlock$1(_sfc_main$2, {
+                    ? (_openBlock$1(), _createBlock$1(_sfc_main$3, {
                         key: 0,
                         form: _unref(form),
                         card: pluginUninstallCard.value,
@@ -5714,7 +5264,7 @@ return (_ctx, _cache) => {
                         _: 1
                       }, 8, ["form", "card", "actions", "purge-action-state", "effective-state"]))
                     : (_unref(activeSub) === 'backup')
-                      ? (_openBlock$1(), _createBlock$1(_sfc_main$6, {
+                      ? (_openBlock$1(), _createBlock$1(_sfc_main$7, {
                           key: 1,
                           form: _unref(form),
                           selectors: backupSelectorCards.value,
@@ -5723,27 +5273,7 @@ return (_ctx, _cache) => {
                           "active-module": _unref(activeBackupModule),
                           "effective-state": currentEffectiveState.value.code,
                           "keep-count-presets": _unref(keepCountPresets),
-                          "backup-restore-unavailable": _unref(backupRestoreUnavailable),
-                          "backup-restore-unavailable-message": _unref(backupRestoreUnavailableMessage),
-                          "backup-archives": _unref(backupArchives),
-                          "backup-archives-loading": _unref(backupArchivesLoading),
-                          "backup-restore-loading": _unref(backupRestoreLoading),
-                          "backup-restore-result": _unref(backupRestoreResult),
-                          "backup-restore": _unref(backupRestore),
-                          "webdav-backup-restore-unavailable": _unref(webdavBackupRestoreUnavailable),
-                          "webdav-backup-restore-unavailable-message": _unref(webdavBackupRestoreUnavailableMessage),
-                          "webdav-backup-archives": _unref(webdavBackupArchives),
-                          "webdav-backup-archives-loading": _unref(webdavBackupArchivesLoading),
-                          "webdav-backup-restore-loading": _unref(webdavBackupRestoreLoading),
-                          "webdav-backup-restore-result": _unref(webdavBackupRestoreResult),
-                          "webdav-backup-restore": _unref(webdavBackupRestore),
-                          onSelectModule: _cache[6] || (_cache[6] = $event => (_unref(pageSession).selectModule('backup-selector', $event))),
-                          onLoadBackupArchives: _unref(loadBackupArchives),
-                          onPreviewBackupRestore: _unref(previewBackupRestore),
-                          onRunBackupRestore: _unref(runBackupRestore),
-                          onLoadWebdavBackupArchives: _unref(loadWebdavBackupArchives),
-                          onPreviewWebdavBackupRestore: _unref(previewWebdavBackupRestore),
-                          onRunWebdavBackupRestore: _unref(runWebdavBackupRestore)
+                          onSelectModule: _cache[6] || (_cache[6] = $event => (_unref(pageSession).selectModule('backup-selector', $event)))
                         }, {
                           actions: _withCtx(({ actions }) => [
                             _createVNode(_unref(CompactActionRow), {
@@ -5753,9 +5283,9 @@ return (_ctx, _cache) => {
                             }, null, 8, ["card", "effective-state"])
                           ]),
                           _: 1
-                        }, 8, ["form", "selectors", "detail", "actions", "active-module", "effective-state", "keep-count-presets", "backup-restore-unavailable", "backup-restore-unavailable-message", "backup-archives", "backup-archives-loading", "backup-restore-loading", "backup-restore-result", "backup-restore", "webdav-backup-restore-unavailable", "webdav-backup-restore-unavailable-message", "webdav-backup-archives", "webdav-backup-archives-loading", "webdav-backup-restore-loading", "webdav-backup-restore-result", "webdav-backup-restore", "onLoadBackupArchives", "onPreviewBackupRestore", "onRunBackupRestore", "onLoadWebdavBackupArchives", "onPreviewWebdavBackupRestore", "onRunWebdavBackupRestore"]))
+                        }, 8, ["form", "selectors", "detail", "actions", "active-module", "effective-state", "keep-count-presets"]))
                       : (_unref(activeSub) === 'subfill')
-                        ? (_openBlock$1(), _createBlock$1(_sfc_main$4, {
+                        ? (_openBlock$1(), _createBlock$1(_sfc_main$5, {
                             key: 2,
                             form: _unref(form),
                             selectors: subfillSelectorCards.value,
@@ -5776,7 +5306,7 @@ return (_ctx, _cache) => {
                             _: 1
                           }, 8, ["form", "selectors", "detail", "actions", "active-module", "effective-state"]))
                         : (_unref(activeSub) === 'updates')
-                          ? (_openBlock$1(), _createBlock$1(_sfc_main$3, {
+                          ? (_openBlock$1(), _createBlock$1(_sfc_main$4, {
                               key: 3,
                               form: _unref(form),
                               selectors: updateSelectorCards.value,
@@ -6040,10 +5570,25 @@ return (_ctx, _cache) => {
           open: "",
           "theme-class": _unref(rootThemeClass),
           "portal-style": _unref(actionOperationPortalStyle),
+          state: _unref(actionOperationState),
+          result: _unref(actionOperationResult),
           busy: _unref(actionOperationBusy),
           onCancel: _unref(cancelActionOperationPanel),
           onConfirm: _unref(confirmActionOperationPanel)
-        }), null, 16, ["theme-class", "portal-style", "busy", "onCancel", "onConfirm"]))
+        }), {
+          editing: _withCtx(() => [
+            (_unref(actionOperationSpec).action?.id === 'run_backup_restore')
+              ? (_openBlock$1(), _createBlock$1(BackupRestoreOperationContent, {
+                  key: 0,
+                  workflow: _unref(backupRestore)
+                }, null, 8, ["workflow"]))
+              : (_openBlock$1(), _createBlock$1(ConfigActionOperationContent, {
+                  key: 1,
+                  spec: _unref(actionOperationSpec)
+                }, null, 8, ["spec"]))
+          ]),
+          _: 1
+        }, 16, ["theme-class", "portal-style", "state", "result", "busy", "onCancel", "onConfirm"]))
       : _createCommentVNode("", true),
     _createElementVNode("footer", _hoisted_39, [
       _createElementVNode("div", _hoisted_40, [

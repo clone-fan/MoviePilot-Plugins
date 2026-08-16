@@ -53,14 +53,14 @@ class PluginContractMixin:
             {"path": "/run_health_check", "endpoint": self.api_run_health_check, "auth": "bear", "methods": ["POST"], "summary": "立即执行健康巡查"},
             {"path": "/preview_log_clean", "endpoint": self.api_preview_log_clean, "auth": "bear", "methods": ["POST"], "summary": "预览日志清理范围"},
             {"path": "/run_log_clean", "endpoint": self.api_run_log_clean, "auth": "bear", "methods": ["POST"], "summary": "执行插件日志清理"},
-            {"path": "/run_backup", "endpoint": self.api_run_backup, "auth": "bear", "methods": ["POST"], "summary": "执行MP运维助手自动备份"},
-            {"path": "/backup_archives", "endpoint": self.api_backup_archives, "auth": "bear", "methods": ["GET"], "summary": "列出本地可恢复备份包"},
-            {"path": "/preview_backup_restore", "endpoint": self.api_preview_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "预览本地备份恢复内容"},
-            {"path": "/run_backup_restore", "endpoint": self.api_run_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "执行已确认的本地备份恢复"},
-            {"path": "/webdav_backup_archives", "endpoint": self.api_webdav_backup_archives, "auth": "bear", "methods": ["GET"], "summary": "列出 WebDAV 可恢复备份包"},
-            {"path": "/preview_webdav_backup_restore", "endpoint": self.api_preview_webdav_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "预览 WebDAV 备份恢复内容"},
-            {"path": "/run_webdav_backup_restore", "endpoint": self.api_run_webdav_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "执行已确认的 WebDAV 备份恢复"},
-            {"path": "/preview_updates", "endpoint": self.api_preview_updates, "auth": "bear", "methods": ["POST"], "summary": "预览MoviePilot后端/前端更新状态（不通知、不重启）"},
+            {"path": "/run_backup", "endpoint": self.api_run_backup, "auth": "bear", "methods": ["POST"], "summary": "执行完整 Signal 备份"},
+            {"path": "/backup_archives", "endpoint": self.api_backup_archives, "auth": "bear", "methods": ["POST"], "summary": "按来源列出可恢复归档"},
+            {"path": "/backup_archive", "endpoint": self.api_backup_archive, "auth": "bear", "methods": ["POST"], "summary": "检查归档 manifest、哈希与恢复能力"},
+            {"path": "/import_backup_archive", "endpoint": self.api_import_backup_archive, "auth": "bear", "methods": ["POST"], "summary": "导入并检查浏览器归档"},
+            {"path": "/download_backup_archive", "endpoint": self.api_download_backup_archive, "auth": "bear", "methods": ["POST"], "summary": "下载手动备份归档"},
+            {"path": "/run_backup_restore", "endpoint": self.api_run_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "按稳定 backup_id 执行选择性在线恢复"},
+            {"path": "/backup_operation_status", "endpoint": self.api_backup_operation_status, "auth": "bear", "methods": ["GET"], "summary": "查询当前备份恢复操作和最近结果"},
+            {"path": "/run_updates", "endpoint": self.api_run_updates, "auth": "bear", "methods": ["POST"], "summary": "按已保存配置执行统一更新检查"},
             {"path": "/run_mp_update", "endpoint": self.api_run_mp_update, "auth": "bear", "methods": ["POST"], "summary": "立即检查并更新MoviePilot后端/前端"},
             {"path": "/run_mp_update_apply", "endpoint": self.api_run_mp_update_apply, "auth": "bear", "methods": ["POST"], "summary": "执行MoviePilot后端/前端更新并重启"},
             {"path": "/preview_market_update", "endpoint": self.api_preview_market_update, "auth": "bear", "methods": ["POST"], "summary": "预览插件库同步"},
@@ -111,7 +111,7 @@ class PluginContractMixin:
             self._append_cron_service(services, "Signal.HealthCheck", "MP 运维助手 - 健康巡查", self._health_check_cron, self.run_health_check)
         if can_register("log_clean", self._log_clean_schedule_enabled):
             self._append_cron_service(services, "Signal.LogClean", "MP 运维助手 - 插件日志清理", self._log_clean_cron, self.run_log_clean_scheduled)
-        if can_register("backup", self._backup_schedule_enabled):
+        if can_register("backup", self._backup_enabled):
             self._append_cron_service(services, "Signal.Backup", "MP 运维助手 - 自动备份", self._backup_cron, self.run_backup_scheduled)
         if can_register("mp_update", bool(self._mp_update_enabled and self._mp_update_cron)):
             self._append_cron_service(services, "Signal.MPUpdate", "MP 运维助手 - 系统更新检查", self._mp_update_cron, self.run_mp_update_scheduled)
