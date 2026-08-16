@@ -1,6 +1,6 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { f as getPluginApiEnvelope, h as createV31QuickActions, i as useActionRunner, j as resolveActionAvailability, A as ACTION_OPERATION_MODE, k as actionGroupRegistry, l as ACTION_DISABLED_REASON, u as useAgentOpsTheme, a as getActionForSurface, e as ActionOperationPanel } from './ActionOperationPanel-Bu1ZK3Qk.js';
-import { ca as mdiYinYang, ar as mdiViewDashboardOutline, cb as mdiTrashCanOutline, cc as mdiTagMultiple, cd as mdiRss, aP as mdiRefresh, ce as mdiLeaf, ba as mdiHeartPulse, cf as mdiEye, cg as mdiDatabase, ch as mdiCog, bD as mdiCloudUploadOutline, ci as mdiCheckCircle, bN as mdiChartPie, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, cj as mdiCalendarToday, ck as mdiCalendarCheck, bU as mdiBroom, bX as mdiBellOutline, cl as mdiArrowUp, cm as mdiArrowDown, am as _export_sfc } from './mdi-DveizHBi.js';
+import { h as getPluginApiEnvelope, i as createV31QuickActions, b as useBackupRestore, j as useActionRunner, k as resolveActionAvailability, A as ACTION_OPERATION_MODE, r as resolvePluginApi, l as actionGroupRegistry, m as ACTION_DISABLED_REASON, u as useAgentOpsTheme, a as getActionForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-CrJgdtOI.js';
+import { ca as mdiYinYang, ar as mdiViewDashboardOutline, cb as mdiTrashCanOutline, cc as mdiTagMultiple, cd as mdiRss, aP as mdiRefresh, ce as mdiLeaf, ba as mdiHeartPulse, cf as mdiEye, cg as mdiDatabase, ch as mdiCog, bD as mdiCloudUploadOutline, ci as mdiCheckCircle, bN as mdiChartPie, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, cj as mdiCalendarToday, ck as mdiCalendarCheck, bU as mdiBroom, b$ as mdiBackupRestore, bX as mdiBellOutline, cl as mdiArrowUp, cm as mdiArrowDown, am as _export_sfc } from './mdi-DveizHBi.js';
 
 // 共享格式化工具 — 跨组件复用，禁止在各 vue 里各写一份
 /** 将字节数格式化为人类可读的 GB/MB 字符串 */
@@ -168,7 +168,7 @@ function useSiteChart(api) {
   }
 }
 
-const {computed: computed$e,nextTick,ref: ref$2} = await importShared('vue');
+const {computed: computed$e,ref: ref$2} = await importShared('vue');
 
 function resolveMaybeValue(value) {
   if (typeof value === 'function') return value()
@@ -180,127 +180,38 @@ function actionId(action) {
   return String(action?.id || action?.path || action?.apiPath || '')
 }
 
-async function restoreActionTriggerFocus(action) {
-  if (typeof document === 'undefined') return
-  await nextTick();
-  const id = actionId(action);
-  const escapedId = globalThis.CSS?.escape ? globalThis.CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
-  const target = document.querySelector(`[data-action-id="${escapedId}"]`);
-  if (target?.isConnected && !target.disabled && target.getAttribute('aria-disabled') !== 'true') {
-    target.focus?.({ preventScroll: true });
-  }
-}
-
 function normalizeConfigModel(response) {
   const model = response?.model ?? response?.data?.model;
   return model && typeof model === 'object' && !Array.isArray(model) ? model : {}
 }
 
-function selectedValues(value) {
-  return Array.isArray(value) ? value.map(item => String(item || '').trim()).filter(Boolean) : []
-}
-
-function seedCleanSpec(action, config, common) {
-  const downloaders = selectedValues(config.seedclean_downloaders);
-  const actionLabel = config.seedclean_action === 'pause' ? '暂停任务' : '删除任务';
-  return {
-    ...common,
-    kicker: '请确认本次处理',
-    warning: '自动删种会按配置中心当前保存的筛选条件处理匹配任务，请确认后继续。',
-    summaryPrimary: `${downloaders.length} 个下载器`,
-    summarySecondary: actionLabel,
-    sections: [{
-      key: 'seed-clean-scope',
-      items: [{
-        key: 'seed-clean-current-scope',
-        title: downloaders.join('、') || '当前保存的下载器范围',
-        meta: actionLabel,
-        detail: '使用配置中心当前保存的删种筛选条件',
-      }],
-    }],
-    confirmLabel: '确认并执行',
-  }
-}
-
-function downloaderHelperSpec(action, preview, common) {
-  const items = Array.isArray(preview?.items) ? preview.items : [];
-  return {
-    ...common,
-    kicker: '一次确认',
-    title: '清理失效下载任务',
-    warning: '标签和恢复做种无需确认；以下失效任务将从下载器移除。',
-    summaryPrimary: `${items.length} 个清理候选`,
-    summarySecondary: '确认后执行本次预览范围',
-    sections: [{
-      key: 'downloader-helper-preview',
-      label: '清理预览',
-      items: items.map(item => ({
-        key: `${item.downloader || 'downloader'}-${item.id || item.name || 'item'}`,
-        title: item.name || item.id || '未命名任务',
-        meta: item.downloader || '',
-        detail: `${item.reason || '失效下载任务'} · ${item.delete_file ? '数据已删除' : '不删除数据文件'}`,
-      })),
-      emptyText: '本次预览没有需要确认的清理项。',
-    }],
-    confirmLabel: '确认并执行',
-  }
-}
-
-function pluginUninstallSpec(action, config, common) {
-  const ids = selectedValues(config.plugin_uninstall_ids);
-  const cleanupItems = [
-    { key: 'uninstall', title: '卸载选中的插件', enabled: true },
-    { key: 'config', title: '清理插件配置', enabled: config.plugin_uninstall_clear_config === true },
-    { key: 'data', title: '清理插件数据', enabled: config.plugin_uninstall_clear_data === true },
-    { key: 'source', title: '删除插件源文件', enabled: config.plugin_uninstall_delete_source === true },
-  ].filter(item => item.enabled);
-  return {
-    ...common,
-    title: '确认卸载插件',
-    warning: '以下操作将立即执行且无法撤销，请核对目标插件和清理范围。',
-    summaryPrimary: `${ids.length} 个目标插件`,
-    summarySecondary: `${cleanupItems.length} 项卸载或清理操作`,
-    sections: [
-      {
-        key: 'plugin-uninstall-targets',
-        label: '目标插件',
-        items: ids.map(id => ({ key: id, title: id })),
-        emptyText: '尚未在配置中心选择目标插件。',
-      },
-      {
-        key: 'plugin-uninstall-actions',
-        label: '卸载与清理范围',
-        items: cleanupItems.map(item => ({ key: item.key, title: item.title })),
-      },
-    ],
-    confirmLabel: '确认卸载',
-  }
-}
-
 function buildQuickActionOperationSpec(action, context = {}) {
   if (!action) return null
   const id = actionId(action);
-  const config = context.config || {};
-  const common = {
+  if (id === 'run_backup_restore') {
+    return {
+      action,
+      kicker: '受检归档恢复',
+      title: '立即恢复',
+      danger: true,
+      confirmLabel: '开始恢复',
+      cancelLabel: '取消',
+      confirmDisabled: context.backupRestoreCanExecute !== true,
+      returnFocusSelector: `[data-action-id="${id}"]`,
+      rootAttrs: { 'data-backup-restore-dialog': '', 'data-quick-action-operation-id': id },
+      confirmAttrs: { 'data-backup-restore-confirm': '' },
+      cancelAttrs: { 'data-backup-restore-cancel': '' },
+    }
+  }
+  return {
     action,
     title: action.label || '确认操作',
     kicker: action.group || '快捷操作',
-    warning: action.operation?.danger ? `${action.desc || action.label}，执行前请确认。` : (action.desc || ''),
     danger: action.operation?.danger === true,
-    summaryPrimary: action.desc || action.label || '',
-    summarySecondary: action.operation?.requiresPreview ? '已完成预览，请确认执行范围' : '使用当前保存的配置执行',
-    confirmationInput: action.operation?.confirmationInput || null,
     confirmLabel: '确认执行',
     cancelLabel: '取消',
     returnFocusSelector: `[data-action-id="${id}"]`,
-    rootAttrs: { 'data-quick-action-operation-dialog': '', 'data-quick-action-operation-id': id },
-    confirmAttrs: { 'data-quick-action-operation-confirm': '' },
-    cancelAttrs: { 'data-quick-action-operation-cancel': '' },
-  };
-  if (id === 'run_seed_clean') return seedCleanSpec(action, config, common)
-  if (id === 'run_downloader_helper') return downloaderHelperSpec(action, context.downloaderHelperPreview, common)
-  if (id === 'run_plugin_uninstall') return pluginUninstallSpec(action, config, common)
-  return common
+  }
 }
 
 function useQuickActionController(options = {}) {
@@ -320,10 +231,13 @@ function useQuickActionController(options = {}) {
   const actionContextLoaded = ref$2(false);
   const actionContextError = ref$2('');
   const activeAction = ref$2(null);
+  const operationState = ref$2('editing');
+  const operationResult = ref$2(null);
   const operationSubmitting = ref$2(false);
-  const downloaderHelperPreview = ref$2(null);
   const registeredActions = suppliedActions || createV31QuickActions(iconSet, surface);
   let actionRunner = null;
+
+  const backupRestore = useBackupRestore(api, { pluginEnabled });
 
   function availabilityContext(action, overrides = {}) {
     const running = actionRunner?.isActionRunning(action) === true;
@@ -348,21 +262,11 @@ function useQuickActionController(options = {}) {
     return getActionAvailability(action, { runningActionId: '', runningActionLabel: '' }).disabledReason
   }
 
-  function getPayloadContext() {
-    return {
-      config: actionConfig.value,
-      runtime: { downloaderHelperPreview: downloaderHelperPreview.value },
-    }
-  }
-
   actionRunner = useActionRunner({
     api,
     getDisabledMessage,
-    getPayloadContext,
+    getPayloadContext: () => ({ config: actionConfig.value, runtime: {} }),
     onSuccess: async context => {
-      if (actionId(context.action) === 'run_downloader_helper') {
-        downloaderHelperPreview.value = context.res?.data?.confirm_required ? context.res.data : null;
-      }
       if (typeof onSuccess === 'function') await onSuccess(context);
     },
   });
@@ -372,14 +276,14 @@ function useQuickActionController(options = {}) {
     .filter(action => action.availability.visible));
 
   const operationSpec = computed$e(() => buildQuickActionOperationSpec(activeAction.value, {
-    config: actionConfig.value,
-    downloaderHelperPreview: downloaderHelperPreview.value,
+    backupRestoreCanExecute: backupRestore.canExecute.value,
   }));
-
-  const operationBusy = computed$e(() => operationSubmitting.value || actionRunner.isActionRunning(activeAction.value));
+  const operationBusy = computed$e(() => operationState.value === 'running' || operationSubmitting.value);
 
   async function loadActionContext() {
-    const apiClient = resolveMaybeValue(api);
+    // API handles are explicit Vue refs at the federated entrypoints. Resolve
+    // only the ref; never invoke an arbitrary function-shaped request client.
+    const apiClient = resolvePluginApi(api);
     if (!apiClient?.get) {
       actionContextLoaded.value = false;
       actionContextError.value = 'MoviePilot 插件配置 API 未就绪';
@@ -408,6 +312,12 @@ function useQuickActionController(options = {}) {
       return false
     }
     activeAction.value = action;
+    operationState.value = 'editing';
+    operationResult.value = null;
+    if (actionId(action) === 'run_backup_restore') {
+      backupRestore.reset();
+      void backupRestore.loadArchives();
+    }
     return true
   }
 
@@ -415,38 +325,41 @@ function useQuickActionController(options = {}) {
     if (!action) return null
     const mode = action.operation?.mode || ACTION_OPERATION_MODE.direct;
     if (mode === ACTION_OPERATION_MODE.direct) return actionRunner.runAction(action)
-    if (mode === ACTION_OPERATION_MODE.confirm) {
-      return { started: false, panelOpened: openOperation(action), action }
-    }
-    if (mode === ACTION_OPERATION_MODE.previewConfirm) {
-      downloaderHelperPreview.value = null;
-      const result = await actionRunner.runAction(action);
-      const panelOpened = result?.ok === true && downloaderHelperPreview.value?.confirm_required === true
-        ? openOperation(action)
-        : false;
-      return { ...result, panelOpened }
-    }
-    return actionRunner.runAction(action)
+    return { started: false, panelOpened: openOperation(action), action }
   }
 
   function cancelOperation() {
-    const closingId = actionId(activeAction.value);
+    if (operationState.value === 'running') return false
     activeAction.value = null;
-    if (closingId === 'run_downloader_helper') downloaderHelperPreview.value = null;
+    operationState.value = 'editing';
+    operationResult.value = null;
+    backupRestore.reset();
+    return true
   }
 
   async function confirmOperation() {
-    if (operationSubmitting.value) return null
+    if (operationSubmitting.value || !activeAction.value) return null
     const action = activeAction.value;
-    if (!action) return null
     operationSubmitting.value = true;
-    activeAction.value = null;
+    operationState.value = 'running';
+    operationResult.value = null;
     try {
-      return await actionRunner.runAction(action)
+      if (actionId(action) === 'run_backup_restore') {
+        const response = await backupRestore.executeRestore();
+        operationResult.value = {
+          ...response,
+          ok: response?.code === 0,
+          success: response?.code === 0,
+          partial: response?.data?.partial === true || response?.data?.status === 'partial',
+          message: response?.msg || response?.data?.message || '',
+        };
+      } else {
+        operationResult.value = await actionRunner.runAction(action);
+      }
+      operationState.value = 'result';
+      return operationResult.value
     } finally {
-      if (actionId(action) === 'run_downloader_helper') downloaderHelperPreview.value = null;
       operationSubmitting.value = false;
-      await restoreActionTriggerFocus(action);
     }
   }
 
@@ -457,9 +370,11 @@ function useQuickActionController(options = {}) {
     actionContextError,
     actionRunner,
     activeAction,
-    downloaderHelperPreview,
     operationSpec,
+    operationState,
+    operationResult,
     operationBusy,
+    backupRestore,
     getActionAvailability,
     getDisabledMessage,
     loadActionContext,
@@ -888,7 +803,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {openBlock:_openBlock$j,createElementBlock:_createElementBlock$e,createCommentVNode:_createCommentVNode$a,createBlock:_createBlock$b,renderSlot:_renderSlot$4,toDisplayString:_toDisplayString$a,createTextVNode:_createTextVNode$4,normalizeClass:_normalizeClass$a} = await importShared('vue');
+const {openBlock:_openBlock$j,createElementBlock:_createElementBlock$e,createCommentVNode:_createCommentVNode$9,createBlock:_createBlock$b,renderSlot:_renderSlot$4,toDisplayString:_toDisplayString$a,createTextVNode:_createTextVNode$4,normalizeClass:_normalizeClass$a} = await importShared('vue');
 
 
 const _hoisted_1$c = ["disabled", "aria-busy", "aria-label", "data-state"];
@@ -930,14 +845,14 @@ return (_ctx, _cache) => {
             icon: __props.icon,
             size: "14"
           }, null, 8, ["icon"]))
-        : _createCommentVNode$a("", true),
+        : _createCommentVNode$9("", true),
     (!__props.iconOnly)
       ? (_openBlock$j(), _createElementBlock$e("span", _hoisted_3$a, [
           _renderSlot$4(_ctx.$slots, "default", {}, () => [
             _createTextVNode$4(_toDisplayString$a(__props.label), 1)
           ])
         ]))
-      : _createCommentVNode$a("", true)
+      : _createCommentVNode$9("", true)
   ], 10, _hoisted_1$c))
 }
 }
@@ -948,6 +863,7 @@ const v31Icons = {
   arrowDown: mdiArrowDown,
   arrowUp: mdiArrowUp,
   bell: mdiBellOutline,
+  restore: mdiBackupRestore,
   broom: mdiBroom,
   calendarCheck: mdiCalendarCheck,
   calendarToday: mdiCalendarToday,
@@ -1063,7 +979,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {openBlock:_openBlock$g,createBlock:_createBlock$9,createCommentVNode:_createCommentVNode$9,normalizeClass:_normalizeClass$8,createElementBlock:_createElementBlock$c,createElementVNode:_createElementVNode$8,toDisplayString:_toDisplayString$9,withCtx:_withCtx$5} = await importShared('vue');
+const {openBlock:_openBlock$g,createBlock:_createBlock$9,createCommentVNode:_createCommentVNode$8,normalizeClass:_normalizeClass$8,createElementBlock:_createElementBlock$c,createElementVNode:_createElementVNode$8,toDisplayString:_toDisplayString$9,withCtx:_withCtx$5} = await importShared('vue');
 
 
 const _hoisted_1$a = { class: "v31-kpi-card__icon" };
@@ -1101,13 +1017,13 @@ return (_ctx, _cache) => {
               color: __props.item.iconColor || undefined,
               size: "20"
             }, null, 8, ["icon", "color"]))
-          : _createCommentVNode$9("", true),
+          : _createCommentVNode$8("", true),
         (__props.item.dot)
           ? (_openBlock$g(), _createElementBlock$c("span", {
               key: 1,
               class: _normalizeClass$8(["v31-status-dot", { 'v31-status-dot--pulse': __props.item.pulse }])
             }, null, 2))
-          : _createCommentVNode$9("", true)
+          : _createCommentVNode$8("", true)
       ]),
       _createElementVNode$8("div", _hoisted_2$9, [
         _createElementVNode$8("span", _hoisted_3$8, _toDisplayString$9(__props.item.label), 1),
@@ -1117,10 +1033,10 @@ return (_ctx, _cache) => {
           }, _toDisplayString$9(__props.item.value), 3),
           (__props.item.total)
             ? (_openBlock$g(), _createElementBlock$c("span", _hoisted_5$5, "/ " + _toDisplayString$9(__props.item.total), 1))
-            : _createCommentVNode$9("", true),
+            : _createCommentVNode$8("", true),
           (__props.item.unit)
             ? (_openBlock$g(), _createElementBlock$c("span", _hoisted_6$4, _toDisplayString$9(__props.item.unit), 1))
-            : _createCommentVNode$9("", true)
+            : _createCommentVNode$8("", true)
         ]),
         _createElementVNode$8("span", _hoisted_7$4, _toDisplayString$9(__props.item.detail), 1)
       ])
@@ -1221,7 +1137,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {renderList:_renderList$3,Fragment:_Fragment$4,openBlock:_openBlock$d,createElementBlock:_createElementBlock$9,createVNode:_createVNode$a,createCommentVNode:_createCommentVNode$8,toDisplayString:_toDisplayString$7,createElementVNode:_createElementVNode$6} = await importShared('vue');
+const {renderList:_renderList$3,Fragment:_Fragment$4,openBlock:_openBlock$d,createElementBlock:_createElementBlock$9,createVNode:_createVNode$a,createCommentVNode:_createCommentVNode$7,toDisplayString:_toDisplayString$7,createElementVNode:_createElementVNode$6} = await importShared('vue');
 
 
 const _hoisted_1$7 = { class: "v31-traffic-summary" };
@@ -1258,7 +1174,7 @@ return (_ctx, _cache) => {
                 size: "12"
               }, null, 8, ["icon"])
             ]))
-          : _createCommentVNode$8("", true),
+          : _createCommentVNode$7("", true),
         _createElementVNode$6("span", _hoisted_3$6, [
           _createElementVNode$6("span", _hoisted_4$6, _toDisplayString$7(row.label), 1),
           _createElementVNode$6("strong", _hoisted_5$4, _toDisplayString$7(row.value), 1)
@@ -1450,7 +1366,7 @@ return (_ctx, _cache) => {
 };
 const SiteDataPanel = /*#__PURE__*/_export_sfc(_sfc_main$b, [['__scopeId',"data-v-9607fd8d"]]);
 
-const {openBlock:_openBlock$a,createBlock:_createBlock$6,createCommentVNode:_createCommentVNode$7,renderSlot:_renderSlot$1,toDisplayString:_toDisplayString$4,createTextVNode:_createTextVNode$1,normalizeClass:_normalizeClass$5,createElementBlock:_createElementBlock$6} = await importShared('vue');
+const {openBlock:_openBlock$a,createBlock:_createBlock$6,createCommentVNode:_createCommentVNode$6,renderSlot:_renderSlot$1,toDisplayString:_toDisplayString$4,createTextVNode:_createTextVNode$1,normalizeClass:_normalizeClass$5,createElementBlock:_createElementBlock$6} = await importShared('vue');
 
 
 const {computed: computed$7} = await importShared('vue');
@@ -1479,7 +1395,7 @@ return (_ctx, _cache) => {
           icon: __props.icon,
           size: "10"
         }, null, 8, ["icon"]))
-      : _createCommentVNode$7("", true),
+      : _createCommentVNode$6("", true),
     _renderSlot$1(_ctx.$slots, "default", {}, () => [
       _createTextVNode$1(_toDisplayString$4(__props.label), 1)
     ])
@@ -1523,7 +1439,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {unref:_unref$5,createVNode:_createVNode$6,createElementVNode:_createElementVNode$2,renderList:_renderList$1,Fragment:_Fragment$2,openBlock:_openBlock$8,createElementBlock:_createElementBlock$4,createBlock:_createBlock$5,createCommentVNode:_createCommentVNode$6,withCtx:_withCtx$3} = await importShared('vue');
+const {unref:_unref$5,createVNode:_createVNode$6,createElementVNode:_createElementVNode$2,renderList:_renderList$1,Fragment:_Fragment$2,openBlock:_openBlock$8,createElementBlock:_createElementBlock$4,createBlock:_createBlock$5,createCommentVNode:_createCommentVNode$5,withCtx:_withCtx$3} = await importShared('vue');
 
 
 const _hoisted_1$3 = { class: "v31-card-header" };
@@ -1580,7 +1496,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$1,renderSlot:_renderSlot,toDisplayString:_toDisplayString$2,normalizeClass:_normalizeClass$4,openBlock:_openBlock$7,createElementBlock:_createElementBlock$3,createCommentVNode:_createCommentVNode$5,renderList:_renderList,Fragment:_Fragment$1,createVNode:_createVNode$5} = await importShared('vue');
+const {createElementVNode:_createElementVNode$1,renderSlot:_renderSlot,toDisplayString:_toDisplayString$2,normalizeClass:_normalizeClass$4,openBlock:_openBlock$7,createElementBlock:_createElementBlock$3,createCommentVNode:_createCommentVNode$4,renderList:_renderList,Fragment:_Fragment$1,createVNode:_createVNode$5} = await importShared('vue');
 
 
 const _hoisted_1$2 = ["data-action-presentation", "data-action-size", "data-action-count"];
@@ -1700,7 +1616,7 @@ return (_ctx, _cache) => {
             "aria-live": "polite",
             "aria-atomic": "true"
           }, _toDisplayString$2(actionView.value.feedbackMessage), 11, _hoisted_4$1))
-        : _createCommentVNode$5("", true)
+        : _createCommentVNode$4("", true)
     ]),
     _createElementVNode$1("div", _hoisted_5$1, [
       (_openBlock$7(true), _createElementBlock$3(_Fragment$1, null, _renderList(visibleActions.value, (action) => {
@@ -1739,7 +1655,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const QuickActionsBand = /*#__PURE__*/_export_sfc(_sfc_main$7, [['__scopeId',"data-v-a9d1c3e1"]]);
+const QuickActionsBand = /*#__PURE__*/_export_sfc(_sfc_main$7, [['__scopeId',"data-v-485cdfa3"]]);
 
 const {createVNode:_createVNode$4,normalizeClass:_normalizeClass$3,openBlock:_openBlock$6,createElementBlock:_createElementBlock$2} = await importShared('vue');
 
@@ -1774,7 +1690,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {toDisplayString:_toDisplayString$1,createElementVNode:_createElementVNode,unref:_unref$4,createVNode:_createVNode$3,createTextVNode:_createTextVNode,Fragment:_Fragment,openBlock:_openBlock$5,createElementBlock:_createElementBlock$1,createCommentVNode:_createCommentVNode$4,normalizeClass:_normalizeClass$2} = await importShared('vue');
+const {toDisplayString:_toDisplayString$1,createElementVNode:_createElementVNode,unref:_unref$4,createVNode:_createVNode$3,createTextVNode:_createTextVNode,Fragment:_Fragment,openBlock:_openBlock$5,createElementBlock:_createElementBlock$1,createCommentVNode:_createCommentVNode$3,normalizeClass:_normalizeClass$2} = await importShared('vue');
 
 
 const _hoisted_1$1 = { class: "v31-glass-card v31-fusion-mini" };
@@ -1839,7 +1755,7 @@ return (_ctx, _cache) => {
             ? (_openBlock$5(), _createElementBlock$1(_Fragment, { key: 1 }, [
                 _createTextVNode("未建卡")
               ], 64))
-            : _createCommentVNode$4("", true)
+            : _createCommentVNode$3("", true)
       ]),
       _createElementVNode("div", _hoisted_5, [
         _cache[3] || (_cache[3] = _createElementVNode("span", null, "状态", -1)),
@@ -1891,7 +1807,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createVNode:_createVNode$2,unref:_unref$3,toDisplayString:_toDisplayString,openBlock:_openBlock$4,createElementBlock:_createElementBlock,createCommentVNode:_createCommentVNode$3,mergeProps:_mergeProps$1,createBlock:_createBlock$4,withCtx:_withCtx$2} = await importShared('vue');
+const {createVNode:_createVNode$2,unref:_unref$3,toDisplayString:_toDisplayString,openBlock:_openBlock$4,createElementBlock:_createElementBlock,createCommentVNode:_createCommentVNode$2,createBlock:_createBlock$4,mergeProps:_mergeProps$1,withCtx:_withCtx$2} = await importShared('vue');
 
 
 const _hoisted_1 = {
@@ -1903,7 +1819,7 @@ const _hoisted_2 = {
   class: "v31-loading"
 };
 
-const {computed: computed$4,onMounted: onMounted$1,reactive: reactive$1,ref: ref$1} = await importShared('vue');
+const {computed: computed$4,onMounted: onMounted$1,reactive: reactive$1,ref: ref$1,toRef: toRef$1} = await importShared('vue');
 
 
 const _sfc_main$4 = {
@@ -1921,6 +1837,7 @@ const _sfc_main$4 = {
 const props = __props;
 
 const emit = __emit;
+const apiHandle = toRef$1(props, 'api');
 
 const { themeName, rootThemeClass } = useAgentOpsTheme();
 const dashboardRoot = ref$1(null);
@@ -1942,13 +1859,13 @@ const {
   sitePieSegments: siteChartPieSegments,
   sitePieStyle: siteChartPieStyle,
   loadSiteChart,
-} = useSiteChart(props.api);
+} = useSiteChart(apiHandle);
 
 const fusionBuildAction = getActionForSurface('create_tg_console_card', 'dashboardFusion');
 const fusionRefreshAction = getActionForSurface('run_daily_report', 'dashboardFusion');
 
 const quickActionController = useQuickActionController({
-  api: () => props.api,
+  api: apiHandle,
   pluginId: () => props.pluginId,
   surface: 'dashboard',
   iconSet: v31Icons,
@@ -1956,12 +1873,12 @@ const quickActionController = useQuickActionController({
   tasks: () => dashboard.tasks,
   componentStates: () => ({ fusion_notify: fusionCard.enabled !== false }),
   onSuccess: async ({ action }) => {
-    if (action?.path === 'run_site_stat') {
+    if (actionRefreshes(action, 'siteChart')) {
       await loadSiteChart();
       const refreshError = String(siteChart.last_error || siteChart.error || '').trim();
       if (refreshError) throw new Error(refreshError)
     }
-    if (action?.path === 'create_tg_console_card' || action?.path === 'run_daily_report') {
+    if (actionRefreshes(action, 'fusionCard')) {
       await loadFusionCard({ throwOnError: true });
     }
   },
@@ -2115,18 +2032,30 @@ return (_ctx, _cache) => {
         ? (_openBlock$4(), _createElementBlock("div", _hoisted_1, _toDisplayString(error.value), 1))
         : (loading.value)
           ? (_openBlock$4(), _createElementBlock("div", _hoisted_2, "正在刷新仪表盘..."))
-          : _createCommentVNode$3("", true)
+          : _createCommentVNode$2("", true)
     ]),
     overlay: _withCtx$2(() => [
       (_unref$3(quickActionController).operationSpec.value)
         ? (_openBlock$4(), _createBlock$4(ActionOperationPanel, _mergeProps$1({ key: 0 }, _unref$3(quickActionController).operationSpec.value, {
             open: "",
             "theme-class": _unref$3(rootThemeClass),
+            state: _unref$3(quickActionController).operationState.value,
+            result: _unref$3(quickActionController).operationResult.value,
             busy: _unref$3(quickActionController).operationBusy.value,
             onCancel: _unref$3(quickActionController).cancelOperation,
             onConfirm: _unref$3(quickActionController).confirmOperation
-          }), null, 16, ["theme-class", "busy", "onCancel", "onConfirm"]))
-        : _createCommentVNode$3("", true)
+          }), {
+            editing: _withCtx$2(() => [
+              (_unref$3(quickActionController).activeAction.value?.id === 'run_backup_restore')
+                ? (_openBlock$4(), _createBlock$4(BackupRestoreOperationContent, {
+                    key: 0,
+                    workflow: _unref$3(quickActionController).backupRestore
+                  }, null, 8, ["workflow"]))
+                : _createCommentVNode$2("", true)
+            ]),
+            _: 1
+          }, 16, ["theme-class", "state", "result", "busy", "onCancel", "onConfirm"]))
+        : _createCommentVNode$2("", true)
     ]),
     _: 1
   }, 8, ["surface", "theme-class"]))
@@ -2196,14 +2125,14 @@ function useDashboardFreeData(api) {
   } = useSiteChart(api);
 
   const actionController = useQuickActionController({
-    api: () => api,
+    api,
     surface: MP_FREE_QUICK_ACTION_SURFACE,
     iconSet: v31Icons,
     actions: mpFreeQuickActions,
     pluginEnabled: () => dashboard.enabled !== false,
     tasks: () => dashboard.tasks,
     onSuccess: async ({ action }) => {
-      if (action?.path === 'run_site_stat') {
+      if (actionRefreshes(action, 'siteChart')) {
         await loadSiteChart();
         const refreshError = String(siteChart.last_error || siteChart.error || '').trim();
         if (refreshError) throw new Error(refreshError)
@@ -2225,7 +2154,7 @@ function useDashboardFreeData(api) {
   });
 
   async function loadDashboard() {
-    if (!api) return
+    if (!resolvePluginApi(api)) return
     loading.value = true;
     error.value = '';
     try {
@@ -2254,7 +2183,7 @@ function useDashboardFreeData(api) {
   }
 }
 
-const {unref:_unref$2,createVNode:_createVNode$1,resolveComponent:_resolveComponent$1,withCtx:_withCtx$1,openBlock:_openBlock$3,createBlock:_createBlock$3,createCommentVNode:_createCommentVNode$2,normalizeClass:_normalizeClass$1} = await importShared('vue');
+const {unref:_unref$2,createVNode:_createVNode$1,resolveComponent:_resolveComponent$1,normalizeClass:_normalizeClass$1,withCtx:_withCtx$1,openBlock:_openBlock$3,createBlock:_createBlock$3} = await importShared('vue');
 
 
 const {computed: computed$3} = await importShared('vue');
@@ -2267,14 +2196,10 @@ const _sfc_main$3 = {
   frame: { type: Object, default: () => ({}) },
   loading: { type: Boolean, default: false },
   error: { type: String, default: '' },
-  allowRefresh: { type: Boolean, default: true },
 },
-  emits: ['refresh'],
   setup(__props) {
 
 const props = __props;
-
-
 
 const { rootThemeClass } = useAgentOpsTheme();
 const siteView = computed$3(() => props.data.siteView?.value || props.data.siteView || {});
@@ -2282,7 +2207,6 @@ const frameVariant = computed$3(() => props.frame?.variant || 'mp-native');
 const frameDensity = computed$3(() => props.frame?.density || 'comfortable');
 
 return (_ctx, _cache) => {
-  const _component_VBtn = _resolveComponent$1("VBtn");
   const _component_VCard = _resolveComponent$1("VCard");
 
   return (_openBlock$3(), _createBlock$3(_component_VCard, {
@@ -2304,33 +2228,7 @@ return (_ctx, _cache) => {
         loading: __props.loading,
         error: __props.error,
         "native-content": ""
-      }, {
-        "header-action": _withCtx$1(() => [
-          (__props.allowRefresh)
-            ? (_openBlock$3(), _createBlock$3(_component_VBtn, {
-                key: 0,
-                class: "aoa-mp-site-refresh dashboard-grid-no-drag",
-                icon: "",
-                variant: "text",
-                size: "small",
-                loading: __props.loading,
-                disabled: __props.loading,
-                "aria-label": "刷新站点数据",
-                "data-site-widget-refresh": "",
-                onClick: _cache[0] || (_cache[0] = $event => (_ctx.$emit('refresh')))
-              }, {
-                default: _withCtx$1(() => [
-                  _createVNode$1(_sfc_main$k, {
-                    icon: _unref$2(v31Icons).refresh,
-                    size: 16
-                  }, null, 8, ["icon"])
-                ]),
-                _: 1
-              }, 8, ["loading", "disabled"]))
-            : _createCommentVNode$2("", true)
-        ]),
-        _: 1
-      }, 8, ["site", "loading", "error"])
+      }, null, 8, ["site", "loading", "error"])
     ]),
     _: 1
   }, 8, ["class", "data-mp-frame-variant", "data-mp-frame-density", "data-loading", "data-error"]))
@@ -2338,9 +2236,9 @@ return (_ctx, _cache) => {
 }
 
 };
-const MpSiteDataWidget = /*#__PURE__*/_export_sfc(_sfc_main$3, [['__scopeId',"data-v-dc9702d7"]]);
+const MpSiteDataWidget = /*#__PURE__*/_export_sfc(_sfc_main$3, [['__scopeId',"data-v-bac85390"]]);
 
-const {unref:_unref$1,createVNode:_createVNode,resolveComponent:_resolveComponent,withCtx:_withCtx,openBlock:_openBlock$2,createBlock:_createBlock$2,createCommentVNode:_createCommentVNode$1,mergeProps:_mergeProps,normalizeClass:_normalizeClass} = await importShared('vue');
+const {unref:_unref$1,createVNode:_createVNode,openBlock:_openBlock$2,createBlock:_createBlock$2,createCommentVNode:_createCommentVNode$1,mergeProps:_mergeProps,withCtx:_withCtx,resolveComponent:_resolveComponent,normalizeClass:_normalizeClass} = await importShared('vue');
 
 
 const {computed: computed$2} = await importShared('vue');
@@ -2353,14 +2251,10 @@ const _sfc_main$2 = {
   frame: { type: Object, default: () => ({}) },
   loading: { type: Boolean, default: false },
   error: { type: String, default: '' },
-  allowRefresh: { type: Boolean, default: true },
 },
-  emits: ['refresh'],
   setup(__props) {
 
 const props = __props;
-
-
 
 const { rootThemeClass } = useAgentOpsTheme();
 const actionsView = computed$2(() => props.data.actionsView?.value || props.data.actionsView || { items: [], groups: [] });
@@ -2369,13 +2263,15 @@ const frameVariant = computed$2(() => props.frame?.variant || 'mp-native');
 const frameDensity = computed$2(() => props.frame?.density || 'compact');
 const actionOperationSpec = computed$2(() => actionController.value.operationSpec?.value || null);
 const actionOperationBusy = computed$2(() => actionController.value.operationBusy?.value === true);
+const actionOperationState = computed$2(() => actionController.value.operationState?.value || 'editing');
+const actionOperationResult = computed$2(() => actionController.value.operationResult?.value || null);
+const activeAction = computed$2(() => actionController.value.activeAction?.value || null);
 
 function triggerAction(action) {
   return actionController.value.triggerAction?.(action)
 }
 
 return (_ctx, _cache) => {
-  const _component_VBtn = _resolveComponent("VBtn");
   const _component_VCard = _resolveComponent("VCard");
 
   return (_openBlock$2(), _createBlock$2(_component_VCard, {
@@ -2399,41 +2295,27 @@ return (_ctx, _cache) => {
         actions: actionsView.value,
         onAction: triggerAction,
         onOperation: triggerAction
-      }, {
-        "header-action": _withCtx(() => [
-          (__props.allowRefresh)
-            ? (_openBlock$2(), _createBlock$2(_component_VBtn, {
-                key: 0,
-                class: "aoa-mp-actions-refresh dashboard-grid-no-drag",
-                icon: "",
-                variant: "text",
-                size: "small",
-                loading: __props.loading,
-                disabled: __props.loading,
-                "aria-label": "刷新快捷操作",
-                "data-actions-widget-refresh": "",
-                onClick: _cache[0] || (_cache[0] = $event => (_ctx.$emit('refresh')))
-              }, {
-                default: _withCtx(() => [
-                  _createVNode(_sfc_main$k, {
-                    icon: _unref$1(v31Icons).refresh,
-                    size: 16
-                  }, null, 8, ["icon"])
-                ]),
-                _: 1
-              }, 8, ["loading", "disabled"]))
-            : _createCommentVNode$1("", true)
-        ]),
-        _: 1
-      }, 8, ["actions"]),
+      }, null, 8, ["actions"]),
       (actionOperationSpec.value)
         ? (_openBlock$2(), _createBlock$2(ActionOperationPanel, _mergeProps({ key: 0 }, actionOperationSpec.value, {
             open: "",
             "theme-class": _unref$1(rootThemeClass),
+            state: actionOperationState.value,
+            result: actionOperationResult.value,
             busy: actionOperationBusy.value,
-            onCancel: _cache[1] || (_cache[1] = $event => (actionController.value.cancelOperation?.())),
-            onConfirm: _cache[2] || (_cache[2] = $event => (actionController.value.confirmOperation?.()))
-          }), null, 16, ["theme-class", "busy"]))
+            onCancel: _cache[0] || (_cache[0] = $event => (actionController.value.cancelOperation?.())),
+            onConfirm: _cache[1] || (_cache[1] = $event => (actionController.value.confirmOperation?.()))
+          }), {
+            editing: _withCtx(() => [
+              (activeAction.value?.id === 'run_backup_restore')
+                ? (_openBlock$2(), _createBlock$2(BackupRestoreOperationContent, {
+                    key: 0,
+                    workflow: actionController.value.backupRestore
+                  }, null, 8, ["workflow"]))
+                : _createCommentVNode$1("", true)
+            ]),
+            _: 1
+          }, 16, ["theme-class", "state", "result", "busy"]))
         : _createCommentVNode$1("", true)
     ]),
     _: 1
@@ -2442,12 +2324,12 @@ return (_ctx, _cache) => {
 }
 
 };
-const MpQuickActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-b19a6676"]]);
+const MpQuickActionsWidget = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-3d5ed59e"]]);
 
 const {unref:_unref,resolveDynamicComponent:_resolveDynamicComponent,openBlock:_openBlock$1,createBlock:_createBlock$1} = await importShared('vue');
 
 
-const {computed: computed$1,onMounted} = await importShared('vue');
+const {computed: computed$1,onMounted,toRef} = await importShared('vue');
 
 // AOA-HOST-CONSTRAINT: MoviePilot free-widget hosts own the visible outer frame.
 // This adapter selects one content module and passes the host frame through unchanged.
@@ -2457,7 +2339,6 @@ const _sfc_main$1 = {
   props: {
   api: { type: [Object, Function], default: null },
   config: { type: Object, default: () => ({}) },
-  allowRefresh: { type: Boolean, default: true },
   surface: { type: String, default: 'mp-widget' },
   pluginId: { type: String, default: 'Signal' },
 },
@@ -2467,8 +2348,9 @@ const _sfc_main$1 = {
 const props = __props;
 
 const emit = __emit;
+const apiHandle = toRef(props, 'api');
 
-const freeData = useDashboardFreeData(props.api);
+const freeData = useDashboardFreeData(apiHandle);
 
 const requestedWidget = computed$1(() => {
   const attrs = props.config?.attrs || {};
@@ -2537,7 +2419,6 @@ return (_ctx, _cache) => {
     frame: widgetFrame.value,
     loading: _unref(freeData).loading.value,
     error: _unref(freeData).error.value || moduleIdentityError.value || fallbackMessage.value,
-    "allow-refresh": __props.allowRefresh,
     "data-mp-module-host-plugin": moduleIdentity.value.hostPluginId,
     "data-mp-module-plugin": moduleIdentity.value.pluginId,
     "data-mp-module-expose": moduleIdentity.value.expose,
@@ -2545,9 +2426,8 @@ return (_ctx, _cache) => {
     "data-mp-module-contract": moduleIdentity.value.contract,
     "data-mp-module-widget": moduleIdentity.value.widget,
     "data-mp-module-identity-declared": moduleIdentity.value.declared ? 'true' : 'false',
-    "data-mp-module-identity-valid": moduleIdentity.value.valid ? 'true' : 'false',
-    onRefresh: refreshWidget
-  }, null, 40, ["data", "frame", "loading", "error", "allow-refresh", "data-mp-module-host-plugin", "data-mp-module-plugin", "data-mp-module-expose", "data-mp-module-surface", "data-mp-module-contract", "data-mp-module-widget", "data-mp-module-identity-declared", "data-mp-module-identity-valid"]))
+    "data-mp-module-identity-valid": moduleIdentity.value.valid ? 'true' : 'false'
+  }, null, 8, ["data", "frame", "loading", "error", "data-mp-module-host-plugin", "data-mp-module-plugin", "data-mp-module-expose", "data-mp-module-surface", "data-mp-module-contract", "data-mp-module-widget", "data-mp-module-identity-declared", "data-mp-module-identity-valid"]))
 }
 }
 
@@ -2589,12 +2469,11 @@ return (_ctx, _cache) => {
         key: 0,
         api: __props.api,
         config: __props.config,
-        "allow-refresh": __props.allowRefresh,
         surface: "mp-widget",
         "plugin-id": effectivePluginId.value,
         "onUpdate:refreshStatus": _cache[0] || (_cache[0] = value => emit('update:refreshStatus', value)),
         onLoaded: _cache[1] || (_cache[1] = $event => (emit('loaded')))
-      }, null, 8, ["api", "config", "allow-refresh", "plugin-id"]))
+      }, null, 8, ["api", "config", "plugin-id"]))
     : (_openBlock(), _createBlock(_sfc_main$4, {
         key: 1,
         api: __props.api,

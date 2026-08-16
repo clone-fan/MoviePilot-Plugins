@@ -585,18 +585,31 @@ class PluginOpsMixin:
         return f"插件卸载执行失败：{detail}"
     def _plugin_uninstall_config_from_payload(self, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if not isinstance(payload, dict):
-            return {}
-        override: Dict[str, Any] = {}
-        if "plugin_uninstall_ids" in payload:
-            override["plugin_uninstall_ids"] = self._parse_csv(payload.get("plugin_uninstall_ids"))
-        for key in (
+            raise ValueError("插件卸载请求缺少冻结快照。")
+        required = {
+            "plugin_uninstall_ids",
             "plugin_uninstall_clear_config",
             "plugin_uninstall_clear_data",
             "plugin_uninstall_delete_source",
-        ):
-            if key in payload:
-                override[key] = self._payload_bool(payload.get(key))
-        return override
+        }
+        missing = sorted(required - set(payload))
+        unexpected = sorted(set(payload) - required)
+        if missing or unexpected:
+            raise ValueError(
+                f"插件卸载快照字段不完整：missing={missing} unexpected={unexpected}"
+            )
+        raw_ids = payload.get("plugin_uninstall_ids")
+        if not isinstance(raw_ids, list):
+            raise ValueError("插件卸载目标必须是冻结的插件 ID 列表。")
+        boolean_keys = required - {"plugin_uninstall_ids"}
+        if any(type(payload.get(key)) is not bool for key in boolean_keys):
+            raise ValueError("插件卸载清理范围必须使用明确布尔值。")
+        return {
+            "plugin_uninstall_ids": self._parse_csv(raw_ids),
+            "plugin_uninstall_clear_config": payload["plugin_uninstall_clear_config"],
+            "plugin_uninstall_clear_data": payload["plugin_uninstall_clear_data"],
+            "plugin_uninstall_delete_source": payload["plugin_uninstall_delete_source"],
+        }
     def _plugin_uninstall_options(self, override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         override = override or {}
         raw_ids = override.get("plugin_uninstall_ids", self._plugin_uninstall_ids or [])

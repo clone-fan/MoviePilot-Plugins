@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional
 from app.core.config import settings
 from app.log import logger
 
-
 class MpApiMixin:
     """HTTP API endpoint methods exposed through MoviePilot plugin get_api()."""
 
@@ -217,8 +216,14 @@ class MpApiMixin:
                 self._save_task_result("自动备份", False, 2, msg)
                 return {"code": 1, "msg": msg, "data": self._skipped_data(msg, self._build_backup_status())}
             ok = self.run_backup()
-            data = self._build_backup_status()
-            return {"code": 0 if ok else 1, "msg": "自动备份执行成功" if ok else "自动备份执行失败，详情请查看插件日志。", "data": data}
+            data = getattr(self, "_last_backup_result", None) or self._build_backup_status()
+            if data.get("status") == "conflict":
+                message = "已有备份或恢复操作正在执行，请先查询当前操作状态。"
+            elif data.get("status") in {"success", "partial", "failed"}:
+                message = self._backup_outcome(data)
+            else:
+                message = "完整备份执行成功" if ok else "完整备份执行失败，详情请查看结果。"
+            return {"code": 0 if ok else 1, "msg": message, "data": data, "text": message}
         except Exception as err:
             logger.error(f"Signal 自动备份接口执行失败：{err}")
             try:
@@ -232,104 +237,103 @@ class MpApiMixin:
                 data = {}
             return {"code": 1, "msg": f"自动备份执行失败：{err}", "data": data}
 
-    def api_backup_archives(self) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("备份恢复", "backup")
+    def api_backup_archives(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("备份恢复")
         if not ok:
-            return {"code": 1, "msg": msg, "data": []}
+            return {"code": 1, "msg": msg, "data": {"items": []}}
+        request = dict(payload or {})
         try:
-            return {"code": 0, "msg": "备份包列表获取成功", "data": self._list_backup_archives()}
+            data = self._backup_restore_service().list_archives(
+                str(request.get("source") or "local"),
+                request.get("temporary_webdav"),
+            )
+            return {"code": 0, "msg": "备份归档列表获取成功", "data": data}
         except Exception as err:
-            return {"code": 1, "msg": f"备份包列表获取失败：{err}", "data": []}
+            return {"code": 1, "msg": f"备份归档列表获取失败：{err}", "data": {"items": []}}
 
-    def api_preview_backup_restore(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("备份恢复", "backup")
+    def api_backup_archive(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("备份归档检查")
         if not ok:
-            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"errors": [msg]}), "text": msg}
+            return {"code": 1, "msg": msg, "data": {}}
+        request = dict(payload or {})
         try:
-            data = self._build_backup_restore_preview(payload or {})
-            return {"code": 0, "msg": "备份恢复预览完成，未覆盖任何文件。", "data": data, "text": self._format_backup_restore_text(data)}
+            data = self._backup_restore_service().inspect_archive(
+                str(request.get("source") or "local"),
+                str(request.get("archive_name") or ""),
+                request.get("temporary_webdav"),
+            )
+            return {"code": 0, "msg": "备份归档检查通过", "data": data}
         except Exception as err:
-            return {"code": 1, "msg": f"备份恢复预览失败：{err}", "data": {}, "text": ""}
+            return {"code": 1, "msg": f"备份归档检查失败：{err}", "data": {}}
+
+    def api_import_backup_archive(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("导入备份归档")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": {}}
+        request = dict(payload or {})
+        try:
+            data = self._backup_restore_service().import_archive(
+                str(request.get("content_base64") or ""),
+                str(request.get("filename") or "backup.zip"),
+            )
+            return {"code": 0, "msg": "备份归档导入并检查通过", "data": data}
+        except Exception as err:
+            return {"code": 1, "msg": f"备份归档导入失败：{err}", "data": {}}
+
+    def api_download_backup_archive(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("下载备份归档")
+        if not ok:
+            return {"code": 1, "msg": msg, "data": {}}
+        request = dict(payload or {})
+        try:
+            data = self._backup_restore_service().download_archive(
+                str(request.get("source") or "local"),
+                str(request.get("archive_name") or ""),
+                request.get("temporary_webdav"),
+            )
+            return {"code": 0, "msg": "备份归档已准备下载", "data": data}
+        except Exception as err:
+            return {"code": 1, "msg": f"备份归档下载失败：{err}", "data": {}}
 
     def api_run_backup_restore(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        ok_guard, msg = self._can_run_task("备份恢复", "backup")
+        ok_guard, msg = self._can_run_task("备份恢复")
         if not ok_guard:
             self._save_task_result("备份恢复", False, 2, msg)
-            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"errors": [msg]}), "text": msg}
-        restore_payload = dict(payload or {})
-        if restore_payload.get("confirm") is not True:
-            msg = "备份恢复需要在配置页显式确认后才能执行。"
-            self._save_task_result("备份恢复", False, 2, msg)
-            return {"code": 1, "msg": msg, "data": self._restore_confirm_required_data(msg), "text": msg}
-        data = self._run_backup_restore(restore_payload)
-        ok = bool(data.get("success"))
-        return {"code": 0 if ok else 1, "msg": "备份恢复执行成功" if ok else f"备份恢复执行失败：{'；'.join(data.get('errors') or [])}", "data": data, "text": self._format_backup_restore_text(data)}
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
+        try:
+            data = self._backup_restore_service().execute(payload or {})
+            success = bool(data.get("success"))
+            status = str(data.get("status") or "failed")
+            message = data.get("message") or ("备份恢复完成" if success else "备份恢复失败")
+            self._save_task_result("备份恢复", success, 0 if success else 1, str(message))
+            return {"code": 0 if success else 1, "msg": str(message), "data": data, "text": str(message)}
+        except Exception as err:
+            logger.error(f"Signal 备份恢复执行失败：{err}")
+            self._save_task_result("备份恢复", False, -1, str(err))
+            return {"code": 1, "msg": f"备份恢复执行失败：{err}", "data": {"success": False, "status": "failed", "errors": [str(err)]}, "text": str(err)}
 
-    def api_webdav_backup_archives(self) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("WebDAV 备份恢复", "backup")
+    def api_backup_operation_status(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("备份操作状态")
         if not ok:
-            return {"code": 1, "msg": msg, "data": []}
-        if not self._backup_webdav_enabled:
-            return {"code": 1, "msg": "WebDAV 远端备份未启用。", "data": []}
-        try:
-            return {"code": 0, "msg": "WebDAV 备份包列表获取成功", "data": self._list_webdav_backup_archives()}
-        except Exception as err:
-            return {"code": 1, "msg": f"WebDAV 备份包列表获取失败：{err}", "data": []}
+            return {"code": 1, "msg": msg, "data": {"current": None, "recent": []}}
+        return {"code": 0, "msg": "备份操作状态获取成功", "data": self._backup_restore_service().operation_status()}
 
-    def api_preview_webdav_backup_restore(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("WebDAV 备份恢复", "backup")
+    def api_run_updates(self) -> Dict[str, Any]:
+        ok, msg = self._can_run_task("更新检查")
         if not ok:
-            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"errors": [msg]}), "text": msg}
-        if not self._backup_webdav_enabled:
-            return {"code": 1, "msg": "WebDAV 远端备份未启用。", "data": {}, "text": ""}
+            return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
         try:
-            restore_payload = dict(payload or {})
-            archive_path = self._download_webdav_backup_archive(restore_payload.get("archive") or restore_payload.get("name") or restore_payload.get("path"))
-            restore_payload["archive"] = archive_path.name
-            data = self._build_backup_restore_preview(restore_payload)
-            data["source"] = "webdav"
-            data["remote_archive"] = archive_path.name
-            return {"code": 0, "msg": "WebDAV 备份恢复预览完成，未覆盖任何文件。", "data": data, "text": self._format_backup_restore_text(data)}
+            success = bool(self.run_updates(scheduled=False))
+            data = getattr(self, "_last_updates_result", {"success": success, "modules": []})
+            return {
+                "code": 0 if success else 1,
+                "msg": data.get("message") or ("更新检查完成" if success else "更新检查失败"),
+                "data": data,
+                "text": data.get("message") or "",
+            }
         except Exception as err:
-            return {"code": 1, "msg": f"WebDAV 备份恢复预览失败：{err}", "data": {}, "text": ""}
-
-    def api_run_webdav_backup_restore(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        ok_guard, msg = self._can_run_task("WebDAV 备份恢复", "backup")
-        if not ok_guard:
-            self._save_task_result("WebDAV 备份恢复", False, 2, msg)
-            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"errors": [msg]}), "text": msg}
-        if not self._backup_webdav_enabled:
-            msg = "WebDAV 远端备份未启用。"
-            self._save_task_result("WebDAV 备份恢复", False, 2, msg)
-            return {"code": 1, "msg": msg, "data": {"success": False, "errors": [msg]}, "text": msg}
-        restore_payload = dict(payload or {})
-        if restore_payload.get("confirm") is not True:
-            msg = "WebDAV 备份恢复需要在配置页显式确认后才能执行。"
-            self._save_task_result("WebDAV 备份恢复", False, 2, msg)
-            data = self._restore_confirm_required_data(msg)
-            data["source"] = "webdav"
-            return {"code": 1, "msg": msg, "data": data, "text": msg}
-        try:
-            archive_path = self._download_webdav_backup_archive(restore_payload.get("archive") or restore_payload.get("name") or restore_payload.get("path"))
-            restore_payload["archive"] = archive_path.name
-            data = self._run_backup_restore(restore_payload)
-            data["source"] = "webdav"
-            data["remote_archive"] = archive_path.name
-        except Exception as err:
-            data = {"success": False, "dry_run": False, "errors": [str(err)], "warnings": [], "restored": [], "emergency_backup": "", "source": "webdav"}
-        ok = bool(data.get("success"))
-        return {"code": 0 if ok else 1, "msg": "WebDAV 备份恢复执行成功" if ok else f"WebDAV 备份恢复执行失败：{'；'.join(data.get('errors') or [])}", "data": data, "text": self._format_backup_restore_text(data)}
-
-    def api_preview_updates(self) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("系统更新检查", "mp_update")
-        if not ok:
-            return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
-        try:
-            data = self._build_update_status()
-            return {"code": 0, "msg": "更新状态预览完成，未执行更新或重启。", "data": data, "text": self._format_update_status_text(data)}
-        except Exception as err:
-            logger.error(f"Signal 更新状态预览失败：{err}")
-            return {"code": 1, "msg": f"更新状态预览失败：{err}", "data": {}, "text": ""}
+            logger.error(f"Signal 统一更新检查失败：{err}")
+            return {"code": 1, "msg": f"更新检查失败：{err}", "data": {"success": False, "modules": []}}
 
     def api_preview_market_update(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("插件库同步", "market_update")
@@ -404,11 +408,11 @@ class MpApiMixin:
             self._save_task_result("插件卸载", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"blocked": msg, "uninstalled": []})}
         request_payload = dict(payload or {})
-        if request_payload.get("plugin_uninstall_confirm") is not True:
-            msg = "插件卸载属于高风险操作，需要在配置页显式确认后才能执行。"
-            self._save_task_result("插件卸载", False, 2, msg)
-            return {"code": 1, "msg": msg, "data": self._skipped_data(msg, {"blocked": msg, "uninstalled": []})}
-        override = self._plugin_uninstall_config_from_payload(request_payload)
+        try:
+            override = self._plugin_uninstall_config_from_payload(request_payload)
+        except ValueError as err:
+            self._save_task_result("插件卸载", False, 2, str(err))
+            return {"code": 1, "msg": str(err), "data": self._skipped_data(str(err), {"blocked": str(err), "uninstalled": []})}
         ok, data = self._run_plugin_uninstall_clean(override=override)
         return {"code": 0 if ok else 1, "msg": "插件卸载执行成功" if ok else "插件卸载未执行或失败，详情请查看插件日志。", "data": data}
 
@@ -490,16 +494,12 @@ class MpApiMixin:
         if not ok:
             self._save_task_result("自动删种", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
-        request = dict(payload or {})
         try:
-            if request.get("seedclean_confirm") is not True:
-                msg = "请确认本次自动删种操作"
-                return {"code": 1, "msg": msg, "data": {"confirm_required": True}}
             success = bool(self.run_seed_clean())
             return {
                 "code": 0 if success else 1,
                 "msg": f"自动删种执行{'成功' if success else '失败'}",
-                "data": {"confirmed": True},
+                "data": {"source": "saved_config"},
             }
         except Exception as err:
             self._save_task_result("自动删种", False, -1, str(err))

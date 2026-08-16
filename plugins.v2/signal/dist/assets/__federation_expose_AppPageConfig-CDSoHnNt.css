@@ -841,6 +841,59 @@ body[data-theme="transparent"] .aoa-root,
     padding: var(--aoa-surface-compact-padding);
   }
 }
+
+.aoa-config-operation-content[data-v-e049f82e],
+.aoa-config-operation-content__section[data-v-e049f82e],
+.aoa-config-operation-content__items[data-v-e049f82e] {
+  display: grid;
+  gap: var(--aoa-space-2, 8px);
+}
+.aoa-config-operation-content[data-v-e049f82e] {
+  gap: var(--aoa-space-3, 12px);
+}
+.aoa-config-operation-content__warning[data-v-e049f82e],
+.aoa-config-operation-content__summary[data-v-e049f82e],
+.aoa-config-operation-content__item[data-v-e049f82e] {
+  border-radius: var(--aoa-space-2-5, 10px);
+  border: 1px solid var(--aoa-interaction-neutral-border, rgba(255, 255, 255, 0.12));
+  background: var(--aoa-interaction-neutral-surface, rgba(255, 255, 255, 0.04));
+}
+.aoa-config-operation-content__warning[data-v-e049f82e] {
+  display: flex;
+  gap: var(--aoa-space-2, 8px);
+  padding: var(--aoa-space-3, 12px);
+  color: rgb(var(--aoa-color-warning-rgb, 245, 158, 11));
+}
+.aoa-config-operation-content__warning--danger[data-v-e049f82e] {
+  color: rgb(var(--aoa-color-danger-rgb, 248, 113, 113));
+}
+.aoa-config-operation-content__summary[data-v-e049f82e] {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--aoa-space-3, 12px);
+  padding: var(--aoa-space-3, 12px);
+}
+.aoa-config-operation-content h3[data-v-e049f82e],
+.aoa-config-operation-content p[data-v-e049f82e] {
+  margin: 0;
+}
+.aoa-config-operation-content h3[data-v-e049f82e],
+.aoa-config-operation-content__summary span[data-v-e049f82e],
+.aoa-config-operation-content__item span[data-v-e049f82e],
+.aoa-config-operation-content__item small[data-v-e049f82e],
+.aoa-config-operation-content p[data-v-e049f82e] {
+  color: rgb(var(--aoa-color-muted-rgb, 151, 171, 201));
+  font-size: var(--aoa-type-caption-font-size, 12px);
+}
+.aoa-config-operation-content__item[data-v-e049f82e] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--aoa-space-3, 12px);
+  padding: var(--aoa-space-2-5, 10px) var(--aoa-space-3, 12px);
+}
+.aoa-config-operation-content__item small[data-v-e049f82e] {
+  grid-column: 1 / -1;
+}
 /* Signal configuration style manifest.
  * Keep imports ordered from shared structure to business-domain overrides.
  */
@@ -3775,8 +3828,8 @@ to { transform: rotate(360deg);
 }
 }
 
-/* Automatic backup, WebDAV and one-click restore. Shared cards, fields,
- * actions and feedback keep their base paint; this file owns backup layout. */
+/* Automatic backup and WebDAV target configuration. Shared cards, fields
+ * and actions keep their base paint; this file owns backup-settings layout. */
 [data-backup-management-surface] {
   min-width: 0;
   display: grid;
@@ -3791,54 +3844,6 @@ to { transform: rotate(360deg);
 .aoa-backup-config-fields {
   row-gap: var(--aoa-config-field-gap-y);
   column-gap: var(--aoa-config-card-gap);
-}
-.aoa-backup-restore-panel {
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-.aoa-backup-restore-drawer__title,
-.aoa-backup-restore-drawer__state {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--aoa-space-2);
-}
-.aoa-backup-restore-drawer__state {
-  justify-self: end;
-}
-.aoa-backup-restore-drawer__state small {
-  color: var(--aoa-config-text-secondary);
-  font-size: var(--aoa-type-caption-font-size);
-  line-height: var(--aoa-type-caption-line-height);
-  font-weight: 500;
-  white-space: nowrap;
-}
-.aoa-backup-restore-drawer__chevron {
-  color: var(--aoa-config-text-muted);
-  transition: transform .18s ease;
-}
-.aoa-backup-restore-panel[open] .aoa-backup-restore-drawer__chevron {
-  transform: rotate(180deg);
-}
-.aoa-backup-restore-panel .aoa-backup-restore-drawer__content {
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-  display: grid;
-  gap: var(--aoa-layout-section-gap);
-  box-sizing: border-box;
-}
-.aoa-backup-restore-field--archive {
-  grid-column: 1 / -1;
-}
-.aoa-backup-restore-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 [data-backup-management-surface] > [data-backup-detail-actions] {
   grid-column: 1 / -1;
@@ -3856,10 +3861,5 @@ to { transform: rotate(360deg);
     grid-template-columns: calc(var(--aoa-control-height-sm) - var(--aoa-space-0-5)) minmax(0, 1fr) auto;
     gap: var(--aoa-config-field-gap-y);
     padding: var(--aoa-space-2) var(--aoa-space-2-5);
-}
-}
-@media (max-width: 760px) {
-.aoa-backup-restore-actions {
-    grid-template-columns: minmax(0, 1fr);
 }
 }

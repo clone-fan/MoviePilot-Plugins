@@ -1,8 +1,10 @@
 import re
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from app.log import logger
+
+from ..application.backup_models import BackupSettings
 
 # Default local plugin source repository. Empty means disabled.
 # Source cleanup is only enabled after an explicit user path is configured.
@@ -23,6 +25,18 @@ class LifecycleMixin:
         self._runtime_active = bool(getattr(self, "_enabled", False))
         self._runtime_timers = set()
         self._msg_seen = {}
+        self._backup_selection_cache = {}
+        self._backup_operation_current = None
+        self._backup_operation_recent = []
+        try:
+            loader = getattr(self, "get_data", None)
+            persisted = loader("backup_operation_recent") if callable(loader) else None
+            if isinstance(persisted, Mapping):
+                self._backup_operation_recent = [dict(persisted)]
+            elif isinstance(persisted, list):
+                self._backup_operation_recent = [dict(item) for item in persisted[-10:] if isinstance(item, Mapping)]
+        except Exception:
+            self._backup_operation_recent = []
         self._last_summary = self._build_summary()
         # Plugin initialization must not perform destructive filesystem work.
         # Uninstall isolation is handled only by the explicitly confirmed
@@ -347,33 +361,22 @@ class LifecycleMixin:
         self._log_clean_selected_ids = self._parse_csv(config.get("log_clean_selected_ids"))
         self._log_clean_notify = bool(config.get("log_clean_notify", True))
         self._log_clean_notify_type = config.get("log_clean_notify_type") or "Plugin"
-        self._backup_enabled = bool(config.get("backup_enabled", False))
-        # The backup master switch is also the scheduler switch. There is no
-        # second persisted toggle that can leave the page and runtime out of sync.
-        self._backup_schedule_enabled = self._backup_enabled
-        self._backup_cron = config.get("backup_cron") or "0 4 * * 1"
-        self._backup_keep_count = self._safe_int(config.get("backup_keep_count"), 5, 1)
-        self._backup_path = config.get("backup_path") or "/config/plugins/Signal/Backup"
-        self._backup_notify = bool(config.get("backup_notify", False))
-        self._backup_notify_type = config.get("backup_notify_type") or "Plugin"
-        self._backup_webdav_digest_auth = bool(config.get("backup_webdav_digest_auth", False))
-        self._backup_webdav_disable_check = bool(config.get("backup_webdav_disable_check", False))
-        self._backup_webdav_hostname = str(config.get("backup_webdav_hostname") or "").strip()
-        self._backup_webdav_login = str(config.get("backup_webdav_login") or "").strip()
-        self._backup_webdav_password = str(config.get("backup_webdav_password") or "")
-        self._backup_webdav_max_count = self._safe_int(config.get("backup_webdav_max_count"), 5, 1)
-        webdav_credentials_ready = all((
-            self._backup_webdav_hostname,
-            self._backup_webdav_login,
-            self._backup_webdav_password,
-        ))
-        # Keep existing WebDAV setups working once, while making the persisted
-        # switch the runtime authority for all new and explicitly saved config.
-        self._backup_webdav_enabled = self._config_bool(
-            config,
-            "backup_webdav_enabled",
-            webdav_credentials_ready,
-        )
+        backup = BackupSettings.from_config(config)
+        self._backup_config = backup.current_config()
+        self._backup_legacy_config_keys = list(backup.migrated_legacy_keys)
+        self._backup_enabled = backup.enabled
+        self._backup_cron = backup.cron
+        self._backup_keep_count = backup.local_keep_count
+        self._backup_path = backup.local_path
+        self._backup_notify = backup.notify
+        self._backup_notify_type = backup.notify_type
+        self._backup_webdav_enabled = backup.webdav_enabled
+        self._backup_webdav_digest_auth = backup.webdav.digest_auth
+        self._backup_webdav_disable_check = backup.webdav.disable_check
+        self._backup_webdav_hostname = backup.webdav.hostname
+        self._backup_webdav_login = backup.webdav.login
+        self._backup_webdav_password = backup.webdav.password
+        self._backup_webdav_max_count = backup.webdav_keep_count
         self._mp_update_enabled = self._config_bool(config, "mp_update_enabled", False)
         # The task switch is now the only scheduler switch.  The old schedule
         # flags are retained in config solely so older installations can save
