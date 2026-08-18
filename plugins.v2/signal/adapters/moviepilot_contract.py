@@ -157,8 +157,15 @@ class PluginContractMixin:
         return f"每 {value} 秒"
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
-        """Vue 模式下配置页由 Config 组件渲染，这里返回当前字段默认值。"""
-        return [], dict(self._default_config())
+        """Vue 模式下配置页由 Config 组件渲染，这里返回当前有效值。"""
+        model = dict(self._default_config())
+        # MoviePilot merges this model with the raw saved config.  Legacy
+        # configs do not contain the database switch, so expose the migrated
+        # runtime value instead of making the UI display the false default.
+        model["backup_database_enabled"] = bool(
+            getattr(self, "_backup_database_enabled", False)
+        )
+        return [], model
 
     def get_page(self) -> List[dict]:
         """Vue 模式下详情页由 Page 组件（仪表盘）渲染，这里返回空列表以注册入口。"""

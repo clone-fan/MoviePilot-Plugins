@@ -123,6 +123,53 @@ def _local_pg_dump_major(pg_dump: str) -> Optional[int]:
     return _parse_postgresql_major(result.stdout or result.stderr)
 
 
+def _install_compatible_postgresql_client(server_major: int, settings: Any) -> str:
+    """Install the matching Debian client when an enabled backup lacks a compatible pg_dump."""
+    if server_major < 10 or server_major > 99:
+        raise RuntimeError("PostgreSQL 服务端主版本不在可安装范围内。")
+    geteuid = getattr(os, "geteuid", None)
+    if not callable(geteuid) or geteuid() != 0:
+        raise RuntimeError("MoviePilot 当前进程不是 root，不能安装 PostgreSQL 客户端。")
+    if not shutil.which("sh") or not shutil.which("apt-get"):
+        raise RuntimeError("当前容器没有 sh 或 apt-get，不能安装 PostgreSQL 客户端。")
+
+    proxy = str(getattr(settings, "PROXY_HOST", "") or "").strip()
+    env = os.environ.copy()
+    if proxy.startswith(("http://", "https://")):
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            env[key] = proxy
+    package = f"postgresql-client-{server_major}"
+    script = (
+        "set -eu; "
+        "apt-get update; "
+        "DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates wget gnupg lsb-release; "
+        "wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc "
+        "| gpg --dearmor --yes -o /etc/apt/trusted.gpg.d/postgresql.gpg; "
+        'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" '
+        "> /etc/apt/sources.list.d/pgdg.list; "
+        "apt-get update; "
+        f"DEBIAN_FRONTEND=noninteractive apt-get install -y {package}"
+    )
+    result = subprocess.run(
+        ["sh", "-c", script],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=900,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = _redact(result.stderr or result.stdout or "apt-get 返回失败")
+        raise RuntimeError(f"安装 {package} 失败：{detail}")
+
+    versioned = f"/usr/lib/postgresql/{server_major}/bin/pg_dump"
+    pg_dump = versioned if os.path.isfile(versioned) and os.access(versioned, os.X_OK) else _find_binary("pg_dump")
+    installed_major = _local_pg_dump_major(pg_dump) if pg_dump else None
+    if not pg_dump or installed_major is None or installed_major < server_major:
+        raise RuntimeError(f"{package} 安装后仍未找到兼容的 pg_dump。")
+    return pg_dump
+
+
 def _snapshot_file_is_valid(path: Path) -> bool:
     try:
         if not path.is_file() or path.stat().st_size <= 5:
@@ -454,8 +501,21 @@ def create_postgresql_snapshot(target_dir: Path) -> Dict[str, Any]:
     password = str(getattr(settings, "DB_POSTGRESQL_PASSWORD", "") or "")
     env = os.environ.copy()
     env["PGPASSWORD"] = password
-    local_major = _local_pg_dump_major(pg_dump) if pg_dump else None
     local_reason = ""
+    local_major = _local_pg_dump_major(pg_dump) if pg_dump else None
+    if not pg_dump or local_major is None or local_major < server_major:
+        if not pg_dump:
+            incompatible_reason = "当前环境未找到 pg_dump"
+        elif local_major is None:
+            incompatible_reason = "当前 pg_dump 版本无法识别"
+        else:
+            incompatible_reason = f"当前 pg_dump {local_major} 低于 PostgreSQL 服务端 {server_major}"
+        try:
+            pg_dump = _install_compatible_postgresql_client(server_major, settings)
+        except Exception as err:
+            local_reason = f"{incompatible_reason}，自动安装兼容客户端失败：{_redact(err, (password,))}"
+        else:
+            local_major = _local_pg_dump_major(pg_dump)
     if pg_dump and local_major is not None and local_major >= server_major:
         temp = target.with_name(f".{target.name}.local-part")
         temp.unlink(missing_ok=True)
@@ -501,12 +561,13 @@ def create_postgresql_snapshot(target_dir: Path) -> Dict[str, Any]:
             "online_restore": False,
         }
 
-    if not pg_dump:
-        local_reason = "当前环境未找到 pg_dump"
-    elif local_major is None:
-        local_reason = "当前 pg_dump 版本无法识别"
-    else:
-        local_reason = f"当前 pg_dump {local_major} 低于 PostgreSQL 服务端 {server_major}"
+    if not local_reason:
+        if not pg_dump:
+            local_reason = "当前环境未找到 pg_dump"
+        elif local_major is None:
+            local_reason = "当前 pg_dump 版本无法识别"
+        else:
+            local_reason = f"当前 pg_dump {local_major} 低于 PostgreSQL 服务端 {server_major}"
     try:
         return _docker_postgresql_snapshot(
             target,

@@ -3,7 +3,7 @@
     "name": "媒体融合 Signal",
     "description": "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。",
     "labels": "MoviePilot,媒体融合,Signal,通知汇报,数据监控,下载管理,系统维护,插件卸载,每日汇报,TG融合汇报卡,订阅追新,站点统计,健康巡查,日志清理,自动备份,更新检查,自动删种,媒体通知",
-    "version": "1.0.16",
+    "version": "1.0.17",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.17": "修复数据库备份开关状态、PostgreSQL 17 客户端兼容和归档完整性校验。",
       "v1.0.16": "新增可选数据库备份，增加 PostgreSQL 17+ pg_dump 版本门禁与 Docker 回退，供 PostgreSQL 17 用户测试。",
       "v1.0.15": "修复远端备份操作面板与快捷操作验收问题",
       "v1.0.14": "修复备份恢复与统一操作面板，收敛 MP free 快捷操作布局和站点统计小尺寸显示。",

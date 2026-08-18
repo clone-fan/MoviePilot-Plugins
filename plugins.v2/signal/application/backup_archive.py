@@ -370,9 +370,10 @@ class BackupArchiveService:
     def _payload_checksums(work_dir: Path) -> List[Tuple[str, str]]:
         checksums: List[Tuple[str, str]] = []
         for path in sorted(work_dir.rglob("*"), key=lambda item: item.relative_to(work_dir).as_posix()):
-            if not path.is_file() or path.name in {"manifest.json", "checksums.sha256"}:
+            relative = path.relative_to(work_dir).as_posix()
+            if not path.is_file() or relative in {"manifest.json", "checksums.sha256"}:
                 continue
-            checksums.append((path.relative_to(work_dir).as_posix(), sha256_file(path)))
+            checksums.append((relative, sha256_file(path)))
         return checksums
 
     @staticmethod
