@@ -365,6 +365,7 @@ class LifecycleMixin:
         self._backup_config = backup.current_config()
         self._backup_legacy_config_keys = list(backup.migrated_legacy_keys)
         self._backup_enabled = backup.enabled
+        self._backup_database_enabled = backup.database_enabled
         self._backup_cron = backup.cron
         self._backup_keep_count = backup.local_keep_count
         self._backup_path = backup.local_path

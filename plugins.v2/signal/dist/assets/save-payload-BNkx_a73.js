@@ -1,3 +1,15 @@
+const backupConfigBool = (value, fallback = false) => {
+  if (typeof value === 'string') return !['', '0', 'false', 'no', 'off'].includes(value.trim().toLowerCase())
+  return value == null ? Boolean(fallback) : Boolean(value)
+};
+
+function resolveBackupDatabaseEnabled(source = {}) {
+  if (Object.prototype.hasOwnProperty.call(source, 'backup_database_enabled')) {
+    return backupConfigBool(source.backup_database_enabled, false)
+  }
+  return backupConfigBool(source.backup_enabled, false)
+}
+
 const backupSchemaFieldDescriptors = Object.freeze([
   {
     "key": "backup_cron",
@@ -16,6 +28,16 @@ const backupSchemaFieldDescriptors = Object.freeze([
     "module": "backup",
     "subtab": "backup",
     "label": "启用开关",
+    "control": "switch",
+    "sourceProfile": "remote-form"
+  },
+  {
+    "key": "backup_database_enabled",
+    "type": "boolean",
+    "cardType": "feature",
+    "module": "backup",
+    "subtab": "backup",
+    "label": "备份SQL数据库",
     "control": "switch",
     "sourceProfile": "remote-form"
   },
@@ -410,6 +432,7 @@ const defaults = defineConfigDefaults({
   log_clean_notify: true,
   log_clean_notify_type: 'Plugin',
   backup_enabled: false,
+  backup_database_enabled: false,
   backup_notify: false,
   backup_notify_type: 'Plugin',
   backup_cron: '0 4 * * 1',
@@ -1277,4 +1300,4 @@ function reloadConfigSavePayload(serializedPayload = '{}') {
   return reloaded
 }
 
-export { healthCheckItems as A, keepCountPresets as B, DEFAULT_DLTAG_CRON as D, normalizeCurrentConfig as a, buildConfigSavePayload as b, configSchemaFields as c, defaults as d, emitConfigSave as e, dltagDeleteStrategyItems as f, dltagTaskItems as g, subscribeSubtypeItems as h, isConfigFieldVisible as i, subfillDetailItems as j, siteStatRangeItems as k, seedActionsItems as l, notificationTypeItems as m, normalizeConfigOption as n, msgGroupItems as o, pluginAutoInstallScopeValues as p, pluginAutoInstallScopeItems as q, reloadConfigSavePayload as r, serializeConfigSavePayload as s, marketUpdateStrategies as t, mpUpdateTypes as u, messageTypeItems as v, marketNotifyItems as w, healthStorageTargets as x, healthDirectoryTargets as y, healthDatabaseTargets as z };
+export { healthDatabaseTargets as A, healthCheckItems as B, keepCountPresets as C, DEFAULT_DLTAG_CRON as D, normalizeCurrentConfig as a, buildConfigSavePayload as b, configSchemaFields as c, defaults as d, emitConfigSave as e, resolveBackupDatabaseEnabled as f, dltagDeleteStrategyItems as g, dltagTaskItems as h, isConfigFieldVisible as i, subscribeSubtypeItems as j, subfillDetailItems as k, siteStatRangeItems as l, seedActionsItems as m, normalizeConfigOption as n, notificationTypeItems as o, pluginAutoInstallScopeValues as p, msgGroupItems as q, reloadConfigSavePayload as r, serializeConfigSavePayload as s, pluginAutoInstallScopeItems as t, marketUpdateStrategies as u, mpUpdateTypes as v, messageTypeItems as w, marketNotifyItems as x, healthStorageTargets as y, healthDirectoryTargets as z };

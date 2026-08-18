@@ -34,7 +34,7 @@ class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "1.0.15"
+    plugin_version = "1.0.16"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -144,6 +144,7 @@ class RuntimeStateMixin:
     _log_clean_notify = True
     _log_clean_notify_type = "Plugin"
     _backup_enabled = False
+    _backup_database_enabled = False
     _backup_cron = "0 4 * * 1"
     _backup_keep_count = 5
     _backup_path = "/config/plugins/Signal/Backup"
@@ -397,6 +398,7 @@ class RuntimeStateMixin:
             "log_clean_notify": True,
             "log_clean_notify_type": "Plugin",
             "backup_enabled": False,
+            "backup_database_enabled": False,
             "backup_cron": "0 4 * * 1",
             "backup_keep_count": 5,
             "backup_path": "/config/plugins/Signal/Backup",

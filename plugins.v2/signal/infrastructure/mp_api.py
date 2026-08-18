@@ -222,7 +222,7 @@ class MpApiMixin:
             elif data.get("status") in {"success", "partial", "failed"}:
                 message = self._backup_outcome(data)
             else:
-                message = "完整备份执行成功" if ok else "完整备份执行失败，详情请查看结果。"
+                message = "备份执行成功" if ok else "备份执行失败，详情请查看结果。"
             return {"code": 0 if ok else 1, "msg": message, "data": data, "text": message}
         except Exception as err:
             logger.error(f"Signal 自动备份接口执行失败：{err}")

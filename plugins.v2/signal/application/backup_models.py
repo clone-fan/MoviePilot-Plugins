@@ -182,6 +182,7 @@ class WebDavCredentials:
 @dataclass(frozen=True)
 class BackupSettings:
     enabled: bool = False
+    database_enabled: bool = False
     cron: str = "0 4 * * 1"
     local_path: str = "/config/plugins/Signal/Backup"
     local_keep_count: int = 5
@@ -195,6 +196,14 @@ class BackupSettings:
     @classmethod
     def from_config(cls, config: Optional[Mapping[str, Any]]) -> "BackupSettings":
         source = dict(config or {})
+        # v1.0.15 always included the active database. Preserve that behavior
+        # for installations which already enabled backup, while new installs
+        # inherit the explicit false default until the user opts in.
+        database_enabled = as_bool(
+            source.get("backup_database_enabled"),
+            default=as_bool(source.get("backup_enabled"), False)
+            if "backup_database_enabled" not in source else False,
+        )
         webdav = WebDavCredentials(
             hostname=str(source.get("backup_webdav_hostname") or "").strip().rstrip("/"),
             login=str(source.get("backup_webdav_login") or "").strip(),
@@ -211,6 +220,7 @@ class BackupSettings:
         migrated = tuple(sorted(key for key in LEGACY_BACKUP_CONFIG_KEYS if key in source))
         return cls(
             enabled=as_bool(source.get("backup_enabled"), False),
+            database_enabled=database_enabled,
             cron=str(source.get("backup_cron") or "0 4 * * 1").strip(),
             local_path=str(source.get("backup_path") or "/config/plugins/Signal/Backup").strip(),
             local_keep_count=as_int(source.get("backup_keep_count"), 5, 1, 1000),
@@ -226,6 +236,7 @@ class BackupSettings:
         """Return only current persisted keys; legacy restore state is omitted."""
         return {
             "backup_enabled": self.enabled,
+            "backup_database_enabled": self.database_enabled,
             "backup_cron": self.cron,
             "backup_path": self.local_path,
             "backup_keep_count": self.local_keep_count,
@@ -252,6 +263,7 @@ class ArchiveDescriptor:
     components: Tuple[str, ...] = ARCHIVE_COMPONENTS
     plugins: Tuple[str, ...] = ()
     sensitive: bool = True
+    database_included: bool = True
     source_ref: str = ""
 
     def to_dict(self) -> Dict[str, Any]:

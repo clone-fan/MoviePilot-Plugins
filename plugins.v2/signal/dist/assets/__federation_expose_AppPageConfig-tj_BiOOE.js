@@ -1,6 +1,6 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, am as _export_sfc, c4 as mdiAlertOutline, bu as mdiDeleteOutline, aX as mdiPlay, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
-import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, b as buildConfigSavePayload, e as emitConfigSave, a as normalizeCurrentConfig, D as DEFAULT_DLTAG_CRON, f as dltagDeleteStrategyItems, g as dltagTaskItems, h as subscribeSubtypeItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-BE6FIqnc.js';
+import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, b as buildConfigSavePayload, e as emitConfigSave, a as normalizeCurrentConfig, D as DEFAULT_DLTAG_CRON, f as resolveBackupDatabaseEnabled, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subscribeSubtypeItems, k as subfillDetailItems, l as siteStatRangeItems, m as seedActionsItems, o as notificationTypeItems, q as msgGroupItems, t as pluginAutoInstallScopeItems, u as marketUpdateStrategies, v as mpUpdateTypes, w as messageTypeItems, x as marketNotifyItems, y as healthStorageTargets, z as healthDirectoryTargets, A as healthDatabaseTargets, B as healthCheckItems, C as keepCountPresets } from './save-payload-BNkx_a73.js';
 import { g as getPluginApi, r as resolvePluginApi, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-CrJgdtOI.js';
 
 const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$k,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$a} = await importShared('vue');
@@ -2276,6 +2276,7 @@ const _sfc_main$9 = {
 const props = __props;
 
 const fallbackFields = Object.freeze([
+  { key: 'backup_database_enabled', control: 'switch', icon: 'mdi-database-outline', label: '备份SQL数据库' },
   { key: 'backup_path', control: 'text', icon: 'mdi-folder-outline', label: '本地备份路径' },
   { key: 'backup_keep_count', control: 'number', icon: 'mdi-content-copy', label: '本地保留份数', min: 1, max: 30 },
 ]);
@@ -3468,6 +3469,10 @@ function hydrateConfigForm(rawConfig = {}) {
   } else {
     form.backup_webdav_enabled = configBool(source.backup_webdav_enabled);
   }
+
+  // v1.0.15 always included the active database. Keep that protection for
+  // existing enabled backups, while new installs use the explicit false default.
+  form.backup_database_enabled = resolveBackupDatabaseEnabled(source);
 
   const legacyMarketEnabled = configBool(source.market_update_enabled);
   const legacyMarketScheduleEnabled = own(source, 'market_update_schedule_enabled')
@@ -4669,6 +4674,7 @@ const replicaCards = computed(() => {
       { type: 'backup-selector', module: 'backup_webdav', masterKey: 'backup_webdav_enabled', icon: 'mdi-cloud-outline', title: '远端备份' },
       { type: 'backup-detail', module: 'backup', icon: 'mdi-archive-arrow-up-outline', title: '自动备份', grid: 'grid-2', fields: [
         { key: 'backup_cron', icon: 'mdi-calendar-clock', label: '备份时间', value: cronVal(form.backup_cron), retainInCard: true },
+        { key: 'backup_database_enabled', icon: 'mdi-database-outline', label: '备份SQL数据库', value: onOff(form.backup_database_enabled) },
         { key: 'backup_path', icon: 'mdi-folder-outline', label: '本地路径', value: valOr(form.backup_path, '/config/plugins/Signal/Backup') },
         { key: 'backup_keep_count', icon: 'mdi-content-copy', label: '本地保留', value: `${form.backup_keep_count || 5} 份` },
         { key: 'backup_notify', icon: 'mdi-bell-outline', label: '定时执行后通知', value: onOff(form.backup_notify) },

@@ -64,6 +64,7 @@ class BackupRestoreService:
             return value
         return {
             "backup_enabled": getattr(self.owner, "_backup_enabled", False),
+            "backup_database_enabled": getattr(self.owner, "_backup_database_enabled", False),
             "backup_cron": getattr(self.owner, "_backup_cron", "0 4 * * 1"),
             "backup_path": getattr(self.owner, "_backup_path", "/config/plugins/Signal/Backup"),
             "backup_keep_count": getattr(self.owner, "_backup_keep_count", 5),
@@ -140,6 +141,13 @@ class BackupRestoreService:
             "temporary_credentials": dict(temporary_credentials or {}),
             "inspected_at": time.time(),
         }
+        database = (manifest.get("offline") or {}).get("database") or {}
+        offline_components = [
+            label for label, key in (("app.env", "app_env"), ("cookies", "cookies"))
+            if bool(((manifest.get("offline") or {}).get(key) or {}).get("present"))
+        ]
+        if bool(database.get("present", bool(database.get("path")))):
+            offline_components.append("database")
         return {
             "descriptor": descriptor.to_dict(),
             "manifest": manifest,
@@ -152,7 +160,9 @@ class BackupRestoreService:
             ],
             "sensitive_warning": "归档未加密，包含敏感离线恢复材料。",
             "online_components": [ARCHIVE_COMPONENT_MOVIEPILOT, ARCHIVE_COMPONENT_PLUGINS],
-            "offline_components": ["app.env", "cookies", "database"],
+            "offline_components": offline_components,
+            "database_included": descriptor.database_included,
+            "complete_archive": descriptor.database_included,
         }
 
     def import_archive(self, content_base64: str, filename: str) -> Dict[str, Any]:
@@ -750,7 +760,11 @@ class BackupRestoreService:
                 prepared = self._prepare_selection(extraction, verified["manifest"], selection)
                 emergency_root = Path(self.settings.local_path).resolve(strict=False) / ".emergency"
                 emergency_root.mkdir(parents=True, exist_ok=True)
-                emergency = self.archive_service.create_archive(emergency_root, trigger="restore_emergency")
+                emergency = self.archive_service.create_archive(
+                    emergency_root,
+                    trigger="restore_emergency",
+                    include_database=self.settings.database_enabled,
+                )
                 operation.warnings.append(f"恢复前应急备份：{Path(emergency['archive_path']).name}")
                 self._apply_prepared(prepared, selection, operation)
             failed = [item for item in operation.components if item.get("status") in {"failed", "partial"}]

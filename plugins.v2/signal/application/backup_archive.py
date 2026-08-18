@@ -26,7 +26,7 @@ from .backup_models import (
     encode_json_value,
     utc_now,
 )
-from ..infrastructure.database_snapshot import create_active_database_snapshot
+from ..infrastructure.database_snapshot import active_database_type, create_active_database_snapshot
 
 
 MAX_ARCHIVE_ENTRIES = 100_000
@@ -170,29 +170,40 @@ def _installed_plugin_ids(plugin_manager: Any, config_oper: Any) -> Tuple[List[s
 def _restore_readme(manifest: Mapping[str, Any]) -> str:
     offline = manifest.get("offline") or {}
     database = (offline.get("database") or {})
+    database_present = bool(database.get("present", bool(database.get("path"))))
     db_type = database.get("type") or "unknown"
     db_path = database.get("path") or "offline/"
     config_root = offline.get("config_root") or "MoviePilot CONFIG_PATH"
     app_env_target = (offline.get("app_env") or {}).get("target_path") or f"{config_root}/app.env"
     cookies_target = (offline.get("cookies") or {}).get("target_path") or f"{config_root}/cookies"
     database_source = database.get("source") or "活动数据库"
+    sensitive_material = "配置、Cookie"
+    if database_present:
+        sensitive_material += "和数据库"
     lines = [
         "# Signal 离线恢复材料",
         "",
-        "此归档包含未加密的敏感配置、Cookie 与数据库材料。请只存放在可信位置。",
+        f"此归档包含未加密的{sensitive_material}材料。请只存放在可信位置。",
         "HTTPS 只保护传输过程，不等于归档静态加密。",
         "",
         "## 恢复顺序",
         "",
         "1. 停止 MoviePilot，并额外备份当前配置和数据库。",
         "2. 核对备份时的容器来源、卷映射和目标路径。",
-        "3. 仅在 MoviePilot 停止后覆盖 app.env、Cookies 或数据库材料。",
+        "3. 仅在 MoviePilot 停止后覆盖 app.env、Cookies 或归档内实际存在的数据库材料。",
         "4. 启动 MoviePilot，检查数据库、插件、下载器、站点和通知配置。",
         "",
         f"备份时 MoviePilot 配置根目录：`{config_root}`。若使用 Docker，请先将该容器路径映射回宿主卷路径。",
         f"app.env 目标：`{app_env_target}`；Cookies 目标：`{cookies_target}`。",
-        f"活动数据库类型：`{db_type}`；实际来源：`{database_source}`；归档材料：`{db_path}`。",
     ]
+    if not database_present:
+        lines.extend([
+            "",
+            f"活动数据库类型：`{db_type}`；本归档未包含数据库快照（数据库备份开关已关闭）。",
+            "恢复时必须继续使用目标环境现有数据库，或另行准备独立数据库备份；此归档不能单独恢复数据库。",
+        ])
+        return "\n".join(lines) + "\n"
+    lines.append(f"活动数据库类型：`{db_type}`；实际来源：`{database_source}`；归档材料：`{db_path}`。")
     if db_type == "postgresql":
         lines.extend([
             "",
@@ -306,7 +317,7 @@ class BackupArchiveService:
             })
         return records, plugin_ids, registry
 
-    def _collect_offline(self, work_dir: Path) -> Dict[str, Any]:
+    def _collect_offline(self, work_dir: Path, *, include_database: bool) -> Dict[str, Any]:
         settings = self._settings()
         config_path = Path(str(getattr(settings, "CONFIG_PATH", "/config") or "/config"))
         offline_root = work_dir / "offline"
@@ -317,7 +328,26 @@ class BackupArchiveService:
             shutil.copy2(app_env, offline_root / "app.env")
         cookies = config_path / "cookies"
         cookie_files = _copy_tree(cookies, offline_root / "cookies") if cookies.is_dir() else 0
-        database = create_active_database_snapshot(offline_root)
+        if include_database:
+            snapshot = create_active_database_snapshot(offline_root)
+            database = {
+                **snapshot,
+                "enabled": True,
+                "present": True,
+                "path": f"offline/{snapshot['path']}",
+            }
+        else:
+            database = {
+                "enabled": False,
+                "present": False,
+                "type": active_database_type(),
+                "path": "",
+                "source": "",
+                "method": "disabled",
+                "size": 0,
+                "online_restore": False,
+                "reason": "disabled",
+            }
         return {
             "config_root": str(config_path),
             "app_env": {
@@ -333,7 +363,7 @@ class BackupArchiveService:
                 "count": cookie_files,
                 "online_restore": False,
             },
-            "database": {**database, "path": f"offline/{database['path']}"},
+            "database": database,
         }
 
     @staticmethod
@@ -357,7 +387,7 @@ class BackupArchiveService:
         digest.update(BackupArchiveService._checksums_text(payload_rows).encode("utf-8"))
         return digest.hexdigest()
 
-    def create_archive(self, output_dir: Path, *, trigger: str) -> Dict[str, Any]:
+    def create_archive(self, output_dir: Path, *, trigger: str, include_database: bool = True) -> Dict[str, Any]:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         backup_id = str(uuid.uuid4())
@@ -368,7 +398,7 @@ class BackupArchiveService:
             work_dir.mkdir(parents=True, exist_ok=True)
             moviepilot = self._collect_moviepilot_settings(work_dir)
             plugins, plugin_ids, plugin_registry = self._collect_plugins(work_dir)
-            offline = self._collect_offline(work_dir)
+            offline = self._collect_offline(work_dir, include_database=bool(include_database))
             settings = self._settings()
             manifest: Dict[str, Any] = {
                 "format": ARCHIVE_FORMAT,
@@ -413,6 +443,9 @@ class BackupArchiveService:
             staged.replace(final)
 
         descriptor = self.inspect_archive(final, source="staging", source_ref=archive_name)
+        warnings = ["归档未加密，包含敏感离线恢复材料。"]
+        if not descriptor.database_included:
+            warnings.append("数据库备份开关已关闭，本归档不包含 SQLite/PostgreSQL 数据库。")
         return {
             "success": True,
             "archive_path": str(final),
@@ -421,8 +454,10 @@ class BackupArchiveService:
             "backup_id": backup_id,
             "fingerprint": descriptor.fingerprint,
             "plugins": plugin_ids,
-            "warnings": ["归档未加密，包含敏感离线恢复材料。"],
+            "warnings": warnings,
             "errors": [],
+            "database_included": descriptor.database_included,
+            "complete_archive": descriptor.database_included,
         }
 
     @staticmethod
@@ -587,11 +622,21 @@ class BackupArchiveService:
         if not isinstance(database, Mapping):
             raise BackupArchiveError("离线数据库清单格式无效。")
         database_path = str(database.get("path") or "")
-        if not database_path.startswith("offline/") or database_path not in names:
-            raise BackupArchiveError("离线数据库材料不存在。")
+        database_present = bool(database.get("present", bool(database_path)))
+        database_enabled = bool(database.get("enabled", database_present))
         if database.get("online_restore") is not False:
-            raise BackupArchiveError("完整数据库不得声明在线恢复能力。")
-        allowed_exact.add(database_path)
+            raise BackupArchiveError("数据库材料不得声明在线恢复能力。")
+        if database_present:
+            if not database_enabled:
+                raise BackupArchiveError("数据库材料存在时不能声明数据库备份已关闭。")
+            if not database_path.startswith("offline/") or database_path not in names:
+                raise BackupArchiveError("离线数据库材料不存在。")
+            allowed_exact.add(database_path)
+        else:
+            if database_enabled:
+                raise BackupArchiveError("数据库备份已开启但归档未包含数据库材料。")
+            if database_path:
+                raise BackupArchiveError("缺失的离线数据库不应声明材料路径。")
 
         unexpected = sorted(
             name for name in names
@@ -657,6 +702,8 @@ class BackupArchiveService:
             component for component in ARCHIVE_COMPONENTS
             if ((manifest.get("components") or {}).get(component) or {}).get("present") is not False
         )
+        database = (manifest.get("offline") or {}).get("database") or {}
+        database_included = bool(database.get("present", bool(database.get("path"))))
         return ArchiveDescriptor(
             backup_id=backup_id,
             name=archive_path.name,
@@ -667,6 +714,7 @@ class BackupArchiveService:
             components=components,
             plugins=plugins,
             sensitive=bool(manifest.get("sensitive", True)),
+            database_included=database_included,
             source_ref=source_ref or archive_path.name,
         )
 

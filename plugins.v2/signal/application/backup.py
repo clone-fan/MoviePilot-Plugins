@@ -17,7 +17,7 @@ from ..infrastructure.backup_targets import BackupTargetService
 
 
 class BackupMixin:
-    """Create one complete archive and deliver the same bytes to each target."""
+    """Create one validated archive and deliver the same bytes to each target."""
 
     def _backup_settings(self) -> BackupSettings:
         source = getattr(self, "_backup_config", None)
@@ -25,6 +25,7 @@ class BackupMixin:
             return BackupSettings.from_config(source)
         return BackupSettings.from_config({
             "backup_enabled": getattr(self, "_backup_enabled", False),
+            "backup_database_enabled": getattr(self, "_backup_database_enabled", False),
             "backup_cron": getattr(self, "_backup_cron", "0 4 * * 1"),
             "backup_keep_count": getattr(self, "_backup_keep_count", 5),
             "backup_path": getattr(self, "_backup_path", "/config/plugins/Signal/Backup"),
@@ -84,14 +85,20 @@ class BackupMixin:
             "webdav_enabled": settings.webdav_enabled,
             "webdav_configured": settings.webdav.ready,
             "archive_format": "signal-backup/v2",
-            "complete_archive": True,
+            "database_backup_enabled": settings.database_enabled,
+            "database_included": settings.database_enabled,
+            "complete_archive": settings.database_enabled,
         }
 
     def _create_signal_backup(self, trigger: str = "manual") -> Dict[str, Any]:
         settings = self._backup_settings()
         targets = BackupTargetService(settings)
         with tempfile.TemporaryDirectory(prefix="signal_backup_staging_") as temp:
-            created = BackupArchiveService(self).create_archive(Path(temp), trigger=trigger)
+            created = BackupArchiveService(self).create_archive(
+                Path(temp),
+                trigger=trigger,
+                include_database=settings.database_enabled,
+            )
             target_results = targets.deliver(Path(created["archive_path"]))
         successful = [item for item in target_results if item.get("success")]
         failed = [item for item in target_results if not item.get("success")]
@@ -115,6 +122,8 @@ class BackupMixin:
             "copied": ["moviepilot", "plugins", "offline"],
             "errors": [str(item.get("error") or "目标投递失败") for item in failed],
             "warnings": list(created.get("warnings") or []),
+            "database_included": bool(created.get("database_included")),
+            "complete_archive": bool(created.get("database_included")),
         })
         return result
 
@@ -132,12 +141,15 @@ class BackupMixin:
                     return text[len(prefix):].strip()
             return text
 
+        database_included = bool(data.get("database_included", data.get("complete_archive")))
         targets = list(data.get("targets") or [])
         successful = [item for item in targets if item.get("success")]
         failed = [item for item in targets if not item.get("success")]
         if data.get("status") == "success":
             labels = "、".join(label(item) for item in successful) or "全部启用目标"
-            return f"完整备份已完成：{labels}投递成功。"
+            if database_included:
+                return f"完整备份已完成：{labels}投递成功。"
+            return f"应用备份已完成（不含数据库）：{labels}投递成功。"
         if data.get("status") == "partial":
             success_text = "、".join(f"{label(item)}备份成功" for item in successful) or "归档已创建"
             failed_item = failed[0] if failed else {}
@@ -146,14 +158,17 @@ class BackupMixin:
             reason = detail(failed_item).rstrip("。.!！")
             return f"{success_text}；{label(failed_item)} {failure_word}：{reason}。"
         errors = data.get("errors") or []
-        return f"完整备份失败：{str(errors[0])[:120] if errors else '没有目标接收归档'}"
+        prefix = "完整备份" if database_included else "应用备份"
+        return f"{prefix}失败：{str(errors[0])[:120] if errors else '没有目标接收归档'}"
 
     def _format_backup_status_text(self, data: Dict[str, Any]) -> str:
+        database_included = bool(data.get("database_included", data.get("complete_archive")))
         lines = [
-            "🗄️ Signal 完整备份",
+            "🗄️ Signal 完整备份" if database_included else "🗄️ Signal 应用备份（不含数据库）",
             f"⦁ 状态：{data.get('status') or ('成功' if data.get('success') else '失败')}",
             f"⦁ 归档：{(data.get('archive') or {}).get('name') or '未生成'}",
-            "⦁ 内容：MoviePilot 配置、逐插件状态、离线恢复材料",
+            "⦁ 内容：MoviePilot 配置、逐插件状态、离线恢复材料"
+            + ("、活动数据库" if database_included else "（数据库未包含）"),
         ]
         for target in data.get("targets") or []:
             label = "本地" if target.get("target") == "local" else "WebDAV"
