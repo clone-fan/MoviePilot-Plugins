@@ -344,7 +344,31 @@ class UpdateGovernanceMixin:
         ok, _ = self._guard_task("系统更新检查", "mp_update")
         if not ok:
             return False
-        data = self._build_update_status()
+        try:
+            data = self._build_update_status()
+        except Exception as err:
+            if not (scheduled and not getattr(self, "_fusion_notify_enabled", False)):
+                raise
+            text = f"系统更新检查失败：{err}"
+            if self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
+                self._notify_fusion_task_outcome(
+                    mtype=self._notification_type(self._mp_update_notify_type),
+                    title="系统更新异常",
+                    text=text,
+                    outcome=f"系统更新检查失败：{str(err)[:120]}",
+                    success=False,
+                    component="mp_update",
+                    task_key="mp_update",
+                    task_group="更新管理",
+                    affected_owner="moviepilot",
+                    notification_status="error",
+                    notification_target="moviepilot",
+                    notification_fingerprint=self._notification_error_fingerprint(err),
+                    notification_cooldown=True,
+                )
+            self._save_task_result(result_name, False, -1, text)
+            logger.error(f"Signal 系统更新检查失败：{err}")
+            return False
         text = self._format_update_status_text(data)
         mp = data.get("moviepilot") or {}
         checks = mp.get("checks") or []
@@ -359,6 +383,19 @@ class UpdateGovernanceMixin:
         if scheduled and self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
             title = "系统更新" if success else "系统更新异常"
             outcome = errors[0][:120] if errors else self._moviepilot_update_outcome(data, success)
+            notification_status = "error" if not success else ("changed" if mp.get("has_update") else "noop")
+            error_payload = {
+                "checks": sorted([
+                    {
+                        "type": str(item.get("type") or ""),
+                        "latest_version": str(item.get("latest_version") or ""),
+                        "error": self._normalize_notification_error_summary(item.get("error")),
+                    }
+                    for item in checks if item.get("error")
+                ], key=lambda item: (item["type"], item["latest_version"], item["error"])),
+                "version_error": self._normalize_notification_error_summary(mp.get("version_error")),
+                "upgrade_error": self._normalize_notification_error_summary(mp.get("upgrade_error") or mp.get("restart_error")),
+            }
             self._notify_fusion_task_outcome(
                 mtype=self._notification_type(self._mp_update_notify_type),
                 title=title,
@@ -369,6 +406,13 @@ class UpdateGovernanceMixin:
                 task_key="mp_update",
                 task_group="更新管理",
                 affected_owner="moviepilot",
+                notification_status=notification_status,
+                notification_target="moviepilot",
+                notification_fingerprint=(
+                    self._notification_outcome_fingerprint(error_payload)
+                    if notification_status == "error" else ""
+                ),
+                notification_cooldown=notification_status == "error",
             )
         self._save_task_result(result_name, success, 0 if success else 1, text)
         return success
@@ -388,6 +432,7 @@ class UpdateGovernanceMixin:
             text = self._format_market_update_text(data)
             data["success"] = True
             if scheduled and self._task_outcome_notification_enabled(self._market_update_scheduled_notify):
+                changed = bool(data.get("new_markets") or data.get("settings_written") or data.get("env_written"))
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._market_update_notify_type),
                     title="插件库同步",
@@ -397,6 +442,9 @@ class UpdateGovernanceMixin:
                     component="market_update",
                     task_key="market_sync",
                     task_group="更新管理",
+                    notification_status="changed" if changed else "noop",
+                    notification_target="market_sync",
+                    notification_cooldown=False,
                 )
             self._save_task_result("插件库同步", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
@@ -412,6 +460,10 @@ class UpdateGovernanceMixin:
                     component="market_update",
                     task_key="market_sync",
                     task_group="更新管理",
+                    notification_status="error",
+                    notification_target="market_sync",
+                    notification_fingerprint=self._notification_error_fingerprint(err),
+                    notification_cooldown=True,
                 )
             logger.error(f"Signal 插件库同步失败：{err}")
             return False
@@ -458,7 +510,20 @@ class UpdateGovernanceMixin:
         if not ok:
             return False
         auto_install_enabled = bool(getattr(self, "_plugin_auto_install_enabled", False))
-        data = self._auto_update_installed_plugins(apply=auto_install_enabled)
+        try:
+            data = self._auto_update_installed_plugins(apply=auto_install_enabled)
+        except Exception as err:
+            if not (scheduled and not getattr(self, "_fusion_notify_enabled", False)):
+                raise
+            data = {
+                "auto_install": auto_install_enabled,
+                "updatable": [],
+                "updated": [],
+                "failed": [],
+                "skipped": [],
+                "error": str(err),
+            }
+            logger.error(f"Signal 插件更新检查失败：{err}")
         data["auto_install"] = auto_install_enabled
         text = self._format_plugin_update_text(data)
         success = not bool(data.get("error") or data.get("failed"))
@@ -472,6 +537,21 @@ class UpdateGovernanceMixin:
         if scheduled and notify_check:
             check_success = not bool(data.get("error"))
             check_data = {**data, "auto_install": False}
+            updatable = list(check_data.get("updatable") or [])
+            check_status = "error" if not check_success else ("changed" if updatable else "noop")
+            check_fingerprint = ""
+            if check_status == "error":
+                check_fingerprint = self._notification_error_fingerprint(check_data.get("error"))
+            elif check_status == "changed":
+                check_fingerprint = self._notification_outcome_fingerprint({
+                    "plugins": sorted([
+                        {
+                            "id": str(item.get("id") or item.get("name") or ""),
+                            "target_version": str(item.get("new") or item.get("version") or ""),
+                        }
+                        for item in updatable
+                    ], key=lambda item: (item["id"], item["target_version"])),
+                })
             self._notify_fusion_task_outcome(
                 mtype=self._notification_type(self._plugin_update_reminder_notify_type),
                 title="插件更新检查" if check_success else "插件更新检查异常",
@@ -481,6 +561,10 @@ class UpdateGovernanceMixin:
                 component="plugin_update_reminder",
                 task_key="plugin_update_reminder",
                 task_group="更新管理",
+                notification_status=check_status,
+                notification_target="available_updates",
+                notification_fingerprint=check_fingerprint,
+                notification_cooldown=check_status in {"changed", "error"},
             )
         if scheduled and notify_install:
             install_success = not bool(data.get("error") or data.get("failed"))
@@ -493,6 +577,9 @@ class UpdateGovernanceMixin:
                 component="plugin_update_reminder",
                 task_key="plugin_auto_install",
                 task_group="更新管理",
+                notification_status="changed" if install_success else "error",
+                notification_target="plugin_auto_install",
+                notification_cooldown=False,
             )
         self._save_task_result("插件更新", success, 0 if success else 1, text)
         return success

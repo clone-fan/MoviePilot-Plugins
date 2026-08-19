@@ -582,9 +582,34 @@ class MpApiMixin:
                         task_key="site_stat",
                         task_group="站点统计",
                         affected_owner="persistent-sites",
+                        notification_status="error",
+                        notification_target="daily_increment",
+                        notification_fingerprint=self._notification_error_fingerprint(msg),
+                        notification_cooldown=True,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
             payload = chart.get("data") or {}
+            snapshot_error = str(payload.get("error") or "").strip()
+            if snapshot_error and trigger == "scheduled" and not self._fusion_notify_enabled:
+                msg = f"站点统计图数据获取失败：{snapshot_error}"
+                self._save_task_result("站点数据统计", False, 1, msg)
+                if scheduled_notify:
+                    self._notify_fusion_task_outcome(
+                        mtype=self._notification_type(self._site_stat_notify_type),
+                        title="MP 运维助手 - 站点统计",
+                        text=msg,
+                        outcome=msg,
+                        success=False,
+                        component="site_stat",
+                        task_key="site_stat",
+                        task_group="站点统计",
+                        affected_owner="persistent-sites",
+                        notification_status="error",
+                        notification_target="daily_increment",
+                        notification_fingerprint=self._notification_error_fingerprint(snapshot_error),
+                        notification_cooldown=True,
+                    )
+                return {"code": 1, "msg": msg, "data": payload}
             site_count = len(payload.get("sites") or [])
             upload = self._format_bytes(payload.get("upload_total", 0))
             download = self._format_bytes(payload.get("download_total", 0))
@@ -592,6 +617,15 @@ class MpApiMixin:
             text = f"已刷新 {site_count} 个站点｜{label}｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无可用增量"
             self._save_task_result("站点数据统计", True, 0, text)
             if scheduled_notify:
+                has_increment = bool(payload.get("upload_total") or payload.get("download_total"))
+                fingerprint_sites = sorted([
+                    {
+                        "name": str(item.get("name") or ""),
+                        "upload": item.get("upload") or 0,
+                        "download": item.get("download") or 0,
+                    }
+                    for item in payload.get("sites") or [] if isinstance(item, dict)
+                ], key=lambda item: (item["name"], str(item["upload"]), str(item["download"])))
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._site_stat_notify_type),
                     title="MP 运维助手 - 站点统计",
@@ -602,6 +636,17 @@ class MpApiMixin:
                     task_key="site_stat",
                     task_group="站点统计",
                     affected_owner="persistent-sites",
+                    notification_status="changed" if has_increment else "noop",
+                    notification_target="daily_increment",
+                    notification_fingerprint=(
+                        self._notification_outcome_fingerprint({
+                            "date": str(payload.get("date") or ""),
+                            "basis": str(payload.get("basis") or ""),
+                            "sites": fingerprint_sites,
+                        })
+                        if has_increment and not self._fusion_notify_enabled else ""
+                    ),
+                    notification_cooldown=has_increment,
                 )
             return {"code": 0, "msg": text, "data": payload}
         except Exception as err:
@@ -618,6 +663,10 @@ class MpApiMixin:
                     task_key="site_stat",
                     task_group="站点统计",
                     affected_owner="persistent-sites",
+                    notification_status="error",
+                    notification_target="daily_increment",
+                    notification_fingerprint=self._notification_error_fingerprint(err),
+                    notification_cooldown=True,
                 )
             return {"code": 1, "msg": f"站点数据统计刷新失败：{err}", "data": {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}}
 

@@ -359,13 +359,42 @@ class DownloaderHelperMixin:
                     text += "；" + "；".join(failed_downloaders[:3])
             self._save_task_result(name, success, 0 if success else 1, text)
             if trigger == "scheduled" and getattr(self, "_dltag_scheduled_notify", False):
+                action_count = counts["tagged"] + counts["seeded"] + counts["cleaned"]
+                notification_status = "error" if counts["failed"] else ("changed" if action_count else "noop")
+                notification_cooldown = bool(counts["failed"] and not action_count)
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._dltag_notify_type), title=name, text=text, outcome=text,
                     success=success, component="downloader_helper", task_key="downloader_helper", task_group="维护任务",
+                    notification_status=notification_status,
+                    notification_target="scheduled_run",
+                    notification_fingerprint=(
+                        self._notification_error_fingerprint(";".join(sorted(failed_downloaders)))
+                        if notification_cooldown else ""
+                    ),
+                    notification_cooldown=notification_cooldown,
                 )
             return success
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
+            if (
+                trigger == "scheduled"
+                and getattr(self, "_dltag_scheduled_notify", False)
+                and not getattr(self, "_fusion_notify_enabled", False)
+            ):
+                self._notify_fusion_task_outcome(
+                    mtype=self._notification_type(self._dltag_notify_type),
+                    title="下载器助手异常",
+                    text=f"下载器助手执行失败：{err}",
+                    outcome=f"下载器助手执行失败：{str(err)[:120]}",
+                    success=False,
+                    component="downloader_helper",
+                    task_key="downloader_helper",
+                    task_group="维护任务",
+                    notification_status="error",
+                    notification_target="scheduled_run",
+                    notification_fingerprint=self._notification_error_fingerprint(err),
+                    notification_cooldown=True,
+                )
             logger.error(f"Signal 下载器助手失败：{err}")
             return False
 

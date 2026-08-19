@@ -95,11 +95,49 @@ class SeedCleanMixin:
         if not self._seedclean_downloaders:
             text = "未执行：请先在配置页选择下载器。"
             self._save_task_result(name, False, 2, text)
+            if (
+                scheduled
+                and self._task_outcome_notification_enabled(self._seedclean_notify)
+                and not getattr(self, "_fusion_notify_enabled", False)
+            ):
+                self._notify_fusion_task_outcome(
+                    mtype=self._notification_type(self._seedclean_notify_type),
+                    title="自动删种异常",
+                    text=text,
+                    outcome="自动删种未执行：未选择下载器",
+                    success=False,
+                    component="seed_clean",
+                    task_key="seed_clean",
+                    task_group="维护任务",
+                    notification_status="error",
+                    notification_target="scheduled_run",
+                    notification_fingerprint=self._notification_error_fingerprint(text),
+                    notification_cooldown=True,
+                )
             return False
         # 安全：未设置任何筛选条件时不处理，避免误伤全部种子
         if not self._seedclean_has_any_condition():
             text = "未执行：未设置任何筛选条件（大小/分享率/做种时间/上传速度/标签/路径/Tracker/状态/分类），为避免误删已跳过。"
             self._save_task_result(name, False, 2, text)
+            if (
+                scheduled
+                and self._task_outcome_notification_enabled(self._seedclean_notify)
+                and not getattr(self, "_fusion_notify_enabled", False)
+            ):
+                self._notify_fusion_task_outcome(
+                    mtype=self._notification_type(self._seedclean_notify_type),
+                    title="自动删种异常",
+                    text=text,
+                    outcome="自动删种未执行：未设置筛选条件",
+                    success=False,
+                    component="seed_clean",
+                    task_key="seed_clean",
+                    task_group="维护任务",
+                    notification_status="error",
+                    notification_target="scheduled_run",
+                    notification_fingerprint=self._notification_error_fingerprint(text),
+                    notification_cooldown=True,
+                )
             return False
         try:
             result = self._seed_clean_run()
@@ -109,7 +147,9 @@ class SeedCleanMixin:
             completed = int(result.get("completed") or 0)
             failed = int(result.get("failed") or 0)
             success = failed == 0
-            if scheduled and (attempted or failed) and self._task_outcome_notification_enabled(self._seedclean_notify):
+            notify_scheduled = scheduled and self._task_outcome_notification_enabled(self._seedclean_notify)
+            if notify_scheduled and (attempted or failed or not getattr(self, "_fusion_notify_enabled", False)):
+                notification_cooldown = bool(failed and not attempted)
                 verb = str(result.get("verb") or "处理")
                 outcome = (
                     f"已{verb} {completed} 个种子"
@@ -125,11 +165,37 @@ class SeedCleanMixin:
                     component="seed_clean",
                     task_key="seed_clean",
                     task_group="维护任务",
+                    notification_status=("error" if failed else ("changed" if attempted else "noop")),
+                    notification_target="scheduled_run",
+                    notification_fingerprint=(
+                        self._notification_error_fingerprint(text)
+                        if notification_cooldown else ""
+                    ),
+                    notification_cooldown=notification_cooldown,
                 )
             self._save_task_result(name, success, 0 if success else 1, text)
             return success
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
+            if (
+                scheduled
+                and self._task_outcome_notification_enabled(self._seedclean_notify)
+                and not getattr(self, "_fusion_notify_enabled", False)
+            ):
+                self._notify_fusion_task_outcome(
+                    mtype=self._notification_type(self._seedclean_notify_type),
+                    title="自动删种异常",
+                    text=f"自动删种执行失败：{err}",
+                    outcome=f"自动删种执行失败：{str(err)[:120]}",
+                    success=False,
+                    component="seed_clean",
+                    task_key="seed_clean",
+                    task_group="维护任务",
+                    notification_status="error",
+                    notification_target="scheduled_run",
+                    notification_fingerprint=self._notification_error_fingerprint(err),
+                    notification_cooldown=True,
+                )
             logger.error(f"Signal 自动删种执行失败：{err}")
             return False
     def _seedclean_has_any_condition(self) -> bool:

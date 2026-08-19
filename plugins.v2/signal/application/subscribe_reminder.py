@@ -19,22 +19,29 @@ class SubscribeReminderMixin:
         self.save_data("subfill_handled", [])
         self._save_task_result("清理已处理", True, 0, "已清理已处理记录，后续下载可重新填充")
         return True
-    def run_subscribe_reminder(self) -> bool:
+    def run_subscribe_reminder_scheduled(self) -> bool:
+        return self.run_subscribe_reminder(scheduled=True)
+
+    def run_subscribe_reminder(self, scheduled: bool = False) -> bool:
         """独立推送今日订阅追新（与每日汇报分开，按 subscribe_reminder_cron 调度，也可手动触发）。"""
         name = "订阅追新"
         ok, _ = self._guard_task(name, "subscribe_reminder")
         if not ok:
             return False
         try:
-            items = self._get_today_subscribe_updates_locked()
+            mtype = self._notification_type(self._subscribe_reminder_msgtype, "Subscribe")
+        except Exception:
+            mtype = self._notification_type("Plugin")
+        try:
+            items = (
+                self._unique_keep_order(self._compute_today_subscribe_updates_impl())
+                if scheduled and not self._fusion_notify_enabled
+                else self._get_today_subscribe_updates_locked()
+            )
             if items:
                 body = "📺 今日订阅追新：\n" + "\n".join(f"⦁ {x}" for x in items)
             else:
                 body = "📺 今日订阅追新：暂无更新"
-            try:
-                mtype = self._notification_type(self._subscribe_reminder_msgtype, "Subscribe")
-            except Exception:
-                mtype = self._notification_type("Plugin")
             if self._fusion_notify_enabled:
                 self._emit_fusion_event(FusionEvent.create(
                     owner="persistent-subscriptions",
@@ -45,12 +52,49 @@ class SubscribeReminderMixin:
                     payload={"items": list(items or [])},
                     component="subscribe_reminder",
                 ))
+            elif scheduled:
+                notification_status = "changed" if items else "noop"
+                self._notify_fusion_task_outcome(
+                    mtype=mtype,
+                    title="MP 运维助手 - 订阅追新",
+                    text=body,
+                    outcome=f"今日订阅追新 {len(items)} 项" if items else "今日订阅追新暂无更新",
+                    success=True,
+                    component="subscribe_reminder",
+                    task_key="subscribe_reminder",
+                    task_group="订阅追新",
+                    notification_status=notification_status,
+                    notification_target="daily_updates",
+                    notification_fingerprint=(
+                        self._notification_outcome_fingerprint({
+                            "date": datetime.now().date().isoformat(),
+                            "items": sorted(str(item) for item in items),
+                        })
+                        if items else ""
+                    ),
+                    notification_cooldown=bool(items),
+                )
             else:
                 self._notify_or_console(mtype=mtype, title="MP 运维助手 - 订阅追新", text=body)
             self._save_task_result(name, True, 0, body)
             return True
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
+            if scheduled and not self._fusion_notify_enabled:
+                self._notify_fusion_task_outcome(
+                    mtype=mtype,
+                    title="MP 运维助手 - 订阅追新异常",
+                    text=f"订阅追新执行失败：{err}",
+                    outcome=f"订阅追新执行失败：{str(err)[:120]}",
+                    success=False,
+                    component="subscribe_reminder",
+                    task_key="subscribe_reminder",
+                    task_group="订阅追新",
+                    notification_status="error",
+                    notification_target="daily_updates",
+                    notification_fingerprint=self._notification_error_fingerprint(err),
+                    notification_cooldown=True,
+                )
             logger.error(f"Signal 订阅追新推送失败：{err}")
             return False
     def _load_subscribereminder_today_realtime_locked(self) -> Tuple[bool, List[str]]:

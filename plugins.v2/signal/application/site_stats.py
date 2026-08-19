@@ -15,7 +15,10 @@ class SiteStatsMixin:
     """Site statistics, health checks, storage inspection, and report data collection."""
 
 
-    def run_health_check(self) -> bool:
+    def run_health_check_scheduled(self) -> bool:
+        return self.run_health_check(scheduled=True)
+
+    def run_health_check(self, scheduled: bool = False) -> bool:
         ok, _ = self._guard_task("健康巡查", "health_check")
         if not ok:
             return False
@@ -39,6 +42,23 @@ class SiteStatsMixin:
         })
         if failed:
             if self._health_check_notify:
+                failed_checks = []
+                ordinary_scheduled = scheduled and not self._fusion_notify_enabled
+                if ordinary_scheduled:
+                    for item in data.get("checks") or []:
+                        if not isinstance(item, dict) or item.get("ok"):
+                            continue
+                        failed_checks.append({
+                            "name": str(item.get("name") or ""),
+                            "target": str(item.get("target") or item.get("path") or ""),
+                            "severity": str(item.get("severity") or "error"),
+                            "detail": self._normalize_notification_error_summary(
+                                item.get("detail") or item.get("error") or ""
+                            ),
+                        })
+                    failed_checks.sort(key=lambda item: (
+                        item["name"], item["target"], item["severity"], item["detail"]
+                    ))
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._health_check_notify_type),
                     title=f"MP 运维助手 - 健康巡查发现 {failed} 项异常",
@@ -49,7 +69,33 @@ class SiteStatsMixin:
                     task_key="health_check",
                     task_group="维护任务",
                     affected_owner="persistent-storage",
+                    notification_status="error" if ordinary_scheduled else "",
+                    notification_target="health_check",
+                    notification_fingerprint=(
+                        self._notification_outcome_fingerprint({"checks": failed_checks})
+                        if ordinary_scheduled else ""
+                    ),
+                    notification_cooldown=ordinary_scheduled,
                 )
+        elif scheduled and not self._fusion_notify_enabled:
+            self._notify_fusion_task_outcome(
+                mtype=self._notification_type(
+                    self._health_check_completion_notify_type
+                    if self._health_check_completion_notify_enabled
+                    else self._health_check_notify_type
+                ),
+                title="MP 运维助手 - 健康巡查完成",
+                text=text,
+                outcome="巡检完成，未发现异常",
+                success=True,
+                component="health_check",
+                task_key="health_check",
+                task_group="维护任务",
+                affected_owner="health",
+                notification_status="recovered",
+                notification_target="health_check",
+                notification_notify_noop=self._health_check_completion_notify_enabled,
+            )
         elif self._health_check_completion_notify_enabled:
             self._notify_fusion_task_outcome(
                 mtype=self._notification_type(self._health_check_completion_notify_type),
@@ -182,7 +228,7 @@ class SiteStatsMixin:
         result = {"date": self._today_prefix(), "basis": "today", "sites": [], "upload_total": 0, "download_total": 0,
                   "baseline_ready": False, "baseline_missing": 0, "latest_date": "", "stale": False,
                   "stale_count": 0, "error_count": 0, "data_valid": False,
-                  "active_count": 0, "visible_count": 0}
+                  "active_count": 0, "visible_count": 0, "error": ""}
         try:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
@@ -249,6 +295,7 @@ class SiteStatsMixin:
             result["baseline_ready"] = bool(baseline_ready_count)
             result["baseline_missing"] = baseline_missing_count
         except Exception as err:
+            result["error"] = str(err)
             logger.warning(f"Signal 站点增量数据获取失败：{err}")
         return result
     def _site_increment_data(self) -> List[Dict[str, Any]]:

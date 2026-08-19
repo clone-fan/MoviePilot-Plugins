@@ -4,8 +4,11 @@ Mixes instance methods (self), classmethods (cls) and staticmethods.
 All resolve via MRO when ``FusionMixin`` is in the inheritance chain.
 """
 
+import hashlib
+import json
 import re
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.schemas import NotificationType
@@ -19,6 +22,10 @@ from ..domain.fusion_event_ledger import normalize_actual_task_event
 
 class FusionMixin:
     """Mixin bundling fusion notice and card-state aggregation helpers."""
+
+    _NOTIFICATION_OUTCOME_STATE_KEY = "notification_outcome_state_v1"
+    _NOTIFICATION_OUTCOME_COOLDOWN = timedelta(hours=24)
+    _notification_outcome_lock = threading.RLock()
 
     def _notify_or_console(self, mtype: Any = None, title: str = "", text: str = "", image: Any = None, **kwargs) -> bool:
         component = kwargs.pop("component", None)
@@ -91,6 +98,9 @@ class FusionMixin:
         self, *, mtype: Any, title: str, text: str, outcome: str,
         success: bool, component: str, affected_owner: str = "", task_key: str = "",
         task_group: str = "", execution_count: int = 1,
+        notification_status: str = "", notification_target: str = "",
+        notification_fingerprint: str = "", notification_cooldown: bool = False,
+        notification_notify_noop: bool = False,
     ) -> bool:
         concrete_outcome = str(outcome or "").strip()
         if not concrete_outcome:
@@ -109,7 +119,152 @@ class FusionMixin:
                 owner="today-completion" if success else "current-anomalies", event_type="completion" if success else "anomaly",
                 title=title, body=text, level="success" if success else "error", payload=event_payload,
                 component=component, execution_status="executed", result_status="success" if success else "error", outcome=concrete_outcome)
-        return self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+        status = str(notification_status or "").strip().lower()
+        if not status:
+            return self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+        if status not in {"noop", "changed", "error", "recovered"}:
+            raise ValueError(f"Unsupported notification outcome status: {status}")
+        if notification_cooldown and status in {"changed", "error"} and not notification_fingerprint:
+            raise ValueError("Cooled notification outcome requires a stable fingerprint")
+
+        target = notification_target or task_key or component
+        entry_key = self._notification_outcome_entry_key(component, target)
+        with self._notification_outcome_lock:
+            state = self._load_notification_outcome_state()
+            entries = state["entries"]
+            previous = entries.get(entry_key)
+
+            if status == "noop":
+                if previous is not None:
+                    entries.pop(entry_key, None)
+                    if not self._save_notification_outcome_state(state):
+                        return False
+                if not notification_notify_noop:
+                    return True
+                return self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+
+            if status == "recovered":
+                had_error = isinstance(previous, dict) and previous.get("status") == "error"
+                if not had_error and not notification_notify_noop:
+                    if previous is not None:
+                        entries.pop(entry_key, None)
+                        if not self._save_notification_outcome_state(state):
+                            return False
+                    return True
+                delivered = self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+                if delivered and previous is not None:
+                    entries.pop(entry_key, None)
+                    if not self._save_notification_outcome_state(state):
+                        return False
+                return delivered
+
+            fingerprint = str(notification_fingerprint or "").strip()
+            if notification_cooldown and self._notification_outcome_is_cooled(previous, status, fingerprint):
+                return True
+
+            delivered = self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+            if not delivered:
+                return False
+            if notification_cooldown:
+                entries[entry_key] = {
+                    "status": status,
+                    "fingerprint": fingerprint,
+                    "last_notified_at": self._notification_outcome_now().isoformat(),
+                }
+                return self._save_notification_outcome_state(state)
+            if previous is not None:
+                entries.pop(entry_key, None)
+                return self._save_notification_outcome_state(state)
+            return True
+
+    @staticmethod
+    def _notification_outcome_entry_key(component: Any, target: Any) -> str:
+        def normalize(value: Any, fallback: str) -> str:
+            text = re.sub(r"[^a-zA-Z0-9_.-]+", "-", str(value or "").strip()).strip("-")
+            return (text or fallback)[:80]
+
+        return f"{normalize(component, 'notification')}:{normalize(target, 'default')}"
+
+    @staticmethod
+    def _notification_outcome_fingerprint(value: Any) -> str:
+        raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _normalize_notification_error_summary(error: Any) -> str:
+        text = str(error or "").strip()
+        text = re.sub(r"\b\d{4}-\d{1,2}-\d{1,2}[T ]\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?\b", "<datetime>", text)
+        text = re.sub(r"\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b", "<date>", text)
+        text = re.sub(r"\b\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\b", "<time>", text)
+        return re.sub(r"\s+", " ", text)[:500]
+
+    def _notification_error_fingerprint(self, error: Any) -> str:
+        error_type = type(error).__name__ if isinstance(error, BaseException) else "error"
+        return self._notification_outcome_fingerprint({
+            "type": error_type,
+            "summary": self._normalize_notification_error_summary(error),
+        })
+
+    @staticmethod
+    def _notification_outcome_now() -> datetime:
+        return datetime.now().astimezone()
+
+    def _load_notification_outcome_state(self) -> Dict[str, Any]:
+        empty = {"version": 1, "entries": {}}
+        try:
+            raw = self.get_data(self._NOTIFICATION_OUTCOME_STATE_KEY)
+        except Exception as err:
+            logger.warning(f"Signal 普通通知状态读取失败，按空状态处理：{err}")
+            return empty
+        if not isinstance(raw, dict):
+            return empty
+        if raw.get("version") != 1:
+            return empty
+        raw_entries = raw.get("entries")
+        if not isinstance(raw_entries, dict):
+            return empty
+        entries = {}
+        for key, value in raw_entries.items():
+            if not isinstance(key, str) or not isinstance(value, dict):
+                continue
+            status = str(value.get("status") or "").strip().lower()
+            fingerprint = str(value.get("fingerprint") or "").strip()
+            last_notified_at = str(value.get("last_notified_at") or "").strip()
+            if status not in {"changed", "error"} or not fingerprint or not last_notified_at:
+                continue
+            entries[key[:161]] = {
+                "status": status,
+                "fingerprint": fingerprint,
+                "last_notified_at": last_notified_at,
+            }
+        return {"version": 1, "entries": entries}
+
+    def _save_notification_outcome_state(self, state: Dict[str, Any]) -> bool:
+        try:
+            self.save_data(self._NOTIFICATION_OUTCOME_STATE_KEY, {
+                "version": 1,
+                "entries": dict(state.get("entries") or {}),
+            })
+            return True
+        except Exception as err:
+            logger.error(f"Signal 普通通知状态保存失败：{err}")
+            return False
+
+    def _notification_outcome_is_cooled(
+        self, previous: Any, status: str, fingerprint: str,
+    ) -> bool:
+        if not isinstance(previous, dict):
+            return False
+        if previous.get("status") != status or previous.get("fingerprint") != fingerprint:
+            return False
+        try:
+            notified_at = datetime.fromisoformat(str(previous.get("last_notified_at") or "").replace("Z", "+00:00"))
+            if notified_at.tzinfo is None:
+                notified_at = notified_at.astimezone()
+        except (TypeError, ValueError):
+            return False
+        elapsed = self._notification_outcome_now() - notified_at
+        return timedelta(0) <= elapsed < self._NOTIFICATION_OUTCOME_COOLDOWN
 
     @staticmethod
     def _fusion_task_group(component: Any) -> str:

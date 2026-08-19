@@ -104,11 +104,11 @@ class PluginContractMixin:
             self._append_cron_service(services, "Signal.FusionCardCreate", "MP 运维助手 - 每日建立融合卡", self._fusion_card_create_cron, self.run_daily_fusion_card_create)
             self._append_cron_service(services, "Signal.FusionCardRefresh", "MP 运维助手 - 周期刷新融合卡", self._fusion_card_refresh_cron, self.run_daily_fusion_card_refresh)
         if can_register("subscribe_reminder", self._subscribe_reminder_schedule_enabled):
-            self._append_cron_service(services, "Signal.SubscribeReminder", "MP 运维助手 - 订阅追新推送", self._subscribe_reminder_cron, self.run_subscribe_reminder)
+            self._append_cron_service(services, "Signal.SubscribeReminder", "MP 运维助手 - 订阅追新推送", self._subscribe_reminder_cron, self.run_subscribe_reminder_scheduled)
         if can_register("site_stat", self._site_stat_schedule_enabled):
             self._append_cron_service(services, "Signal.SiteStat", "MP 运维助手 - 站点数据统计", self._site_stat_cron, self.run_site_stat_scheduled)
         if can_register("health_check", self._health_check_schedule_enabled):
-            self._append_cron_service(services, "Signal.HealthCheck", "MP 运维助手 - 健康巡查", self._health_check_cron, self.run_health_check)
+            self._append_cron_service(services, "Signal.HealthCheck", "MP 运维助手 - 健康巡查", self._health_check_cron, self.run_health_check_scheduled)
         if can_register("log_clean", self._log_clean_schedule_enabled):
             self._append_cron_service(services, "Signal.LogClean", "MP 运维助手 - 插件日志清理", self._log_clean_cron, self.run_log_clean_scheduled)
         if can_register("backup", self._backup_enabled):

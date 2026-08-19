@@ -35,7 +35,10 @@ class LogOpsMixin:
             attempted = int(data.get("attempted_count") or 0)
             success = not bool(data.get("errors"))
             cleaned = len(data.get("cleaned") or [])
-            if scheduled and attempted and self._task_outcome_notification_enabled(self._log_clean_notify):
+            notify_scheduled = scheduled and self._task_outcome_notification_enabled(self._log_clean_notify)
+            if notify_scheduled and (attempted or not getattr(self, "_fusion_notify_enabled", False)):
+                notification_status = "error" if not success else ("changed" if attempted else "noop")
+                notification_cooldown = bool(notification_status == "error" and not attempted)
                 outcome = (
                     f"已清理 {cleaned} 个日志文件"
                     if success
@@ -50,11 +53,37 @@ class LogOpsMixin:
                     component="log_clean",
                     task_key="log_clean",
                     task_group="维护任务",
+                    notification_status=notification_status,
+                    notification_target="scheduled_run",
+                    notification_fingerprint=(
+                        self._notification_error_fingerprint(";".join(map(str, data.get("errors") or [])))
+                        if notification_cooldown else ""
+                    ),
+                    notification_cooldown=notification_cooldown,
                 )
             self._save_task_result("日志清理", success, 0 if success else 1, text)
             return success
         except Exception as err:
             self._save_task_result("日志清理", False, -1, str(err))
+            if (
+                scheduled
+                and self._task_outcome_notification_enabled(self._log_clean_notify)
+                and not getattr(self, "_fusion_notify_enabled", False)
+            ):
+                self._notify_fusion_task_outcome(
+                    mtype=self._notification_type(self._log_clean_notify_type),
+                    title="日志清理异常",
+                    text=f"日志清理执行失败：{err}",
+                    outcome=f"日志清理执行失败：{str(err)[:120]}",
+                    success=False,
+                    component="log_clean",
+                    task_key="log_clean",
+                    task_group="维护任务",
+                    notification_status="error",
+                    notification_target="scheduled_run",
+                    notification_fingerprint=self._notification_error_fingerprint(err),
+                    notification_cooldown=True,
+                )
             logger.error(f"Signal 日志清理执行失败：{err}")
             return False
     def _build_log_preview(self) -> Dict[str, Any]:
