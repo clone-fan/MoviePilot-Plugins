@@ -1284,9 +1284,8 @@ function buildConfigSavePayload(form = {}) {
   return payload
 }
 
-function emitConfigSave(emit, form = {}) {
-  const payload = buildConfigSavePayload(form);
-  emit('save', payload);
+function emitConfigSaved(emit, payload = {}) {
+  emit('saved', payload);
   return payload
 }
 
@@ -1300,4 +1299,4 @@ function reloadConfigSavePayload(serializedPayload = '{}') {
   return reloaded
 }
 
-export { healthDatabaseTargets as A, healthCheckItems as B, keepCountPresets as C, DEFAULT_DLTAG_CRON as D, normalizeCurrentConfig as a, buildConfigSavePayload as b, configSchemaFields as c, defaults as d, emitConfigSave as e, resolveBackupDatabaseEnabled as f, dltagDeleteStrategyItems as g, dltagTaskItems as h, isConfigFieldVisible as i, subscribeSubtypeItems as j, subfillDetailItems as k, siteStatRangeItems as l, seedActionsItems as m, normalizeConfigOption as n, notificationTypeItems as o, pluginAutoInstallScopeValues as p, msgGroupItems as q, reloadConfigSavePayload as r, serializeConfigSavePayload as s, pluginAutoInstallScopeItems as t, marketUpdateStrategies as u, mpUpdateTypes as v, messageTypeItems as w, marketNotifyItems as x, healthStorageTargets as y, healthDirectoryTargets as z };
+export { healthDatabaseTargets as A, healthCheckItems as B, keepCountPresets as C, DEFAULT_DLTAG_CRON as D, normalizeCurrentConfig as a, buildConfigSavePayload as b, configSchemaFields as c, defaults as d, emitConfigSaved as e, resolveBackupDatabaseEnabled as f, dltagDeleteStrategyItems as g, dltagTaskItems as h, isConfigFieldVisible as i, subscribeSubtypeItems as j, subfillDetailItems as k, siteStatRangeItems as l, seedActionsItems as m, normalizeConfigOption as n, notificationTypeItems as o, pluginAutoInstallScopeValues as p, msgGroupItems as q, reloadConfigSavePayload as r, serializeConfigSavePayload as s, pluginAutoInstallScopeItems as t, marketUpdateStrategies as u, mpUpdateTypes as v, messageTypeItems as w, marketNotifyItems as x, healthStorageTargets as y, healthDirectoryTargets as z };

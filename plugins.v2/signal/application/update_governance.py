@@ -311,10 +311,16 @@ class UpdateGovernanceMixin:
                     continue
                 try:
                     PluginManager().reload_plugin(p.id)
-                    from app.scheduler import Scheduler
-                    Scheduler().update_plugin_job(p.id)
+                    # MoviePilot v3 reloads the instance only. The official
+                    # registration entrypoint is required to restore commands,
+                    # scheduler services, and dynamic plugin API routes.
+                    from app.api.endpoints.plugin import register_plugin
+                    register_plugin(p.id)
                 except Exception as err:
-                    logger.warning(f"Signal 重载插件 {pid} 失败：{err}")
+                    message = str(err)[:160]
+                    out["failed"].append({**info, "msg": f"重载后重新注册失败：{message}"})
+                    logger.warning(f"Signal 重载插件 {pid} 失败：{message}")
+                    continue
                 hist = ""
                 try:
                     for ver, note in (getattr(p, "history", None) or {}).items():

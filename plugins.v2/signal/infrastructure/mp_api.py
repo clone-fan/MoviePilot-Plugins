@@ -574,7 +574,7 @@ class MpApiMixin:
                 if scheduled_notify:
                     self._notify_fusion_task_outcome(
                         mtype=self._notification_type(self._site_stat_notify_type),
-                        title="MP 运维助手 - 站点统计",
+                        title="Signal - 站点统计",
                         text=msg,
                         outcome=f"站点统计失败：{msg}",
                         success=False,
@@ -596,7 +596,7 @@ class MpApiMixin:
                 if scheduled_notify:
                     self._notify_fusion_task_outcome(
                         mtype=self._notification_type(self._site_stat_notify_type),
-                        title="MP 运维助手 - 站点统计",
+                        title="Signal - 站点统计",
                         text=msg,
                         outcome=msg,
                         success=False,
@@ -628,7 +628,7 @@ class MpApiMixin:
                 ], key=lambda item: (item["name"], str(item["upload"]), str(item["download"])))
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._site_stat_notify_type),
-                    title="MP 运维助手 - 站点统计",
+                    title="Signal - 站点统计",
                     text=text,
                     outcome="站点统计完成",
                     success=True,
@@ -655,7 +655,7 @@ class MpApiMixin:
             if scheduled_notify:
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._site_stat_notify_type),
-                    title="MP 运维助手 - 站点统计",
+                    title="Signal - 站点统计",
                     text=f"站点数据统计刷新失败：{err}",
                     outcome=f"站点统计失败：{err}",
                     success=False,

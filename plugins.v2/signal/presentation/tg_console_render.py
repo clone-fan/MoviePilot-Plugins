@@ -144,7 +144,7 @@ class TgConsoleRenderMixin:
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "1.0.18") or "1.0.18")
+        version = str(getattr(self, "plugin_version", "1.0.19") or "1.0.19")
         return {"version": version if version.startswith("v") else f"v{version}", "refreshed_at": datetime.now().strftime("%H:%M")}
 
     @staticmethod
@@ -750,7 +750,7 @@ class TgConsoleRenderMixin:
 
     def _build_tg_console_daily_chunks(self, daily_text: str) -> List[str]:
         parts = self._split_daily_report_text(daily_text)
-        chunks = [f"<h2>{self._html_escape(parts.get('title') or 'MP 运维日报')}</h2>"]
+        chunks = [f"<h2>{self._html_escape(parts.get('title') or 'Signal 每日汇报')}</h2>"]
         intro = [self._html_escape(line) for line in (parts.get("intro") or []) if str(line or "").strip()]
         if intro:
             chunks.append("<p>" + "<br>".join(intro) + "</p>")

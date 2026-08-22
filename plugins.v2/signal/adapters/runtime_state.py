@@ -34,7 +34,7 @@ class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "1.0.18"
+    plugin_version = "1.0.19"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -255,7 +255,7 @@ class RuntimeStateMixin:
     MP_DASHBOARD_WIDGETS: List[Dict[str, Any]] = [
         {
             "key": "site",
-            "name": "MP 运维助手 - 站点数据",
+            "name": "Signal - 站点数据",
             "title": "站点数据",
             "subtitle": "上传下载增量、统计时间与站点占比",
             "md": 8,
@@ -264,7 +264,7 @@ class RuntimeStateMixin:
         },
         {
             "key": "actions",
-            "name": "MP 运维助手 - 快捷操作",
+            "name": "Signal - 快捷操作",
             "title": "快捷操作",
             "subtitle": "常用运维动作",
             "md": 4,

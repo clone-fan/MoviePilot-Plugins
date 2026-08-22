@@ -1,7 +1,7 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-Cr0Fl9n_.js","assets/__federation_fn_import-JrT3xvdd.js","assets/BackupRestoreOperationContent-CrJgdtOI.js","assets/mdi-DveizHBi.js","assets/BackupRestoreOperationContent-DBmPFkvg.css","assets/__federation_expose_Dashboard-DwKibxhT.css","assets/__federation_expose_Config-B_N8Ap0l.js","assets/__federation_expose_AppPageConfig-tj_BiOOE.js","assets/save-payload-BNkx_a73.js","assets/__federation_expose_AppPageConfig-CDSoHnNt.css"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-6fwyM-QM.js","assets/__federation_fn_import-JrT3xvdd.js","assets/BackupRestoreOperationContent-K7zxwCEJ.js","assets/mdi-DveizHBi.js","assets/BackupRestoreOperationContent-DBmPFkvg.css","assets/__federation_expose_Dashboard-DwKibxhT.css","assets/__federation_expose_Config-C7skAIs_.js","assets/__federation_expose_AppPageConfig-DDNFb2jH.js","assets/save-payload-B7PGhq0F.js","assets/__federation_expose_AppPageConfig-CDSoHnNt.css"])))=>i.map(i=>d[i]);
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { i as includes, a as isOn, e as eventName, p as propsFactory, g as getCurrentInstance$1, m as mergeDeep, t as toKebabCase, c as consoleWarn, b as pick, d as getObjectValueByPath, f as consoleError, h as padStart, j as createRange, I as IN_BROWSER, S as SUPPORTS_TOUCH, k as getCurrentInstanceName, l as clamp, r as refElement, n as templateRef, o as convertToUnit, q as findChildrenWithProvide, s as getUid, u as createTheme, T as ThemeSymbol, v as provideTheme, w as makeThemeProps, x as destructComputed, y as isCssColor, z as isParsableColor, A as parseColor, B as getForeground, C as SUPPORTS_INTERSECTION, D as deepEqual, E as wrapInArray, F as flattenFragments, G as hasEvent, H as isObject, J as keyCodes, K as EventProp, L as filterInputAttrs, M as matchesSelector, N as omit, O as only, P as focusableChildren, Q as deprecate, R as getPropertyFromItem, U as focusChild, V as defer, W as isClickInsideElement, X as getNextElement, Y as callEvent, Z as debounce, _ as ensureValidVNode, $ as checkPrintable, a0 as noop, a1 as useTheme, a2 as pickWithRest, a3 as keys, a4 as getEventCoordinates, a5 as HexToHSV, a6 as HSVtoHex, a7 as HSLtoHSV, a8 as HSVtoHSL, a9 as RGBtoHSV, aa as HSVtoRGB, ab as has, ac as getDecimals, ad as keyValues, ae as SUPPORTS_EYE_DROPPER, af as HSVtoCSS, ag as RGBtoCSS, ah as getContrast, ai as isComposingIgnoreKey, aj as isEmpty, ak as humanReadableFileSize, al as CircularBuffer, am as _export_sfc, an as chunkArray, ao as mdiWeight, ap as mdiWeb, aq as mdiViewGridOutline, ar as mdiViewDashboardOutline, as as mdiUpdate, at as mdiTuneVariant, au as mdiTimerOutline, av as mdiTimerCogOutline, aw as mdiTelevisionPlay, ax as mdiTelevision, ay as mdiTagPlusOutline, az as mdiTagOutline, aA as mdiTagMultipleOutline, aB as mdiSync, aC as mdiSignal, aD as mdiShieldSyncOutline, aE as mdiShieldOutline, aF as mdiShieldHalfFull, aG as mdiShieldCheckOutline, aH as mdiShieldAlertOutline, aI as mdiServerNetwork, aJ as mdiServer, aK as mdiSendOutline, aL as mdiScaleBalance, aM as mdiSatelliteUplink, aN as mdiRssBox, aO as mdiRocketLaunchOutline, aP as mdiRefresh, aQ as mdiPuzzleRemoveOutline, aR as mdiPuzzlePlusOutline, aS as mdiPuzzleOutline, aT as mdiPuzzleCheckOutline, aU as mdiPuzzle, aV as mdiPowerStandby, aW as mdiPlusCircleOutline, aX as mdiPlay, aY as mdiPercent, aZ as mdiPencilOutline, a_ as mdiNewspaperVariantOutline, a$ as mdiMovieOpenOutline, b0 as mdiMovieOpenCogOutline, b1 as mdiMessageBadgeOutline, b2 as mdiLockOutline, b3 as mdiLockCheckOutline, b4 as mdiLinkVariant, b5 as mdiLightningBoltOutline, b6 as mdiLayersTripleOutline, b7 as mdiLayersOutline, b8 as mdiInformationOutline, b9 as mdiHistory, ba as mdiHeartPulse, bb as mdiHarddisk, bc as mdiGauge, bd as mdiFormatListNumbered, be as mdiFormatListChecks, bf as mdiFormatListBulleted, bg as mdiFormTextbox, bh as mdiFolderOutline, bi as mdiFolderKeyOutline, bj as mdiFolderCheckOutline, bk as mdiFolderArrowUpOutline, bl as mdiFilterOutline, bm as mdiFileEyeOutline, bn as mdiFileDocumentRemoveOutline, bo as mdiEmailOutline, bp as mdiDownloadOutline, bq as mdiDownloadNetworkOutline, br as mdiDownloadCircleOutline, bs as mdiDownload, bt as mdiDeleteSweepOutline, bu as mdiDeleteOutline, bv as mdiDatabaseOutline, bw as mdiDatabaseCheckOutline, bx as mdiDatabaseArrowUpOutline, by as mdiCubeOutline, bz as mdiContentSaveOutline, bA as mdiContentCopy, bB as mdiCogOutline, bC as mdiCodeTags, bD as mdiCloudUploadOutline, bE as mdiCloudSyncOutline, bF as mdiCloudSearchOutline, bG as mdiCloudRefreshOutline, bH as mdiCloudOutline, bI as mdiClose, bJ as mdiChevronRight, bK as mdiCheckDecagramOutline, bL as mdiCheckCircleOutline, bM as mdiCheck, bN as mdiChartPie, bO as mdiChartLineVariant, bP as mdiChartLine, bQ as mdiChartBar, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, bT as mdiCalendarClock, bU as mdiBroom, bV as mdiBlockHelper, bW as mdiBellRingOutline, bX as mdiBellOutline, bY as mdiBellCogOutline, bZ as mdiBellBadgeOutline, b_ as mdiBell, b$ as mdiBackupRestore, c0 as mdiAutoFix, c1 as mdiArchiveSearchOutline, c2 as mdiArchiveArrowUpOutline, c3 as mdiAlphaMBoxOutline, c4 as mdiAlertOutline, c5 as mdiAlertCircleOutline, c6 as mdiAccountOutline } from './mdi-DveizHBi.js';
-import { s as serializeConfigSavePayload, r as reloadConfigSavePayload } from './save-payload-BNkx_a73.js';
+import { s as serializeConfigSavePayload, r as reloadConfigSavePayload } from './save-payload-B7PGhq0F.js';
 
 true&&(function polyfill() {
   const relList = document.createElement("link").relList;
@@ -26794,6 +26794,7 @@ let activePreviewConfigScenario = 'baseline';
 let activePreviewConfigRecord = null;
 let activePreviewConfigGetError = false;
 let activePreviewConfigGetDelay = 0;
+let activePreviewConfigPutDelay = 0;
 
 function clonePreviewConfig(value) {
   if (value === null || value === undefined) return value
@@ -26847,6 +26848,18 @@ const mockApi = {
   async put(path, payload = {}) {
     const key = apiKey(path);
     previewApiCalls.push({ method: 'PUT', path: key, payload });
+    const failure = previewFailures.get(key);
+    if (failure) {
+      previewFailures.delete(key);
+      throw new Error(failure)
+    }
+    if (activePreviewConfigPutDelay > 0) {
+      await new Promise(resolve => setTimeout(resolve, activePreviewConfigPutDelay));
+    }
+    if (key === 'Signal') {
+      activePreviewConfigRecord = clonePreviewConfig(payload);
+      activePreviewConfigGetError = false;
+    }
     return {
       data: {
         code: 0,
@@ -27081,12 +27094,13 @@ const previewConfig = {
   ].join('\n'),
 };
 
-function configurePreviewConfigScenario(value = 'baseline', delay = 0) {
+function configurePreviewConfigScenario(value = 'baseline', delay = 0, putDelay = 0) {
   const scenario = previewConfigScenarios.has(value) ? value : 'baseline';
   const baseConfig = clonePreviewConfig(previewConfig);
   activePreviewConfigScenario = scenario;
   activePreviewConfigGetError = scenario === 'error';
   activePreviewConfigGetDelay = Math.min(5000, Math.max(0, Number(delay) || 0));
+  activePreviewConfigPutDelay = Math.min(5000, Math.max(0, Number(putDelay) || 0));
 
   if (scenario === 'new' || scenario === 'error') {
     activePreviewConfigRecord = null;
@@ -27113,12 +27127,6 @@ function getPreviewConfigScenarioState() {
       : (activePreviewConfigRecord === null ? 'absent' : 'present'),
     initialConfig: clonePreviewConfig(activePreviewConfigRecord) || {},
   }
-}
-
-function setPreviewConfigRecord(value) {
-  activePreviewConfigRecord = clonePreviewConfig(value || {});
-  activePreviewConfigGetError = false;
-  return getPreviewConfigScenarioState()
 }
 
 function setPreviewMasterEnabled(value) {
@@ -27160,7 +27168,7 @@ const _hoisted_13 = {
 };
 const _hoisted_14 = { class: "dashboard-plugin-vue-renderer" };
 const _hoisted_15 = ["role", "aria-label"];
-const _hoisted_16 = ["data-config-scenario", "data-config-record-state", "data-config-cron-value", "data-config-save-round-trip", "data-config-save-count", "data-config-mp-update-enabled", "data-config-mp-update-schedule-enabled", "data-config-market-update-enabled", "data-config-market-update-schedule-enabled", "data-config-plugin-update-reminder-enabled", "data-config-plugin-update-reminder-schedule-enabled", "data-config-plugin-auto-install-enabled", "data-config-plugin-auto-install-schedule-enabled"];
+const _hoisted_16 = ["data-config-scenario", "data-config-record-state", "data-config-cron-value", "data-config-save-round-trip", "data-config-save-count", "data-config-put-count", "data-config-mp-update-enabled", "data-config-mp-update-schedule-enabled", "data-config-market-update-enabled", "data-config-market-update-schedule-enabled", "data-config-plugin-update-reminder-enabled", "data-config-plugin-update-reminder-schedule-enabled", "data-config-plugin-auto-install-enabled", "data-config-plugin-auto-install-schedule-enabled"];
 
 const {computed: computed$h,defineAsyncComponent,nextTick: nextTick$2,onBeforeUnmount: onBeforeUnmount$1,onMounted: onMounted$4,ref: ref$a,watch: watch$5} = await importShared('vue');
 
@@ -27189,8 +27197,8 @@ const widget = ref$a(initialWidget);
 const loaderMode = ref$a(initialLoader);
 const previewConfigState = ref$a({ ...previewConfigScenario.initialConfig });
 const previewConfigRecordState = ref$a(previewConfigScenario.recordState);
-const previewConfigComponentKey = ref$a(0);
 const previewSaveCount = ref$a(0);
+const previewPutCount = ref$a(0);
 const previewSaveRoundTrip = ref$a(false);
 const previewCronValue = ref$a('');
 const configHost = ref$a(null);
@@ -27220,13 +27228,13 @@ computed$h(() => {
 
 const DashboardComponent = defineAsyncComponent(() => (
   loaderMode.value === 'source'
-    ? __vitePreload(() => import('./__federation_expose_Dashboard-Cr0Fl9n_.js'),true?__vite__mapDeps([0,1,2,3,4,5]):void 0).then(module => module.default)
+    ? __vitePreload(() => import('./__federation_expose_Dashboard-6fwyM-QM.js'),true?__vite__mapDeps([0,1,2,3,4,5]):void 0).then(module => module.default)
     : loadAgentOpsRemoteComponent('./Dashboard', remoteEntryUrl)
 ));
 
 const ConfigComponent = defineAsyncComponent(() => (
   loaderMode.value === 'source'
-    ? __vitePreload(() => import('./__federation_expose_Config-B_N8Ap0l.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
+    ? __vitePreload(() => import('./__federation_expose_Config-C7skAIs_.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
     : loadAgentOpsRemoteComponent('./Config', remoteEntryUrl)
 ));
 const modeTitle = computed$h(() => {
@@ -27256,15 +27264,23 @@ function openConfig() {
   surface.value = 'dialog';
 }
 
-async function handleConfigSave(payload) {
+async function handleConfigSaved(payload) {
   previewSaveRoundTrip.value = false;
   const serializedPayload = serializeConfigSavePayload(payload);
-  const reloadedConfig = reloadConfigSavePayload(serializedPayload);
-  setPreviewConfigRecord(reloadedConfig);
+  const fallbackConfig = reloadConfigSavePayload(serializedPayload);
+  let reloadedConfig = fallbackConfig;
+  try {
+    const response = await mockApi.get('plugin/form/Signal');
+    const model = response?.data?.model;
+    if (model && typeof model === 'object' && !Array.isArray(model)) reloadedConfig = model;
+  } catch {
+    // The PUT already succeeded; keep the local payload visible if the
+    // optional read-after-write probe is unavailable.
+  }
   previewConfigState.value = reloadedConfig;
   previewConfigRecordState.value = 'present';
-  previewConfigComponentKey.value += 1;
   previewSaveCount.value += 1;
+  previewPutCount.value = previewApiCalls.filter(call => call.method === 'PUT' && call.path === 'Signal').length;
   await nextTick$2();
   const remountedConfig = previewConfigState.value;
   const sensitiveKeys = new Set([
@@ -27532,6 +27548,8 @@ return (_ctx, _cache) => {
                           "data-config-cron-value": previewCronValue.value,
                           "data-config-save-round-trip": String(previewSaveRoundTrip.value),
                           "data-config-save-count": previewSaveCount.value,
+                          "data-config-put-count": previewPutCount.value,
+                          "data-config-save-event": "saved",
                           "data-config-mp-update-enabled": String(!!previewConfigState.value.mp_update_enabled),
                           "data-config-mp-update-schedule-enabled": String(!!previewConfigState.value.mp_update_schedule_enabled),
                           "data-config-market-update-enabled": String(!!previewConfigState.value.market_update_enabled),
@@ -27551,11 +27569,10 @@ return (_ctx, _cache) => {
                               _createVNode$n(_component_VCardText, { class: "v-card-text pa-0 aoa-config-scroll-host" }, {
                                 default: _withCtx$2(() => [
                                   (_openBlock$2(), _createBlock(_resolveDynamicComponent(_unref(ConfigComponent)), {
-                                    key: previewConfigComponentKey.value,
                                     api: _unref(mockApi),
                                     "initial-config": previewConfigState.value,
                                     "config-record-state": previewConfigRecordState.value,
-                                    onSave: handleConfigSave,
+                                    onSaved: handleConfigSaved,
                                     onSwitch: _cache[2] || (_cache[2] = $event => (openDashboard('dialog')))
                                   }, null, 40, ["api", "initial-config", "config-record-state"]))
                                 ]),
@@ -27579,7 +27596,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const PreviewApp = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-d78ccb1e"]]);
+const PreviewApp = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-63a0892a"]]);
 
 const {renderSlot:_renderSlot,resolveComponent:_resolveComponent$1,createVNode:_createVNode$m,withCtx:_withCtx$1,normalizeClass:_normalizeClass$1,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1} = await importShared('vue');
 

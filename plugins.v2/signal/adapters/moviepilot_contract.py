@@ -20,21 +20,21 @@ class PluginContractMixin:
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
         return [
-            {"cmd": "/signal_report", "event": EventType.PluginAction, "desc": "发送 MP 运维每日汇报", "category": "MP运维", "data": {"action": "signal_report"}},
-            {"cmd": "/signal_subscribe", "event": EventType.PluginAction, "desc": "立即推送订阅追新", "category": "MP运维", "data": {"action": "signal_subscribe"}},
-            {"cmd": "/signal_report_preview", "event": EventType.PluginAction, "desc": "预览 MP 运维每日汇报（不发送）", "category": "MP运维", "data": {"action": "signal_report_preview"}},
-            {"cmd": "/signal_health", "event": EventType.PluginAction, "desc": "执行 MP 运维健康巡查", "category": "MP运维", "data": {"action": "signal_health"}},
-            {"cmd": "/signal_logs", "event": EventType.PluginAction, "desc": "预览 MoviePilot 日志清理范围", "category": "MP运维", "data": {"action": "signal_logs"}},
-            {"cmd": "/signal_logs_clean", "event": EventType.PluginAction, "desc": "执行插件日志清理（按保留行数截断）", "category": "MP运维", "data": {"action": "signal_logs_clean"}},
-            {"cmd": "/signal_backup", "event": EventType.PluginAction, "desc": "执行 MP 运维助手自动备份", "category": "MP运维", "data": {"action": "signal_backup"}},
-            {"cmd": "/signal_updates", "event": EventType.PluginAction, "desc": "检查 MoviePilot 后端/前端更新", "category": "MP运维", "data": {"action": "signal_updates"}},
-            {"cmd": "/signal_market", "event": EventType.PluginAction, "desc": "同步插件库记录", "category": "MP运维", "data": {"action": "signal_market"}},
-            {"cmd": "/signal_plugin_updates", "event": EventType.PluginAction, "desc": "检查插件更新并发送提醒", "category": "MP运维", "data": {"action": "signal_plugin_updates"}},
-            {"cmd": "/signal_plugin_install", "event": EventType.PluginAction, "desc": "按范围自动安装插件更新", "category": "MP运维", "data": {"action": "signal_plugin_install"}},
-            {"cmd": "/signal_run_all", "event": EventType.PluginAction, "desc": "依次执行每日汇报与健康巡查", "category": "MP运维", "data": {"action": "signal_run_all"}},
-            {"cmd": "/signal_plugin_preview", "event": EventType.PluginAction, "desc": "预览插件卸载与残留清理范围", "category": "MP运维", "data": {"action": "signal_plugin_preview"}},
-            {"cmd": "/signal_plugin_clean", "event": EventType.PluginAction, "desc": "插件卸载安全提示（需在配置页显式确认后执行）", "category": "MP运维", "data": {"action": "signal_plugin_clean"}},
-            {"cmd": "/signal_seed_clean", "event": EventType.PluginAction, "desc": "执行自动删种（按规则暂停/删除种子）", "category": "MP运维", "data": {"action": "signal_seed_clean"}},
+            {"cmd": "/signal_report", "event": EventType.PluginAction, "desc": "发送 Signal 每日汇报", "category": "Signal", "data": {"action": "signal_report"}},
+            {"cmd": "/signal_subscribe", "event": EventType.PluginAction, "desc": "立即推送订阅追新", "category": "Signal", "data": {"action": "signal_subscribe"}},
+            {"cmd": "/signal_report_preview", "event": EventType.PluginAction, "desc": "预览 Signal 每日汇报（不发送）", "category": "Signal", "data": {"action": "signal_report_preview"}},
+            {"cmd": "/signal_health", "event": EventType.PluginAction, "desc": "执行 Signal 健康巡查", "category": "Signal", "data": {"action": "signal_health"}},
+            {"cmd": "/signal_logs", "event": EventType.PluginAction, "desc": "预览 MoviePilot 日志清理范围", "category": "Signal", "data": {"action": "signal_logs"}},
+            {"cmd": "/signal_logs_clean", "event": EventType.PluginAction, "desc": "执行插件日志清理（按保留行数截断）", "category": "Signal", "data": {"action": "signal_logs_clean"}},
+            {"cmd": "/signal_backup", "event": EventType.PluginAction, "desc": "执行 Signal 自动备份", "category": "Signal", "data": {"action": "signal_backup"}},
+            {"cmd": "/signal_updates", "event": EventType.PluginAction, "desc": "检查 MoviePilot 后端/前端更新", "category": "Signal", "data": {"action": "signal_updates"}},
+            {"cmd": "/signal_market", "event": EventType.PluginAction, "desc": "同步插件库记录", "category": "Signal", "data": {"action": "signal_market"}},
+            {"cmd": "/signal_plugin_updates", "event": EventType.PluginAction, "desc": "检查插件更新并发送提醒", "category": "Signal", "data": {"action": "signal_plugin_updates"}},
+            {"cmd": "/signal_plugin_install", "event": EventType.PluginAction, "desc": "按范围自动安装插件更新", "category": "Signal", "data": {"action": "signal_plugin_install"}},
+            {"cmd": "/signal_run_all", "event": EventType.PluginAction, "desc": "依次执行每日汇报与健康巡查", "category": "Signal", "data": {"action": "signal_run_all"}},
+            {"cmd": "/signal_plugin_preview", "event": EventType.PluginAction, "desc": "预览插件卸载与残留清理范围", "category": "Signal", "data": {"action": "signal_plugin_preview"}},
+            {"cmd": "/signal_plugin_clean", "event": EventType.PluginAction, "desc": "插件卸载安全提示（需在配置页显式确认后执行）", "category": "Signal", "data": {"action": "signal_plugin_clean"}},
+            {"cmd": "/signal_seed_clean", "event": EventType.PluginAction, "desc": "执行自动删种（按规则暂停/删除种子）", "category": "Signal", "data": {"action": "signal_seed_clean"}},
         ]
 
     def get_api(self) -> List[Dict[str, Any]]:
@@ -101,30 +101,30 @@ class PluginContractMixin:
 
         fusion_notify_on = can_register("fusion_notify")
         if fusion_notify_on:
-            self._append_cron_service(services, "Signal.FusionCardCreate", "MP 运维助手 - 每日建立融合卡", self._fusion_card_create_cron, self.run_daily_fusion_card_create)
-            self._append_cron_service(services, "Signal.FusionCardRefresh", "MP 运维助手 - 周期刷新融合卡", self._fusion_card_refresh_cron, self.run_daily_fusion_card_refresh)
+            self._append_cron_service(services, "Signal.FusionCardCreate", "Signal - 每日建立融合卡", self._fusion_card_create_cron, self.run_daily_fusion_card_create)
+            self._append_cron_service(services, "Signal.FusionCardRefresh", "Signal - 周期刷新融合卡", self._fusion_card_refresh_cron, self.run_daily_fusion_card_refresh)
         if can_register("subscribe_reminder", self._subscribe_reminder_schedule_enabled):
-            self._append_cron_service(services, "Signal.SubscribeReminder", "MP 运维助手 - 订阅追新推送", self._subscribe_reminder_cron, self.run_subscribe_reminder_scheduled)
+            self._append_cron_service(services, "Signal.SubscribeReminder", "Signal - 订阅追新推送", self._subscribe_reminder_cron, self.run_subscribe_reminder_scheduled)
         if can_register("site_stat", self._site_stat_schedule_enabled):
-            self._append_cron_service(services, "Signal.SiteStat", "MP 运维助手 - 站点数据统计", self._site_stat_cron, self.run_site_stat_scheduled)
+            self._append_cron_service(services, "Signal.SiteStat", "Signal - 站点数据统计", self._site_stat_cron, self.run_site_stat_scheduled)
         if can_register("health_check", self._health_check_schedule_enabled):
-            self._append_cron_service(services, "Signal.HealthCheck", "MP 运维助手 - 健康巡查", self._health_check_cron, self.run_health_check_scheduled)
+            self._append_cron_service(services, "Signal.HealthCheck", "Signal - 健康巡查", self._health_check_cron, self.run_health_check_scheduled)
         if can_register("log_clean", self._log_clean_schedule_enabled):
-            self._append_cron_service(services, "Signal.LogClean", "MP 运维助手 - 插件日志清理", self._log_clean_cron, self.run_log_clean_scheduled)
+            self._append_cron_service(services, "Signal.LogClean", "Signal - 插件日志清理", self._log_clean_cron, self.run_log_clean_scheduled)
         if can_register("backup", self._backup_enabled):
-            self._append_cron_service(services, "Signal.Backup", "MP 运维助手 - 自动备份", self._backup_cron, self.run_backup_scheduled)
+            self._append_cron_service(services, "Signal.Backup", "Signal - 自动备份", self._backup_cron, self.run_backup_scheduled)
         if can_register("mp_update", bool(self._mp_update_enabled and self._mp_update_cron)):
-            self._append_cron_service(services, "Signal.MPUpdate", "MP 运维助手 - 系统更新检查", self._mp_update_cron, self.run_mp_update_scheduled)
+            self._append_cron_service(services, "Signal.MPUpdate", "Signal - 系统更新检查", self._mp_update_cron, self.run_mp_update_scheduled)
         if can_register("market_update", bool(self._market_update_enabled and self._market_update_cron)):
-            self._append_cron_service(services, "Signal.MarketUpdate", "MP 运维助手 - 插件库同步", self._market_update_cron, self.run_market_update_scheduled)
+            self._append_cron_service(services, "Signal.MarketUpdate", "Signal - 插件库同步", self._market_update_cron, self.run_market_update_scheduled)
         if can_register("plugin_update_reminder", bool(self._plugin_update_reminder_enabled and self._plugin_update_reminder_cron)):
-            self._append_cron_service(services, "Signal.PluginUpdateReminder", "MP 运维助手 - 插件更新", self._plugin_update_reminder_cron, self.run_plugin_update_reminder_scheduled)
+            self._append_cron_service(services, "Signal.PluginUpdateReminder", "Signal - 插件更新", self._plugin_update_reminder_cron, self.run_plugin_update_reminder_scheduled)
         if can_register("seed_clean", self._seedclean_schedule_enabled) and self._seedclean_downloaders:
-            self._append_cron_service(services, "Signal.SeedClean", "MP 运维助手 - 自动删种", self._seedclean_cron, self.run_seed_clean_scheduled)
+            self._append_cron_service(services, "Signal.SeedClean", "Signal - 自动删种", self._seedclean_cron, self.run_seed_clean_scheduled)
         if can_register("dltag", bool(self._dltag_cron)):
-            self._append_cron_service(services, "Signal.DownloaderHelper", "MP 运维助手 - 下载器助手", self._dltag_cron, self.run_downloader_helper_scheduled)
+            self._append_cron_service(services, "Signal.DownloaderHelper", "Signal - 下载器助手", self._dltag_cron, self.run_downloader_helper_scheduled)
         if fusion_notify_on:
-            services.append({"id": "Signal.FusionMediaActivityPrune", "name": "MP 运维助手 - 媒体动态过期清理", "trigger": IntervalTrigger(seconds=60), "func": self.prune_fusion_media_activity, "kwargs": {}, "schedule": self._format_interval_schedule(60)})
+            services.append({"id": "Signal.FusionMediaActivityPrune", "name": "Signal - 媒体动态过期清理", "trigger": IntervalTrigger(seconds=60), "func": self.prune_fusion_media_activity, "kwargs": {}, "schedule": self._format_interval_schedule(60)})
         return services
 
     @staticmethod

@@ -112,7 +112,7 @@ class EventsMixin:
                 except AttributeError:
                     pass
         if results and not self._fusion_notify_enabled and (has_failed_task or (not task_sent_message and action not in quiet_success_actions)):
-            self._notify_or_console(mtype=NotificationType.Plugin, title="MP 运维助手命令执行结果", text="\n".join(results))
+            self._notify_or_console(mtype=NotificationType.Plugin, title="Signal 命令执行结果", text="\n".join(results))
 
     def on_message_action(self, event: Event = None):
         """接收 MoviePilot 通知渠道转发的 `[PLUGIN]Signal|...` 按钮回调。"""
@@ -205,7 +205,7 @@ class EventsMixin:
             return
         self._notify_fusion_task_outcome(
             mtype=self._notification_type(self._subfill_completion_notify_type),
-            title=f"MP 运维助手 - 订阅规则填充（{source_label}）",
+            title=f"Signal - 订阅规则填充（{source_label}）",
             text=text,
             outcome=f"{source_label}填充完成",
             success=True,
@@ -222,7 +222,7 @@ class EventsMixin:
         message = f"订阅规则填充（{source_label}）失败：{str(error)[:300]}"
         self._notify_fusion_task_outcome(
             mtype=self._notification_type(self._subfill_completion_notify_type),
-            title=f"MP 运维助手 - 订阅规则填充（{source_label}）",
+            title=f"Signal - 订阅规则填充（{source_label}）",
             text=message,
             outcome=f"{source_label}填充失败",
             success=False,

@@ -61,7 +61,7 @@ class SiteStatsMixin:
                     ))
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._health_check_notify_type),
-                    title=f"MP 运维助手 - 健康巡查发现 {failed} 项异常",
+                    title=f"Signal - 健康巡查发现 {failed} 项异常",
                     text="\n".join([f"发现 {failed} 项异常", *self._health_failure_lines(data)]),
                     outcome=f"巡检发现 {failed} 项异常",
                     success=False,
@@ -84,7 +84,7 @@ class SiteStatsMixin:
                     if self._health_check_completion_notify_enabled
                     else self._health_check_notify_type
                 ),
-                title="MP 运维助手 - 健康巡查完成",
+                title="Signal - 健康巡查完成",
                 text=text,
                 outcome="巡检完成，未发现异常",
                 success=True,
@@ -99,7 +99,7 @@ class SiteStatsMixin:
         elif self._health_check_completion_notify_enabled:
             self._notify_fusion_task_outcome(
                 mtype=self._notification_type(self._health_check_completion_notify_type),
-                title="MP 运维助手 - 健康巡查完成",
+                title="Signal - 健康巡查完成",
                 text=text,
                 outcome="巡检完成，未发现异常",
                 success=True,

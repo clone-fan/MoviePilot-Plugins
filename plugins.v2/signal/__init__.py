@@ -25,12 +25,13 @@ from .application import update_governance as _update_governance
 from .domain import dashboard_schema as _dashboard_schema
 from .domain import formatters as _formatters
 from .infrastructure import mp_api as _mp_api
+from .infrastructure import legacy_agentopsassistant as _legacy_agentopsassistant
 from .infrastructure import plugin_ops as _plugin_ops
 from .presentation import tg_console as _tg_console
 from .presentation import tg_report_html as _tg_report_html
 
 
-class Signal(_runtime_state.RuntimeStateMixin, _lifecycle.LifecycleMixin, _formatters.FormattersMixin, _dashboard_schema.DashboardSchemaMixin, _fusion.FusionMixin, _plugin_uninstall.PluginUninstallMixin, _backup.BackupMixin, _daily_report.DailyReportMixin, _tg_report_html.TgReportHtmlMixin, _events.EventsMixin, _downloader_tag_events.DownloaderTagEventsMixin, _tg_console.TgConsoleMixin, _mp_api.MpApiMixin, _moviepilot_contract.PluginContractMixin, _update_governance.UpdateGovernanceMixin, _site_stats.SiteStatsMixin, _downloader_helper.DownloaderHelperMixin, _seed_clean.SeedCleanMixin, _log_ops.LogOpsMixin, _plugin_ops.PluginOpsMixin, _subscribe_reminder.SubscribeReminderMixin, _PluginBase):
+class Signal(_runtime_state.RuntimeStateMixin, _lifecycle.LifecycleMixin, _formatters.FormattersMixin, _dashboard_schema.DashboardSchemaMixin, _fusion.FusionMixin, _plugin_uninstall.PluginUninstallMixin, _backup.BackupMixin, _daily_report.DailyReportMixin, _tg_report_html.TgReportHtmlMixin, _events.EventsMixin, _downloader_tag_events.DownloaderTagEventsMixin, _tg_console.TgConsoleMixin, _mp_api.MpApiMixin, _moviepilot_contract.PluginContractMixin, _update_governance.UpdateGovernanceMixin, _site_stats.SiteStatsMixin, _downloader_helper.DownloaderHelperMixin, _seed_clean.SeedCleanMixin, _log_ops.LogOpsMixin, _plugin_ops.PluginOpsMixin, _legacy_agentopsassistant.LegacyAgentOpsAssistantPurgeMixin, _subscribe_reminder.SubscribeReminderMixin, _PluginBase):
     """MoviePilot plugin host adapter composed from owned backend layers."""
 
     @eventmanager.register(EventType.PluginAction)

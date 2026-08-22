@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, am as _export_sfc, c4 as mdiAlertOutline, bu as mdiDeleteOutline, aX as mdiPlay, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
-import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, b as buildConfigSavePayload, e as emitConfigSave, a as normalizeCurrentConfig, D as DEFAULT_DLTAG_CRON, f as resolveBackupDatabaseEnabled, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subscribeSubtypeItems, k as subfillDetailItems, l as siteStatRangeItems, m as seedActionsItems, o as notificationTypeItems, q as msgGroupItems, t as pluginAutoInstallScopeItems, u as marketUpdateStrategies, v as mpUpdateTypes, w as messageTypeItems, x as marketNotifyItems, y as healthStorageTargets, z as healthDirectoryTargets, A as healthDatabaseTargets, B as healthCheckItems, C as keepCountPresets } from './save-payload-BNkx_a73.js';
-import { g as getPluginApi, r as resolvePluginApi, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-CrJgdtOI.js';
+import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subscribeSubtypeItems, k as subfillDetailItems, l as siteStatRangeItems, m as seedActionsItems, o as notificationTypeItems, q as msgGroupItems, t as pluginAutoInstallScopeItems, u as marketUpdateStrategies, v as mpUpdateTypes, w as messageTypeItems, x as marketNotifyItems, y as healthStorageTargets, z as healthDirectoryTargets, A as healthDatabaseTargets, B as healthCheckItems, C as keepCountPresets } from './save-payload-B7PGhq0F.js';
+import { g as getPluginApi, D as DEFAULT_PLUGIN_API_TIMEOUT_MS, r as resolvePluginApi, w as withTimeout, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-K7zxwCEJ.js';
 
 const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$k,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$a} = await importShared('vue');
 
@@ -3513,35 +3513,89 @@ function hydrateConfigForm(rawConfig = {}) {
 }
 
 const snapshot = value => JSON.parse(JSON.stringify(value || {}));
+const replaceReactive = (target, value) => {
+  Object.keys(target).forEach(key => delete target[key]);
+  Object.assign(target, snapshot(value));
+};
+const payloadSignature = value => serializeConfigSavePayload(buildConfigSavePayload(value));
 
-function useConfigLifecycle({ initialConfig, configRecordState, api, pluginId, emit, validateSave, onValidationError }) {
+function useConfigLifecycle({
+  initialConfig,
+  configRecordState,
+  api,
+  pluginId,
+  emit,
+  validateSave,
+  onValidationError,
+  saveTimeoutMs = DEFAULT_PLUGIN_API_TIMEOUT_MS,
+}) {
   const form = reactive$1({});
   const savedSnapshot = reactive$1({});
+  let hasHydrated = false;
+  let lastHydratedSignature = '';
+  let lastSavedSignature = '';
+  const successfulSaveSignatures = new Set();
+  let saveGeneration = 0;
+  let inFlightSave = null;
 
   function applyHydratedConfig(rawConfig) {
     const hydrated = hydrateConfigForm(rawConfig);
-    Object.keys(form).forEach(key => delete form[key]);
-    Object.assign(form, hydrated);
-    Object.keys(savedSnapshot).forEach(key => delete savedSnapshot[key]);
-    Object.assign(savedSnapshot, snapshot(hydrated));
+    const signature = payloadSignature(hydrated);
+    const currentSignature = payloadSignature(form);
+    if (hasHydrated) {
+      if (signature === lastHydratedSignature) return
+      // A delayed host echo from an older successful PUT must not roll back
+      // the latest saved generation after a later save has completed.
+      if (lastSavedSignature && signature !== lastSavedSignature && successfulSaveSignatures.has(signature)) return
+      // A successful PUT is echoed by the preview/host as a new prop. Keep
+      // edits made while that request was in flight instead of rehydrating an
+      // older response over the current form.
+      if (signature === lastSavedSignature && currentSignature !== signature) return
+      if (currentSignature !== payloadSignature(savedSnapshot)) return
+    }
+    replaceReactive(form, hydrated);
+    replaceReactive(savedSnapshot, hydrated);
+    lastHydratedSignature = signature;
+    hasHydrated = true;
   }
 
   watch$3([initialConfig, configRecordState], ([value]) => applyHydratedConfig(value), { immediate: true, deep: true });
 
-  const isDirty = computed$3(() => JSON.stringify(buildConfigSavePayload(form)) !== JSON.stringify(buildConfigSavePayload(savedSnapshot)));
+  const isDirty = computed$3(() => payloadSignature(form) !== payloadSignature(savedSnapshot));
 
-  async function saveConfig() {
+  function saveConfig() {
     if (validateSave && !validateSave()) {
       onValidationError?.('二级分类规则存在错误，请先修正后再保存');
       return { ok: false, reason: 'validation' }
     }
-    const payload = emitConfigSave(emit, form);
-    const apiClient = resolvePluginApi(api);
-    if (apiClient?.put) await apiClient.put(`plugin/${pluginId}`, payload);
-    else if (typeof apiClient === 'function') await apiClient({ method: 'put', url: `plugin/${pluginId}`, data: payload });
-    Object.keys(savedSnapshot).forEach(key => delete savedSnapshot[key]);
-    Object.assign(savedSnapshot, snapshot(payload));
-    return { ok: true, payload }
+    if (inFlightSave) return inFlightSave
+
+    const payload = snapshot(buildConfigSavePayload(form));
+    const signature = payloadSignature(payload);
+    const generation = ++saveGeneration;
+    const request = (async () => {
+      const apiClient = resolvePluginApi(api);
+      if (apiClient?.put) {
+        await withTimeout(apiClient.put(`plugin/${pluginId}`, payload), `plugin/${pluginId}`, saveTimeoutMs);
+      } else if (typeof apiClient === 'function') {
+        await withTimeout(apiClient({ method: 'put', url: `plugin/${pluginId}`, data: payload }), `plugin/${pluginId}`, saveTimeoutMs);
+      } else {
+        throw new Error('MoviePilot 插件 API 未就绪')
+      }
+      if (generation !== saveGeneration) throw new Error('配置保存响应已过期，请重试')
+      replaceReactive(savedSnapshot, payload);
+      lastSavedSignature = signature;
+      successfulSaveSignatures.add(signature);
+      lastHydratedSignature = signature;
+      emitConfigSaved(emit, payload);
+      return { ok: true, payload }
+    })();
+    let trackedSave;
+    trackedSave = request.finally(() => {
+      if (inFlightSave === trackedSave) inFlightSave = null;
+    });
+    inFlightSave = trackedSave;
+    return trackedSave
   }
 
   return { form, isDirty, saveConfig, hydrateConfigForm: applyHydratedConfig }
@@ -3654,6 +3708,10 @@ function useConfigNavigation({ pluginId = 'Signal', emit, saveConfig, onSubChang
     activeSub.value = nextKey;
   }
 
+  function clearSaveFeedback() {
+    saveFeedback.message = '';
+  }
+
   function revealCategoryItem(target, behavior = 'smooth') {
     const container = target?.closest?.('[data-config-nav-scroll]');
     if (!container) return
@@ -3698,7 +3756,7 @@ function useConfigNavigation({ pluginId = 'Signal', emit, saveConfig, onSubChang
   async function savePage() {
     if (saving.value || typeof saveConfig !== 'function') return { ok: false, reason: 'unavailable' }
     saving.value = true;
-    saveFeedback.message = '';
+    clearSaveFeedback();
     try {
       const result = await saveConfig();
       if (result?.ok === false) return result
@@ -3719,7 +3777,7 @@ function useConfigNavigation({ pluginId = 'Signal', emit, saveConfig, onSubChang
     subfillProjectionOpen, mainNav, subtabList,
     saving, saveFeedback,
     currentMain, currentSubs, currentSub, currentSubTitle,
-    selectMain, selectSub, revealCategoryItem, revealActiveCategories,
+    selectMain, selectSub, clearSaveFeedback, revealCategoryItem, revealActiveCategories,
     switchPluginAppNav, openDashboard, savePage,
     pageSession,
     activeModuleFor, selectModule, setSubfillProjectionOpen, resetSubfillProjection,
@@ -4068,7 +4126,7 @@ function useConfigActionOperation(options = {}) {
 const {unref:_unref,createElementVNode:_createElementVNode,openBlock:_openBlock$1,createElementBlock:_createElementBlock,normalizeClass:_normalizeClass,renderList:_renderList,Fragment:_Fragment,normalizeStyle:_normalizeStyle,toDisplayString:_toDisplayString,createCommentVNode:_createCommentVNode,createBlock:_createBlock$1,createVNode:_createVNode,withCtx:_withCtx,mergeProps:_mergeProps,Transition:_Transition} = await importShared('vue');
 
 
-const _hoisted_1 = ["data-config-dirty", "data-config-record-state", "data-config-load-state", "data-effective-state", "aria-busy"];
+const _hoisted_1 = ["data-config-dirty", "data-config-record-state", "data-config-load-state", "data-effective-state", "data-config-running-actions", "aria-busy"];
 const _hoisted_2 = {
   class: "aoa-config-top-bar",
   "data-config-top-bar": ""
@@ -4196,7 +4254,7 @@ const _sfc_main$1 = {
   },
   configLoadError: { type: String, default: '' },
 },
-  emits: ['save', 'close', 'switch', 'retry-load'],
+  emits: ['saved', 'close', 'switch', 'retry-load'],
   setup(__props, { emit: __emit }) {
 
 const iconPaths = {
@@ -4281,9 +4339,12 @@ const replicaFieldFaIcons = {
   'mdi-calendar-clock': { path: faCalendarPath, viewBox: '0 0 448 512' },
   'mdi-format-list-numbered': { path: faListOlPath, viewBox: '0 0 512 512' },
 };
+let configInstanceSequence = 0;
+
 const props = __props;
 const apiHandle = toRef(props, 'api');
 const emit = __emit;
+const configInstanceId = `signal-config-${++configInstanceSequence}`;
 const { rootThemeClass } = useAgentOpsTheme();
 const configLoadReady = computed(() => props.configLoadState === 'ready');
 const configLoadBusy = computed(() => props.configLoadState === 'loading');
@@ -4324,14 +4385,51 @@ const pageSession = useConfigPageSession();
 const navigation = useConfigNavigation({ pluginId: props.pluginId, emit, saveConfig, root: configRoot, pageSession });
 const {
   activeMain, activeSub, activeUpdateModule, activeBackupModule, activeSubfillModule,
-  mainNav, subtabList, saving, saveFeedback,
+  mainNav, subtabList, saving, saveFeedback, clearSaveFeedback,
   currentMain, currentSubs, currentSub, currentSubTitle,
   selectMain, selectSub, revealCategoryItem, revealActiveCategories, openDashboard,
   savePage,
 } = navigation;
 function saveCurrentPage() {
   if (configReadLocked.value) return
-  return savePage()
+  clearActionMessage();
+  const activeElement = typeof document !== 'undefined' ? document.activeElement : null;
+  const focusContext = activeElement && configRoot.value?.contains(activeElement)
+    ? {
+        selector: activeElement.matches?.('[data-subfill-code-input]')
+          ? '[data-subfill-code-input]'
+          : activeElement.matches?.('[data-config-save-button]')
+            ? '[data-config-save-button]'
+            : activeElement.matches?.('[data-config-cancel-button]')
+              ? '[data-config-cancel-button]'
+              : activeElement.matches?.('[data-config-main-tab]')
+                ? `[data-config-main-tab="${CSS.escape(activeElement.getAttribute('data-config-main-tab') || '')}"]`
+                : activeElement.matches?.('[data-config-subtab]')
+                  ? `[data-config-subtab="${CSS.escape(activeElement.getAttribute('data-config-subtab') || '')}"]`
+                  : '',
+        selectionStart: typeof activeElement.selectionStart === 'number' ? activeElement.selectionStart : null,
+        selectionEnd: typeof activeElement.selectionEnd === 'number' ? activeElement.selectionEnd : null,
+      }
+    : null;
+
+  const restoreFocus = () => {
+    if (!focusContext?.selector || typeof document === 'undefined') return
+    const target = configRoot.value?.querySelector(focusContext.selector);
+    if (!target || typeof target.focus !== 'function') return
+    target.focus({ preventScroll: true });
+    if (focusContext.selectionStart !== null && typeof target.setSelectionRange === 'function') {
+      target.setSelectionRange(focusContext.selectionStart, focusContext.selectionEnd);
+    }
+  };
+
+  return savePage().then(async result => {
+    if (result?.ok) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      restoreFocus();
+    }
+    return result
+  })
 }
 let dialogScrollHost = null;
 let dialogSurfaceHost = null;
@@ -4369,8 +4467,8 @@ const replicaItemSources = computed(() => ({
 }));
 
 const {
-  action, notificationLockedByFusion,
-  getActionAvailability, actionDisabledMessage, isActionRunning, runningActionIds, runAction,
+  action, actionRunning, notificationLockedByFusion,
+  getActionAvailability, actionDisabledMessage, isActionRunning, runningActionIds, clearActionMessage, runAction,
 } = useConfigActionRunner(form, apiHandle, installedPlugins, loadInstalledPlugins);
 const {
   actionOperationPortalStyle,
@@ -4394,6 +4492,7 @@ const {
 
 async function triggerConfigActionWithRefresh(item) {
   if (configReadLocked.value) return { ok: false, reason: 'config-not-ready' }
+  clearSaveFeedback();
   const result = await triggerConfigAction(item);
   if (actionRefreshes(item, 'fusionCard') && result?.ok) await loadTgConsoleStatus();
   return result
@@ -4978,10 +5077,12 @@ return (_ctx, _cache) => {
     ref: configRoot,
     class: _normalizeClass(["aoa-config aoa-root aoa-plugin-shell", _unref(rootThemeClass)]),
     "data-config-shell": "",
+    "data-config-instance-id": configInstanceId,
     "data-config-dirty": String(_unref(isDirty)),
     "data-config-record-state": __props.configRecordState,
     "data-config-load-state": __props.configLoadState,
     "data-effective-state": configLoadReady.value ? currentEffectiveState.value.code : 'unknown',
+    "data-config-running-actions": String(_unref(runningActionIds).length),
     "aria-busy": configLoadBusy.value
   }, [
     _createElementVNode("header", _hoisted_2, [
@@ -5607,14 +5708,14 @@ return (_ctx, _cache) => {
               ? (_openBlock$1(), _createElementBlock("strong", {
                   key: 0,
                   class: _normalizeClass(["aoa-config-action-feedback aoa-feedback", {
-                'aoa-config-action-feedback--ok': _unref(saveFeedback).message ? _unref(saveFeedback).ok : _unref(action).ok,
-                'aoa-config-action-feedback--err': _unref(saveFeedback).message ? !_unref(saveFeedback).ok : !_unref(action).ok,
+                'aoa-config-action-feedback--ok': _unref(action).message && !_unref(actionRunning) ? _unref(action).ok : (!_unref(action).message && _unref(saveFeedback).message ? _unref(saveFeedback).ok : false),
+                'aoa-config-action-feedback--err': _unref(action).message && !_unref(actionRunning) ? !_unref(action).ok : (!_unref(action).message && _unref(saveFeedback).message ? !_unref(saveFeedback).ok : false),
               }]),
-                  "data-tone": (_unref(saveFeedback).message ? _unref(saveFeedback).ok : _unref(action).ok) ? 'success' : 'error',
+                  "data-tone": _unref(actionRunning) ? 'info' : ((_unref(action).message ? _unref(action).ok : _unref(saveFeedback).ok) ? 'success' : 'error'),
                   role: "status",
                   "aria-live": "polite",
                   "aria-atomic": "true"
-                }, _toDisplayString(_unref(saveFeedback).message || _unref(action).message), 11, _hoisted_42))
+                }, _toDisplayString(_unref(action).message || _unref(saveFeedback).message), 11, _hoisted_42))
               : _createCommentVNode("", true)
           ]),
           _: 1
@@ -5632,7 +5733,7 @@ return (_ctx, _cache) => {
           class: "aoa-config-btn aoa-config-btn--save",
           "data-config-save-button": "",
           "data-dirty": String(_unref(isDirty)),
-          disabled: _unref(saving) || configReadLocked.value,
+          disabled: _unref(saving) || configReadLocked.value || _unref(runningActionIds).length > 0,
           "aria-busy": _unref(saving) || configLoadBusy.value,
           onClick: saveCurrentPage
         }, [
@@ -5672,7 +5773,7 @@ const _sfc_main = {
   pluginId: { type: String, default: 'Signal' },
   configRecordState: { type: String, default: null },
 },
-  emits: ['save', 'close', 'switch'],
+  emits: ['saved', 'close', 'switch'],
   setup(__props, { emit: __emit }) {
 
 const props = __props;
@@ -5739,7 +5840,7 @@ return (_ctx, _cache) => {
     "config-record-state": recordState.value,
     "config-load-state": loadState.value,
     "config-load-error": loadError.value,
-    onSave: _cache[0] || (_cache[0] = value => emit('save', value)),
+    onSaved: _cache[0] || (_cache[0] = value => emit('saved', value)),
     onClose: _cache[1] || (_cache[1] = $event => (emit('close'))),
     onSwitch: _cache[2] || (_cache[2] = $event => (emit('switch'))),
     onRetryLoad: loadConfig

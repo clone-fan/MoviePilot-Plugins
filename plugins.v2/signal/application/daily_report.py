@@ -27,7 +27,7 @@ class DailyReportMixin:
         return bool(self.run_daily_report())
 
     def run_daily_report(self) -> bool:
-        name = "MP运维每日汇报"
+        name = "每日汇报"
         ok, _ = self._guard_task(name, "daily_report")
         if not ok:
             return False
@@ -59,7 +59,7 @@ class DailyReportMixin:
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
             self._save_daily_report_result(sent=True, success=False, text="", error=str(err), message=str(err), returncode=-1)
-            logger.error(f"Signal MP运维每日汇报 执行失败：{err}")
+            logger.error(f"Signal 每日汇报执行失败：{err}")
             return False
 
     def _refresh_daily_report_live_data(self) -> Dict[str, Any]:
@@ -376,7 +376,7 @@ class DailyReportMixin:
     def _build_daily_report_telegram_html(self, preview: bool = False, text: Optional[str] = None) -> str:
         report_text = text if text is not None else self._build_daily_report_message(preview=preview)
         parts = self._split_daily_report_text(report_text)
-        title = self._html_escape(parts.get("title") or "MP 运维日报")
+        title = self._html_escape(parts.get("title") or "Signal 每日汇报")
         chunks = [f"<h2>{title}</h2>"]
         intro = [self._html_escape(line) for line in (parts.get("intro") or []) if str(line or "").strip()]
         if intro:

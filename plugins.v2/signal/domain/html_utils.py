@@ -23,7 +23,7 @@ def clip_telegram_html(value: str, limit: int = 32768) -> str:
 
 def split_daily_report_text(text: str) -> Dict[str, Any]:
     lines = [line.rstrip() for line in str(text or "").splitlines()]
-    title = next((line.strip() for line in lines if line.strip()), "MP 运维日报")
+    title = next((line.strip() for line in lines if line.strip()), "Signal 每日汇报")
     known_headers = {
         "🤖 MoviePilot", "📡 站点状态", "📈 站点增量", "📥 今日下载", "📦 入库整理",
         "📺 订阅追新", "💾 存储空间", "🎬 媒体统计", "🩺 健康巡查", "🧾 今日摘要", "⚠️ 今日提醒",

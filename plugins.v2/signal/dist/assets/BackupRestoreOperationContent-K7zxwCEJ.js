@@ -782,7 +782,8 @@ function useActionRunner(options = {}) {
 
   function isActionRunning(actionOrId) {
     const id = actionExecutionId(actionOrId);
-    return Boolean(id && inFlight.has(id))
+    // The reactive map is the render-state source; inFlight remains the promise guard.
+    return Boolean(id && runningActions.has(id))
   }
 
   function rejectedResult(action, reason, flags = {}) {
@@ -815,6 +816,7 @@ function useActionRunner(options = {}) {
     clearMessage();
     actionOk.value = true;
     runningActions.set(id, { id, path, label: action.label });
+    setMessage(`${action.label}正在执行，请稍候。`, true, { autoClear: false });
     inFlight.set(id, null);
 
     const execution = (async () => {
@@ -987,11 +989,17 @@ function useConfigActionRunner(form, api, installedPlugins, loadInstalledPlugins
 
   return {
     action,
+    // Expose the computed running state directly so consumers can bind it
+    // reactively. The legacy `action.running` getter is kept for operation
+    // panel compatibility, but plain-object getters are not a reliable
+    // template dependency boundary in the MoviePilot host.
+    actionRunning: runner.actionRunning,
     notificationLockedByFusion,
     getActionAvailability,
     actionDisabledMessage,
     isActionRunning: runner.isActionRunning,
     runningActionIds: runner.runningActionIds,
+    clearActionMessage: runner.clearMessage,
     runAction: executeConfigAction,
   }
 }
@@ -2067,4 +2075,4 @@ return (_ctx, _cache) => {
 };
 const BackupRestoreOperationContent = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-074fff7c"]]);
 
-export { ACTION_OPERATION_MODE as A, BackupRestoreOperationContent as B, getActionForSurface as a, useBackupRestore as b, useConfigActionRunner as c, getActionsForSurface as d, ActionOperationPanel as e, actionRefreshes as f, getPluginApi as g, getPluginApiEnvelope as h, createV31QuickActions as i, useActionRunner as j, resolveActionAvailability as k, actionGroupRegistry as l, ACTION_DISABLED_REASON as m, resolvePluginApi as r, useAgentOpsTheme as u };
+export { ACTION_OPERATION_MODE as A, BackupRestoreOperationContent as B, DEFAULT_PLUGIN_API_TIMEOUT_MS as D, getActionForSurface as a, useBackupRestore as b, useConfigActionRunner as c, getActionsForSurface as d, ActionOperationPanel as e, actionRefreshes as f, getPluginApi as g, getPluginApiEnvelope as h, createV31QuickActions as i, useActionRunner as j, resolveActionAvailability as k, actionGroupRegistry as l, ACTION_DISABLED_REASON as m, resolvePluginApi as r, useAgentOpsTheme as u, withTimeout as w };

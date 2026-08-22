@@ -56,7 +56,7 @@ class SubscribeReminderMixin:
                 notification_status = "changed" if items else "noop"
                 self._notify_fusion_task_outcome(
                     mtype=mtype,
-                    title="MP 运维助手 - 订阅追新",
+                    title="Signal - 订阅追新",
                     text=body,
                     outcome=f"今日订阅追新 {len(items)} 项" if items else "今日订阅追新暂无更新",
                     success=True,
@@ -75,7 +75,7 @@ class SubscribeReminderMixin:
                     notification_cooldown=bool(items),
                 )
             else:
-                self._notify_or_console(mtype=mtype, title="MP 运维助手 - 订阅追新", text=body)
+                self._notify_or_console(mtype=mtype, title="Signal - 订阅追新", text=body)
             self._save_task_result(name, True, 0, body)
             return True
         except Exception as err:
@@ -83,7 +83,7 @@ class SubscribeReminderMixin:
             if scheduled and not self._fusion_notify_enabled:
                 self._notify_fusion_task_outcome(
                     mtype=mtype,
-                    title="MP 运维助手 - 订阅追新异常",
+                    title="Signal - 订阅追新异常",
                     text=f"订阅追新执行失败：{err}",
                     outcome=f"订阅追新执行失败：{str(err)[:120]}",
                     success=False,
