@@ -416,7 +416,6 @@ const defaults = defineConfigDefaults({
   subscribe_reminder_enabled: true,
   subscribe_reminder_schedule_enabled: true,
   subscribe_reminder_cron: '0 9 * * *',
-  subscribe_reminder_subtype: ['movie', 'tv'],
   subscribe_reminder_msgtype: 'Subscribe',
   site_stat_enabled: true,
   site_stat_schedule_enabled: true,
@@ -844,17 +843,6 @@ const subscribeReminderSchemaFieldDescriptors = Object.freeze([
     "control": "switch",
     "sourceProfile": "remote-persisted"
   },
-  {
-    "key": "subscribe_reminder_subtype",
-    "type": "array",
-    "cardType": "feature",
-    "module": "subscribe_reminder",
-    "subtab": "subscribe",
-    "label": "订阅类型",
-    "control": "select",
-    "itemSource": "subscribeSubtypeItems",
-    "sourceProfile": "remote-form"
-  },
 ]);
 
 const pluginShellSchemaFieldDescriptors = Object.freeze([
@@ -1084,8 +1072,6 @@ Object.freeze(
 
 // 配置页选项列表 — 纯数据，无运行时依赖
 
-const subscribeSubtypeItems = [{ title: '电影', value: 'movie' }, { title: '电视剧', value: 'tv' }];
-
 const notificationTypeItems = [
   { title: '插件', value: 'Plugin' },
   { title: '其他', value: 'Other' },
@@ -1299,4 +1285,4 @@ function reloadConfigSavePayload(serializedPayload = '{}') {
   return reloaded
 }
 
-export { healthDatabaseTargets as A, healthCheckItems as B, keepCountPresets as C, DEFAULT_DLTAG_CRON as D, normalizeCurrentConfig as a, buildConfigSavePayload as b, configSchemaFields as c, defaults as d, emitConfigSaved as e, resolveBackupDatabaseEnabled as f, dltagDeleteStrategyItems as g, dltagTaskItems as h, isConfigFieldVisible as i, subscribeSubtypeItems as j, subfillDetailItems as k, siteStatRangeItems as l, seedActionsItems as m, normalizeConfigOption as n, notificationTypeItems as o, pluginAutoInstallScopeValues as p, msgGroupItems as q, reloadConfigSavePayload as r, serializeConfigSavePayload as s, pluginAutoInstallScopeItems as t, marketUpdateStrategies as u, mpUpdateTypes as v, messageTypeItems as w, marketNotifyItems as x, healthStorageTargets as y, healthDirectoryTargets as z };
+export { healthCheckItems as A, keepCountPresets as B, DEFAULT_DLTAG_CRON as D, normalizeCurrentConfig as a, buildConfigSavePayload as b, configSchemaFields as c, defaults as d, emitConfigSaved as e, resolveBackupDatabaseEnabled as f, dltagDeleteStrategyItems as g, dltagTaskItems as h, isConfigFieldVisible as i, subfillDetailItems as j, siteStatRangeItems as k, seedActionsItems as l, notificationTypeItems as m, normalizeConfigOption as n, msgGroupItems as o, pluginAutoInstallScopeValues as p, pluginAutoInstallScopeItems as q, reloadConfigSavePayload as r, serializeConfigSavePayload as s, marketUpdateStrategies as t, mpUpdateTypes as u, messageTypeItems as v, marketNotifyItems as w, healthStorageTargets as x, healthDirectoryTargets as y, healthDatabaseTargets as z };

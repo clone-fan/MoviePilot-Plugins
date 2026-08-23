@@ -1,4 +1,5 @@
 import re
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -9,30 +10,71 @@ class MpApiMixin:
     """HTTP API endpoint methods exposed through MoviePilot plugin get_api()."""
 
     def api_preview_daily_report(self) -> Dict[str, Any]:
+        scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
+        with (scope_factory() if callable(scope_factory) else nullcontext()):
+            return self._api_preview_daily_report_scoped()
+
+    def _api_preview_daily_report_scoped(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("每日汇报")
         if not ok:
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
+        snapshot = None
         try:
             text = self._build_daily_report_message(preview=True)
+            snapshot = self._subscription_calendar_snapshot_for_scope()
+            status = str(getattr(snapshot, "status", "") or "")
+            errors = list(getattr(snapshot, "errors", ()) or ())
+            items = list(getattr(snapshot, "items", ()) or ())
+            degraded = status in {"partial", "failed", "invalid"}
             data = {
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "template": "2026-06-20.card-v2-baseline-guard",
                 "sent": False,
-                "success": True,
+                "success": not degraded,
+                "calendar_status": status,
+                "calendar_items": items,
+                "calendar_errors": errors[:3],
                 "chars": len(text or ""),
                 "sections": self._count_report_sections(text or ""),
                 "preview": text,
                 "telegram_rich_message": self._build_daily_report_telegram_rich_message(preview=True, text=text),
-                "error": "",
+                "error": (getattr(snapshot, "failure_message", lambda: "")() if degraded else ""),
             }
-            return {"code": 0, "msg": "每日汇报预览已生成", "data": data, "text": text}
+            return {
+                "code": 1 if degraded else 0,
+                "msg": data["error"] or "每日汇报预览已生成",
+                "data": data,
+                "text": text,
+            }
         except Exception as err:
-            return {"code": 1, "msg": f"每日汇报预览失败：{err}", "data": {}, "text": ""}
+            snapshot = self._subscription_calendar_snapshot_for_scope()
+            status = str(getattr(snapshot, "status", "failed") or "failed")
+            errors = list(getattr(snapshot, "errors", ()) or ())
+            message = getattr(snapshot, "failure_message", lambda: f"每日汇报预览失败：{err}")()
+            return {
+                "code": 1,
+                "msg": message,
+                "data": {
+                    "sent": False,
+                    "success": False,
+                    "calendar_status": status,
+                    "calendar_items": list(getattr(snapshot, "items", ()) or ()),
+                    "calendar_errors": errors[:3] or [str(err)[:240]],
+                    "preview": "",
+                    "error": message,
+                },
+                "text": "",
+            }
 
     def api_run_daily_report(self) -> Dict[str, Any]:
         return self._api_run_task("每日汇报", self.run_daily_report, "daily_report")
 
     def api_create_tg_console_card(self, trigger: str = "manual") -> Dict[str, Any]:
+        scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
+        with (scope_factory() if callable(scope_factory) else nullcontext()):
+            return self._api_create_tg_console_card_scoped(trigger=trigger)
+
+    def _api_create_tg_console_card_scoped(self, trigger: str = "manual") -> Dict[str, Any]:
         ok, msg = self._can_run_task("融合通知卡", "fusion_notify")
         if not ok:
             self._save_task_result("融合通知卡", False, 2, msg)
@@ -57,9 +99,16 @@ class MpApiMixin:
             logger.warning(f"Signal {msg}")
             return {"code": 1, "msg": msg, "data": self._tg_console_action_status_data(1, msg)}
         if ok:
-            self._refresh_fusion_columns(state)
+            columns_ok = self._refresh_fusion_columns(state)
             self._compose_tg_console_v7_model(state)
-            ok = self._tg_console_upsert_card(token, chat_id, state)
+            ok = bool(self._tg_console_upsert_card(token, chat_id, state)) and bool(columns_ok)
+        calendar_status = str(state.get("subscription_calendar_status") or "").strip()
+        if calendar_status in {"partial", "failed", "invalid"}:
+            ok = False
+            state["last_error"] = (
+                f"订阅日历状态：{calendar_status}"
+                + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
+            )
         self._save_tg_console_state(state)
         if not ok:
             msg = self._tg_console_last_error or state.get("last_error") or "融合通知卡创建失败"
@@ -468,10 +517,34 @@ class MpApiMixin:
         return {"code": 0, "data": self._tg_console_status_data()}
 
     def api_preview_tg_console(self) -> Dict[str, Any]:
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
-        state = self._tg_console_state(chat_id=chat_id)
-        rich_message = self._build_tg_console_rich_message(state)
-        return {"code": 0, "msg": "TG 融合汇报卡预览已生成", "data": {"telegram_rich_message": rich_message}}
+        scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
+        with (scope_factory() if callable(scope_factory) else nullcontext()):
+            token, chat_id, _source = self._resolve_daily_report_telegram_config()
+            state = self._tg_console_state(chat_id=chat_id)
+            state.pop("v7_model", None)
+            try:
+                self._compose_tg_console_v7_model(state)
+                rich_message = self._build_tg_console_rich_message(state)
+            except Exception as err:
+                rich_message = {"html": "", "skip_entity_detection": True}
+                state.setdefault("subscription_calendar_status", "failed")
+                state.setdefault("subscription_calendar_errors", [str(err)[:240]])
+            status = str(state.get("subscription_calendar_status") or "")
+            errors = list(state.get("subscription_calendar_errors") or [])
+            snapshot_getter = getattr(self, "_subscription_calendar_snapshot_for_scope", None)
+            snapshot = snapshot_getter() if callable(snapshot_getter) else None
+            data = {
+                "telegram_rich_message": rich_message,
+                "calendar_status": status,
+                "calendar_items": list(getattr(snapshot, "items", ()) or ()),
+                "calendar_errors": errors[:3],
+                "success": status not in {"partial", "failed", "invalid"},
+            }
+            return {
+                "code": 0 if data["success"] else 1,
+                "msg": "TG 融合汇报卡预览已生成" if data["success"] else f"订阅日历状态：{status}",
+                "data": data,
+            }
 
     def api_reset_tg_console_card(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("融合通知卡", "fusion_notify")

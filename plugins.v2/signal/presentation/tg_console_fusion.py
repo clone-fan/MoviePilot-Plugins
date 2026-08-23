@@ -1,5 +1,6 @@
 import re
 import os
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -293,6 +294,11 @@ class TgConsoleFusionMixin:
         return self._emit_fusion_notice(section_key, title, text, level=level)
 
     def _refresh_fusion_card(self, daily_text: str = "", live_result: Optional[Dict[str, Any]] = None) -> bool:
+        scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
+        with (scope_factory() if callable(scope_factory) else nullcontext()):
+            return self._refresh_fusion_card_scoped(daily_text=daily_text, live_result=live_result)
+
+    def _refresh_fusion_card_scoped(self, daily_text: str = "", live_result: Optional[Dict[str, Any]] = None) -> bool:
         if not self._fusion_notify_enabled:
             return False
         token, chat_id, _source = self._resolve_daily_report_telegram_config()
@@ -311,7 +317,7 @@ class TgConsoleFusionMixin:
         previous_context = getattr(self, "_fusion_refresh_context", None)
         self._fusion_refresh_context = {"live_result": live_result or {}}
         try:
-            self._refresh_fusion_columns(state)
+            columns_ok = self._refresh_fusion_columns(state)
             self._compose_tg_console_v7_model(state)
         finally:
             if previous_context is None:
@@ -322,13 +328,20 @@ class TgConsoleFusionMixin:
             else:
                 self._fusion_refresh_context = previous_context
         try:
-            ok = self._tg_console_upsert_card(token, chat_id, state)
+            ok = bool(self._tg_console_upsert_card(token, chat_id, state)) and bool(columns_ok)
         except Exception as err:
             self._tg_console_last_error = f"Telegram 融合通知全量刷新异常：{self._telegram_safe_error(err, limit=500)}"
             state["last_error"] = self._tg_console_last_error
             self._save_tg_console_state(state)
             logger.warning(f"Signal {self._tg_console_last_error}")
             return False
+        calendar_status = str(state.get("subscription_calendar_status") or "").strip()
+        if calendar_status in {"partial", "failed", "invalid"}:
+            ok = False
+            state["last_error"] = (
+                f"订阅日历状态：{calendar_status}"
+                + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
+            )
         if ok:
             self._tg_console_last_error = ""
             state["last_error"] = ""
@@ -348,10 +361,12 @@ class TgConsoleFusionMixin:
             except Exception as err:
                 ok = False
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                error_text = f"栏目刷新失败：{err}"
+                state["last_error"] = error_text
                 state.setdefault("columns", {})[key] = {
                     "items": [{
                         "title": item.get("label") or key,
-                        "text": f"栏目刷新失败：{err}",
+                        "text": error_text,
                         "level": "error",
                         "time": now[11:],
                         "updated_at": now,

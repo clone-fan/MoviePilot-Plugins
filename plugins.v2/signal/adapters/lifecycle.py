@@ -339,9 +339,6 @@ class LifecycleMixin:
         self._health_check_completion_notify_type = config.get("health_check_completion_notify_type") or "Plugin"
         self._report_health = True
         self._subscribe_reminder_cron = self._normalize_optional_cron(config.get("subscribe_reminder_cron")) or "0 9 * * *"
-        self._subscribe_reminder_subtype = config.get("subscribe_reminder_subtype") or ["movie", "tv"]
-        if isinstance(self._subscribe_reminder_subtype, str):
-            self._subscribe_reminder_subtype = self._parse_csv(self._subscribe_reminder_subtype)
         self._subscribe_reminder_msgtype = config.get("subscribe_reminder_msgtype") or "Subscribe"
         self._subscribe_reminder_schedule_enabled = self._schedule_flag(config, "subscribe_reminder_schedule_enabled", self._subscribe_reminder_enabled)
         self._site_stat_dashboard_type = config.get("site_stat_dashboard_type") or "today"

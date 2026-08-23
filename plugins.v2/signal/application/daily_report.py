@@ -27,6 +27,10 @@ class DailyReportMixin:
         return bool(self.run_daily_report())
 
     def run_daily_report(self) -> bool:
+        with self._subscription_calendar_read_scope():
+            return self._run_daily_report_scoped()
+
+    def _run_daily_report_scoped(self) -> bool:
         name = "每日汇报"
         ok, _ = self._guard_task(name, "daily_report")
         if not ok:
@@ -39,8 +43,35 @@ class DailyReportMixin:
                 self._save_daily_report_result(sent=False, success=False, text="", error=error, message=error, returncode=1)
                 return False
             text = self._build_daily_report_message()
+            calendar_snapshot = self._subscription_calendar_snapshot_for_scope()
+            calendar_partial = calendar_snapshot is not None and calendar_snapshot.is_partial
+            calendar_error = calendar_snapshot.failure_message() if calendar_partial else ""
             if self._fusion_notify_enabled:
-                if self._refresh_fusion_card(text, refresh_result):
+                refresh_ok = self._refresh_fusion_card(text, refresh_result)
+                if calendar_partial:
+                    self._notify_fusion_task_outcome(
+                        mtype=self._notification_type("Plugin"),
+                        title="Signal - 每日汇报订阅日历部分失败",
+                        text=calendar_error,
+                        outcome=calendar_error,
+                        success=False,
+                        component="daily_report",
+                        affected_owner="persistent-subscriptions",
+                        task_key="daily_report",
+                        task_group="每日汇报",
+                            notification_status="error",
+                            notification_target="daily_report_subscription_calendar",
+                            notification_fingerprint=self._notification_outcome_fingerprint({
+                                "status": calendar_snapshot.status,
+                                "failed_subscriptions": calendar_snapshot.failed_subscriptions,
+                                "errors": self._subscription_calendar_error_fingerprint_values(calendar_snapshot.errors),
+                            }),
+                        notification_cooldown=True,
+                    )
+                    self._save_task_result(name, False, 1, calendar_error if refresh_ok else (self._tg_console_last_error or calendar_error))
+                    self._save_daily_report_result(sent=True, success=False, text=text, error=calendar_error, message=calendar_error, returncode=1)
+                    return False
+                if refresh_ok:
                     self._save_task_result(name, True, 0, "OK tg_console_card")
                     self._save_daily_report_result(sent=True, success=True, text=text, error="", message="OK tg_console_card", returncode=0)
                     return True
@@ -49,6 +80,29 @@ class DailyReportMixin:
                 self._save_daily_report_result(sent=True, success=False, text=text, error=error, message=error, returncode=1)
                 return False
             if self._send_daily_report_telegram_rich(text):
+                if calendar_partial:
+                    self._notify_fusion_task_outcome(
+                        mtype=self._notification_type("Plugin"),
+                        title="Signal - 每日汇报订阅日历部分失败",
+                        text=calendar_error,
+                        outcome=calendar_error,
+                        success=False,
+                        component="daily_report",
+                        affected_owner="persistent-subscriptions",
+                        task_key="daily_report",
+                        task_group="每日汇报",
+                        notification_status="error",
+                        notification_target="daily_report_subscription_calendar",
+                        notification_fingerprint=self._notification_outcome_fingerprint({
+                            "status": calendar_snapshot.status,
+                            "failed_subscriptions": calendar_snapshot.failed_subscriptions,
+                            "errors": self._subscription_calendar_error_fingerprint_values(calendar_snapshot.errors),
+                        }),
+                        notification_cooldown=True,
+                    )
+                    self._save_task_result(name, False, 1, calendar_error)
+                    self._save_daily_report_result(sent=True, success=False, text=text, error=calendar_error, message=calendar_error, returncode=1)
+                    return False
                 self._save_task_result(name, True, 0, "OK telegram_rich_message")
                 self._save_daily_report_result(sent=True, success=True, text=text, error="", message="OK telegram_rich_message", returncode=0)
                 return True
@@ -59,6 +113,26 @@ class DailyReportMixin:
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
             self._save_daily_report_result(sent=True, success=False, text="", error=str(err), message=str(err), returncode=-1)
+            try:
+                from ..infrastructure.subscription_calendar import SubscriptionCalendarError
+                if isinstance(err, SubscriptionCalendarError):
+                    self._notify_fusion_task_outcome(
+                        mtype=self._notification_type("Plugin"),
+                        title="Signal - 每日汇报订阅日历异常",
+                        text=f"每日汇报读取订阅日历失败：{err}",
+                        outcome=f"每日汇报读取订阅日历失败：{str(err)[:120]}",
+                        success=False,
+                        component="daily_report",
+                        affected_owner="persistent-subscriptions",
+                        task_key="daily_report",
+                        task_group="每日汇报",
+                        notification_status="error",
+                        notification_target="daily_report_subscription_calendar",
+                        notification_fingerprint=self._notification_error_fingerprint(err),
+                        notification_cooldown=True,
+                    )
+            except Exception as notify_err:
+                logger.warning(f"Signal 每日汇报订阅日历失败通知发送异常：{notify_err}")
             logger.error(f"Signal 每日汇报执行失败：{err}")
             return False
 
@@ -107,16 +181,23 @@ class DailyReportMixin:
             return {"site_userdata": "error", "success": False, "error": str(err), "message": message}
 
     def run_daily_report_preview(self) -> bool:
+        with self._subscription_calendar_read_scope():
+            return self._run_daily_report_preview_scoped()
+
+    def _run_daily_report_preview_scoped(self) -> bool:
         name = "预览每日汇报"
         ok, _ = self._guard_task(name, "daily_report")
         if not ok:
             return False
         try:
             text = self._build_daily_report_message(preview=True)
-            self._save_daily_report_result(sent=False, success=True, text=text, error="")
-            self._save_task_result("日报预览", True, 0, text)
-            self._save_task_result(name, True, 0, text)
-            return True
+            snapshot = self._subscription_calendar_snapshot_for_scope()
+            partial = snapshot is not None and snapshot.is_partial
+            preview_error = snapshot.failure_message() if partial else ""
+            self._save_daily_report_result(sent=False, success=not partial, text=text, error=preview_error)
+            self._save_task_result("日报预览", not partial, 1 if partial else 0, preview_error or text)
+            self._save_task_result(name, not partial, 1 if partial else 0, preview_error or text)
+            return not partial
         except Exception as err:
             self._save_daily_report_result(sent=False, success=False, text="", error=str(err))
             self._save_task_result("日报预览", False, -1, str(err))
@@ -125,6 +206,7 @@ class DailyReportMixin:
             return False
 
     def _save_daily_report_result(self, sent: bool, success: bool, text: str = "", error: str = "", message: str = "", returncode: int = 0):
+        snapshot = self._subscription_calendar_snapshot_for_scope()
         self.save_data("last_daily_report", {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "template": "2026-06-20.card-v2-baseline-guard",
@@ -136,6 +218,8 @@ class DailyReportMixin:
             "preview": (text or "")[:2000],
             "message": (message or "")[:1000],
             "error": (error or "")[:1000],
+            "calendar_status": str(getattr(snapshot, "status", "") or ""),
+            "calendar_errors": list(getattr(snapshot, "errors", ()) or ())[:3],
         })
 
     @staticmethod
@@ -726,10 +810,8 @@ class DailyReportMixin:
         return ["✅ 今日摘要", "⦁ 系统正常", "⦁ 站点快照正常", "⦁ 无失败转移", "⦁ 下载器无异常"]
 
     def _get_today_subscribe_updates_locked(self) -> List[str]:
-        realtime_ok, items = self._load_subscribereminder_today_realtime_locked()
-        if realtime_ok:
-            return self._unique_keep_order(items)
-        return self._unique_keep_order(self._load_subscribereminder_today_locked())
+        """读取 MoviePilot v2 官方复合日历快照，失败不得转为空结果。"""
+        return self._read_today_subscribe_updates()
 
     def _build_summary(self) -> str:
         return "；".join([f"插件：{'启用' if self._enabled else '未启用'}", f"每日汇报：{'启用' if self._daily_report_enabled else '停用'} {self._daily_report_cron}", f"汇报栏目：健康={'开' if self._health_in_report else '关'} / 订阅={'开' if self._subscribe_in_report else '关'} / 站点={'开' if self._site_stat_in_report else '关'}", f"插件日志清理：{'启用' if self._log_clean_enabled else '停用'} {self._log_clean_cron} 保留{self._log_clean_rows}行", f"自动备份：{'启用' if self._backup_enabled else '停用'} {self._backup_cron} 保留{self._backup_keep_count}个", f"系统更新：{'启用' if self._mp_update_enabled else '停用'} {self._mp_update_cron}", f"插件更新：{'启用' if self._plugin_update_reminder_enabled else '停用'} {self._plugin_update_reminder_cron}（自动安装{'开' if self._plugin_auto_install_enabled else '关'}）", f"插件库同步：{'启用' if self._market_update_enabled else '停用'} {self._market_update_cron}"])

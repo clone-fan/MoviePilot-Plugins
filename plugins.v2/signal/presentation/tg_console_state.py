@@ -1,5 +1,6 @@
 import re
 import os
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -162,8 +163,10 @@ class TgConsoleStateMixin:
         if previous_enabled is not None and current_enabled and state.get("message_id"):
             token, chat_id, _source = self._resolve_daily_report_telegram_config()
             if token and chat_id:
-                self._refresh_fusion_columns(state)
-                self._compose_tg_console_v7_model(state)
+                scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
+                with (scope_factory() if callable(scope_factory) else nullcontext()):
+                    self._refresh_fusion_columns(state)
+                    self._compose_tg_console_v7_model(state)
                 self._tg_console_upsert_card(token, chat_id, state)
                 self._save_tg_console_state(state)
 

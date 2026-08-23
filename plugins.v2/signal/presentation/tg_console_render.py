@@ -58,7 +58,44 @@ class TgConsoleRenderMixin:
 
         storage_lines = self._get_storage_health_locked()
         storage_rows = parse_storage_rows(storage_lines)
-        subscription_rows = parse_subscription_rows(self._get_today_subscribe_updates_locked())
+        try:
+            calendar_snapshot = self._read_today_subscription_calendar_snapshot()
+            state["subscription_calendar_status"] = calendar_snapshot.status
+            state["subscription_calendar_errors"] = list(calendar_snapshot.errors)
+            subscription_lines = list(calendar_snapshot.items)
+            if calendar_snapshot.is_partial:
+                warning = calendar_snapshot.failure_message()
+                subscription_lines.append(f"⚠️ {warning}")
+                self._record_v7_anomaly(state, "subscribe_reminder", {
+                    "owner": "current-anomalies",
+                    "kicker": "当前异常",
+                    "count": "1 项",
+                    "primary": "订阅日历部分读取失败",
+                    "context": "需要关注 · 订阅追新",
+                    "meta": f"最近 {datetime.now().strftime('%H:%M')}",
+                    "affected_owners": ["persistent-subscriptions"],
+                    "details_rows": [[warning[:80], datetime.now().strftime("%H:%M")]],
+                })
+            else:
+                self._clear_v7_anomaly(state, "subscribe_reminder")
+        except Exception as err:
+            snapshot = self._subscription_calendar_snapshot_for_scope()
+            status = str(getattr(snapshot, "status", "failed") or "failed")
+            error = getattr(snapshot, "failure_message", lambda: f"订阅日历读取失败：{str(err)[:160]}")()
+            state["subscription_calendar_status"] = status
+            state["subscription_calendar_errors"] = list(getattr(snapshot, "errors", ()) or ()) or [error]
+            subscription_lines = [f"⚠️ {error}"]
+            self._record_v7_anomaly(state, "subscribe_reminder", {
+                "owner": "current-anomalies",
+                "kicker": "当前异常",
+                "count": "1 项",
+                "primary": "订阅日历读取失败",
+                "context": "需要关注 · 订阅追新",
+                "meta": f"最近 {datetime.now().strftime('%H:%M')}",
+                "affected_owners": ["persistent-subscriptions"],
+                "details_rows": [[error[:80], datetime.now().strftime("%H:%M")]],
+            })
+        subscription_rows = parse_subscription_rows(subscription_lines)
         completion_rows = event_ledger_rows(state.get("v7_event_ledger"), str(state.get("date") or self._today_prefix()))
         realtime = self._current_v7_realtime(state)
         anomalies = self._merge_v7_anomalies(state, self._current_v7_anomalies(site_snapshot, storage_lines))
@@ -144,7 +181,7 @@ class TgConsoleRenderMixin:
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "1.0.19") or "1.0.19")
+        version = str(getattr(self, "plugin_version", "1.0.20") or "1.0.20")
         return {"version": version if version.startswith("v") else f"v{version}", "refreshed_at": datetime.now().strftime("%H:%M")}
 
     @staticmethod

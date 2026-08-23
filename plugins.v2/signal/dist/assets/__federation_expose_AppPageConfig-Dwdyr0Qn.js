@@ -1,6 +1,6 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, am as _export_sfc, c4 as mdiAlertOutline, bu as mdiDeleteOutline, aX as mdiPlay, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
-import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subscribeSubtypeItems, k as subfillDetailItems, l as siteStatRangeItems, m as seedActionsItems, o as notificationTypeItems, q as msgGroupItems, t as pluginAutoInstallScopeItems, u as marketUpdateStrategies, v as mpUpdateTypes, w as messageTypeItems, x as marketNotifyItems, y as healthStorageTargets, z as healthDirectoryTargets, A as healthDatabaseTargets, B as healthCheckItems, C as keepCountPresets } from './save-payload-B7PGhq0F.js';
+import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-Bqooijss.js';
 import { g as getPluginApi, D as DEFAULT_PLUGIN_API_TIMEOUT_MS, r as resolvePluginApi, w as withTimeout, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-K7zxwCEJ.js';
 
 const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$k,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$a} = await importShared('vue');
@@ -518,7 +518,6 @@ const auditedCompactSelectionFieldKeys = Object.freeze([
   'plugin_uninstall_ids',
   'seedclean_downloaders',
   'subfill_details',
-  'subscribe_reminder_subtype',
   'dltag_downloaders',
   'dltag_tasks',
 ]);
@@ -1643,7 +1642,6 @@ const _sfc_main$f = {
   props: {
   form: { type: Object, required: true },
   fields: { type: Array, default: () => [] },
-  subscribeSubtypeItems: { type: Array, default: () => [] },
   messageTypeItems: { type: Array, default: () => [] },
   notificationLockedByFusion: { type: Boolean, default: false },
   effectiveState: { type: String, default: '' },
@@ -1661,18 +1659,6 @@ const subscribeFields = computed$a(() => [
     icon: 'mdi-calendar-clock',
     label: '检查时间',
   }),
-  fieldFor('subscribe_reminder_subtype', {
-    key: 'subscribe_reminder_subtype',
-    control: 'select',
-    icon: 'mdi-movie-open-outline',
-    label: '订阅类型',
-    items: props.subscribeSubtypeItems,
-    multiple: true,
-    chips: true,
-    closableChips: true,
-    compactSelection: true,
-    clearable: true,
-  }),
   fieldFor('subscribe_reminder_msgtype', {
     key: 'subscribe_reminder_msgtype',
     control: 'select',
@@ -1682,11 +1668,9 @@ const subscribeFields = computed$a(() => [
   }),
 ].map(field => ({
   ...field,
-  items: field.key === 'subscribe_reminder_subtype'
-    ? (field.items?.length ? field.items : props.subscribeSubtypeItems)
-    : field.key === 'subscribe_reminder_msgtype'
-      ? (field.items?.length ? field.items : props.messageTypeItems)
-      : field.items,
+  items: field.key === 'subscribe_reminder_msgtype'
+    ? (field.items?.length ? field.items : props.messageTypeItems)
+    : field.items,
   label: field.key === 'subscribe_reminder_msgtype' ? '通知渠道' : field.label,
 })));
 
@@ -3436,7 +3420,7 @@ const toArr = value => typeof value === 'string'
   : (Array.isArray(value) ? value : []);
 
 const arrayKeys = [
-  'subscribe_reminder_subtype', 'mp_update_types', 'plugin_uninstall_ids',
+  'mp_update_types', 'plugin_uninstall_ids',
   'log_clean_selected_ids', 'market_update_install_ids', 'market_update_exclude_ids',
   'plugin_auto_install_install_ids', 'plugin_auto_install_exclude_ids', 'seedclean_downloaders',
   'subfill_details', 'msgnotify_types', 'msgnotify_servers', 'dltag_downloaders', 'dltag_tasks',
@@ -4461,7 +4445,6 @@ const replicaItemSources = computed(() => ({
   seedActionsItems,
   siteStatRangeItems,
   subfillDetailItems,
-  subscribeSubtypeItems,
   dltagTaskItems,
   dltagDeleteStrategyItems,
 }));
@@ -4678,9 +4661,8 @@ const replicaCards = computed(() => {
       ] },
     ],
     subscribe: [
-      { type: 'section', icon: 'mdi-movie-open-outline', title: '订阅范围', note: '选择需要检查并推送的订阅类型', grid: 'grid-2', fields: [
+      { type: 'section', icon: 'mdi-calendar-clock', title: '检查计划', note: '按 MoviePilot 原生订阅日历检查今日更新', grid: 'grid-2', fields: [
         { key: 'subscribe_reminder_cron', icon: 'mdi-calendar-clock', label: '检查时间', value: cronVal(form.subscribe_reminder_cron) },
-        { key: 'subscribe_reminder_subtype', icon: 'mdi-movie-open-outline', label: '订阅类型', value: arrNames(form.subscribe_reminder_subtype) },
       ] },
       { type: 'section', icon: 'mdi-bell-outline', title: '通知渠道', note: '推送通知给用户', grid: 'grid-3', fields: [
         { key: 'subscribe_reminder_msgtype', icon: 'mdi-email-outline', label: '消息类型', value: valOr(form.subscribe_reminder_msgtype, 'Subscribe'), disabled: Boolean(form.fusion_notify_enabled) },
@@ -5490,7 +5472,6 @@ return (_ctx, _cache) => {
                                       _createVNode(_sfc_main$f, {
                                         form: _unref(form),
                                         fields: currentSinglePageFields.value,
-                                        "subscribe-subtype-items": _unref(subscribeSubtypeItems),
                                         "message-type-items": _unref(messageTypeItems),
                                         "notification-locked-by-fusion": _unref(notificationLockedByFusion),
                                         "effective-state": currentEffectiveState.value.code
@@ -5506,7 +5487,7 @@ return (_ctx, _cache) => {
                                             : _createCommentVNode("", true)
                                         ]),
                                         _: 1
-                                      }, 8, ["form", "fields", "subscribe-subtype-items", "message-type-items", "notification-locked-by-fusion", "effective-state"])
+                                      }, 8, ["form", "fields", "message-type-items", "notification-locked-by-fusion", "effective-state"])
                                     ]),
                                     _: 1
                                   }, 8, ["card", "effective-state"]))

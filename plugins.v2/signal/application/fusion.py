@@ -411,6 +411,15 @@ class FusionMixin:
                         self._clear_v7_anomaly(state, component_key or str(event_payload.get("affected_owner") or ""))
                     self._record_v7_event(state, actual_event)
             self._compose_tg_console_v7_model(state)
+            calendar_status = str(state.get("subscription_calendar_status") or "").strip()
+            if calendar_status in {"partial", "failed", "invalid"}:
+                self._tg_console_last_error = (
+                    f"订阅日历状态：{calendar_status}"
+                    + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
+                )
+                state["last_error"] = self._tg_console_last_error
+                self._save_tg_console_state(state)
+                return False
         try:
             ok = self._tg_console_upsert_card(token, chat_id, state)
         except Exception as err:
@@ -446,9 +455,12 @@ class FusionMixin:
         if key == "download_transfer":
             return "下载入库", self._build_today_transfer_report_text(), "success"
         if key == "subscribe":
-            items = self._get_today_subscribe_updates_locked()
+            snapshot = self._read_today_subscription_calendar_snapshot()
+            items = list(snapshot.items)
             text = "\n".join(f"⦁ {x}" for x in items) if items else "⦁ 今日暂无订阅追新"
-            return "订阅追新", text, "success"
+            if snapshot.is_partial:
+                text = f"{text}\n⚠️ {snapshot.failure_message()}"
+            return "订阅追新", text, "warning" if snapshot.is_partial else "success"
         if key == "storage":
             return "存储空间", "\n".join(self._get_storage_health_locked()), "success"
         if key == "media":
