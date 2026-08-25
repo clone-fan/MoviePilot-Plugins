@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { h as getPluginApiEnvelope, i as createV31QuickActions, b as useBackupRestore, j as useActionRunner, k as resolveActionAvailability, A as ACTION_OPERATION_MODE, r as resolvePluginApi, l as actionGroupRegistry, m as ACTION_DISABLED_REASON, u as useAgentOpsTheme, a as getActionForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-K7zxwCEJ.js';
+import { h as getPluginApiEnvelope, i as createV31QuickActions, b as useBackupRestore, j as useActionRunner, k as resolveActionAvailability, A as ACTION_OPERATION_MODE, r as resolvePluginApi, l as actionGroupRegistry, m as ACTION_DISABLED_REASON, u as useAgentOpsTheme, a as getActionForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-DVoiFPdr.js';
 import { ca as mdiYinYang, ar as mdiViewDashboardOutline, cb as mdiTrashCanOutline, cc as mdiTagMultiple, cd as mdiRss, aP as mdiRefresh, ce as mdiLeaf, ba as mdiHeartPulse, cf as mdiEye, cg as mdiDatabase, ch as mdiCog, bD as mdiCloudUploadOutline, ci as mdiCheckCircle, bN as mdiChartPie, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, cj as mdiCalendarToday, ck as mdiCalendarCheck, bU as mdiBroom, b$ as mdiBackupRestore, bX as mdiBellOutline, cl as mdiArrowUp, cm as mdiArrowDown, am as _export_sfc } from './mdi-DveizHBi.js';
 
 // 共享格式化工具 — 跨组件复用，禁止在各 vue 里各写一份
@@ -42,6 +42,12 @@ function useSiteChart(api) {
     upload_total: 0,
     download_total: 0,
     data_valid: false,
+    stale_count: 0,
+    error_count: 0,
+    invalid_count: 0,
+    counter_reset_count: 0,
+    baseline_missing: 0,
+    missing_count: 0,
     message: '',
     error: '',
     last_error: '',
@@ -129,6 +135,12 @@ function useSiteChart(api) {
         upload_total: 0,
         download_total: 0,
         data_valid: false,
+        stale_count: 0,
+        error_count: 0,
+        invalid_count: 0,
+        counter_reset_count: 0,
+        baseline_missing: 0,
+        missing_count: 0,
         message: '',
         error: '',
         last_error: '',
@@ -144,6 +156,12 @@ function useSiteChart(api) {
         upload_total: 0,
         download_total: 0,
         data_valid: false,
+        stale_count: 0,
+        error_count: 0,
+        invalid_count: 0,
+        counter_reset_count: 0,
+        baseline_missing: 0,
+        missing_count: 0,
         message: '',
         error: err?.message || '站点统计数据加载失败',
         last_error: err?.message || '站点统计数据加载失败',
@@ -225,6 +243,7 @@ function useQuickActionController(options = {}) {
     tasks = [],
     componentStates = {},
     onSuccess = null,
+    onFailure = null,
   } = options;
 
   const actionConfig = ref$2({});
@@ -268,6 +287,9 @@ function useQuickActionController(options = {}) {
     getPayloadContext: () => ({ config: actionConfig.value, runtime: {} }),
     onSuccess: async context => {
       if (typeof onSuccess === 'function') await onSuccess(context);
+    },
+    onFailure: async context => {
+      if (typeof onFailure === 'function') await onFailure(context);
     },
   });
 
@@ -599,6 +621,15 @@ function buildDashboardViewSnapshot(input = {}) {
     },
     site: {
       dateNote: String(input.siteDateNote || '今天 00:00 起'),
+      error: String(siteChart.error || siteChart.last_error || ''),
+      stale: Boolean(siteChart.stale),
+      staleCount: finiteNumber(siteChart.stale_count, 0),
+      errorCount: finiteNumber(siteChart.error_count, 0),
+      invalidCount: finiteNumber(siteChart.invalid_count, 0),
+      counterResetCount: finiteNumber(siteChart.counter_reset_count, 0),
+      baselineMissing: finiteNumber(siteChart.baseline_missing, 0),
+      missingCount: finiteNumber(siteChart.missing_count, 0),
+      dataValid: siteChart.data_valid !== false,
       donutValue: String(sitePieSegments.length || siteRows.length || 0),
       donutSegments: sitePieSegments,
       donutStyle: sitePieStyle,
@@ -803,7 +834,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {openBlock:_openBlock$j,createElementBlock:_createElementBlock$e,createCommentVNode:_createCommentVNode$9,createBlock:_createBlock$b,renderSlot:_renderSlot$4,toDisplayString:_toDisplayString$a,createTextVNode:_createTextVNode$4,normalizeClass:_normalizeClass$a} = await importShared('vue');
+const {openBlock:_openBlock$j,createElementBlock:_createElementBlock$e,createCommentVNode:_createCommentVNode$a,createBlock:_createBlock$b,renderSlot:_renderSlot$4,toDisplayString:_toDisplayString$a,createTextVNode:_createTextVNode$4,normalizeClass:_normalizeClass$a} = await importShared('vue');
 
 
 const _hoisted_1$c = ["disabled", "aria-busy", "aria-label", "data-state"];
@@ -845,14 +876,14 @@ return (_ctx, _cache) => {
             icon: __props.icon,
             size: "14"
           }, null, 8, ["icon"]))
-        : _createCommentVNode$9("", true),
+        : _createCommentVNode$a("", true),
     (!__props.iconOnly)
       ? (_openBlock$j(), _createElementBlock$e("span", _hoisted_3$a, [
           _renderSlot$4(_ctx.$slots, "default", {}, () => [
             _createTextVNode$4(_toDisplayString$a(__props.label), 1)
           ])
         ]))
-      : _createCommentVNode$9("", true)
+      : _createCommentVNode$a("", true)
   ], 10, _hoisted_1$c))
 }
 }
@@ -979,7 +1010,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {openBlock:_openBlock$g,createBlock:_createBlock$9,createCommentVNode:_createCommentVNode$8,normalizeClass:_normalizeClass$8,createElementBlock:_createElementBlock$c,createElementVNode:_createElementVNode$8,toDisplayString:_toDisplayString$9,withCtx:_withCtx$5} = await importShared('vue');
+const {openBlock:_openBlock$g,createBlock:_createBlock$9,createCommentVNode:_createCommentVNode$9,normalizeClass:_normalizeClass$8,createElementBlock:_createElementBlock$c,createElementVNode:_createElementVNode$8,toDisplayString:_toDisplayString$9,withCtx:_withCtx$5} = await importShared('vue');
 
 
 const _hoisted_1$a = { class: "v31-kpi-card__icon" };
@@ -1017,13 +1048,13 @@ return (_ctx, _cache) => {
               color: __props.item.iconColor || undefined,
               size: "20"
             }, null, 8, ["icon", "color"]))
-          : _createCommentVNode$8("", true),
+          : _createCommentVNode$9("", true),
         (__props.item.dot)
           ? (_openBlock$g(), _createElementBlock$c("span", {
               key: 1,
               class: _normalizeClass$8(["v31-status-dot", { 'v31-status-dot--pulse': __props.item.pulse }])
             }, null, 2))
-          : _createCommentVNode$8("", true)
+          : _createCommentVNode$9("", true)
       ]),
       _createElementVNode$8("div", _hoisted_2$9, [
         _createElementVNode$8("span", _hoisted_3$8, _toDisplayString$9(__props.item.label), 1),
@@ -1033,10 +1064,10 @@ return (_ctx, _cache) => {
           }, _toDisplayString$9(__props.item.value), 3),
           (__props.item.total)
             ? (_openBlock$g(), _createElementBlock$c("span", _hoisted_5$5, "/ " + _toDisplayString$9(__props.item.total), 1))
-            : _createCommentVNode$8("", true),
+            : _createCommentVNode$9("", true),
           (__props.item.unit)
             ? (_openBlock$g(), _createElementBlock$c("span", _hoisted_6$4, _toDisplayString$9(__props.item.unit), 1))
-            : _createCommentVNode$8("", true)
+            : _createCommentVNode$9("", true)
         ]),
         _createElementVNode$8("span", _hoisted_7$4, _toDisplayString$9(__props.item.detail), 1)
       ])
@@ -1137,7 +1168,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {renderList:_renderList$3,Fragment:_Fragment$4,openBlock:_openBlock$d,createElementBlock:_createElementBlock$9,createVNode:_createVNode$a,createCommentVNode:_createCommentVNode$7,toDisplayString:_toDisplayString$7,createElementVNode:_createElementVNode$6} = await importShared('vue');
+const {renderList:_renderList$3,Fragment:_Fragment$4,openBlock:_openBlock$d,createElementBlock:_createElementBlock$9,createVNode:_createVNode$a,createCommentVNode:_createCommentVNode$8,toDisplayString:_toDisplayString$7,createElementVNode:_createElementVNode$6} = await importShared('vue');
 
 
 const _hoisted_1$7 = { class: "v31-traffic-summary" };
@@ -1174,7 +1205,7 @@ return (_ctx, _cache) => {
                 size: "12"
               }, null, 8, ["icon"])
             ]))
-          : _createCommentVNode$7("", true),
+          : _createCommentVNode$8("", true),
         _createElementVNode$6("span", _hoisted_3$6, [
           _createElementVNode$6("span", _hoisted_4$6, _toDisplayString$7(row.label), 1),
           _createElementVNode$6("strong", _hoisted_5$4, _toDisplayString$7(row.value), 1)
@@ -1197,8 +1228,8 @@ const _hoisted_4$5 = { class: "v31-site-traffic-card__name" };
 const _hoisted_5$3 = { class: "v31-site-traffic-card__metrics" };
 const _hoisted_6$3 = { class: "v31-site-traffic-card__metric-pill v31-site-traffic-card__metric-pill--upload" };
 const _hoisted_7$3 = { class: "v31-site-traffic-card__metric-pill v31-site-traffic-card__metric-pill--download" };
-const _hoisted_8$2 = { class: "v31-site-traffic-card__percent" };
-const _hoisted_9 = { class: "v31-site-traffic-card__percent-icon" };
+const _hoisted_8$3 = { class: "v31-site-traffic-card__percent" };
+const _hoisted_9$1 = { class: "v31-site-traffic-card__percent-icon" };
 
 
 const _sfc_main$c = {
@@ -1243,8 +1274,8 @@ return (_ctx, _cache) => {
         _createTextVNode$3(" " + _toDisplayString$6(__props.download), 1)
       ])
     ]),
-    _createElementVNode$5("span", _hoisted_8$2, [
-      _createElementVNode$5("span", _hoisted_9, [
+    _createElementVNode$5("span", _hoisted_8$3, [
+      _createElementVNode$5("span", _hoisted_9$1, [
         _createVNode$9(_sfc_main$k, {
           icon: _unref$7(v31Icons).chartPie,
           size: "9"
@@ -1258,7 +1289,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {unref:_unref$6,createVNode:_createVNode$8,createTextVNode:_createTextVNode$2,createElementVNode:_createElementVNode$4,toDisplayString:_toDisplayString$5,renderSlot:_renderSlot$2,renderList:_renderList$2,Fragment:_Fragment$3,openBlock:_openBlock$b,createElementBlock:_createElementBlock$7,createBlock:_createBlock$7,resolveDynamicComponent:_resolveDynamicComponent$1,normalizeClass:_normalizeClass$6,withCtx:_withCtx$4} = await importShared('vue');
+const {unref:_unref$6,createVNode:_createVNode$8,createTextVNode:_createTextVNode$2,createElementVNode:_createElementVNode$4,toDisplayString:_toDisplayString$5,renderSlot:_renderSlot$2,openBlock:_openBlock$b,createElementBlock:_createElementBlock$7,createCommentVNode:_createCommentVNode$7,renderList:_renderList$2,Fragment:_Fragment$3,createBlock:_createBlock$7,resolveDynamicComponent:_resolveDynamicComponent$1,normalizeClass:_normalizeClass$6,withCtx:_withCtx$4} = await importShared('vue');
 
 
 const _hoisted_1$5 = { class: "v31-card-header" };
@@ -1267,7 +1298,28 @@ const _hoisted_3$4 = { class: "v31-card-header__aside" };
 const _hoisted_4$4 = { class: "v31-card-note" };
 const _hoisted_5$2 = { class: "v31-site-panel__body" };
 const _hoisted_6$2 = { class: "v31-site-panel__content" };
-const _hoisted_7$2 = ["data-empty"];
+const _hoisted_7$2 = {
+  key: 0,
+  class: "v31-site-panel__notice v31-site-panel__notice--error"
+};
+const _hoisted_8$2 = {
+  key: 1,
+  class: "v31-site-panel__notice v31-site-panel__notice--stale"
+};
+const _hoisted_9 = {
+  key: 2,
+  class: "v31-site-panel__notice v31-site-panel__notice--stale"
+};
+const _hoisted_10 = {
+  key: 3,
+  class: "v31-site-panel__notice v31-site-panel__notice--stale"
+};
+const _hoisted_11 = { key: 0 };
+const _hoisted_12 = { key: 1 };
+const _hoisted_13 = { key: 2 };
+const _hoisted_14 = { key: 3 };
+const _hoisted_15 = { key: 4 };
+const _hoisted_16 = ["data-empty"];
 
 const {computed: computed$8} = await importShared('vue');
 
@@ -1296,12 +1348,27 @@ const view = computed$8(() => {
     donutStyle: site.donutStyle && typeof site.donutStyle === 'object' ? site.donutStyle : {},
     summaryRows: Array.isArray(site.summaryRows) ? site.summaryRows : [],
     cards: Array.isArray(site.cards) ? site.cards : [],
+    error: String(site.error || ''),
+    stale: Boolean(site.stale),
+    staleCount: Number(site.staleCount || 0),
+    errorCount: Number(site.errorCount || 0),
+    invalidCount: Number(site.invalidCount || 0),
+    counterResetCount: Number(site.counterResetCount || 0),
+    baselineMissing: Number(site.baselineMissing || 0),
+    missingCount: Number(site.missingCount || 0),
+    dataValid: site.dataValid !== false,
   }
 });
 
+const staleDate = computed$8(() => String(
+  view.value.summaryRows.find(row => row.label === '统计时间')?.value || '未知日期',
+));
+
+const displayError = computed$8(() => String(props.error || view.value.error || ''));
+
 const siteState = computed$8(() => {
   if (props.loading) return 'loading'
-  if (props.error) return 'error'
+  if (displayError.value) return 'error'
   return view.value.cards.length ? 'ready' : 'empty'
 });
 
@@ -1336,6 +1403,33 @@ return (_ctx, _cache) => {
           "pie-style": view.value.donutStyle
         }, null, 8, ["value", "segments", "pie-style"]),
         _createElementVNode$4("div", _hoisted_6$2, [
+          (displayError.value)
+            ? (_openBlock$b(), _createElementBlock$7("div", _hoisted_7$2, _toDisplayString$5(displayError.value), 1))
+            : (view.value.stale)
+              ? (_openBlock$b(), _createElementBlock$7("div", _hoisted_8$2, " 最近快照 " + _toDisplayString$5(staleDate.value) + "，等待今日站点数据刷新 ", 1))
+              : (view.value.baselineMissing && !view.value.cards.length)
+                ? (_openBlock$b(), _createElementBlock$7("div", _hoisted_9, " 今日基线不足，等待下一次站点数据刷新 "))
+                : _createCommentVNode$7("", true),
+          (view.value.errorCount || view.value.missingCount || view.value.invalidCount || view.value.counterResetCount || (view.value.baselineMissing && view.value.cards.length))
+            ? (_openBlock$b(), _createElementBlock$7("div", _hoisted_10, [
+                (view.value.errorCount)
+                  ? (_openBlock$b(), _createElementBlock$7("span", _hoisted_11, _toDisplayString$5(view.value.errorCount) + " 个站点刷新异常，", 1))
+                  : _createCommentVNode$7("", true),
+                (view.value.missingCount)
+                  ? (_openBlock$b(), _createElementBlock$7("span", _hoisted_12, _toDisplayString$5(view.value.missingCount) + " 个启用站点没有最新快照，", 1))
+                  : _createCommentVNode$7("", true),
+                (view.value.invalidCount)
+                  ? (_openBlock$b(), _createElementBlock$7("span", _hoisted_13, _toDisplayString$5(view.value.invalidCount) + " 个站点日期无效，", 1))
+                  : _createCommentVNode$7("", true),
+                (view.value.counterResetCount)
+                  ? (_openBlock$b(), _createElementBlock$7("span", _hoisted_14, _toDisplayString$5(view.value.counterResetCount) + " 个站点累计值回退，", 1))
+                  : _createCommentVNode$7("", true),
+                (view.value.baselineMissing)
+                  ? (_openBlock$b(), _createElementBlock$7("span", _hoisted_15, _toDisplayString$5(view.value.baselineMissing) + " 个站点基线不足，", 1))
+                  : _createCommentVNode$7("", true),
+                _cache[1] || (_cache[1] = _createTextVNode$2(" 未计入当前统计 ", -1))
+              ]))
+            : _createCommentVNode$7("", true),
           _createVNode$8(_sfc_main$d, {
             rows: view.value.summaryRows
           }, null, 8, ["rows"]),
@@ -1354,7 +1448,7 @@ return (_ctx, _cache) => {
                 download: site.download
               }, null, 8, ["name", "icon", "icon-color", "percent", "upload", "download"]))
             }), 128))
-          ], 8, _hoisted_7$2)
+          ], 8, _hoisted_16)
         ])
       ])
     ]),
@@ -1364,7 +1458,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const SiteDataPanel = /*#__PURE__*/_export_sfc(_sfc_main$b, [['__scopeId',"data-v-9607fd8d"]]);
+const SiteDataPanel = /*#__PURE__*/_export_sfc(_sfc_main$b, [['__scopeId',"data-v-705903db"]]);
 
 const {openBlock:_openBlock$a,createBlock:_createBlock$6,createCommentVNode:_createCommentVNode$6,renderSlot:_renderSlot$1,toDisplayString:_toDisplayString$4,createTextVNode:_createTextVNode$1,normalizeClass:_normalizeClass$5,createElementBlock:_createElementBlock$6} = await importShared('vue');
 
@@ -1864,6 +1958,18 @@ const {
 const fusionBuildAction = getActionForSurface('create_tg_console_card', 'dashboardFusion');
 const fusionRefreshAction = getActionForSurface('run_daily_report', 'dashboardFusion');
 
+function siteChartError() {
+  return String(siteChart.last_error || siteChart.error || '').trim()
+}
+
+async function refreshSiteChart({ throwOnError = false } = {}) {
+  await loadSiteChart();
+  const message = siteChartError();
+  error.value = message;
+  if (message && throwOnError) throw new Error(message)
+  return !message
+}
+
 const quickActionController = useQuickActionController({
   api: apiHandle,
   pluginId: () => props.pluginId,
@@ -1874,13 +1980,14 @@ const quickActionController = useQuickActionController({
   componentStates: () => ({ fusion_notify: fusionCard.enabled !== false }),
   onSuccess: async ({ action }) => {
     if (actionRefreshes(action, 'siteChart')) {
-      await loadSiteChart();
-      const refreshError = String(siteChart.last_error || siteChart.error || '').trim();
-      if (refreshError) throw new Error(refreshError)
+      await refreshSiteChart({ throwOnError: true });
     }
     if (actionRefreshes(action, 'fusionCard')) {
       await loadFusionCard({ throwOnError: true });
     }
+  },
+  onFailure: async ({ action }) => {
+    if (actionRefreshes(action, 'siteChart')) await refreshSiteChart();
   },
 });
 
@@ -1938,6 +2045,13 @@ async function loadDashboard() {
       applyDashboardPayload(dashboard, payload);
     }
     await Promise.all([loadSiteChart(), loadFusionCard(), quickActionController.loadActionContext()]);
+    const siteError = siteChartError();
+    if (siteError) {
+      error.value = siteError;
+      emit('update:refreshStatus', 'error');
+      emit('loaded');
+      return
+    }
     emit('loaded');
     emit('update:refreshStatus', 'success');
   } catch (err) {
@@ -1998,7 +2112,7 @@ return (_ctx, _cache) => {
       _createVNode$2(SiteDataPanel, {
         site: _unref$3(siteView),
         loading: loading.value,
-        error: error.value
+        error: error.value || _unref$3(siteView).error
       }, null, 8, ["site", "loading", "error"])
     ]),
     "core-secondary": _withCtx$2(() => [
@@ -2135,7 +2249,14 @@ function useDashboardFreeData(api) {
       if (actionRefreshes(action, 'siteChart')) {
         await loadSiteChart();
         const refreshError = String(siteChart.last_error || siteChart.error || '').trim();
+        error.value = refreshError;
         if (refreshError) throw new Error(refreshError)
+      }
+    },
+    onFailure: async ({ action }) => {
+      if (actionRefreshes(action, 'siteChart')) {
+        await loadSiteChart();
+        error.value = String(siteChart.last_error || siteChart.error || '').trim();
       }
     },
   });
@@ -2164,6 +2285,7 @@ function useDashboardFreeData(api) {
         applyDashboardPayload(dashboard, payload);
       }
       await Promise.all([loadSiteChart(), actionController.loadActionContext()]);
+      error.value = String(siteChart.last_error || siteChart.error || '').trim();
     } catch (err) {
       error.value = err?.message || '仪表盘数据加载失败';
     } finally {

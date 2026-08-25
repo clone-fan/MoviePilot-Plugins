@@ -1,5 +1,7 @@
 import re
 import threading
+import time
+from datetime import datetime
 from typing import Any, Dict, Mapping, Optional
 
 from app.log import logger
@@ -12,6 +14,186 @@ DEFAULT_LOCAL_PLUGIN_REPO = ""
 
 class LifecycleMixin:
     _local_plugin_repo = DEFAULT_LOCAL_PLUGIN_REPO
+    _site_refresh_state_key = "site_stat_refresh_state_v1"
+    _site_refresh_condition = threading.Condition(threading.RLock())
+    _site_refresh_running = False
+    _site_refresh_last_result = None
+    _site_refresh_last_finished_at = 0.0
+    _site_refresh_last_key = None
+    _site_refresh_cache_ttl_seconds = 5.0
+
+    @classmethod
+    def _clear_site_refresh_cache(cls):
+        with cls._site_refresh_condition:
+            cls._site_refresh_last_result = None
+            cls._site_refresh_last_finished_at = 0.0
+            cls._site_refresh_last_key = None
+
+    def _save_site_refresh_state(self, result: Mapping[str, Any]) -> None:
+        """Persist the last refresh outcome so a failed run cannot look healthy after reload."""
+        saver = getattr(self, "save_data", None)
+        if not callable(saver):
+            return
+        payload = {
+            "success": bool(result.get("success")),
+            "status": str(result.get("status") or "error"),
+            "message": str(result.get("message") or "")[:500],
+            "active_count": int(result.get("active_count") or 0),
+            "active_scope_known": bool(result.get("active_scope_known", True)),
+            "active_domains": sorted({str(item).strip() for item in (result.get("active_domains") or []) if str(item).strip()}),
+            "count": int(result.get("count") or 0),
+            "errors": [str(item)[:160] for item in (result.get("errors") or [])[:3]],
+            "finished_at": datetime.now().isoformat(timespec="microseconds"),
+        }
+        try:
+            saver(self._site_refresh_state_key, payload)
+        except Exception as err:
+            logger.warning(f"Signal 站点刷新状态保存失败：{err}")
+
+    def _load_site_refresh_state(self) -> Dict[str, Any]:
+        loader = getattr(self, "get_data", None)
+        if not callable(loader):
+            return {}
+        try:
+            raw = loader(self._site_refresh_state_key)
+        except Exception as err:
+            logger.warning(f"Signal 站点刷新状态读取失败：{err}")
+            return {}
+        return dict(raw) if isinstance(raw, dict) else {}
+
+    def _refresh_site_userdata_coordinated(self) -> Dict[str, Any]:
+        try:
+            from app.db.site_oper import SiteOper
+            active_sites = SiteOper().list_active() or []
+        except Exception as err:
+            # An active-site lookup failure is not equivalent to an empty
+            # configuration.  Fail closed before touching the refresh chain.
+            result = {
+                "success": False,
+                "status": "active_sites_error",
+                "active_count": 0,
+                "count": 0,
+                "active_scope_known": False,
+                "active_domains": [],
+                "message": f"读取启用站点失败：{err}，已取消统计以避免使用旧快照",
+            }
+            self._save_site_refresh_state(result)
+            return result
+        active_site_count = len(active_sites)
+        active_domains = {getattr(site, "domain", "") for site in active_sites}
+        active_domains = {str(value).strip() for value in active_domains if str(value).strip()}
+        active_count = active_site_count
+        active_identity_invalid = len(active_domains) != active_site_count
+        if active_identity_invalid:
+            result = {
+                "success": False,
+                "status": "active_sites_error",
+                "active_count": active_count,
+                "count": 0,
+                "active_domains": sorted(active_domains),
+                "active_identity_invalid": True,
+                "message": "启用站点存在无效域名，已取消统计以避免使用旧快照",
+            }
+            self._save_site_refresh_state(result)
+            return result
+        cache_key = (active_count, frozenset(active_domains))
+
+        cls = LifecycleMixin
+        with cls._site_refresh_condition:
+            now = time.monotonic()
+            if (
+                cls._site_refresh_last_result is not None
+                and cls._site_refresh_last_key == cache_key
+                and now - cls._site_refresh_last_finished_at <= cls._site_refresh_cache_ttl_seconds
+            ):
+                return dict(cls._site_refresh_last_result)
+            if cls._site_refresh_running:
+                completed = cls._site_refresh_condition.wait_for(
+                    lambda: not cls._site_refresh_running, timeout=60.0
+                )
+                if not completed:
+                    timeout_result = {
+                        "success": False,
+                        "status": "timeout",
+                        "active_count": active_count,
+                        "count": 0,
+                        "active_domains": sorted(active_domains),
+                        "message": "等待正在执行的站点刷新超时，已取消本次统计",
+                    }
+                    self._save_site_refresh_state(timeout_result)
+                    return timeout_result
+                if cls._site_refresh_last_result is not None and cls._site_refresh_last_key == cache_key:
+                    return dict(cls._site_refresh_last_result)
+            cls._site_refresh_running = True
+
+        try:
+            from app.chain.site import SiteChain
+
+            refreshed = SiteChain().refresh_userdatas()
+            if refreshed is None:
+                result = {
+                    "success": False,
+                    "status": "stopped",
+                    "active_count": active_count,
+                    "count": 0,
+                    "active_domains": sorted(active_domains),
+                    "message": "站点数据刷新被系统停止，已取消统计以避免使用旧快照",
+                }
+            else:
+                items = list(refreshed.items()) if isinstance(refreshed, dict) else []
+                returned_domains = {
+                    str(getattr(row, "domain", None) or "").strip()
+                    for _name, row in items
+                    if str(getattr(row, "domain", None) or "").strip()
+                }
+                identity_missing = bool(active_domains) and not active_domains.issubset(returned_domains)
+                identity_mismatch = active_identity_invalid or active_domains != returned_domains
+                errors = [
+                    f"{name or '未知站点'}：{str(getattr(row, 'err_msg', '') or '')[:120]}"
+                    for name, row in items
+                    if str(getattr(row, "err_msg", "") or "").strip()
+                ]
+                count = len(items)
+                success = count == active_count and not errors and not identity_mismatch
+                result = {
+                    "success": success,
+                    "status": "ok" if success else ("partial" if count else "empty"),
+                    "active_count": active_count,
+                    "count": count,
+                    "active_domains": sorted(active_domains),
+                    "errors": errors,
+                    "identity_missing": identity_missing,
+                    "identity_mismatch": identity_mismatch,
+                    "active_identity_invalid": active_identity_invalid,
+                    "message": (
+                        ""
+                        if success
+                        else f"已触发 {active_count} 个站点刷新，但仅得到 {count} 个可用结果"
+                        + ("（返回结果与启用站点不一致）" if identity_mismatch else "")
+                        + (f"（{'；'.join(errors[:3])}）" if errors else "")
+                        + "，已取消统计以避免使用旧快照"
+                    ),
+                }
+        except Exception as err:
+            result = {
+                "success": False,
+                "status": "error",
+                "active_count": active_count,
+                "count": 0,
+                "active_domains": sorted(active_domains),
+                "message": f"站点用户数据刷新失败：{err}",
+            }
+        finally:
+            if "result" in locals():
+                self._save_site_refresh_state(result)
+            with cls._site_refresh_condition:
+                if "result" in locals():
+                    cls._site_refresh_last_result = dict(result)
+                    cls._site_refresh_last_finished_at = time.monotonic()
+                    cls._site_refresh_last_key = cache_key
+                cls._site_refresh_running = False
+                cls._site_refresh_condition.notify_all()
+        return result
 
     def _load_plugin_config(self, config: Dict[str, Any]):
         self._load_report_config(config)
@@ -341,7 +523,9 @@ class LifecycleMixin:
         self._subscribe_reminder_cron = self._normalize_optional_cron(config.get("subscribe_reminder_cron")) or "0 9 * * *"
         self._subscribe_reminder_msgtype = config.get("subscribe_reminder_msgtype") or "Subscribe"
         self._subscribe_reminder_schedule_enabled = self._schedule_flag(config, "subscribe_reminder_schedule_enabled", self._subscribe_reminder_enabled)
-        self._site_stat_dashboard_type = config.get("site_stat_dashboard_type") or "today"
+        # Only the current-day increment mode is implemented.  Normalize old
+        # or manually supplied aggregate values to the one truthful mode.
+        self._site_stat_dashboard_type = "today"
         self._site_stat_schedule_enabled = self._schedule_flag(config, "site_stat_schedule_enabled", self._site_stat_enabled)
         self._site_stat_cron = self._normalize_optional_cron(config.get("site_stat_cron")) or "0 8 * * *"
         self._site_stat_schedule_notify_enabled = self._config_bool(

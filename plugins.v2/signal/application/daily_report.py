@@ -142,25 +142,14 @@ class DailyReportMixin:
         try:
             needs_site_data = self._report_site_status or self._report_site_increment or self._report_summary
             if needs_site_data:
-                from app.chain.site import SiteChain
-                active_count = 0
-                try:
-                    from app.db.site_oper import SiteOper
-                    active_count = len(SiteOper().list_active() or [])
-                except Exception as err:
-                    logger.warning(f"Signal 读取活跃站点数量失败：{err}")
-                site_datas = SiteChain().refresh_userdatas()
-                if site_datas is None:
-                    message = "站点数据刷新被系统停止，日报已取消以避免使用旧快照"
+                refresh = self._refresh_site_userdata_coordinated()
+                active_count = int(refresh.get("active_count") or 0)
+                if not refresh.get("success"):
+                    message = str(refresh.get("message") or "站点数据刷新失败，日报已取消以避免使用旧快照")
                     logger.warning(f"Signal {message}")
                     self._save_task_result("站点数据统计", False, 1, message)
-                    return {"site_userdata": "stopped", "success": False, "message": message}
-                count = len(site_datas or {}) if hasattr(site_datas or {}, "__len__") else 0
-                if active_count and count == 0:
-                    message = f"已触发 {active_count} 个站点用户数据刷新，但未返回可用数据，日报已取消以避免使用旧快照"
-                    logger.warning(f"Signal {message}")
-                    self._save_task_result("站点数据统计", False, 1, message)
-                    return {"site_userdata": "empty", "success": False, "message": message, "active_count": active_count}
+                    return {"site_userdata": refresh.get("status") or "error", "success": False, "message": message, "active_count": active_count}
+                count = int(refresh.get("count") or 0)
                 message = f"已刷新 {count} 个站点用户数据" if count else "已触发站点用户数据刷新，未返回可用数据"
                 self._save_task_result("站点数据统计", True, 0, message)
                 result.update({"site_userdata": "ok", "count": count})

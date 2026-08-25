@@ -622,29 +622,68 @@ class MpApiMixin:
             data = self._skipped_data(msg, {"date": "", "basis": "skipped", "sites": [], "upload_total": 0, "download_total": 0})
             return {"code": 0, "msg": msg, "data": data}
         try:
-            return {"code": 0, "data": self._site_increment_snapshot()}
+            data = self._site_increment_snapshot()
+            if data.get("error"):
+                return {"code": 1, "msg": f"站点统计图数据获取失败：{data['error']}", "data": data}
+            state_loader = getattr(self, "_load_site_refresh_state", None)
+            refresh_state = state_loader() if callable(state_loader) else {}
+            if self._site_refresh_state_is_current_failure(refresh_state, data):
+                message = str(refresh_state.get("message") or "站点数据刷新失败，已取消统计以避免使用旧快照")
+                data["refresh_state"] = refresh_state
+                data["error"] = message
+                data["data_valid"] = False
+                data["stale"] = True
+                return {"code": 1, "msg": message, "data": data}
+            return {"code": 0, "data": data}
         except Exception as err:
             logger.error(f"站点统计图数据获取失败：{err}")
-            return {"code": 1, "msg": str(err), "data": {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}}
+            return {
+                "code": 1,
+                "msg": str(err),
+                "data": {
+                    "date": "",
+                    "basis": "today",
+                    "sites": [],
+                    "upload_total": 0,
+                    "download_total": 0,
+                    "error": str(err),
+                },
+            }
 
     def run_site_stat_scheduled(self) -> bool:
         return self.api_run_site_stat(trigger="scheduled").get("code") == 0
 
     def api_run_site_stat(self, trigger: str = "manual") -> Dict[str, Any]:
-        """刷新站点数据统计：站点快照来自 MoviePilot SiteOper，这里重新汇总并记录一次任务结果。"""
+        """刷新站点数据统计并汇总当前 MoviePilot 站点快照。
+
+        A run is a real refresh operation, not merely a re-read of yesterday's
+        database row.  Refresh first; only then calculate and notify.  This
+        prevents a midnight stale snapshot from being reported as a successful
+        current-day result.
+        """
         ok, msg = self._can_run_task("站点数据统计", "site_stat")
-        scheduled_notify = trigger == "scheduled" and bool(getattr(self, "_site_stat_schedule_notify_enabled", True))
+        scheduled_failure_notify = trigger == "scheduled"
+        scheduled_success_notify = scheduled_failure_notify and bool(
+            getattr(self, "_site_stat_schedule_notify_enabled", True)
+        )
         if not ok:
             self._save_task_result("站点数据统计", False, 2, msg)
             data = self._skipped_data(msg, {"date": "", "basis": "skipped", "sites": [], "upload_total": 0, "download_total": 0})
             return {"code": 1, "msg": msg, "data": data}
         try:
-            chart = self.api_site_stat_chart()
-            if (chart or {}).get("code", 0) != 0:
-                msg = (chart or {}).get("msg") or "站点统计图数据获取失败"
-                payload = (chart or {}).get("data") or {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}
+            refresh = self._refresh_site_userdata_for_stat()
+            if not refresh.get("success"):
+                msg = str(refresh.get("message") or "站点用户数据刷新失败")
+                payload = {
+                    "date": self._today_prefix(),
+                    "basis": "today",
+                    "sites": [],
+                    "upload_total": 0,
+                    "download_total": 0,
+                    "refresh": refresh,
+                }
                 self._save_task_result("站点数据统计", False, 1, msg)
-                if scheduled_notify:
+                if scheduled_failure_notify:
                     self._notify_fusion_task_outcome(
                         mtype=self._notification_type(self._site_stat_notify_type),
                         title="Signal - 站点统计",
@@ -658,15 +697,83 @@ class MpApiMixin:
                         notification_status="error",
                         notification_target="daily_increment",
                         notification_fingerprint=self._notification_error_fingerprint(msg),
-                        notification_cooldown=True,
+                        notification_cooldown=False,
+                    )
+                return {"code": 1, "msg": msg, "data": payload}
+            chart = self.api_site_stat_chart()
+            if (chart or {}).get("code", 0) != 0:
+                msg = (chart or {}).get("msg") or "站点统计图数据获取失败"
+                payload = (chart or {}).get("data") or {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}
+                self._save_task_result("站点数据统计", False, 1, msg)
+                if scheduled_failure_notify:
+                    self._notify_fusion_task_outcome(
+                        mtype=self._notification_type(self._site_stat_notify_type),
+                        title="Signal - 站点统计",
+                        text=msg,
+                        outcome=f"站点统计失败：{msg}",
+                        success=False,
+                        component="site_stat",
+                        task_key="site_stat",
+                        task_group="站点统计",
+                        affected_owner="persistent-sites",
+                        notification_status="error",
+                        notification_target="daily_increment",
+                        notification_fingerprint=self._notification_error_fingerprint(msg),
+                        notification_cooldown=False,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
             payload = chart.get("data") or {}
             snapshot_error = str(payload.get("error") or "").strip()
-            if snapshot_error and trigger == "scheduled" and not self._fusion_notify_enabled:
-                msg = f"站点统计图数据获取失败：{snapshot_error}"
+            snapshot_quality_error = ""
+            if payload.get("counter_reset_count"):
+                snapshot_quality_error = f"{payload['counter_reset_count']} 个站点累计值回退"
+            elif payload.get("error_count"):
+                snapshot_quality_error = f"{payload['error_count']} 个站点刷新异常"
+            elif payload.get("invalid_count"):
+                snapshot_quality_error = f"{payload['invalid_count']} 个站点缺少有效日期"
+            elif payload.get("baseline_missing"):
+                snapshot_quality_error = f"{payload['baseline_missing']} 个站点缺少有效基线"
+            elif payload.get("missing_count") or (
+                payload.get("active_count") is not None
+                and payload.get("visible_count") is not None
+                and payload.get("visible_count") != payload.get("active_count")
+            ):
+                missing_count = payload.get("missing_count") or max(
+                    0, int(payload.get("active_count") or 0) - int(payload.get("visible_count") or 0)
+                )
+                snapshot_quality_error = f"{missing_count} 个启用站点没有最新快照"
+            elif payload.get("stale_count") and payload.get("basis") == "today":
+                snapshot_quality_error = f"{payload['stale_count']} 个站点快照过期"
+            elif payload.get("data_valid") is False:
+                snapshot_quality_error = "站点统计数据不完整"
+            if trigger in {"manual", "scheduled"} and str(payload.get("basis") or "") == "latest":
+                msg = (
+                    f"站点刷新后仍未生成今日快照（最近 {payload.get('date') or payload.get('latest_date') or '未知日期'}），"
+                    "已取消统计，避免发送过期数据"
+                )
                 self._save_task_result("站点数据统计", False, 1, msg)
-                if scheduled_notify:
+                if scheduled_failure_notify:
+                    self._notify_fusion_task_outcome(
+                        mtype=self._notification_type(self._site_stat_notify_type),
+                        title="Signal - 站点统计",
+                        text=msg,
+                        outcome=f"站点统计失败：{msg}",
+                        success=False,
+                        component="site_stat",
+                        task_key="site_stat",
+                        task_group="站点统计",
+                        affected_owner="persistent-sites",
+                        notification_status="error",
+                        notification_target="daily_increment",
+                        notification_fingerprint=self._notification_error_fingerprint(msg),
+                        notification_cooldown=False,
+                    )
+                return {"code": 1, "msg": msg, "data": payload}
+            if snapshot_error or snapshot_quality_error:
+                detail = snapshot_error or snapshot_quality_error
+                msg = f"站点统计图数据获取失败：{detail}"
+                self._save_task_result("站点数据统计", False, 1, msg)
+                if scheduled_failure_notify:
                     self._notify_fusion_task_outcome(
                         mtype=self._notification_type(self._site_stat_notify_type),
                         title="Signal - 站点统计",
@@ -679,8 +786,8 @@ class MpApiMixin:
                         affected_owner="persistent-sites",
                         notification_status="error",
                         notification_target="daily_increment",
-                        notification_fingerprint=self._notification_error_fingerprint(snapshot_error),
-                        notification_cooldown=True,
+                        notification_fingerprint=self._notification_error_fingerprint(detail),
+                        notification_cooldown=False,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
             site_count = len(payload.get("sites") or [])
@@ -689,8 +796,11 @@ class MpApiMixin:
             label = "今日" if payload.get("basis") != "latest" else f"最近快照 {payload.get('date') or ''}".strip()
             text = f"已刷新 {site_count} 个站点｜{label}｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无可用增量"
             self._save_task_result("站点数据统计", True, 0, text)
-            if scheduled_notify:
+            if scheduled_success_notify:
                 has_increment = bool(payload.get("upload_total") or payload.get("download_total"))
+                notification_text = text
+                if not getattr(self, "_fusion_notify_enabled", False):
+                    notification_text = self._format_site_stat_success_notification(payload, text)
                 fingerprint_sites = sorted([
                     {
                         "name": str(item.get("name") or ""),
@@ -702,7 +812,7 @@ class MpApiMixin:
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._site_stat_notify_type),
                     title="Signal - 站点统计",
-                    text=text,
+                    text=notification_text,
                     outcome="站点统计完成",
                     success=True,
                     component="site_stat",
@@ -725,7 +835,7 @@ class MpApiMixin:
         except Exception as err:
             self._save_task_result("站点数据统计", False, -1, str(err))
             logger.error(f"站点数据统计刷新失败：{err}")
-            if scheduled_notify:
+            if scheduled_failure_notify:
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._site_stat_notify_type),
                     title="Signal - 站点统计",
@@ -739,9 +849,58 @@ class MpApiMixin:
                     notification_status="error",
                     notification_target="daily_increment",
                     notification_fingerprint=self._notification_error_fingerprint(err),
-                    notification_cooldown=True,
+                    notification_cooldown=False,
                 )
             return {"code": 1, "msg": f"站点数据统计刷新失败：{err}", "data": {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}}
+
+    def _format_site_stat_success_notification(self, payload: Dict[str, Any], summary: str) -> str:
+        """Format the standalone MoviePilot success body from the current payload."""
+        sites = payload.get("sites") or []
+        detail_lines = []
+        for item in sites:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "未知站点")
+            upload = self._format_bytes(item.get("upload", 0))
+            download = self._format_bytes(item.get("download", 0))
+            detail_lines.append(f"⦁ {name}：上传 {upload}｜下载 {download}")
+        return "\n".join([summary, *detail_lines]) if detail_lines else summary
+
+    @staticmethod
+    def _site_refresh_state_is_current_failure(state: Dict[str, Any], data: Dict[str, Any]) -> bool:
+        if not state or state.get("success") is not False:
+            return False
+        if state.get("active_scope_known") is not True:
+            return False
+        if state.get("active_count") is not None and data.get("active_count") is not None:
+            try:
+                if int(state.get("active_count")) != int(data.get("active_count")):
+                    return False
+            except (TypeError, ValueError):
+                return False
+        persisted_domains = {str(item).strip() for item in (state.get("active_domains") or []) if str(item).strip()}
+        current_domains = {str(item).strip() for item in (data.get("active_domains") or []) if str(item).strip()}
+        if persisted_domains != current_domains:
+            return False
+        finished_at = str(state.get("finished_at") or "").strip()
+        latest_updated_at = str(data.get("latest_updated_at") or "").strip()
+        # A later host refresh can recover the persisted Signal failure.  If
+        # no newer snapshot exists, keep surfacing the failure after reload.
+        # MoviePilot V2 stores updated_time at one-second precision.  Treat an
+        # equal-second host row as the recovery edge rather than holding the
+        # error until the next second; a later row is the authoritative signal.
+        failure_second = finished_at[:19].replace("T", " ")
+        return not latest_updated_at or not finished_at or latest_updated_at < failure_second
+
+    def _refresh_site_userdata_for_stat(self) -> Dict[str, Any]:
+        """Refresh active MoviePilot site data before a stat run.
+
+        This is intentionally kept out of ``api_site_stat_chart`` because GET
+        chart reads must remain side-effect free.  An empty result is only a
+        success when MoviePilot has no active sites; otherwise it means the
+        refresh produced no usable current-day data.
+        """
+        return self._refresh_site_userdata_coordinated()
 
     def api_preview_downloader_helper(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("下载器助手", "dltag")

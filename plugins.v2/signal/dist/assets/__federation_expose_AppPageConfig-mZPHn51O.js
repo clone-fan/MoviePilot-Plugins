@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, am as _export_sfc, c4 as mdiAlertOutline, bu as mdiDeleteOutline, aX as mdiPlay, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
-import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-Bqooijss.js';
-import { g as getPluginApi, D as DEFAULT_PLUGIN_API_TIMEOUT_MS, r as resolvePluginApi, w as withTimeout, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-K7zxwCEJ.js';
+import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-BgirGyUt.js';
+import { g as getPluginApi, D as DEFAULT_PLUGIN_API_TIMEOUT_MS, r as resolvePluginApi, w as withTimeout, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-DVoiFPdr.js';
 
 const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$k,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$a} = await importShared('vue');
 
@@ -601,7 +601,7 @@ const sharedCardOwnership = Object.freeze({
   }),
   sites: Object.freeze({
     schedule: Object.freeze({ title: '站点统计计划', note: '按 Cron 自动刷新站点上传与下载统计。', masterKey: 'site_stat_enabled', scheduleKey: 'site_stat_schedule_enabled' }),
-    notify: Object.freeze({ title: '站点统计通知', note: '只通知定时统计结果；手动统计不发送。', masterKey: 'site_stat_enabled', resultKey: 'site_stat_schedule_notify_enabled', fusionManaged: true, fusionChannelOnly: true }),
+    notify: Object.freeze({ title: '站点统计通知', note: 'Cron 成功或无变化结果由开关控制；失败始终告警；手动统计不发送。', masterKey: 'site_stat_enabled', resultKey: 'site_stat_schedule_notify_enabled', fusionManaged: true, fusionChannelOnly: true }),
   }),
   hc: Object.freeze({
     schedule: Object.freeze({ title: '健康巡检计划', note: '按 Cron 定时巡查数据库、存储和目录。', masterKey: 'health_check_enabled', scheduleKey: 'health_check_schedule_enabled' }),
@@ -1498,6 +1498,9 @@ const siteFields = computed$c(() => [
       ? (field.items?.length ? field.items : props.notificationTypeItems)
       : field.items,
   label: field.key === 'site_stat_notify_type' ? '通知渠道' : field.label,
+  help: field.key === 'site_stat_schedule_notify_enabled'
+    ? 'Cron 成功或无变化结果由开关控制；失败始终告警，手动统计不发送通知。'
+    : field.help,
 })));
 
 function resolveDisabled(field) {
@@ -4670,9 +4673,9 @@ const replicaCards = computed(() => {
       { type: 'actions', actions: getActionsForSurface(['run_subscribe_reminder'], 'config') },
     ],
     sites: [
-      { type: 'section', icon: 'mdi-chart-line', title: '采集设置', note: '按 Cron 自动刷新站点数据；定时执行完成后发送结果。', grid: 'grid-2', fields: [
+      { type: 'section', icon: 'mdi-chart-line', title: '采集设置', note: '按 Cron 自动刷新站点数据；成功结果按开关通知，失败始终告警。', grid: 'grid-2', fields: [
         { key: 'site_stat_cron', icon: 'mdi-calendar-clock', label: '统计时间', value: cronVal(form.site_stat_cron) },
-        { key: 'site_stat_dashboard_type', icon: 'mdi-database-outline', label: '数据范围', value: form.site_stat_dashboard_type === 'total' ? '汇总' : '今日' },
+        { key: 'site_stat_dashboard_type', icon: 'mdi-database-outline', label: '数据范围', value: '今日增量' },
       ] },
       { type: 'actions', actions: getActionsForSurface(['run_site_stat'], 'config') },
     ],

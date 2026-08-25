@@ -151,13 +151,14 @@ class TgReportHtmlMixin:
         try:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
-            active_domains = {site.domain for site in (site_oper.list_active() or []) if getattr(site, "domain", None)}
-            latest = [
-                row for row in (site_oper.get_userdata_latest() or [])
-                if row and getattr(row, "domain", None) in active_domains
-            ]
-            if not latest:
-                latest = [row for row in (site_oper.get_userdata_latest() or []) if row]
+            active_domains = {
+                str(getattr(site, "domain", "") or "").strip()
+                for site in (site_oper.list_active() or [])
+                if str(getattr(site, "domain", "") or "").strip()
+            }
+            from ..domain.site_helpers import select_latest_site_userdata_rows
+            rows = site_oper.get_userdata() if callable(getattr(site_oper, "get_userdata", None)) else site_oper.get_userdata_latest()
+            latest = select_latest_site_userdata_rows(rows, active_domains)
             today = cls._today_prefix()
             detail_items: List[str] = []
             for row in latest:

@@ -150,106 +150,113 @@ class SiteStatsMixin:
         failed_items = [x for x in failed_items if x not in {"⦁ 无", "• 无", "无"}]
         return (success_items + failed_items) or ["⦁ 无"]
     def _get_site_increment_locked(self) -> List[str]:
+        """Return the canonical site-increment presentation used by reports and Fusion.
+
+        The dashboard API and the report used to maintain two subtly different
+        implementations.  Rendering the API snapshot here keeps stale, partial
+        and counter-reset states consistent across every notification surface.
+        """
         try:
-            from app.db.site_oper import SiteOper
-            site_oper = SiteOper()
-            latest_data = site_oper.get_userdata_latest() or []
-            active_domains = {site.domain for site in (site_oper.list_active() or []) if getattr(site, "domain", None)}
-            if active_domains:
-                active_latest = [data for data in latest_data if data and getattr(data, "domain", None) in active_domains]
-                latest_data = active_latest or [data for data in latest_data if data]
-            else:
-                latest_data = [data for data in latest_data if data]
-            if not latest_data:
-                return ["⦁ 无"]
-            today = self._today_prefix()
-            result = []
-            previous_cache: Dict[str, List[Any]] = {}
-            eligible_count = 0
-            baseline_ready_count = 0
-            baseline_missing_count = 0
-            stale_count = 0
-            stale_days: List[str] = []
-            for current in sorted(latest_data, key=lambda row: (getattr(row, "name", None) or getattr(row, "domain", None) or "").lower()):
-                site_name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
-                site_domain = getattr(current, "domain", None)
-                current_day = self._normalize_day(getattr(current, "updated_day", None))
-                err_msg = str(getattr(current, "err_msg", None) or "").strip()
-                if err_msg:
-                    result.append(f"⦁ {site_name}：异常 - {err_msg}")
-                    continue
-                if current_day != today:
-                    stale_count += 1
-                    if current_day:
-                        stale_days.append(current_day)
-                    continue
-                eligible_count += 1
-                delta = None
-                for i in range(1, 8):
-                    prev_day = (datetime.strptime(current_day, "%Y-%m-%d") - timedelta(days=i)).strftime("%Y-%m-%d")
-                    if prev_day not in previous_cache:
-                        previous_cache[prev_day] = site_oper.get_userdata_by_date(prev_day) or []
-                    previous = self._find_site_userdata_snapshot(previous_cache[prev_day], site_name, site_domain)
-                    if previous:
-                        delta = self._site_userdata_delta(current, previous)
-                    if delta is not None:
-                        break
-                if delta is None:
-                    baseline_missing_count += 1
-                    continue
-                baseline_ready_count += 1
-                upload_delta, download_delta = delta
-                if upload_delta == 0 and download_delta == 0:
-                    continue
+            snapshot = self._site_increment_snapshot()
+            if snapshot.get("error"):
+                return [f"⦁ 异常 - {snapshot['error']}"]
+            if snapshot.get("basis") == "latest":
+                latest_day = snapshot.get("date") or snapshot.get("latest_date") or "未知日期"
+                return [f"⦁ 站点快照过期（最新 {latest_day}），等待今日站点数据刷新"]
+
+            rows = []
+            for item in snapshot.get("sites") or []:
+                name = str(item.get("name") or "未知站点")
                 extras = []
-                ratio = getattr(current, "ratio", None)
-                bonus = getattr(current, "bonus", None)
-                if ratio not in (None, ""):
-                    extras.append(f"📊 {ratio}")
-                if bonus not in (None, ""):
-                    extras.append(f"🪙 {self._format_metric_number(bonus)}")
+                if item.get("ratio") not in (None, ""):
+                    extras.append(f"📊 {item['ratio']}")
+                if item.get("bonus") not in (None, ""):
+                    extras.append(f"🪙 {self._format_metric_number(item['bonus'])}")
                 suffix = "｜" + "｜".join(extras) if extras else ""
-                result.append(f"⦁ {site_name}：⬆ {self._format_bytes(upload_delta)} ｜ ⬇ {self._format_bytes(download_delta)}{suffix}")
-            if stale_count:
-                latest_day = max(stale_days) if stale_days else "未知日期"
-                if result:
-                    result.append(f"⦁ 另 {stale_count} 个站点快照过期（最新 {latest_day}），未计入今日增量")
-                elif not eligible_count:
-                    return [f"⦁ 站点快照过期（最新 {latest_day}），等待今日站点数据刷新"]
-            if result:
-                return result
-            if eligible_count and baseline_missing_count and not baseline_ready_count:
+                rows.append(
+                    f"⦁ {name}：⬆ {self._format_bytes(item.get('upload', 0))} ｜ "
+                    f"⬇ {self._format_bytes(item.get('download', 0))}{suffix}"
+                )
+            if snapshot.get("stale_count"):
+                rows.append(f"⦁ 另 {snapshot['stale_count']} 个站点快照过期，未计入今日增量")
+            if snapshot.get("error_count"):
+                rows.append(f"⦁ 另 {snapshot['error_count']} 个站点刷新异常，未计入今日增量")
+            if snapshot.get("invalid_count"):
+                rows.append(f"⦁ 另 {snapshot['invalid_count']} 个站点缺少有效日期，未计入今日增量")
+            if snapshot.get("counter_reset_count"):
+                rows.append(f"⦁ 另 {snapshot['counter_reset_count']} 个站点累计值回退，未计入今日增量")
+            if snapshot.get("baseline_missing"):
+                rows.append(f"⦁ 另 {snapshot['baseline_missing']} 个站点基线不足，未计入今日增量")
+            if snapshot.get("missing_count"):
+                rows.append(f"⦁ 另 {snapshot['missing_count']} 个启用站点没有最新快照，未计入今日增量")
+            if rows:
+                return rows
+            if snapshot.get("baseline_missing") and not snapshot.get("baseline_ready"):
                 return ["⦁ 暂无增量（基线不足）"]
             return ["⦁ 无"]
         except Exception as e:
             return [f"⦁ 异常 - {e}"]
     def _site_increment_snapshot(self) -> Dict[str, Any]:
-        """站点上传/下载增量快照，优先今日；今日未生成时回退到最近有效快照。"""
+        """站点上传/下载增量快照。
+
+        The dashboard may expose the most recent usable snapshot after a
+        midnight rollover, but callers must be able to distinguish that state
+        from a current-day result. Scheduled execution uses the refresh gate
+        in ``mp_api`` and never treats this fallback as a successful refresh.
+        """
         result = {"date": self._today_prefix(), "basis": "today", "sites": [], "upload_total": 0, "download_total": 0,
                   "baseline_ready": False, "baseline_missing": 0, "latest_date": "", "stale": False,
-                  "stale_count": 0, "error_count": 0, "data_valid": False,
-                  "active_count": 0, "visible_count": 0, "error": ""}
+                  "stale_count": 0, "error_count": 0, "invalid_count": 0, "counter_reset_count": 0,
+                  "data_valid": False, "active_count": 0, "visible_count": 0, "missing_count": 0,
+                  "active_domains": [],
+                  "latest_updated_at": "", "error": ""}
         try:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
-            latest_data = site_oper.get_userdata_latest() or []
-            active_domains = {s.domain for s in (site_oper.list_active() or []) if getattr(s, "domain", None)}
+            latest_data = self._latest_site_userdata_rows(site_oper)
+            active_sites = site_oper.list_active() or []
+            active_domains = {
+                str(getattr(site, "domain", "") or "").strip()
+                for site in active_sites
+                if str(getattr(site, "domain", "") or "").strip()
+            }
             latest_data = [d for d in latest_data if d]
-            active_latest = [d for d in latest_data if getattr(d, "domain", None) in active_domains] if active_domains else list(latest_data)
-            if not active_latest and latest_data:
-                active_latest = list(latest_data)
-            result["active_count"] = len(active_domains) if active_domains else len(latest_data)
+            # An explicit empty active-site set means there is nothing to report.
+            # Falling back to every historical row can leak disabled/deleted sites.
+            active_latest = [
+                d for d in latest_data
+                if str(getattr(d, "domain", "") or "").strip() in active_domains
+            ]
+            result["active_count"] = len(active_sites)
             result["visible_count"] = len(active_latest)
+            result["missing_count"] = max(0, result["active_count"] - result["visible_count"])
+            result["active_domains"] = sorted(active_domains)
+            if len(active_domains) != result["active_count"]:
+                result["error"] = "启用站点存在无效域名，已取消统计以避免使用旧快照"
+                return result
             today = self._today_prefix()
             error_count = len([d for d in active_latest if str(getattr(d, "err_msg", None) or "").strip()])
             valid_latest = [d for d in active_latest if not str(getattr(d, "err_msg", None) or "").strip()]
             all_days = sorted({self._normalize_day(getattr(d, "updated_day", None)) for d in active_latest if self._normalize_day(getattr(d, "updated_day", None))}, reverse=True)
             latest_day = all_days[0] if all_days else ""
             result["latest_date"] = latest_day
+            latest_timestamps = []
+            for row in active_latest:
+                day = self._normalize_day(getattr(row, "updated_day", None))
+                clock = str(getattr(row, "updated_time", None) or "")[:8]
+                if day and re.match(r"^\d{2}:\d{2}:\d{2}$", clock):
+                    latest_timestamps.append(f"{day} {clock}")
+            result["latest_updated_at"] = max(latest_timestamps, default="")
             result["error_count"] = error_count
+            result["invalid_count"] = len([d for d in active_latest if not self._normalize_day(getattr(d, "updated_day", None))])
             result["stale_count"] = len([d for d in active_latest if self._normalize_day(getattr(d, "updated_day", None)) not in ("", today)])
-            result["stale"] = bool(latest_day and latest_day != today)
-            result["data_valid"] = bool(active_latest) and error_count == 0 and result["stale_count"] == 0
+            result["stale"] = bool(result["stale_count"])
+            result["data_valid"] = (
+                result["visible_count"] == result["active_count"]
+                and error_count == 0
+                and result["invalid_count"] == 0
+                and result["stale_count"] == 0
+            )
             days = sorted({self._normalize_day(getattr(d, "updated_day", None)) for d in valid_latest if self._normalize_day(getattr(d, "updated_day", None))}, reverse=True)
             basis_day = today if any(day == today for day in days) else (days[0] if days else today)
             result["date"] = basis_day
@@ -262,12 +269,14 @@ class SiteStatsMixin:
             out: List[Dict[str, Any]] = []
             baseline_ready_count = 0
             baseline_missing_count = 0
+            counter_reset_count = 0
             for current in valid_latest:
                 name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
                 domain = getattr(current, "domain", None)
                 if self._normalize_day(getattr(current, "updated_day", None)) != basis_day:
                     continue
                 delta = None
+                baseline_found = False
                 try:
                     base_dt = datetime.strptime(basis_day, "%Y-%m-%d")
                 except Exception:
@@ -278,26 +287,67 @@ class SiteStatsMixin:
                         previous_cache[prev_day] = site_oper.get_userdata_by_date(prev_day) or []
                     previous = self._find_site_userdata_snapshot(previous_cache[prev_day], name, domain)
                     if previous:
-                        delta = self._site_userdata_delta(current, previous)
+                        baseline_found = True
+                        delta, reason = self._site_userdata_delta_with_reason(current, previous)
+                        if reason == "counter_reset":
+                            counter_reset_count += 1
+                            break
+                        if reason == "invalid":
+                            baseline_missing_count += 1
+                            break
                     if delta is not None:
                         break
-                if delta is None:
+                if delta is None and not baseline_found:
                     baseline_missing_count += 1
+                    continue
+                if delta is None:
                     continue
                 baseline_ready_count += 1
                 up, dl = delta
                 if up == 0 and dl == 0:
                     continue
-                out.append({"name": name, "upload": up, "download": dl})
+                out.append({
+                    "name": name,
+                    "upload": up,
+                    "download": dl,
+                    "ratio": getattr(current, "ratio", None),
+                    "bonus": getattr(current, "bonus", None),
+                })
             result["sites"] = out
             result["upload_total"] = sum(int(d.get("upload", 0)) for d in out)
             result["download_total"] = sum(int(d.get("download", 0)) for d in out)
             result["baseline_ready"] = bool(baseline_ready_count)
             result["baseline_missing"] = baseline_missing_count
+            result["counter_reset_count"] = counter_reset_count
+            result["data_valid"] = bool(active_latest) and not any(
+                (
+                    result["stale_count"],
+                    result["error_count"],
+                    result["invalid_count"],
+                    result["counter_reset_count"],
+                    result["baseline_missing"],
+                    result["missing_count"],
+                )
+            )
         except Exception as err:
             result["error"] = str(err)
             logger.warning(f"Signal 站点增量数据获取失败：{err}")
         return result
+
+    @classmethod
+    def _latest_site_userdata_rows(cls, site_oper: Any) -> List[Any]:
+        """Return one newest row per domain, including the newest error row.
+
+        MoviePilot's ``get_userdata_latest`` intentionally filters error rows.
+        That is useful for healthy-site consumers but loses the fact that a
+        refresh just failed.  Site statistics must retain that signal so an
+        error cannot silently look like an old successful snapshot.
+        """
+        getter = getattr(site_oper, "get_userdata", None)
+        rows = getter() if callable(getter) else None
+        if not rows:
+            rows = site_oper.get_userdata_latest() or []
+        return site_helpers.select_latest_site_userdata_rows(rows)
     def _site_increment_data(self) -> List[Dict[str, Any]]:
         """今日各站点上传/下载增量（原始字节），供旧调用兼容。"""
         return list((self._site_increment_snapshot().get("sites") or []))
@@ -305,11 +355,16 @@ class SiteStatsMixin:
         try:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
-            latest = site_oper.get_userdata_latest() or []
-            active_domains = {site.domain for site in (site_oper.list_active() or []) if getattr(site, "domain", None)}
-            latest = [row for row in latest if row and getattr(row, "domain", None) in active_domains] if active_domains else [row for row in latest if row]
-            if not latest:
-                latest = [row for row in (site_oper.get_userdata_latest() or []) if row]
+            latest = self._latest_site_userdata_rows(site_oper)
+            active_domains = {
+                str(getattr(site, "domain", "") or "").strip()
+                for site in (site_oper.list_active() or [])
+                if str(getattr(site, "domain", "") or "").strip()
+            }
+            latest = [
+                row for row in latest
+                if row and str(getattr(row, "domain", "") or "").strip() in active_domains
+            ]
             if not latest:
                 return ["⦁ 未取到站点快照"]
             today = self._today_prefix()
@@ -760,25 +815,31 @@ class SiteStatsMixin:
         return site_helpers.site_userdata_number(row, key)
 
     def _site_userdata_delta(self, current: Any, previous: Any) -> Optional[Tuple[int, int]]:
+        delta, _reason = self._site_userdata_delta_with_reason(current, previous)
+        return delta
+
+    def _site_userdata_delta_with_reason(
+        self, current: Any, previous: Any
+    ) -> Tuple[Optional[Tuple[int, int]], str]:
         current_upload = self._site_userdata_number(current, "upload")
         current_download = self._site_userdata_number(current, "download")
         previous_upload = self._site_userdata_number(previous, "upload")
         previous_download = self._site_userdata_number(previous, "download")
-        if current_upload is None and current_download is None:
-            return None
-        if not ((previous_upload is not None and previous_upload > 0) or (previous_download is not None and previous_download > 0)):
-            return None
+        if current_upload is None or current_download is None:
+            return None, "invalid"
+        if previous_upload is None or previous_download is None:
+            return None, "invalid"
         upload_delta = 0
         download_delta = 0
-        if current_upload is not None and previous_upload is not None and previous_upload > 0:
+        if current_upload is not None and previous_upload is not None:
             if current_upload < previous_upload:
-                return None
+                return None, "counter_reset"
             upload_delta = max(0, current_upload - previous_upload)
-        if current_download is not None and previous_download is not None and previous_download > 0:
+        if current_download is not None and previous_download is not None:
             if current_download < previous_download:
-                return None
+                return None, "counter_reset"
             download_delta = max(0, current_download - previous_download)
-        return upload_delta, download_delta
+        return (upload_delta, download_delta), "ok"
 
     def _downloader_overview_data(self) -> List[Dict[str, Any]]:
         """Return fixed, common downloader activity fields for the Dashboard."""

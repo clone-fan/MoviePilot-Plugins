@@ -740,6 +740,7 @@ function useActionRunner(options = {}) {
     getDisabledMessage = () => '',
     getPayloadContext = () => ({}),
     onSuccess = null,
+    onFailure = null,
     messageTimeoutMs = 5000,
   } = options;
   const runningActions = reactive$1(new Map());
@@ -833,6 +834,9 @@ function useActionRunner(options = {}) {
         if (!requestOk) {
           actionOk.value = false;
           actionMessage.value = responseMessage;
+          if (typeof onFailure === 'function') {
+            try { await onFailure({ action, res: response, path, payload }); } catch (refreshError) { /* keep API error as primary */ }
+          }
           return { started: true, ok: false, requestOk: false, refreshOk: false, action, path, payload, response }
         }
 
@@ -861,6 +865,9 @@ function useActionRunner(options = {}) {
       } catch (error) {
         actionOk.value = false;
         actionMessage.value = actionMessageFromResponse({ code: 1, msg: error?.message }, action.label);
+        if (typeof onFailure === 'function') {
+          try { await onFailure({ action, error, path, payload, response }); } catch (refreshError) { /* keep request error as primary */ }
+        }
         return { started: true, ok: false, requestOk: false, refreshOk: false, action, path, payload, response, error }
       } finally {
         inFlight.delete(id);

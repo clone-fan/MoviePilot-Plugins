@@ -1098,7 +1098,11 @@ const messageTypeItems = [
 ];
 configOptionValues(messageTypeItems);
 
-const siteStatRangeItems = [{ title: '今日数据', value: 'today' }, { title: '汇总数据', value: 'total' }, { title: '所有数据', value: 'all' }];
+// Site statistics are intentionally current-day only.  The backend computes
+// an increment from the latest current-day snapshot and never implemented a
+// historical aggregate/all-data mode; do not expose controls that silently do
+// nothing.
+const siteStatRangeItems = [{ title: '今日数据', value: 'today' }];
 const marketNotifyItems = notificationTypeItems;
 const mpUpdateTypes = ['后端', '前端'].map(v => ({ title: v, value: v }));
 const pluginAutoInstallScopeItems = [
@@ -1202,6 +1206,9 @@ function normalizeCurrentConfig(config = {}) {
   }
   if (Object.hasOwn(normalized, 'site_stat_cron')) {
     normalized.site_stat_cron = normalizeCron(normalized.site_stat_cron, defaults.site_stat_cron);
+  }
+  if (Object.hasOwn(normalized, 'site_stat_dashboard_type')) {
+    normalized.site_stat_dashboard_type = 'today';
   }
   if (Object.hasOwn(normalized, 'dltag_cron')) {
     normalized.dltag_cron = normalizeCron(normalized.dltag_cron, '');
