@@ -1,4 +1,4 @@
-"""MoviePilot v2 官方订阅日历组合契约适配器。"""
+"""MoviePilot v2 订阅日历：按官方后端方式进程内直读订阅与 TMDB 排期。"""
 
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -11,12 +11,12 @@ class SubscriptionCalendarError(RuntimeError):
 
 
 class SubscriptionCalendarContractError(SubscriptionCalendarError):
-    """MoviePilot v2 日历复合接口返回了非法结构。"""
+    """MoviePilot v2 宿主返回了非法的订阅或排期结构。"""
 
 
 @dataclass(frozen=True)
 class SubscriptionCalendarSnapshot:
-    """一次 MoviePilot v2 复合日历读取的不可变结果。"""
+    """一次 MoviePilot v2 订阅日历读取的不可变结果。"""
 
     status: str
     items: Tuple[str, ...] = ()
@@ -33,6 +33,7 @@ class SubscriptionCalendarSnapshot:
 
     @property
     def is_partial(self) -> bool:
+        """兼容保留的状态判断；read_today 复刻官方丢弃语义后不再产出 partial。"""
         return self.status == "partial"
 
     @property
@@ -56,26 +57,115 @@ class SubscriptionCalendarSnapshot:
         return f"{prefix}：{detail or '宿主未返回可用数据'}"
 
 
-class MoviePilotV2SubscriptionCalendar:
-    """按 MoviePilot v2 官方前端组合方式读取订阅日历。"""
+class MoviePilotHostCalendarReader:
+    """进程内读取宿主订阅与 TMDB 排期。
 
-    _SOURCE = "moviepilot-v2-calendar-composite"
-    _REQUEST_TIMEOUT = 20
+    与 MoviePilot 官方后端 `SubscribeChain.cache_calendar` 使用同一组进程内接口
+    （`SubscribeOper` 与 `TmdbChain`），因此直接复用宿主 `subscribe_calendar_cache`
+    定时任务已经预热的 TMDB 缓存，不再经由本机 HTTP、鉴权和响应模型校验。
+    """
+
+    def __init__(self) -> None:
+        self._tmdb_chain: Optional[Any] = None
+
+    def _chain(self) -> Any:
+        """整次日历读取复用一个 TmdbChain 实例，避免逐条订阅重复构建。"""
+        if self._tmdb_chain is None:
+            from app.chain.tmdb import TmdbChain
+
+            self._tmdb_chain = TmdbChain()
+        return self._tmdb_chain
+
+    def list_subscriptions(self) -> List[Dict[str, Any]]:
+        """读取全部订阅并规范为日历所需字段。"""
+        from app.db.subscribe_oper import SubscribeOper
+
+        try:
+            records = SubscribeOper().list()
+        except Exception as err:
+            raise SubscriptionCalendarError(f"订阅列表读取失败：{self._reason(err)}") from err
+        return [self._normalize(record) for record in records or []]
+
+    def movie_release_date(self, subscribe: Dict[str, Any]) -> str:
+        """读取电影上映日期，等价于官方日历的 release_date。"""
+        from app.schemas.types import MediaType
+
+        tmdbid = self._tmdb_id(subscribe)
+        try:
+            info = self._chain().tmdb_info(tmdbid=tmdbid, mtype=MediaType.MOVIE)
+        except Exception as err:
+            raise SubscriptionCalendarError(f"媒体详情读取失败：tmdb:{tmdbid}：{self._reason(err)}") from err
+        if not isinstance(info, dict):
+            return ""
+        return str(info.get("release_date") or "").strip()
+
+    def season_episodes(self, subscribe: Dict[str, Any], season: int) -> List[Dict[str, Any]]:
+        """读取指定季的分集排期，等价于官方日历的 air_date 列表。"""
+        tmdbid = self._tmdb_id(subscribe)
+        episode_group = str(subscribe.get("episode_group") or "").strip() or None
+        try:
+            episodes = self._chain().tmdb_episodes(
+                tmdbid=tmdbid,
+                season=int(season),
+                episode_group=episode_group,
+            )
+        except Exception as err:
+            raise SubscriptionCalendarError(f"季集读取失败：tmdb:{tmdbid} S{season}：{self._reason(err)}") from err
+        return [self._normalize_episode(episode) for episode in episodes or []]
+
+    @staticmethod
+    def _tmdb_id(subscribe: Dict[str, Any]) -> int:
+        value = subscribe.get("tmdbid")
+        try:
+            number = int(value)
+        except (TypeError, ValueError) as err:
+            raise SubscriptionCalendarContractError("订阅缺少 TMDB ID") from err
+        if number <= 0:
+            raise SubscriptionCalendarContractError("订阅缺少 TMDB ID")
+        return number
+
+    @staticmethod
+    def _normalize(record: Any) -> Dict[str, Any]:
+        return {
+            "type": str(getattr(record, "type", "") or "").strip(),
+            "name": str(getattr(record, "name", "") or "").strip(),
+            "year": str(getattr(record, "year", "") or "").strip(),
+            "season": getattr(record, "season", None),
+            "episode_group": str(getattr(record, "episode_group", "") or "").strip(),
+            "tmdbid": getattr(record, "tmdbid", None),
+        }
+
+    @staticmethod
+    def _normalize_episode(episode: Any) -> Dict[str, Any]:
+        if isinstance(episode, dict):
+            return {
+                "air_date": episode.get("air_date"),
+                "episode_number": episode.get("episode_number"),
+            }
+        return {
+            "air_date": getattr(episode, "air_date", None),
+            "episode_number": getattr(episode, "episode_number", None),
+        }
+
+    @staticmethod
+    def _reason(error: BaseException) -> str:
+        text = str(error or "").strip()
+        return text[:160] or type(error).__name__
+
+
+class MoviePilotV2SubscriptionCalendar:
+    """按官方日历语义聚合今天的订阅事件。"""
+
+    _SOURCE = "moviepilot-v2-calendar-inprocess"
     _LOCALE_LOCK = threading.RLock()
 
     def __init__(
         self,
         *,
-        request_utils: Optional[Any] = None,
-        api_token: Optional[str] = None,
-        port: Optional[int] = None,
-        api_prefix: Optional[str] = None,
+        reader: Optional[Any] = None,
         today_provider: Optional[Callable[[], date]] = None,
     ) -> None:
-        self._request_utils = request_utils
-        self._api_token = api_token
-        self._port = port
-        self._api_prefix = api_prefix
+        self._reader = reader if reader is not None else MoviePilotHostCalendarReader()
         self._today_provider = today_provider or self._moviepilot_today
 
     def read_today(self) -> SubscriptionCalendarSnapshot:
@@ -127,10 +217,11 @@ class MoviePilotV2SubscriptionCalendar:
         self._sort_events(events)
         items = tuple(event[3] for event in events)
         failed = len(errors)
-        if failed == total:
+        # 官方 V2 前端用 Promise.allSettled 组合日历：单条订阅读取失败被直接丢弃，
+        # 只在控制台留痕，不对用户可见。这里复刻同一语义——逐条失败只保留为诊断计数，
+        # 只有全部订阅都失败（等价于官方渲染不出任何事件）才升级为可见错误。
+        if failed and failed == total:
             status = "invalid" if invalid_failures == total else "failed"
-        elif failed:
-            status = "partial"
         elif not items:
             status = "empty"
         else:
@@ -160,11 +251,16 @@ class MoviePilotV2SubscriptionCalendar:
             raise SubscriptionCalendarError("MoviePilot TZ 无法解析") from err
 
     def _get_subscriptions(self) -> List[Dict[str, Any]]:
-        payload = self._get_json("subscribe/", params={})
+        try:
+            payload = self._reader.list_subscriptions()
+        except SubscriptionCalendarError:
+            raise
+        except Exception as err:
+            raise SubscriptionCalendarError(f"订阅列表读取失败：{self._safe_error(err)}") from err
         if not isinstance(payload, list):
-            raise SubscriptionCalendarContractError("subscribe/ 返回非订阅数组")
+            raise SubscriptionCalendarContractError("宿主未返回订阅列表")
         if any(not isinstance(item, dict) for item in payload):
-            raise SubscriptionCalendarContractError("subscribe/ 包含非法订阅条目")
+            raise SubscriptionCalendarContractError("宿主返回了非法订阅条目")
         return payload
 
     def _read_subscription_events(
@@ -183,13 +279,7 @@ class MoviePilotV2SubscriptionCalendar:
             raise SubscriptionCalendarContractError(f"订阅条目 {index + 1} 缺少 TMDB ID")
 
         if media_type == "电影":
-            media = self._get_json(
-                f"media/tmdb:{tmdbid}",
-                params={"type_name": media_type},
-            )
-            if not isinstance(media, dict):
-                raise SubscriptionCalendarContractError(f"订阅条目 {index + 1} 电影详情结构非法")
-            release_date = str(media.get("release_date") or "").strip()
+            release_date = self._read_movie_release_date(subscribe, index)
             if not release_date:
                 return []
             self._parse_local_date(release_date, index)
@@ -200,13 +290,7 @@ class MoviePilotV2SubscriptionCalendar:
         season = self._positive_or_zero_int(subscribe.get("season"))
         if season is None:
             raise SubscriptionCalendarContractError(f"订阅条目 {index + 1} 缺少季号")
-        params = {}
-        episode_group = str(subscribe.get("episode_group") or "").strip()
-        if episode_group:
-            params["episode_group"] = episode_group
-        episodes = self._get_json(f"tmdb/{tmdbid}/{season}", params=params)
-        if not isinstance(episodes, list):
-            raise SubscriptionCalendarContractError(f"订阅条目 {index + 1} 季集响应结构非法")
+        episodes = self._read_season_episodes(subscribe, season, index)
 
         grouped: Dict[str, List[int]] = {}
         for episode in episodes:
@@ -235,57 +319,32 @@ class MoviePilotV2SubscriptionCalendar:
             ))
         return result
 
-    def _get_json(self, path: str, *, params: Dict[str, Any]) -> Any:
-        token = str(self._api_token if self._api_token is not None else self._settings_value("API_TOKEN", "") or "").strip()
-        if not token:
-            raise SubscriptionCalendarError("MoviePilot API_TOKEN 未配置")
-        query = dict(params or {})
+    def _read_movie_release_date(self, subscribe: Dict[str, Any], index: int) -> str:
         try:
-            response = self._client(token).get_res(
-                self._url(path),
-                params=query,
-                raise_exception=True,
-            )
+            release_date = self._reader.movie_release_date(subscribe)
         except SubscriptionCalendarError:
             raise
         except Exception as err:
-            raise SubscriptionCalendarError(f"宿主请求异常：{path}") from err
-        if response is None:
-            raise SubscriptionCalendarError(f"宿主请求失败：{path}")
+            raise SubscriptionCalendarError(f"订阅条目 {index + 1} 电影详情读取失败：{self._safe_error(err)}") from err
+        return str(release_date or "").strip()
+
+    def _read_season_episodes(
+        self,
+        subscribe: Dict[str, Any],
+        season: int,
+        index: int,
+    ) -> List[Any]:
         try:
-            if not 200 <= int(response.status_code) < 300:
-                raise SubscriptionCalendarError(f"宿主请求 HTTP {response.status_code}：{path}")
-            try:
-                return response.json()
-            except Exception as err:
-                raise SubscriptionCalendarError(f"宿主响应不是 JSON：{path}") from err
-        finally:
-            close = getattr(response, "close", None)
-            if callable(close):
-                close()
-
-    def _client(self, token: str) -> Any:
-        if self._request_utils is not None:
-            return self._request_utils
-        from app.utils.http import RequestUtils
-
-        return RequestUtils(
-            headers={"X-API-KEY": token, "Accept": "application/json"},
-            proxies=None,
-            timeout=self._REQUEST_TIMEOUT,
-        )
-
-    def _url(self, path: str) -> str:
-        port = int(self._port if self._port is not None else self._settings_value("PORT", 3001) or 3001)
-        prefix_value = self._api_prefix if self._api_prefix is not None else self._settings_value("API_V1_STR", "/api/v1")
-        api_prefix = str(prefix_value or "/api/v1").rstrip("/")
-        return f"http://127.0.0.1:{port}{api_prefix}/{str(path).lstrip('/')}"
-
-    @staticmethod
-    def _settings_value(name: str, default: Any) -> Any:
-        from app.core.config import settings
-
-        return getattr(settings, name, default)
+            episodes = self._reader.season_episodes(subscribe, season)
+        except SubscriptionCalendarError:
+            raise
+        except Exception as err:
+            raise SubscriptionCalendarError(f"订阅条目 {index + 1} 季集读取失败：{self._safe_error(err)}") from err
+        if episodes is None:
+            return []
+        if not isinstance(episodes, list):
+            raise SubscriptionCalendarContractError(f"订阅条目 {index + 1} 季集结构非法")
+        return episodes
 
     @staticmethod
     def _positive_int(value: Any) -> Optional[int]:
