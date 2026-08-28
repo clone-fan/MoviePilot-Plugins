@@ -7,6 +7,7 @@ from typing import Any, Dict, Mapping, Optional
 from app.log import logger
 
 from ..application.backup_models import BackupSettings
+from ..domain import site_helpers
 
 # Default local plugin source repository. Empty means disabled.
 # Source cleanup is only enabled after an explicit user path is configured.
@@ -64,7 +65,7 @@ class LifecycleMixin:
     def _refresh_site_userdata_coordinated(self) -> Dict[str, Any]:
         try:
             from app.db.site_oper import SiteOper
-            active_sites = SiteOper().list_active() or []
+            active_sites = site_helpers.select_user_data_sites(SiteOper().list_active() or [])
         except Exception as err:
             # An active-site lookup failure is not equivalent to an empty
             # configuration.  Fail closed before touching the refresh chain.
@@ -595,6 +596,7 @@ class LifecycleMixin:
             self._market_update_strategy = "check"
         self._market_update_install_ids = self._parse_csv(config.get("market_update_install_ids"))
         self._market_update_exclude_ids = self._parse_csv(config.get("market_update_exclude_ids"))
+        self._market_update_blacklist = self._parse_csv(config.get("market_update_blacklist"))
         reminder_enabled = self._config_bool(
             config,
             "plugin_update_reminder_enabled",

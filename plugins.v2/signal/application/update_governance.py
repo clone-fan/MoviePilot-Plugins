@@ -3,7 +3,7 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.core.config import settings
 from app.log import logger
@@ -114,22 +114,70 @@ class UpdateGovernanceMixin:
         return {"status": "已直接接替", "note": "本插件直接同步插件库记录，不依赖原插件库更新推送插件。", "enabled": self._market_update_enabled, "cron": self._market_update_cron, "settings_count": len(settings_markets), "last_update": last.get("time"), "last_wiki_count": len(last.get("wiki_markets") or [])}
 
     def _build_market_update_status(self, apply: bool = False) -> Dict[str, Any]:
-        wiki_markets = self._fetch_wiki_markets()
+        blacklist = self._market_update_blacklist_list()
+        blocked_addresses, blocked_hosts = self._market_blacklist_matchers(blacklist)
+        discovered_markets = self._fetch_wiki_markets()
         settings_markets = self._valid_markets_list(settings.PLUGIN_MARKET)
-        other_markets = [x for x in settings_markets if x not in wiki_markets]
+        wiki_markets = [x for x in discovered_markets if not self._market_address_blocked(x, blocked_addresses, blocked_hosts)]
+        kept_settings_markets = [x for x in settings_markets if not self._market_address_blocked(x, blocked_addresses, blocked_hosts)]
+        blocked_from_settings = [x for x in settings_markets if self._market_address_blocked(x, blocked_addresses, blocked_hosts)]
+        blocked_markets = self._dedupe([x for x in discovered_markets if self._market_address_blocked(x, blocked_addresses, blocked_hosts)] + blocked_from_settings)
+        other_markets = [x for x in kept_settings_markets if x not in wiki_markets]
         write_markets = self._dedupe(wiki_markets + other_markets)
         last = self.get_data("last_market_update") or {}
         last_wiki = self._valid_markets_list(last.get("wiki_markets") or [])
         new_markets = [x for x in wiki_markets if x not in last_wiki and x not in settings_markets]
         has_update = set(wiki_markets) != set(last_wiki) or bool(new_markets)
-        result = {"success": True, "dry_run": not apply, "has_update": has_update, "strategy": "sync", "legacy_strategy": self._market_update_strategy, "wiki_markets": wiki_markets, "settings_markets": settings_markets, "other_markets": other_markets, "write_markets": write_markets, "new_markets": new_markets, "settings_written": False, "env_written": False}
+        empty_write_blocked = not write_markets and bool(settings_markets)
+        result = {"success": not empty_write_blocked, "dry_run": not apply, "has_update": has_update, "strategy": "sync", "legacy_strategy": self._market_update_strategy, "wiki_markets": wiki_markets, "settings_markets": settings_markets, "other_markets": other_markets, "write_markets": write_markets, "new_markets": new_markets, "blacklist": blacklist, "blocked_markets": blocked_markets, "blocked_from_settings": blocked_from_settings, "settings_written": False, "env_written": False}
+        if empty_write_blocked:
+            result["error"] = "黑名单过滤后插件库目标为空，未写入：为避免清空 MoviePilot 插件市场已中止本次同步"
+            logger.error(f"插件库同步中止：黑名单过滤后目标为空，当前配置 {len(settings_markets)} 个库、拦截 {len(blocked_markets)} 个库")
+            return result
         if apply:
             if write_markets != settings_markets:
                 settings.PLUGIN_MARKET = ",".join(write_markets)
                 result["settings_written"] = True
             result["env_written"] = self._write_app_env_key("PLUGIN_MARKET", ",".join(write_markets))
-            self.save_data("last_market_update", {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "wiki_markets": wiki_markets, "settings_markets": settings_markets, "new_markets": new_markets, "has_update": has_update})
+            self.save_data("last_market_update", {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "wiki_markets": wiki_markets, "settings_markets": settings_markets, "new_markets": new_markets, "has_update": has_update, "blacklist": blacklist, "blocked_markets": blocked_markets})
         return result
+
+    def _market_update_blacklist_list(self) -> List[str]:
+        return [str(item).strip() for item in (self._market_update_blacklist or []) if str(item).strip()]
+
+    @staticmethod
+    def _normalize_market_address(value: Any) -> str:
+        text = str(value or "").strip().lower()
+        if not text:
+            return ""
+        text = text.rstrip("/")
+        if text.endswith(".git"):
+            text = text[: -len(".git")].rstrip("/")
+        return text
+
+    @staticmethod
+    def _market_blacklist_matchers(blacklist: Any) -> Tuple[Set[str], Set[str]]:
+        addresses: Set[str] = set()
+        hosts: Set[str] = set()
+        for item in (blacklist or []):
+            normalized = UpdateGovernanceMixin._normalize_market_address(item)
+            if not normalized:
+                continue
+            addresses.add(normalized)
+            bare = normalized.split("://", 1)[-1]
+            if "/" not in bare:
+                hosts.add(bare)
+        return addresses, hosts
+
+    @staticmethod
+    def _market_address_blocked(address: Any, addresses: Set[str], hosts: Set[str]) -> bool:
+        normalized = UpdateGovernanceMixin._normalize_market_address(address)
+        if not normalized:
+            return False
+        if normalized in addresses:
+            return True
+        host = normalized.split("://", 1)[-1].split("/", 1)[0]
+        return bool(host) and host in hosts
 
     def _fetch_wiki_markets(self) -> List[str]:
         url = "https://wiki.movie-pilot.org/zh/plugin"
@@ -204,22 +252,30 @@ class UpdateGovernanceMixin:
             f"⦁ 当前配置：{len(data.get('settings_markets') or [])} 个",
             f"⦁ 第三方保留：{len(data.get('other_markets') or [])} 个",
             f"⦁ 新发现：{len(data.get('new_markets') or [])} 个",
+            f"⦁ 黑名单拦截：{len(data.get('blocked_markets') or [])} 个",
             f"⦁ 写入当前配置：{'已执行' if data.get('settings_written') else '未执行'}",
             f"⦁ 写入 app.env：{'已执行' if data.get('env_written') else '未执行'}",
         ]
         for url in (data.get('new_markets') or [])[:5]:
             lines.append(f"⦁ 新库：{url}")
+        for url in (data.get('blocked_markets') or [])[:5]:
+            lines.append(f"⦁ 拦截库：{url}")
+        if not data.get("success"):
+            lines.append(f"⦁ 同步失败：{data.get('error') or '插件库同步未完成'}")
         return "\n".join(lines)
 
     @staticmethod
     def _market_update_outcome(data: Dict[str, Any]) -> str:
         writes = int(bool(data.get("settings_written"))) + int(bool(data.get("env_written")))
+        blocked = len(data.get("blocked_markets") or [])
         if data.get("success"):
             parts = []
             if writes:
                 parts.append(f"同步 {writes} 处插件库配置")
+            if blocked:
+                parts.append(f"拦截 {blocked} 个插件库")
             return "已" + "，".join(parts) if parts else "插件库检查完成，未执行变更"
-        detail = "插件库同步未完成"
+        detail = str(data.get("error") or "").strip() or "插件库同步未完成"
         return f"插件库同步失败：{detail}"
 
     @staticmethod
@@ -346,14 +402,14 @@ class UpdateGovernanceMixin:
     def run_mp_update_scheduled(self) -> bool:
         return self.run_mp_update_check(scheduled=True)
 
-    def run_mp_update_check(self, scheduled: bool = False, result_name: str = "系统更新检查") -> bool:
+    def run_mp_update_check(self, scheduled: bool = False, result_name: str = "系统更新检查", notify: bool = False) -> bool:
         ok, _ = self._guard_task("系统更新检查", "mp_update")
         if not ok:
             return False
         try:
             data = self._build_update_status()
         except Exception as err:
-            if not (scheduled and not getattr(self, "_fusion_notify_enabled", False)):
+            if not (notify or (scheduled and not getattr(self, "_fusion_notify_enabled", False))):
                 raise
             text = f"系统更新检查失败：{err}"
             if self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
@@ -371,6 +427,7 @@ class UpdateGovernanceMixin:
                     notification_target="moviepilot",
                     notification_fingerprint=self._notification_error_fingerprint(err),
                     notification_cooldown=True,
+                    notification_manual=notify,
                 )
             self._save_task_result(result_name, False, -1, text)
             logger.error(f"Signal 系统更新检查失败：{err}")
@@ -386,7 +443,7 @@ class UpdateGovernanceMixin:
             text = self._format_update_status_text(data)
         execution_failed = bool(mp.get("has_update") and not mp.get("upgrade_dispatched"))
         success = bool(checks) and not errors and not execution_failed
-        if scheduled and self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
+        if (scheduled or notify) and self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
             title = "系统更新" if success else "系统更新异常"
             outcome = errors[0][:120] if errors else self._moviepilot_update_outcome(data, success)
             notification_status = "error" if not success else ("changed" if mp.get("has_update") else "noop")
@@ -419,44 +476,54 @@ class UpdateGovernanceMixin:
                     if notification_status == "error" else ""
                 ),
                 notification_cooldown=notification_status == "error",
+                notification_manual=notify,
             )
         self._save_task_result(result_name, success, 0 if success else 1, text)
         return success
 
-    def run_mp_update_apply(self) -> bool:
-        return self.run_mp_update_check(scheduled=False, result_name="主程序更新执行")
+    def run_mp_update_apply(self, notify: bool = False) -> bool:
+        return self.run_mp_update_check(scheduled=False, result_name="主程序更新执行", notify=notify)
 
     def run_market_update_scheduled(self) -> bool:
         return self.run_market_update(scheduled=True)
 
-    def run_market_update(self, scheduled: bool = False) -> bool:
+    def run_market_update(self, scheduled: bool = False, notify: bool = False) -> bool:
         ok, _ = self._guard_task("插件库同步", "market_update")
         if not ok:
             return False
         try:
             data = self._build_market_update_status(apply=True)
+            self._last_market_update_result = dict(data)
             text = self._format_market_update_text(data)
-            data["success"] = True
-            if scheduled and self._task_outcome_notification_enabled(self._market_update_scheduled_notify):
+            success = bool(data.get("success"))
+            if (scheduled or notify) and self._task_outcome_notification_enabled(self._market_update_scheduled_notify):
                 changed = bool(data.get("new_markets") or data.get("settings_written") or data.get("env_written"))
+                notification_status = "error" if not success else ("changed" if changed else "noop")
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._market_update_notify_type),
-                    title="插件库同步",
+                    title="插件库同步" if success else "插件库同步异常",
                     text=text,
                     outcome=self._market_update_outcome(data),
-                    success=bool(data.get("success")),
+                    success=success,
                     component="market_update",
                     task_key="market_sync",
                     task_group="更新管理",
-                    notification_status="changed" if changed else "noop",
+                    notification_status=notification_status,
                     notification_target="market_sync",
-                    notification_cooldown=False,
+                    notification_cooldown=notification_status == "error",
+                    notification_manual=notify,
                 )
             self._save_task_result("插件库同步", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
         except Exception as err:
+            self._last_market_update_result = {
+                "success": False,
+                "error": str(err),
+                "settings_written": False,
+                "env_written": False,
+            }
             self._save_task_result("插件库同步", False, -1, str(err))
-            if scheduled and self._task_outcome_notification_enabled(self._market_update_scheduled_notify):
+            if (scheduled or notify) and self._task_outcome_notification_enabled(self._market_update_scheduled_notify):
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._market_update_notify_type),
                     title="插件库同步异常",
@@ -470,6 +537,7 @@ class UpdateGovernanceMixin:
                     notification_target="market_sync",
                     notification_fingerprint=self._notification_error_fingerprint(err),
                     notification_cooldown=True,
+                    notification_manual=notify,
                 )
             logger.error(f"Signal 插件库同步失败：{err}")
             return False
@@ -511,7 +579,7 @@ class UpdateGovernanceMixin:
     def run_plugin_update_reminder_scheduled(self) -> bool:
         return self.run_plugin_update_reminder(scheduled=True)
 
-    def run_plugin_update_reminder(self, scheduled: bool = False) -> bool:
+    def run_plugin_update_reminder(self, scheduled: bool = False, notify: bool = False) -> bool:
         ok, _ = self._guard_task("插件更新", "plugin_update_reminder")
         if not ok:
             return False
@@ -519,7 +587,7 @@ class UpdateGovernanceMixin:
         try:
             data = self._auto_update_installed_plugins(apply=auto_install_enabled)
         except Exception as err:
-            if not (scheduled and not getattr(self, "_fusion_notify_enabled", False)):
+            if not (notify or (scheduled and not getattr(self, "_fusion_notify_enabled", False))):
                 raise
             data = {
                 "auto_install": auto_install_enabled,
@@ -540,7 +608,7 @@ class UpdateGovernanceMixin:
             and install_attempted
             and self._task_outcome_notification_enabled(self._plugin_auto_install_scheduled_notify)
         )
-        if scheduled and notify_check:
+        if (scheduled or notify) and notify_check:
             check_success = not bool(data.get("error"))
             check_data = {**data, "auto_install": False}
             updatable = list(check_data.get("updatable") or [])
@@ -571,8 +639,9 @@ class UpdateGovernanceMixin:
                 notification_target="available_updates",
                 notification_fingerprint=check_fingerprint,
                 notification_cooldown=check_status in {"changed", "error"},
+                notification_manual=notify,
             )
-        if scheduled and notify_install:
+        if (scheduled or notify) and notify_install:
             install_success = not bool(data.get("error") or data.get("failed"))
             self._notify_fusion_task_outcome(
                 mtype=self._notification_type(self._plugin_auto_install_notify_type),
@@ -586,6 +655,7 @@ class UpdateGovernanceMixin:
                 notification_status="changed" if install_success else "error",
                 notification_target="plugin_auto_install",
                 notification_cooldown=False,
+                notification_manual=notify,
             )
         self._save_task_result("插件更新", success, 0 if success else 1, text)
         return success
@@ -593,12 +663,12 @@ class UpdateGovernanceMixin:
     def run_plugin_auto_install_scheduled(self) -> bool:
         return self.run_plugin_auto_install(scheduled=True)
 
-    def run_plugin_auto_install(self, scheduled: bool = False) -> bool:
+    def run_plugin_auto_install(self, scheduled: bool = False, notify: bool = False) -> bool:
         # Compatibility command/API: installation is now part of one plugin
         # update check and must not create a second execution path.
-        return self.run_plugin_update_reminder(scheduled=scheduled)
+        return self.run_plugin_update_reminder(scheduled=scheduled, notify=notify)
 
-    def run_updates(self, scheduled: bool = False) -> bool:
+    def run_updates(self, scheduled: bool = False, notify: bool = False) -> bool:
         """Run the three saved update-management modules through one action.
 
         Disabled modules are reported as ``skipped``; they are not silently
@@ -621,7 +691,7 @@ class UpdateGovernanceMixin:
                 continue
             enabled.append(key)
             try:
-                success = bool(runner(scheduled=scheduled))
+                success = bool(runner(scheduled=scheduled, notify=notify))
                 modules.append({"key": key, "component": component, "status": "success" if success else "failed", "message": label})
             except Exception as err:
                 modules.append({"key": key, "component": component, "status": "failed", "message": str(err)})
@@ -636,13 +706,13 @@ class UpdateGovernanceMixin:
         self._save_task_result("更新检查", success, 0 if success else 1, message)
         return success
 
-    def _api_run_task(self, name: str, runner, component: Optional[str] = None) -> Dict[str, Any]:
+    def _api_run_task(self, name: str, runner, component: Optional[str] = None, **runner_kwargs: Any) -> Dict[str, Any]:
         ok, msg = self._can_run_task(name, component)
         if not ok:
             self._save_task_result(name, False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
         try:
-            success = bool(runner())
+            success = bool(runner(**runner_kwargs))
             return {"code": 0 if success else 1, "msg": f"{name}执行{'成功' if success else '失败'}，详情请查看插件日志。"}
         except Exception as err:
             try:
@@ -671,4 +741,16 @@ class UpdateGovernanceMixin:
             return {"returncode": -1, "output": str(err)}
 
     def _save_task_result(self, name: str, success: bool, returncode: int, output: str):
-        self.save_data(f"last_{self._slug(name)}", {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "returncode": returncode, "success": bool(success), "output": (output or "")[-2000:]})
+        slug = self._slug(name)
+        key = f"last_{slug}"
+        result = {
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "returncode": returncode,
+            "success": bool(success),
+            "output": (output or "")[-2000:],
+        }
+        if slug == "market_update":
+            snapshot = self.get_data(key) or {}
+            if isinstance(snapshot, dict):
+                result = {**snapshot, **result}
+        self.save_data(key, result)

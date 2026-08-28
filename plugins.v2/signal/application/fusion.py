@@ -100,7 +100,7 @@ class FusionMixin:
         task_group: str = "", execution_count: int = 1,
         notification_status: str = "", notification_target: str = "",
         notification_fingerprint: str = "", notification_cooldown: bool = False,
-        notification_notify_noop: bool = False,
+        notification_notify_noop: bool = False, notification_manual: bool = False,
     ) -> bool:
         concrete_outcome = str(outcome or "").strip()
         if not concrete_outcome:
@@ -120,6 +120,10 @@ class FusionMixin:
                 title=title, body=text, level="success" if success else "error", payload=event_payload,
                 component=component, execution_status="executed", result_status="success" if success else "error", outcome=concrete_outcome)
         status = str(notification_status or "").strip().lower()
+        if notification_manual:
+            # 手动执行（配置页按钮或手动 API）是用户显式发起的一次性动作：
+            # 结果通知必须真实发出，不参与 24 小时冷却，也不被"无变化"抑制。
+            return self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
         if not status:
             return self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
         if status not in {"noop", "changed", "error", "recovered"}:

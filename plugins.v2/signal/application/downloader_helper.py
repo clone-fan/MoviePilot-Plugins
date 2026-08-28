@@ -310,7 +310,7 @@ class DownloaderHelperMixin:
         raw = json.dumps([{key: item.get(key) for key in ("downloader", "id", "reason", "delete_file")} for item in items], ensure_ascii=False, sort_keys=True)
         return {"total": len(items), "items": items, "scope_token": hashlib.sha256(raw.encode("utf-8")).hexdigest()}
 
-    def run_downloader_helper(self, target_hashes: Optional[List[str]] = None, event_context: Optional[Dict[str, Any]] = None, trigger: str = "manual", confirmed_candidates: Optional[List[Dict[str, Any]]] = None, task_override: Optional[List[str]] = None) -> bool:
+    def run_downloader_helper(self, target_hashes: Optional[List[str]] = None, event_context: Optional[Dict[str, Any]] = None, trigger: str = "manual", confirmed_candidates: Optional[List[Dict[str, Any]]] = None, task_override: Optional[List[str]] = None, notify: bool = False) -> bool:
         name = "下载器助手"
         ok, _ = self._guard_task(name, "dltag")
         if not ok:
@@ -358,7 +358,7 @@ class DownloaderHelperMixin:
                 if failed_downloaders:
                     text += "；" + "；".join(failed_downloaders[:3])
             self._save_task_result(name, success, 0 if success else 1, text)
-            if trigger == "scheduled" and getattr(self, "_dltag_scheduled_notify", False):
+            if (trigger == "scheduled" or notify) and getattr(self, "_dltag_scheduled_notify", False):
                 action_count = counts["tagged"] + counts["seeded"] + counts["cleaned"]
                 notification_status = "error" if counts["failed"] else ("changed" if action_count else "noop")
                 notification_cooldown = bool(counts["failed"] and not action_count)
@@ -372,15 +372,15 @@ class DownloaderHelperMixin:
                         if notification_cooldown else ""
                     ),
                     notification_cooldown=notification_cooldown,
+                    notification_manual=notify,
                 )
             return success
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
             if (
-                trigger == "scheduled"
-                and getattr(self, "_dltag_scheduled_notify", False)
-                and not getattr(self, "_fusion_notify_enabled", False)
-            ):
+                notify
+                or (trigger == "scheduled" and not getattr(self, "_fusion_notify_enabled", False))
+            ) and getattr(self, "_dltag_scheduled_notify", False):
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._dltag_notify_type),
                     title="下载器助手异常",
@@ -394,6 +394,7 @@ class DownloaderHelperMixin:
                     notification_target="scheduled_run",
                     notification_fingerprint=self._notification_error_fingerprint(err),
                     notification_cooldown=True,
+                    notification_manual=notify,
                 )
             logger.error(f"Signal 下载器助手失败：{err}")
             return False

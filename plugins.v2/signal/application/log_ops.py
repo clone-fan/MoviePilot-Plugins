@@ -25,7 +25,7 @@ class LogOpsMixin:
         """Run the configured log cleanup from the scheduler."""
         return self.run_log_clean(scheduled=True)
 
-    def run_log_clean(self, scheduled: bool = False) -> bool:
+    def run_log_clean(self, scheduled: bool = False, notify: bool = False) -> bool:
         ok, _ = self._guard_task("日志清理", "log_clean")
         if not ok:
             return False
@@ -35,8 +35,8 @@ class LogOpsMixin:
             attempted = int(data.get("attempted_count") or 0)
             success = not bool(data.get("errors"))
             cleaned = len(data.get("cleaned") or [])
-            notify_scheduled = scheduled and self._task_outcome_notification_enabled(self._log_clean_notify)
-            if notify_scheduled and (attempted or not getattr(self, "_fusion_notify_enabled", False)):
+            notify_scheduled = (scheduled or notify) and self._task_outcome_notification_enabled(self._log_clean_notify)
+            if notify_scheduled and (attempted or notify or not getattr(self, "_fusion_notify_enabled", False)):
                 notification_status = "error" if not success else ("changed" if attempted else "noop")
                 notification_cooldown = bool(notification_status == "error" and not attempted)
                 outcome = (
@@ -60,16 +60,16 @@ class LogOpsMixin:
                         if notification_cooldown else ""
                     ),
                     notification_cooldown=notification_cooldown,
+                    notification_manual=notify,
                 )
             self._save_task_result("日志清理", success, 0 if success else 1, text)
             return success
         except Exception as err:
             self._save_task_result("日志清理", False, -1, str(err))
             if (
-                scheduled
-                and self._task_outcome_notification_enabled(self._log_clean_notify)
-                and not getattr(self, "_fusion_notify_enabled", False)
-            ):
+                notify
+                or (scheduled and not getattr(self, "_fusion_notify_enabled", False))
+            ) and self._task_outcome_notification_enabled(self._log_clean_notify):
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._log_clean_notify_type),
                     title="日志清理异常",
@@ -83,6 +83,7 @@ class LogOpsMixin:
                     notification_target="scheduled_run",
                     notification_fingerprint=self._notification_error_fingerprint(err),
                     notification_cooldown=True,
+                    notification_manual=notify,
                 )
             logger.error(f"Signal 日志清理执行失败：{err}")
             return False

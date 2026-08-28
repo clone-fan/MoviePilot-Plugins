@@ -86,7 +86,7 @@ class SeedCleanMixin:
     def run_seed_clean_scheduled(self) -> bool:
         return self.run_seed_clean(scheduled=True)
 
-    def run_seed_clean(self, scheduled: bool = False) -> bool:
+    def run_seed_clean(self, scheduled: bool = False, notify: bool = False) -> bool:
         """按规则在所选下载器中暂停/删除种子。默认动作为暂停，安全优先。"""
         name = "自动删种"
         ok, _ = self._guard_task(name, "seedclean")
@@ -96,10 +96,9 @@ class SeedCleanMixin:
             text = "未执行：请先在配置页选择下载器。"
             self._save_task_result(name, False, 2, text)
             if (
-                scheduled
-                and self._task_outcome_notification_enabled(self._seedclean_notify)
-                and not getattr(self, "_fusion_notify_enabled", False)
-            ):
+                notify
+                or (scheduled and not getattr(self, "_fusion_notify_enabled", False))
+            ) and self._task_outcome_notification_enabled(self._seedclean_notify):
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._seedclean_notify_type),
                     title="自动删种异常",
@@ -113,6 +112,7 @@ class SeedCleanMixin:
                     notification_target="scheduled_run",
                     notification_fingerprint=self._notification_error_fingerprint(text),
                     notification_cooldown=True,
+                    notification_manual=notify,
                 )
             return False
         # 安全：未设置任何筛选条件时不处理，避免误伤全部种子
@@ -120,10 +120,9 @@ class SeedCleanMixin:
             text = "未执行：未设置任何筛选条件（大小/分享率/做种时间/上传速度/标签/路径/Tracker/状态/分类），为避免误删已跳过。"
             self._save_task_result(name, False, 2, text)
             if (
-                scheduled
-                and self._task_outcome_notification_enabled(self._seedclean_notify)
-                and not getattr(self, "_fusion_notify_enabled", False)
-            ):
+                notify
+                or (scheduled and not getattr(self, "_fusion_notify_enabled", False))
+            ) and self._task_outcome_notification_enabled(self._seedclean_notify):
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._seedclean_notify_type),
                     title="自动删种异常",
@@ -137,6 +136,7 @@ class SeedCleanMixin:
                     notification_target="scheduled_run",
                     notification_fingerprint=self._notification_error_fingerprint(text),
                     notification_cooldown=True,
+                    notification_manual=notify,
                 )
             return False
         try:
@@ -147,8 +147,8 @@ class SeedCleanMixin:
             completed = int(result.get("completed") or 0)
             failed = int(result.get("failed") or 0)
             success = failed == 0
-            notify_scheduled = scheduled and self._task_outcome_notification_enabled(self._seedclean_notify)
-            if notify_scheduled and (attempted or failed or not getattr(self, "_fusion_notify_enabled", False)):
+            notify_scheduled = (scheduled or notify) and self._task_outcome_notification_enabled(self._seedclean_notify)
+            if notify_scheduled and (attempted or failed or notify or not getattr(self, "_fusion_notify_enabled", False)):
                 notification_cooldown = bool(failed and not attempted)
                 verb = str(result.get("verb") or "处理")
                 outcome = (
@@ -172,16 +172,16 @@ class SeedCleanMixin:
                         if notification_cooldown else ""
                     ),
                     notification_cooldown=notification_cooldown,
+                    notification_manual=notify,
                 )
             self._save_task_result(name, success, 0 if success else 1, text)
             return success
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
             if (
-                scheduled
-                and self._task_outcome_notification_enabled(self._seedclean_notify)
-                and not getattr(self, "_fusion_notify_enabled", False)
-            ):
+                notify
+                or (scheduled and not getattr(self, "_fusion_notify_enabled", False))
+            ) and self._task_outcome_notification_enabled(self._seedclean_notify):
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._seedclean_notify_type),
                     title="自动删种异常",
@@ -195,6 +195,7 @@ class SeedCleanMixin:
                     notification_target="scheduled_run",
                     notification_fingerprint=self._notification_error_fingerprint(err),
                     notification_cooldown=True,
+                    notification_manual=notify,
                 )
             logger.error(f"Signal 自动删种执行失败：{err}")
             return False

@@ -34,7 +34,7 @@ class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "1.0.22"
+    plugin_version = "1.0.23"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -167,6 +167,7 @@ class RuntimeStateMixin:
     _market_update_strategy = "check"
     _market_update_install_ids: List[str] = []
     _market_update_exclude_ids: List[str] = []
+    _market_update_blacklist: List[str] = []
     _plugin_update_reminder_enabled = False
     _plugin_update_reminder_schedule_enabled = False
     _plugin_update_reminder_cron = "0 9 * * *"
@@ -420,6 +421,7 @@ class RuntimeStateMixin:
             "market_update_strategy": "check",
             "market_update_install_ids": [],
             "market_update_exclude_ids": [],
+            "market_update_blacklist": [],
             "plugin_update_reminder_enabled": False,
             "plugin_update_reminder_schedule_enabled": False,
             "plugin_update_reminder_cron": "0 9 * * *",

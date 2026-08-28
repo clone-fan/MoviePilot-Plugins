@@ -183,7 +183,7 @@ class BackupMixin:
     def run_backup_scheduled(self) -> bool:
         return self.run_backup(scheduled=True)
 
-    def run_backup(self, scheduled: bool = False) -> bool:
+    def run_backup(self, scheduled: bool = False, notify: bool = False) -> bool:
         ok, _ = self._guard_task("自动备份", "backup")
         if not ok:
             return False
@@ -235,7 +235,7 @@ class BackupMixin:
                     task_group="维护任务",
                     affected_owner="realtime-task-backup",
                 )
-            elif scheduled and self._task_outcome_notification_enabled(self._backup_notify):
+            elif (scheduled or notify) and self._task_outcome_notification_enabled(self._backup_notify):
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._backup_notify_type),
                     title="自动备份",
@@ -266,7 +266,7 @@ class BackupMixin:
             operation.finish(status="failed", message=text)
             self._save_task_result("自动备份", False, -1, text)
             logger.error(f"Signal 自动备份执行失败：{err}")
-            if scheduled and self._task_outcome_notification_enabled(self._backup_notify):
+            if (scheduled or notify) and self._task_outcome_notification_enabled(self._backup_notify):
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._backup_notify_type),
                     title="自动备份执行异常",

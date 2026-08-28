@@ -140,7 +140,7 @@ class MpApiMixin:
         if not ok:
             self._save_task_result("健康巡查", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
-        self.run_health_check()
+        self.run_health_check(notify=True)
         data = self.get_data("last_health_check") or {}
         failed = 0
         match = re.search(r"发现\s*(\d+)\s*项异常", str(data.get("output") or ""))
@@ -153,10 +153,10 @@ class MpApiMixin:
         return {"code": 0, "msg": msg}
 
     def api_run_mp_update(self) -> Dict[str, Any]:
-        return self._api_run_task("系统更新检查", self.run_mp_update_check, "mp_update")
+        return self._api_run_task("系统更新检查", self.run_mp_update_check, "mp_update", notify=True)
 
     def api_run_mp_update_apply(self) -> Dict[str, Any]:
-        return self._api_run_task("主程序更新执行", self.run_mp_update_apply, "mp_update")
+        return self._api_run_task("主程序更新执行", self.run_mp_update_apply, "mp_update", notify=True)
 
     def api_dashboard(self) -> Dict[str, Any]:
         """仪表盘数据：插件总状态、各模块快照、最近健康巡查概览。"""
@@ -225,14 +225,36 @@ class MpApiMixin:
             return {"code": 1, "msg": f"已安装插件列表获取失败：{err}", "data": []}
 
     def api_plugin_markets(self) -> Dict[str, Any]:
-        """已配置的插件库仓库地址列表，供更新黑名单下拉多选。"""
+        """插件库仓库地址候选：已配置、上次同步发现与已拉黑三者并集，供插件库黑名单下拉多选。"""
         try:
-            markets = self._valid_markets_list(settings.PLUGIN_MARKET)
+            configured = self._valid_markets_list(settings.PLUGIN_MARKET)
+            last = self.get_data("last_market_update") or {}
+            discovered = self._valid_markets_list(last.get("wiki_markets") or [])
+            blacklist = self._market_update_blacklist_list()
+            blocked_addresses, blocked_hosts = self._market_blacklist_matchers(blacklist)
             items = []
-            for url in markets:
-                short = url.rstrip("/").split("/")
-                label = "/".join(short[-2:]) if len(short) >= 2 else url
-                items.append({"value": url, "title": label})
+            index = {}
+            for source, values in (("configured", configured), ("discovered", discovered), ("blacklisted", blacklist)):
+                for value in values:
+                    key = self._normalize_market_address(value)
+                    if not key:
+                        continue
+                    existing = index.get(key)
+                    if existing is None:
+                        index[key] = {"value": value, "source": source, "blocked": self._market_address_blocked(value, blocked_addresses, blocked_hosts)}
+                        items.append(index[key])
+                    elif source == "blacklisted":
+                        existing["value"] = value
+                        existing["source"] = source
+            labels = {}
+            for item in items:
+                short = str(item["value"]).rstrip("/").split("/")
+                label = "/".join(short[-2:]) if len(short) >= 2 else str(item["value"])
+                item["title"] = label
+                labels[label] = labels.get(label, 0) + 1
+            for item in items:
+                if labels.get(item["title"], 0) > 1:
+                    item["title"] = str(item["value"])
             items.sort(key=lambda x: x["title"].lower())
             return {"code": 0, "data": items}
         except Exception as err:
@@ -255,7 +277,7 @@ class MpApiMixin:
         if not ok_guard:
             self._save_task_result("日志清理", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
-        ok = self.run_log_clean()
+        ok = self.run_log_clean(notify=True)
         return {"code": 0 if ok else 1, "msg": "插件日志清理执行成功" if ok else "插件日志清理执行失败，详情请查看插件日志。"}
 
     def api_run_backup(self) -> Dict[str, Any]:
@@ -264,7 +286,7 @@ class MpApiMixin:
             if not ok_guard:
                 self._save_task_result("自动备份", False, 2, msg)
                 return {"code": 1, "msg": msg, "data": self._skipped_data(msg, self._build_backup_status())}
-            ok = self.run_backup()
+            ok = self.run_backup(notify=True)
             data = getattr(self, "_last_backup_result", None) or self._build_backup_status()
             if data.get("status") == "conflict":
                 message = "已有备份或恢复操作正在执行，请先查询当前操作状态。"
@@ -372,7 +394,7 @@ class MpApiMixin:
         if not ok:
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
         try:
-            success = bool(self.run_updates(scheduled=False))
+            success = bool(self.run_updates(scheduled=False, notify=True))
             data = getattr(self, "_last_updates_result", {"success": success, "modules": []})
             return {
                 "code": 0 if success else 1,
@@ -390,7 +412,18 @@ class MpApiMixin:
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
         try:
             data = self._build_market_update_status(apply=False)
-            return {"code": 0, "msg": "插件库同步预览完成，未写入配置。", "data": data, "text": self._format_market_update_text(data)}
+            success = bool(data.get("success"))
+            message = (
+                "插件库同步预览完成，未写入配置。"
+                if success
+                else str(data.get("error") or "插件库同步预览失败。")
+            )
+            return {
+                "code": 0 if success else 1,
+                "msg": message,
+                "data": data,
+                "text": self._format_market_update_text(data),
+            }
         except Exception as err:
             return {"code": 1, "msg": f"插件库同步预览失败：{err}", "data": {}, "text": ""}
 
@@ -399,9 +432,16 @@ class MpApiMixin:
         if not ok_guard:
             self._save_task_result("插件库同步", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg, self._build_market_status())}
-        ok = self.run_market_update()
-        data = self._build_market_status()
-        return {"code": 0 if ok else 1, "msg": "插件库同步执行成功" if ok else "插件库同步失败，详情请查看插件日志。", "data": data}
+        ok = self.run_market_update(notify=True)
+        detail = getattr(self, "_last_market_update_result", {}) or {}
+        data = {**self._build_market_status(), **detail}
+        message = "插件库同步执行成功" if ok else str(detail.get("error") or "插件库同步执行失败。")
+        return {
+            "code": 0 if ok else 1,
+            "msg": message,
+            "data": data,
+            "text": self._format_market_update_text(data),
+        }
 
     def api_preview_plugin_update_reminder(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("插件更新", "plugin_update_reminder")
@@ -417,7 +457,7 @@ class MpApiMixin:
             return {"code": 1, "msg": f"插件更新预览失败：{err}", "data": {}, "text": ""}
 
     def api_run_plugin_update_reminder(self) -> Dict[str, Any]:
-        return self._api_run_task("插件更新", self.run_plugin_update_reminder, "plugin_update_reminder")
+        return self._api_run_task("插件更新", self.run_plugin_update_reminder, "plugin_update_reminder", notify=True)
 
     def api_preview_plugin_auto_install(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("插件更新", "plugin_update_reminder")
@@ -432,7 +472,7 @@ class MpApiMixin:
             return {"code": 1, "msg": f"插件自动安装预览失败：{err}", "data": {}, "text": ""}
 
     def api_run_plugin_auto_install(self) -> Dict[str, Any]:
-        return self._api_run_task("插件更新", self.run_plugin_auto_install, "plugin_update_reminder")
+        return self._api_run_task("插件更新", self.run_plugin_auto_install, "plugin_update_reminder", notify=True)
 
     def api_preview_plugin_uninstall(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("插件卸载预览")
@@ -568,7 +608,7 @@ class MpApiMixin:
             self._save_task_result("自动删种", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
         try:
-            success = bool(self.run_seed_clean())
+            success = bool(self.run_seed_clean(notify=True))
             return {
                 "code": 0 if success else 1,
                 "msg": f"自动删种执行{'成功' if success else '失败'}",
@@ -662,7 +702,10 @@ class MpApiMixin:
         current-day result.
         """
         ok, msg = self._can_run_task("站点数据统计", "site_stat")
-        scheduled_failure_notify = trigger == "scheduled"
+        # 手动执行（配置页按钮 / TG 控制台）与定时执行一样发送结果通知；
+        # 手动通知不参与冷却与"无变化"抑制，见 _notify_fusion_task_outcome(notification_manual=...)。
+        notify = trigger == "manual"
+        scheduled_failure_notify = trigger == "scheduled" or notify
         scheduled_success_notify = scheduled_failure_notify and bool(
             getattr(self, "_site_stat_schedule_notify_enabled", True)
         )
@@ -698,6 +741,7 @@ class MpApiMixin:
                         notification_target="daily_increment",
                         notification_fingerprint=self._notification_error_fingerprint(msg),
                         notification_cooldown=False,
+                        notification_manual=notify,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
             chart = self.api_site_stat_chart()
@@ -720,6 +764,7 @@ class MpApiMixin:
                         notification_target="daily_increment",
                         notification_fingerprint=self._notification_error_fingerprint(msg),
                         notification_cooldown=False,
+                        notification_manual=notify,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
             payload = chart.get("data") or {}
@@ -767,6 +812,7 @@ class MpApiMixin:
                         notification_target="daily_increment",
                         notification_fingerprint=self._notification_error_fingerprint(msg),
                         notification_cooldown=False,
+                        notification_manual=notify,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
             if snapshot_error or snapshot_quality_error:
@@ -788,6 +834,7 @@ class MpApiMixin:
                         notification_target="daily_increment",
                         notification_fingerprint=self._notification_error_fingerprint(detail),
                         notification_cooldown=False,
+                        notification_manual=notify,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
             site_count = len(payload.get("sites") or [])
@@ -830,6 +877,7 @@ class MpApiMixin:
                         if has_increment and not self._fusion_notify_enabled else ""
                     ),
                     notification_cooldown=has_increment,
+                    notification_manual=notify,
                 )
             return {"code": 0, "msg": text, "data": payload}
         except Exception as err:
@@ -850,6 +898,7 @@ class MpApiMixin:
                     notification_target="daily_increment",
                     notification_fingerprint=self._notification_error_fingerprint(err),
                     notification_cooldown=False,
+                    notification_manual=notify,
                 )
             return {"code": 1, "msg": f"站点数据统计刷新失败：{err}", "data": {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}}
 
@@ -928,7 +977,7 @@ class MpApiMixin:
                 confirmed = preview.get("items") or []
             else:
                 confirmed = []
-            success = self.run_downloader_helper(trigger="manual", confirmed_candidates=confirmed)
+            success = self.run_downloader_helper(trigger="manual", confirmed_candidates=confirmed, notify=True)
             result = {}
             try:
                 loader = getattr(self, "get_data", None)

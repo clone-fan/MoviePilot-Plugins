@@ -1,6 +1,6 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, am as _export_sfc, c4 as mdiAlertOutline, bu as mdiDeleteOutline, aX as mdiPlay, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
-import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-BgirGyUt.js';
+import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-DMiuzSrX.js';
 import { g as getPluginApi, D as DEFAULT_PLUGIN_API_TIMEOUT_MS, r as resolvePluginApi, w as withTimeout, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-DVoiFPdr.js';
 
 const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$k,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$a} = await importShared('vue');
@@ -508,6 +508,7 @@ const auditedCompactSelectionFieldKeys = Object.freeze([
   'health_check_items',
   'health_check_storage_targets',
   'log_clean_selected_ids',
+  'market_update_blacklist',
   'market_update_exclude_ids',
   'market_update_install_ids',
   'plugin_auto_install_exclude_ids',
@@ -3424,7 +3425,7 @@ const toArr = value => typeof value === 'string'
 
 const arrayKeys = [
   'mp_update_types', 'plugin_uninstall_ids',
-  'log_clean_selected_ids', 'market_update_install_ids', 'market_update_exclude_ids',
+  'log_clean_selected_ids', 'market_update_install_ids', 'market_update_exclude_ids', 'market_update_blacklist',
   'plugin_auto_install_install_ids', 'plugin_auto_install_exclude_ids', 'seedclean_downloaders',
   'subfill_details', 'msgnotify_types', 'msgnotify_servers', 'dltag_downloaders', 'dltag_tasks',
   'dltag_all_tags', 'dltag_excluded_tags', 'health_check_items', 'health_check_database_targets',
@@ -4425,6 +4426,7 @@ let dialogSurfaceHost = null;
 // === 运行数据与动作编排 ===
 const {
   installedPlugins, loadInstalledPlugins,
+  pluginMarkets, loadPluginMarkets,
   tgConsoleStatus, tgConsoleLoading, loadTgConsoleStatus,
   downloaderOptions, loadDownloaders,
   mediaserverOptions, loadMediaservers,
@@ -4442,6 +4444,7 @@ const replicaItemSources = computed(() => ({
   messageTypeItems,
   mpUpdateTypes,
   marketUpdateStrategies,
+  pluginMarkets: pluginMarkets.value,
   pluginAutoInstallScopeItems,
   msgGroupItems,
   notificationTypeItems,
@@ -4809,6 +4812,7 @@ const replicaCards = computed(() => {
         { key: 'market_update_cron', icon: 'mdi-calendar-clock', label: '同步时间', value: cronVal(form.market_update_cron), retainInCard: true, layoutGroup: 'market-sync' },
         { key: 'market_update_scheduled_notify', icon: 'mdi-bell-outline', label: '同步结果通知', value: onOff(form.market_update_scheduled_notify), layoutGroup: 'market-sync' },
         { key: 'market_update_notify_type', icon: 'mdi-email-outline', label: '通知渠道', value: valOr(form.market_update_notify_type, 'Plugin'), disabled: Boolean(form.fusion_notify_enabled), layoutGroup: 'market-sync' },
+        { key: 'market_update_blacklist', icon: 'mdi-playlist-remove', label: '排除地址', value: arrNames(form.market_update_blacklist), layoutGroup: 'market-sync' },
       ], actions: getActionsForSurface(['run_updates'], 'config') },
     ],
     clean: [
@@ -5033,6 +5037,7 @@ async function loadRemoteData() {
   if (!apiHandle.value?.get) return
   await Promise.allSettled([
     loadInstalledPlugins(),
+    loadPluginMarkets(),
     loadTgConsoleStatus(),
     loadDownloaders(),
     loadMediaservers(),

@@ -360,6 +360,7 @@ const CONFIG_FIELD_VISIBILITY_RULES = Object.freeze({
     { key: 'market_update_scheduled_notify', value: true },
   ),
   market_update_cron: visibilityConditions({ key: 'market_update_enabled', value: true }),
+  market_update_blacklist: visibilityConditions({ key: 'market_update_enabled', value: true }),
   plugin_update_reminder_notify_type: visibilityConditions({ key: 'plugin_update_reminder_scheduled_notify', value: true }),
   plugin_auto_install_notify_type: visibilityConditions(
     { key: 'plugin_auto_install_enabled', value: true },
@@ -453,6 +454,7 @@ const defaults = defineConfigDefaults({
   market_update_cron: '0 9 * * *',
   market_update_install_ids: [],
   market_update_exclude_ids: [],
+  market_update_blacklist: [],
   plugin_update_reminder_enabled: false,
   plugin_update_reminder_schedule_enabled: false,
   plugin_update_reminder_cron: '0 9 * * *',
@@ -1002,6 +1004,7 @@ const marketUpdateCoreSchemaFieldDescriptors = Object.freeze([
   { "key": "market_update_enabled", "type": "boolean", "cardType": "feature", "module": "market_update", "subtab": "updates", "label": "启用开关", "control": "switch", "sourceProfile": "remote-form" },
   { "key": "market_update_exclude_ids", "type": "array", "cardType": "feature", "module": "market_update", "subtab": "updates", "label": "忽略插件", "control": "select", "itemSource": "installedPlugins", "isDisplayed": false, "sourceProfile": "remote-form" },
   { "key": "market_update_install_ids", "type": "array", "cardType": "feature", "module": "market_update", "subtab": "updates", "label": "自动安装插件", "control": "select", "itemSource": "installedPlugins", "isDisplayed": false, "sourceProfile": "remote-form" },
+  { "key": "market_update_blacklist", "type": "array", "cardType": "feature", "module": "market_update", "subtab": "updates", "label": "排除地址", "help": "名单中的插件库不会写入 MoviePilot 插件市场；已配置的会在同步时移除。", "control": "select", "itemSource": "pluginMarkets", "sourceProfile": "remote-form" },
   { "key": "market_update_schedule_enabled", "type": "boolean", "cardType": "cron", "module": "market_update", "subtab": "updates", "label": "启用定时任务", "control": "switch", "isDisplayed": false, "sourceProfile": "remote-persisted" },
 ]);
 

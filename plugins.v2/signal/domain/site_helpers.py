@@ -6,6 +6,16 @@ Imported by Signal to keep __init__.py focused on orchestration.
 from typing import Any, List, Optional, Tuple
 
 
+def select_user_data_sites(sites: List[Any]) -> List[Any]:
+    """Return active sites that expose user data to MoviePilot.
+
+    Public indexers are valid search sites but have no account snapshot. They
+    must not be included in the completeness gate used by site statistics.
+    Missing ``public`` on lightweight test doubles is treated as private.
+    """
+    return [site for site in (sites or []) if not bool(getattr(site, "public", False))]
+
+
 def _row_sort_key(row: Any) -> Tuple[str, str, int]:
     day = str(getattr(row, "updated_day", None) or "")[:10]
     clock = str(getattr(row, "updated_time", None) or "")

@@ -18,7 +18,7 @@ class SiteStatsMixin:
     def run_health_check_scheduled(self) -> bool:
         return self.run_health_check(scheduled=True)
 
-    def run_health_check(self, scheduled: bool = False) -> bool:
+    def run_health_check(self, scheduled: bool = False, notify: bool = False) -> bool:
         ok, _ = self._guard_task("健康巡查", "health_check")
         if not ok:
             return False
@@ -76,8 +76,11 @@ class SiteStatsMixin:
                         if ordinary_scheduled else ""
                     ),
                     notification_cooldown=ordinary_scheduled,
+                    notification_manual=notify,
                 )
-        elif scheduled and not self._fusion_notify_enabled:
+        elif (
+            scheduled or (notify and self._health_check_completion_notify_enabled)
+        ) and not self._fusion_notify_enabled:
             self._notify_fusion_task_outcome(
                 mtype=self._notification_type(
                     self._health_check_completion_notify_type
@@ -95,6 +98,7 @@ class SiteStatsMixin:
                 notification_status="recovered",
                 notification_target="health_check",
                 notification_notify_noop=self._health_check_completion_notify_enabled,
+                notification_manual=notify,
             )
         elif self._health_check_completion_notify_enabled:
             self._notify_fusion_task_outcome(
@@ -214,7 +218,7 @@ class SiteStatsMixin:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
             latest_data = self._latest_site_userdata_rows(site_oper)
-            active_sites = site_oper.list_active() or []
+            active_sites = site_helpers.select_user_data_sites(site_oper.list_active() or [])
             active_domains = {
                 str(getattr(site, "domain", "") or "").strip()
                 for site in active_sites
@@ -356,9 +360,10 @@ class SiteStatsMixin:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
             latest = self._latest_site_userdata_rows(site_oper)
+            active_sites = site_helpers.select_user_data_sites(site_oper.list_active() or [])
             active_domains = {
                 str(getattr(site, "domain", "") or "").strip()
-                for site in (site_oper.list_active() or [])
+                for site in active_sites
                 if str(getattr(site, "domain", "") or "").strip()
             }
             latest = [
