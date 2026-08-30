@@ -22,7 +22,7 @@ class TgConsoleCallbackMixin:
             return False
         if not (self._tg_console_enabled and self._tg_console_poll_enabled):
             return False
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         if not token or not chat_id:
             self._tg_console_last_error = "Telegram 融合汇报卡轮询缺少 Bot Token/Chat ID"
             return False
@@ -66,7 +66,7 @@ class TgConsoleCallbackMixin:
         return True
 
     def _handle_tg_console_message(self, message: Dict[str, Any], update_id: int = 0) -> bool:
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         state = self._tg_console_state(chat_id=chat_id)
         if update_id:
             state["last_update_id"] = max(self._safe_int(state.get("last_update_id"), 0, 0), int(update_id))
@@ -82,8 +82,6 @@ class TgConsoleCallbackMixin:
         command = text.split()[0].split("@", 1)[0].lower() if text else ""
         command_map = {
             "/aoa_create": "create_tg_console_card",
-            "/aoa_daily": "run_daily_report",
-            "/aoa_report": "run_daily_report",
             "/aoa_subscribe": "run_subscribe_reminder",
             "/aoa_site": "run_site_stat",
             "/aoa_transfer": "run_today_transfer",
@@ -99,7 +97,7 @@ class TgConsoleCallbackMixin:
         return ok
 
     def _handle_tg_console_callback(self, callback: Dict[str, Any], update_id: int = 0) -> bool:
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         state = self._tg_console_state(chat_id=chat_id)
         callback_id = str((callback or {}).get("id") or "")
         user_id = str(((callback or {}).get("from") or {}).get("id") or "")
@@ -248,7 +246,7 @@ class TgConsoleCallbackMixin:
     def _tg_console_action_registry(self) -> Dict[str, Dict[str, Any]]:
         return {
             "create_tg_console_card": {"label": "立即建卡", "runner": self.api_create_tg_console_card, "component": "", "destructive": False},
-            "run_daily_report": {"label": "立即刷新", "runner": self.api_run_daily_report, "component": "", "destructive": False},
+            "refresh_tg_console_card": {"label": "立即刷新", "runner": self.api_refresh_tg_console_card, "component": "fusion_notify", "destructive": False},
             "run_subscribe_reminder": {"label": "订阅追新", "runner": self.api_run_subscribe_reminder, "component": "subscribe_reminder", "destructive": False},
             "run_site_stat": {"label": "站点统计", "runner": self.api_run_site_stat, "component": "site_stat", "destructive": False},
             "run_today_transfer": {"label": "今日入库", "runner": self.api_run_today_transfer, "component": "", "destructive": False},
@@ -258,7 +256,7 @@ class TgConsoleCallbackMixin:
 
     def _tg_console_action_groups(self) -> List[List[str]]:
         return [
-            ["create_tg_console_card", "run_daily_report"],
+            ["create_tg_console_card", "refresh_tg_console_card"],
             ["run_site_stat", "run_today_transfer"],
         ]
 
@@ -350,7 +348,7 @@ class TgConsoleCallbackMixin:
         ok, _ = self._runtime_gate("telegram", component="fusion_notify", name="Telegram answerCallbackQuery")
         if not ok:
             return False
-        token, _chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, _chat_id, _source = self._resolve_fusion_telegram_config()
         if not token:
             return False
         payload = {"callback_query_id": callback_query_id}

@@ -20,10 +20,48 @@ class PluginUninstallMixin:
 
     def _normalize_plugin_id(self, value: Any) -> str:
         raw = str(value or "").strip()
-        safe = re.sub(r"[^A-Za-z0-9_\-]", "", raw)[:80]
-        return safe
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,79}", raw):
+            return ""
+        return raw
 
-    def _uninstall_moviepilot_plugin(self, plugin_id: str, clear_config: Optional[bool] = None, clear_data: Optional[bool] = None) -> Tuple[bool, str, Dict[str, bool]]:
+    @staticmethod
+    def _installed_plugin_canonical_ids() -> List[str]:
+        """Return exact installed IDs, preferring the host runtime casing."""
+        try:
+            from app.core.plugin import PluginManager
+            from app.db.systemconfig_oper import SystemConfigOper
+            from app.schemas.types import SystemConfigKey
+        except Exception:
+            return []
+
+        values: List[str] = []
+        try:
+            manager = PluginManager()
+            if hasattr(manager, "get_local_plugins"):
+                for plugin in manager.get_local_plugins() or []:
+                    plugin_id = str(getattr(plugin, "id", "") or "").strip()
+                    if plugin_id and getattr(plugin, "installed", True) is not False:
+                        values.append(plugin_id)
+            elif hasattr(manager, "get_plugin_ids"):
+                values.extend(str(item).strip() for item in (manager.get_plugin_ids() or []))
+        except Exception:
+            pass
+        try:
+            installed = SystemConfigOper().get(SystemConfigKey.UserInstalledPlugins) or []
+            values.extend(str(item).strip() for item in installed)
+        except Exception:
+            pass
+
+        canonical: List[str] = []
+        seen = set()
+        for plugin_id in values:
+            key = plugin_id.lower()
+            if plugin_id and key not in seen:
+                seen.add(key)
+                canonical.append(plugin_id)
+        return canonical
+
+    def _uninstall_moviepilot_plugin(self, plugin_id: str, clear_config: Optional[bool] = None, clear_data: Optional[bool] = None) -> Tuple[bool, str, Dict[str, Any]]:
         cleaned = {
             "config": False,
             "data": False,
@@ -41,10 +79,17 @@ class PluginUninstallMixin:
             from app.scheduler import Scheduler
             from app.schemas.types import SystemConfigKey
         except Exception as err:
-            return False, f"当前 MoviePilot 环境缺少插件卸载依赖：{err}", cleaned
+            message = f"当前 MoviePilot 环境缺少插件卸载依赖：{err}"
+            return False, message, {
+                **cleaned,
+                "status": "failed",
+                "persistent_errors": [message],
+                "host_residuals": [],
+            }
 
         messages: List[str] = []
-        errors: List[str] = []
+        persistent_errors: List[str] = []
+        host_residuals: List[str] = []
         config_oper = SystemConfigOper()
         plugin_manager = PluginManager()
         installed_plugins = config_oper.get(SystemConfigKey.UserInstalledPlugins) or []
@@ -68,32 +113,32 @@ class PluginUninstallMixin:
             else:
                 messages.append("未在已安装列表中")
             if any(str(item).lower() == canonical_id.lower() for item in (config_oper.get(SystemConfigKey.UserInstalledPlugins) or [])):
-                errors.append("仍存在于已安装列表")
+                persistent_errors.append("仍存在于已安装列表")
             else:
                 cleaned["installed_list"] = True
         except Exception as err:
-            errors.append(f"清理已安装列表失败：{err}")
+            persistent_errors.append(f"清理已安装列表失败：{err}")
 
         api_removed = self._remove_plugin_api_safely(canonical_id)
         if not api_removed:
-            errors.append("插件 API 路由注销失败")
+            host_residuals.append("插件 API 路由注销失败")
         elif not self._verify_plugin_api_removed(canonical_id):
-            errors.append("插件 API 路由注销后仍有残留或无法确认")
+            host_residuals.append("插件 API 路由注销后仍有残留或无法确认")
         else:
             cleaned["api"] = True
 
         scheduler = Scheduler()
         scheduler_removed = self._remove_plugin_job_safely(scheduler, canonical_id)
         if not scheduler_removed:
-            errors.append("插件调度任务注销失败")
+            host_residuals.append("插件调度任务注销失败")
         elif not self._verify_plugin_scheduler_removed(scheduler, canonical_id):
-            errors.append("插件调度任务注销后仍有残留或无法确认")
+            host_residuals.append("插件调度任务注销后仍有残留或无法确认")
         else:
             cleaned["scheduler"] = True
 
         folders_removed = self._remove_plugin_from_folders_safely(config_oper, SystemConfigKey, canonical_id)
         if not folders_removed:
-            errors.append("插件文件夹注册项注销失败")
+            persistent_errors.append("插件文件夹注册项注销失败")
         else:
             cleaned["plugin_folders"] = True
 
@@ -107,7 +152,7 @@ class PluginUninstallMixin:
             try:
                 config_before = config_oper.get(config_key) or {}
             except Exception as err:
-                errors.append(f"读取配置状态失败：{err}")
+                persistent_errors.append(f"读取配置状态失败：{err}")
                 config_known = False
         if clear_config_enabled:
             try:
@@ -122,11 +167,11 @@ class PluginUninstallMixin:
                     cleaned["config_missing"] = True
                     messages.append("配置本来不存在")
                 else:
-                    errors.append("配置删除失败或无法确认")
+                    persistent_errors.append("配置删除失败或无法确认")
                 if config_known and (config_oper.get(config_key) or {}):
-                    errors.append("配置删除后仍有残留")
+                    persistent_errors.append("配置删除后仍有残留")
             except Exception as err:
-                errors.append(f"配置清理失败：{err}")
+                persistent_errors.append(f"配置清理失败：{err}")
         data_known = False
         data_before = None
         data_oper = None
@@ -151,14 +196,14 @@ class PluginUninstallMixin:
                         data_after = data_oper.get_data(canonical_id)
                     except Exception as err:
                         data_after_known = False
-                        errors.append(f"数据删除后无法确认：{err}")
+                        persistent_errors.append(f"数据删除后无法确认：{err}")
                 if data_after_known and data_after:
-                    errors.append("数据删除后仍有残留")
+                    persistent_errors.append("数据删除后仍有残留")
                 if deleted is False and data_known and not data_before:
                     cleaned["data_missing"] = True
                     messages.append("数据本来不存在")
                 elif deleted is False:
-                    errors.append("数据删除失败或无法确认")
+                    persistent_errors.append("数据删除失败或无法确认")
                 elif deleted is True and data_known and not data_before:
                     cleaned["data_missing"] = True
                     messages.append("数据本来不存在")
@@ -173,28 +218,45 @@ class PluginUninstallMixin:
                         cleaned["data"] = True
                         messages.append("数据已清理")
                 else:
-                    errors.append("数据删除失败或无法确认")
+                    persistent_errors.append("数据删除失败或无法确认")
             except Exception as err:
-                errors.append(f"数据清理失败：{err}")
+                persistent_errors.append(f"数据清理失败：{err}")
         try:
             removed = plugin_manager.remove_plugin(canonical_id)
             if removed is False:
-                errors.append("运行实例移除返回失败")
-            messages.append("运行实例已移除")
+                host_residuals.append("运行实例移除返回失败")
+            else:
+                messages.append("运行实例已移除")
             if hasattr(plugin_manager, "get_plugin_state") and plugin_manager.get_plugin_state(canonical_id):
-                errors.append("运行实例复核仍处于运行状态")
+                host_residuals.append("运行实例复核仍处于运行状态")
             local_plugins = plugin_manager.get_local_plugins() if hasattr(plugin_manager, "get_local_plugins") else None
             if local_plugins is None:
-                errors.append("无法确认运行实例是否已移除")
+                host_residuals.append("无法确认运行实例是否已移除")
             elif any(str(getattr(item, "id", "")).lower() == canonical_id.lower() for item in local_plugins):
-                errors.append("运行实例复核仍存在")
+                host_residuals.append("运行实例复核仍存在")
             else:
                 cleaned["runtime"] = True
         except Exception as err:
-            errors.append(f"移除运行实例失败：{err}")
-        if errors:
-            return False, "；".join(errors), cleaned
-        return True, "；".join(messages), cleaned
+            host_residuals.append(f"移除运行实例失败：{err}")
+
+        if persistent_errors:
+            status = "failed"
+            success = False
+            message = "；".join(persistent_errors + host_residuals)
+        elif host_residuals:
+            status = "restart_required"
+            success = True
+            message = "持久化清理已完成；MoviePilot 内存仍有残留，请重启后复核：" + "；".join(host_residuals)
+        else:
+            status = "completed"
+            success = True
+            message = "；".join(messages)
+        return success, message, {
+            **cleaned,
+            "status": status,
+            "persistent_errors": persistent_errors,
+            "host_residuals": host_residuals,
+        }
 
     @staticmethod
     def _verify_plugin_api_removed(plugin_id: str) -> bool:
@@ -317,12 +379,22 @@ class PluginUninstallMixin:
                 lines.append(f"⦁ 卸载：{ok_count}/{len(uninstalled)} 个")
                 for item in uninstalled[:5]:
                     lines.append(f"⦁ {item.get('plugin_id')}｜{item.get('message')}")
+            status = str(data.get("status") or "failed")
+            if status == "completed":
+                lines.append("⦁ 终态：已完成，宿主注册与文件复核无残留")
+            elif status == "restart_required":
+                lines.append("⦁ 终态：持久化清理已完成，请重启 MoviePilot 后复核内存残留")
+            else:
+                lines.append("⦁ 终态：失败，仍有选定持久化内容或文件残留")
             if data.get("cleaned_config") or data.get("cleaned_data"):
                 lines.append(f"⦁ 配置/数据：配置 {len(data.get('cleaned_config') or [])} 个 ｜ 数据 {len(data.get('cleaned_data') or [])} 个")
             lines.append(f"⦁ 已删除：{len(data.get('deleted') or [])} 项")
         if data.get("errors"):
             lines.append("异常：")
             lines.extend([f"⦁ {e}" for e in data.get("errors", [])[:5]])
+        if data.get("host_residuals"):
+            lines.append("需重启复核：")
+            lines.extend([f"⦁ {e}" for e in data.get("host_residuals", [])[:5]])
         return "\n".join(lines)
 
     @staticmethod

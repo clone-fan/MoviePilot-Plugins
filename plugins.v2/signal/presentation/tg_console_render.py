@@ -181,7 +181,7 @@ class TgConsoleRenderMixin:
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "1.0.23") or "1.0.23")
+        version = str(getattr(self, "plugin_version", "1.0.24") or "1.0.24")
         return {"version": version if version.startswith("v") else f"v{version}", "refreshed_at": datetime.now().strftime("%H:%M")}
 
     @staticmethod
@@ -226,9 +226,9 @@ class TgConsoleRenderMixin:
         self._sanitize_fusion_update_state(state)
         now_label = datetime.now().strftime("%H:%M:%S")
         reports = state.get("reports") or {}
-        daily_report = reports.get("daily_report") or {}
-        daily_text = str(daily_report.get("text") or "")
-        chunks = self._build_fusion_console_chunks(state, daily_text, now_label)
+        fusion_report = reports.get("fusion_report") or {}
+        fusion_text = str(fusion_report.get("text") or "")
+        chunks = self._build_fusion_console_chunks(state, fusion_text, now_label)
 
         running = state.get("running_actions") or {}
         if running:
@@ -244,13 +244,13 @@ class TgConsoleRenderMixin:
             chunks.append(self._telegram_quote_html("最近错误", [str(state.get("last_error"))], max_items=1))
         return self._clip_telegram_html("\n".join(chunks))
 
-    def _build_fusion_console_chunks(self, state: Dict[str, Any], daily_text: str, now_label: str) -> List[str]:
+    def _build_fusion_console_chunks(self, state: Dict[str, Any], fusion_text: str, now_label: str) -> List[str]:
         stamp = datetime.now().strftime("%Y-%m-%d") + f" {now_label}"
-        greeting = self._daily_greeting_locked()
+        greeting = self._fusion_greeting_locked()
         chunks = [
-            f"<h2>📮 MP 运维日报｜🕒 {self._html_escape(stamp)}</h2>",
+            f"<h2>📮 MP 融合汇报｜🕒 {self._html_escape(stamp)}</h2>",
             f"<p>{self._html_escape(greeting)}</p>",
-            self._build_fusion_system_line(daily_text, state),
+            self._build_fusion_system_line(fusion_text, state),
         ]
         media_html = self._build_fusion_media_headline(state)
         if media_html:
@@ -259,10 +259,10 @@ class TgConsoleRenderMixin:
         if update_html:
             chunks.append(update_html)
         chunks.append("<p>───────────────────<br><i>💡 请点击下方的横向分类按钮，查阅今日具体运行指标。</i></p>")
-        has_stream_data = bool((state.get("reports") or {}) or (state.get("columns") or {}) or daily_text.strip() or state.get("tab_touched"))
+        has_stream_data = bool((state.get("reports") or {}) or (state.get("columns") or {}) or fusion_text.strip() or state.get("tab_touched"))
         if has_stream_data:
             active_tab = self._normalize_fusion_tab(str(state.get("active_tab") or "subscribe_site"))
-            chunks.append(self._build_fusion_tab_html(active_tab, state, daily_text))
+            chunks.append(self._build_fusion_tab_html(active_tab, state, fusion_text))
         return [x for x in chunks if x]
 
     @staticmethod
@@ -278,14 +278,14 @@ class TgConsoleRenderMixin:
             return "下午"
         return "晚上"
 
-    def _build_fusion_system_line(self, daily_text: str, state: Optional[Dict[str, Any]] = None) -> str:
-        if not str(daily_text or "").strip() and state:
-            daily_text = str(((state.get("reports") or {}).get("daily_report") or {}).get("text") or "")
-        version = self._fusion_version_label(daily_text)
-        normal, stale, failed, total = self._fusion_site_counts(daily_text)
+    def _build_fusion_system_line(self, fusion_text: str, state: Optional[Dict[str, Any]] = None) -> str:
+        if not str(fusion_text or "").strip() and state:
+            fusion_text = str(((state.get("reports") or {}).get("fusion_report") or {}).get("text") or "")
+        version = self._fusion_version_label(fusion_text)
+        normal, stale, failed, total = self._fusion_site_counts(fusion_text)
         if (not total or (total and normal == 0 and failed == 0 and stale == 0)) and state:
             normal, stale, failed, total = self._fusion_site_counts_from_state(state)
-        pending_version = self._fusion_pending_update_label(state, daily_text) if state else ""
+        pending_version = self._fusion_pending_update_label(state, fusion_text) if state else ""
         parts = [f"🟢 正常 ({normal}/{total})"]
         if stale:
             parts.append(f"🟡 过期 ({stale}/{total})")
@@ -703,7 +703,7 @@ class TgConsoleRenderMixin:
             body = body.replace("</ul>", f"<li>{more}</li></ul>")
         return self._telegram_details_html(title, body)
 
-    def _build_fusion_tab_html(self, tab_key: str, state: Dict[str, Any], daily_text: str) -> str:
+    def _build_fusion_tab_html(self, tab_key: str, state: Dict[str, Any], fusion_text: str) -> str:
         category_key = self._normalize_fusion_tab(tab_key)
         category = next((x for x in self._fusion_category_registry() if x["key"] == category_key), None)
         if category:
@@ -712,11 +712,11 @@ class TgConsoleRenderMixin:
             for child in self._fusion_category_children(category_key):
                 meta = column_meta.get(child) or {}
                 if child == "download_transfer":
-                    today_lines, library_lines = self._fusion_download_transfer_groups(state, daily_text)
+                    today_lines, library_lines = self._fusion_download_transfer_groups(state, fusion_text)
                     sections.append(self._fusion_section_html("download_transfer", "📥 今日下载", today_lines))
                     sections.append(self._fusion_section_html("download_transfer", "📦 入库整理", library_lines))
                     continue
-                lines = self._fusion_tab_lines(child, state, daily_text)
+                lines = self._fusion_tab_lines(child, state, fusion_text)
                 if child == "site_stats":
                     title = "📈 站点增量"
                 elif child == "media":
@@ -727,18 +727,18 @@ class TgConsoleRenderMixin:
             body = "".join(sections) if sections else "暂无数据"
             return body
         meta = next((x for x in self._fusion_column_registry() if x["key"] == tab_key), self._fusion_column_registry()[0])
-        lines = self._fusion_tab_lines(tab_key, state, daily_text)
+        lines = self._fusion_tab_lines(tab_key, state, fusion_text)
         if not lines:
             lines = [f"暂无{meta['label']}数据"]
         title = f"{meta.get('icon') or ''} {meta.get('label') or tab_key}".strip()
         return self._fusion_section_html(tab_key, title, lines)
 
-    def _fusion_download_transfer_groups(self, state: Dict[str, Any], daily_text: str) -> Tuple[List[str], List[str]]:
-        today = self._extract_report_section_items(daily_text, ("今日下载",))
-        library = self._extract_report_section_items(daily_text, ("入库整理",))
+    def _fusion_download_transfer_groups(self, state: Dict[str, Any], fusion_text: str) -> Tuple[List[str], List[str]]:
+        today = self._extract_report_section_items(fusion_text, ("今日下载",))
+        library = self._extract_report_section_items(fusion_text, ("入库整理",))
         if today or library:
             return today, library
-        lines = self._fusion_tab_lines("download_transfer", state, daily_text)
+        lines = self._fusion_tab_lines("download_transfer", state, fusion_text)
         today_lines: List[str] = []
         library_lines: List[str] = []
         for line in lines:
@@ -749,7 +749,7 @@ class TgConsoleRenderMixin:
                 today_lines.append(text)
         return today_lines, library_lines
 
-    def _fusion_tab_lines(self, tab_key: str, state: Dict[str, Any], daily_text: str) -> List[str]:
+    def _fusion_tab_lines(self, tab_key: str, state: Dict[str, Any], fusion_text: str) -> List[str]:
         items = ((state.get("columns") or {}).get(tab_key) or {}).get("items") or []
         if items:
             rows = []
@@ -762,18 +762,18 @@ class TgConsoleRenderMixin:
                 rows.extend(text_lines or ([title] if title else []))
             return rows
         if tab_key == "site_stats":
-            return self._extract_report_section_items(daily_text, ("站点状态", "站点增量"))
+            return self._extract_report_section_items(fusion_text, ("站点状态", "站点增量"))
         if tab_key == "download_transfer":
-            return self._extract_report_section_items(daily_text, ("今日下载", "入库整理"))
+            return self._extract_report_section_items(fusion_text, ("今日下载", "入库整理"))
         if tab_key == "subscribe":
-            return self._extract_report_section_items(daily_text, ("订阅追新",))
+            return self._extract_report_section_items(fusion_text, ("订阅追新",))
         if tab_key == "storage":
-            return self._format_fusion_storage_items(self._extract_report_section_items(daily_text, ("存储空间",)))
+            return self._format_fusion_storage_items(self._extract_report_section_items(fusion_text, ("存储空间",)))
         if tab_key == "media":
             report = (state.get("reports") or {}).get("media_stat") or {}
             return self._clean_fusion_item_text_lines(str(report.get("text") or ""))
         if tab_key == "health":
-            return self._extract_report_section_items(daily_text, ("健康巡查",))
+            return self._extract_report_section_items(fusion_text, ("健康巡查",))
         return []
 
     @staticmethod
@@ -785,9 +785,9 @@ class TgConsoleRenderMixin:
                 rows.append(line)
         return rows
 
-    def _build_tg_console_daily_chunks(self, daily_text: str) -> List[str]:
-        parts = self._split_daily_report_text(daily_text)
-        chunks = [f"<h2>{self._html_escape(parts.get('title') or 'Signal 每日汇报')}</h2>"]
+    def _build_tg_console_fusion_chunks(self, fusion_text: str) -> List[str]:
+        parts = self._split_fusion_report_text(fusion_text)
+        chunks = [f"<h2>{self._html_escape(parts.get('title') or 'Signal 融合汇报')}</h2>"]
         intro = [self._html_escape(line) for line in (parts.get("intro") or []) if str(line or "").strip()]
         if intro:
             chunks.append("<p>" + "<br>".join(intro) + "</p>")
@@ -804,7 +804,7 @@ class TgConsoleRenderMixin:
                 chunks.append(self._telegram_quote_html(header, self._telegram_section_items(lines), max_items=3))
             elif header.startswith("📡"):
                 if not appended_site:
-                    site_html = self._build_tg_console_site_lights(daily_text)
+                    site_html = self._build_tg_console_site_lights(fusion_text)
                     if site_html:
                         chunks.append(site_html)
                     appended_site = True
@@ -814,7 +814,7 @@ class TgConsoleRenderMixin:
                 chunks.append(self._telegram_details_html(header, self._telegram_general_list_html(header, self._telegram_section_items(lines))))
             elif header.startswith("💾"):
                 if not appended_storage:
-                    storage_html = self._build_tg_console_storage_matrix(daily_text)
+                    storage_html = self._build_tg_console_storage_matrix(fusion_text)
                     chunks.append(storage_html or self._telegram_details_html(header, self._telegram_storage_table("", lines)))
                     appended_storage = True
             elif header.startswith("🎬"):
@@ -827,22 +827,22 @@ class TgConsoleRenderMixin:
                 chunks.append(f"<h3>{self._html_escape(header)}</h3>{self._telegram_list_html(self._telegram_section_items(lines))}")
 
         if not appended_site:
-            site_html = self._build_tg_console_site_lights(daily_text)
+            site_html = self._build_tg_console_site_lights(fusion_text)
             if site_html:
                 chunks.append(site_html)
         if not appended_storage:
-            storage_html = self._build_tg_console_storage_matrix(daily_text)
+            storage_html = self._build_tg_console_storage_matrix(fusion_text)
             if storage_html:
                 chunks.append(storage_html)
         return chunks
 
-    def _build_tg_console_core_badges(self, reports: Dict[str, Any], daily_text: str = "") -> str:
-        version = self._match_text(r"(?:当前版本|版本)[:：]\s*([^\n]+)", daily_text) or "MoviePilot"
-        update_status = self._match_text(r"(?:最新版本|更新状态)[:：]\s*([^\n]+)", daily_text) or "记录抽空更新"
+    def _build_tg_console_core_badges(self, reports: Dict[str, Any], fusion_text: str = "") -> str:
+        version = self._match_text(r"(?:当前版本|版本)[:：]\s*([^\n]+)", fusion_text) or "MoviePilot"
+        update_status = self._match_text(r"(?:最新版本|更新状态)[:：]\s*([^\n]+)", fusion_text) or "记录抽空更新"
         health_section = reports.get("health_check") or {}
         health_text = str(health_section.get("text") or "")
-        health_line = self._match_text(r"状态[:：]\s*([^\n]+)", health_text) or self._match_text(r"健康巡查[:：]\s*([^\n]+)", daily_text) or "等待巡查"
-        health_icon = "🟢" if ("全部正常" in health_text or "异常 0" in health_text or "全部正常" in daily_text) else "🟡"
+        health_line = self._match_text(r"状态[:：]\s*([^\n]+)", health_text) or self._match_text(r"健康巡查[:：]\s*([^\n]+)", fusion_text) or "等待巡查"
+        health_icon = "🟢" if ("全部正常" in health_text or "异常 0" in health_text or "全部正常" in fusion_text) else "🟡"
         health_count = self._tg_console_health_count_label(health_text)
         health_count_html = f" <code>{self._telegram_text_html(health_count)}</code>" if health_count else ""
         return (
@@ -861,8 +861,8 @@ class TgConsoleRenderMixin:
         total, passed, _failed = match.groups()
         return f"{passed}/{total}"
 
-    def _build_tg_console_storage_matrix(self, daily_text: str) -> str:
-        items = self._extract_report_section_items(daily_text, ("存储空间",))
+    def _build_tg_console_storage_matrix(self, fusion_text: str) -> str:
+        items = self._extract_report_section_items(fusion_text, ("存储空间",))
         if not items:
             return ""
         normalized = []
@@ -872,8 +872,8 @@ class TgConsoleRenderMixin:
                 normalized.append(f"📁 {text}")
         return self._telegram_details_html("💾 存储空间", self._telegram_list_html(normalized))
 
-    def _build_tg_console_site_lights(self, daily_text: str) -> str:
-        items = self._extract_report_section_items(daily_text, ("站点状态",))
+    def _build_tg_console_site_lights(self, fusion_text: str) -> str:
+        items = self._extract_report_section_items(fusion_text, ("站点状态",))
         if not items:
             return ""
         green: List[Tuple[str, str]] = []
@@ -921,8 +921,8 @@ class TgConsoleRenderMixin:
             chips.append(cls._html_escape(f"另 {len(sites) - 12} 个"))
         return f"{title}：" + "、".join(chips)
 
-    def _build_tg_console_footer(self, daily_text: str, time_label: str = "") -> str:
-        media_items = self._extract_report_section_items(daily_text, ("媒体统计",))
+    def _build_tg_console_footer(self, fusion_text: str, time_label: str = "") -> str:
+        media_items = self._extract_report_section_items(fusion_text, ("媒体统计",))
         stats = self._tg_console_media_footer_parts(media_items)
         if not stats and not time_label:
             return ""

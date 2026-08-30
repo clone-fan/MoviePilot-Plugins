@@ -380,9 +380,9 @@ const actionDefinitions = [
       dashboardFusion: { label: '建卡' },
     },
   }),
-  defineAction('run_daily_report', {
-    key: 'fusion_refresh', component: 'daily_report', groupId: 'fusion',
-    availabilityComponent: 'fusion_notify', taskKey: '',
+  defineAction('refresh_tg_console_card', {
+    key: 'fusion_refresh', component: 'fusion_notify', groupId: 'fusion',
+    taskKey: '',
     label: '立即刷新', desc: '刷新融合汇报', icon: 'mdi-refresh', iconKey: 'refresh', tone: 'blue',
     refresh: { fusionCard: true },
     presentations: {
@@ -492,12 +492,12 @@ const quickActionPaths = freeze([
 
 const fusionCardActionPaths = freeze([
   'create_tg_console_card',
-  'run_daily_report',
+  'refresh_tg_console_card',
 ]);
 
 const configActionPaths = freeze([
   'create_tg_console_card',
-  'run_daily_report',
+  'refresh_tg_console_card',
   'run_subscribe_reminder',
   'run_site_stat',
   'run_health_check',

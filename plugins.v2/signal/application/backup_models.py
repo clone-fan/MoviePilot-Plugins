@@ -343,6 +343,10 @@ class BackupOperation:
     components: List[Dict[str, Any]] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
+    rollback_complete: bool = True
+    manual_recovery_required: bool = False
+    unrecovered_components: List[str] = field(default_factory=list)
+    emergency_archive: str = ""
 
     def finish(self, *, status: str, message: str = "") -> None:
         self.status = status

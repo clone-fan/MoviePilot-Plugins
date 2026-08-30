@@ -343,7 +343,7 @@ class FusionMixin:
         enabled_columns = set(self._fusion_notify_columns or valid_columns) & valid_columns
         if key not in enabled_columns:
             return False
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         if not token or not chat_id:
             self._tg_console_last_error = "Telegram 融合通知 Bot Token/Chat ID 未配置"
             state = self._tg_console_state(chat_id=chat_id)

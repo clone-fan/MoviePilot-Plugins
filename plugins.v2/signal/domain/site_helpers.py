@@ -3,7 +3,28 @@
 Pure functions that do not require plugin instance state.
 Imported by Signal to keep __init__.py focused on orchestration.
 """
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Mapping, Optional, Tuple
+from urllib.parse import urlsplit
+
+
+def normalize_site_domain(value: Any) -> str:
+    """Normalize ORM domains and indexer URLs to one exact comparison key."""
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return ""
+    parsed = urlsplit(raw if "://" in raw else f"//{raw}")
+    host = str(parsed.hostname or "").strip().rstrip(".")
+    if not host:
+        host = raw.split("/", 1)[0].split(":", 1)[0].rstrip(".")
+    return host
+
+
+def site_domain(value: Any) -> str:
+    if isinstance(value, Mapping):
+        raw = value.get("domain") or value.get("url") or ""
+    else:
+        raw = getattr(value, "domain", None) or getattr(value, "url", None) or value
+    return normalize_site_domain(raw)
 
 
 def select_user_data_sites(sites: List[Any]) -> List[Any]:
@@ -38,13 +59,13 @@ def select_latest_site_userdata_rows(
     # ``None`` means no domain filter; an explicit empty set means there are
     # no active domains and must therefore return no historical rows.
     allowed = None if domains is None else {
-        str(value).strip() for value in domains if str(value).strip()
+        normalize_site_domain(value) for value in domains if normalize_site_domain(value)
     }
     newest = {}
     for row in rows or []:
         if not row:
             continue
-        domain = str(getattr(row, "domain", None) or getattr(row, "name", None) or "").strip()
+        domain = normalize_site_domain(getattr(row, "domain", None) or getattr(row, "name", None) or "")
         if not domain or (allowed is not None and domain not in allowed):
             continue
         if not include_errors and str(getattr(row, "err_msg", None) or "").strip():
@@ -63,10 +84,10 @@ def find_site_userdata_snapshot(rows: List[Any], name: str, domain: Optional[str
         row for row in latest_rows
         if not str(getattr(row, "err_msg", None) or "").strip()
     ]
-    domain = str(domain or "").strip()
+    domain = normalize_site_domain(domain)
     if domain:
         for row in valid_rows:
-            if str(getattr(row, "domain", None) or "").strip() == domain:
+            if normalize_site_domain(getattr(row, "domain", None)) == domain:
                 return row
         for row in valid_rows:
             if not str(getattr(row, "domain", None) or "").strip() and getattr(row, "name", None) == name:

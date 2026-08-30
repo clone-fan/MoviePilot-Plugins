@@ -123,7 +123,7 @@ class TgConsoleFusionMixin:
     def _emit_console_media_activity(self, group: str, info: Any, title: str = "") -> bool:
         if not self._tg_console_enabled:
             return False
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         if not token or not chat_id:
             self._tg_console_last_error = "Telegram 融合汇报卡 Bot Token/Chat ID 未配置"
             state = self._tg_console_state(chat_id=chat_id)
@@ -293,15 +293,15 @@ class TgConsoleFusionMixin:
     def _emit_console_report(self, section_key: str, title: str, text: str = "", level: str = "info") -> bool:
         return self._emit_fusion_notice(section_key, title, text, level=level)
 
-    def _refresh_fusion_card(self, daily_text: str = "", live_result: Optional[Dict[str, Any]] = None) -> bool:
+    def _refresh_fusion_card(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None) -> bool:
         scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
         with (scope_factory() if callable(scope_factory) else nullcontext()):
-            return self._refresh_fusion_card_scoped(daily_text=daily_text, live_result=live_result)
+            return self._refresh_fusion_card_scoped(fusion_text=fusion_text, live_result=live_result)
 
-    def _refresh_fusion_card_scoped(self, daily_text: str = "", live_result: Optional[Dict[str, Any]] = None) -> bool:
+    def _refresh_fusion_card_scoped(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None) -> bool:
         if not self._fusion_notify_enabled:
             return False
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         if not token or not chat_id:
             self._tg_console_last_error = "Telegram 融合通知 Bot Token/Chat ID 未配置"
             state = self._tg_console_state(chat_id=chat_id)
@@ -313,7 +313,7 @@ class TgConsoleFusionMixin:
             state["last_error"] = "融合通知当前没有可刷新的 active card"
             self._save_tg_console_state(state)
             return False
-        self._tg_console_set_report_section(state, "daily_report", "立即刷新", daily_text, level="success")
+        self._tg_console_set_report_section(state, "fusion_report", "立即刷新", fusion_text, level="success")
         previous_context = getattr(self, "_fusion_refresh_context", None)
         self._fusion_refresh_context = {"live_result": live_result or {}}
         try:
@@ -416,7 +416,7 @@ class TgConsoleFusionMixin:
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "time": datetime.now().strftime("%H:%M:%S"),
         }
-        if key == "daily_report":
+        if key == "fusion_report":
             return
         column_key = self._normalize_fusion_column(key)
         columns = state.setdefault("columns", {})
@@ -499,7 +499,7 @@ class TgConsoleFusionMixin:
     @classmethod
     def _normalize_fusion_column(cls, key: str) -> str:
         aliases = {
-            "daily_report": "site_stats",
+            "fusion_report": "site_stats",
             "site_stat": "site_stats",
             "today_transfer": "download_transfer",
             "run_today_transfer": "download_transfer",
@@ -554,8 +554,8 @@ class TgConsoleFusionMixin:
                 return key
         return "maintenance"
 
-    def _fusion_version_label(self, daily_text: str) -> str:
-        line = self._match_text(r"当前版本[:：]\s*([^\n]+)", daily_text)
+    def _fusion_version_label(self, fusion_text: str) -> str:
+        line = self._match_text(r"当前版本[:：]\s*([^\n]+)", fusion_text)
         if line:
             backend = self._match_text(r"后端\s*([vV]?\d+(?:\.\d+){1,3}(?:[-\w.]*)?)", line)
             frontend = self._match_text(r"前端\s*([vV]?\d+(?:\.\d+){1,3}(?:[-\w.]*)?)", line)
@@ -563,10 +563,10 @@ class TgConsoleFusionMixin:
         local = self._get_local_versions()
         return str(local.get("backend_version") or local.get("frontend_version") or "MoviePilot")
 
-    def _fusion_site_counts(self, daily_text: str) -> Tuple[int, int, int, int]:
-        items = self._extract_report_section_items(daily_text, ("站点状态",))
+    def _fusion_site_counts(self, fusion_text: str) -> Tuple[int, int, int, int]:
+        items = self._extract_report_section_items(fusion_text, ("站点状态",))
         if not items:
-            text = str(daily_text or "")
+            text = str(fusion_text or "")
             match = re.search(r"全部\s*(\d+)\s*个站点正常", text)
             if match:
                 total = int(match.group(1))
@@ -596,7 +596,7 @@ class TgConsoleFusionMixin:
     def _fusion_site_counts_from_state(self, state: Dict[str, Any]) -> Tuple[int, int, int, int]:
         candidates: List[str] = []
         reports = (state or {}).get("reports") or {}
-        report_site = reports.get("site_status") or reports.get("daily_report") or {}
+        report_site = reports.get("site_status") or reports.get("fusion_report") or {}
         if isinstance(report_site, dict):
             candidates.append(str(report_site.get("text") or ""))
         for key in ("health_check", "health"):
@@ -623,7 +623,7 @@ class TgConsoleFusionMixin:
                 if name == "sites" or "站点" in name:
                     candidates.append(f"站点：{detail}")
         try:
-            last_report = self.get_data("last_daily_report") or {}
+            last_report = self.get_data("last_fusion_report") or {}
         except Exception:
             last_report = {}
         if isinstance(last_report, dict):
@@ -695,7 +695,7 @@ class TgConsoleFusionMixin:
             return versions[-1]
         return ""
 
-    def _fusion_pending_update_label(self, state: Optional[Dict[str, Any]], daily_text: str = "") -> str:
+    def _fusion_pending_update_label(self, state: Optional[Dict[str, Any]], fusion_text: str = "") -> str:
         if not isinstance(state, dict):
             return ""
         candidates: List[Any] = []
@@ -731,7 +731,7 @@ class TgConsoleFusionMixin:
             pending = self._fusion_text_pending_update_label(text)
             if pending:
                 return pending
-        return self._fusion_text_pending_update_label(str(daily_text or ""))
+        return self._fusion_text_pending_update_label(str(fusion_text or ""))
 
     def prune_fusion_media_activity(self) -> bool:
         ok, _ = self._runtime_gate("scheduler", component="fusion_notify", name="FusionMediaActivityPrune")
@@ -739,7 +739,7 @@ class TgConsoleFusionMixin:
             return False
         if not self._tg_console_enabled:
             return False
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         state = self._tg_console_state(chat_id=chat_id)
         if not self._prune_fusion_media_activity_state(state):
             return False

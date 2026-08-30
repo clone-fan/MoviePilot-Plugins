@@ -13,7 +13,7 @@ from .adapters import lifecycle as _lifecycle
 from .adapters import moviepilot_contract as _moviepilot_contract
 from .adapters import runtime_state as _runtime_state
 from .application import backup as _backup
-from .application import daily_report as _daily_report
+from .application import fusion_report as _fusion_report
 from .application import downloader_helper as _downloader_helper
 from .application import fusion as _fusion
 from .application import log_ops as _log_ops
@@ -31,7 +31,7 @@ from .presentation import tg_console as _tg_console
 from .presentation import tg_report_html as _tg_report_html
 
 
-class Signal(_runtime_state.RuntimeStateMixin, _lifecycle.LifecycleMixin, _formatters.FormattersMixin, _dashboard_schema.DashboardSchemaMixin, _fusion.FusionMixin, _plugin_uninstall.PluginUninstallMixin, _backup.BackupMixin, _daily_report.DailyReportMixin, _tg_report_html.TgReportHtmlMixin, _events.EventsMixin, _downloader_tag_events.DownloaderTagEventsMixin, _tg_console.TgConsoleMixin, _mp_api.MpApiMixin, _moviepilot_contract.PluginContractMixin, _update_governance.UpdateGovernanceMixin, _site_stats.SiteStatsMixin, _downloader_helper.DownloaderHelperMixin, _seed_clean.SeedCleanMixin, _log_ops.LogOpsMixin, _plugin_ops.PluginOpsMixin, _legacy_agentopsassistant.LegacyAgentOpsAssistantPurgeMixin, _subscribe_reminder.SubscribeReminderMixin, _PluginBase):
+class Signal(_runtime_state.RuntimeStateMixin, _lifecycle.LifecycleMixin, _formatters.FormattersMixin, _dashboard_schema.DashboardSchemaMixin, _fusion.FusionMixin, _plugin_uninstall.PluginUninstallMixin, _backup.BackupMixin, _fusion_report.FusionReportMixin, _tg_report_html.TgReportHtmlMixin, _events.EventsMixin, _downloader_tag_events.DownloaderTagEventsMixin, _tg_console.TgConsoleMixin, _mp_api.MpApiMixin, _moviepilot_contract.PluginContractMixin, _update_governance.UpdateGovernanceMixin, _site_stats.SiteStatsMixin, _downloader_helper.DownloaderHelperMixin, _seed_clean.SeedCleanMixin, _log_ops.LogOpsMixin, _plugin_ops.PluginOpsMixin, _legacy_agentopsassistant.LegacyAgentOpsAssistantPurgeMixin, _subscribe_reminder.SubscribeReminderMixin, _PluginBase):
     """MoviePilot plugin host adapter composed from owned backend layers."""
 
     @eventmanager.register(EventType.PluginAction)

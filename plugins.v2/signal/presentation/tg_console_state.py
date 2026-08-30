@@ -161,7 +161,7 @@ class TgConsoleStateMixin:
         state["message_id"] = card.get("message_id", 0) if can_update_fusion_card(card) else 0
         self._save_tg_console_state(state)
         if previous_enabled is not None and current_enabled and state.get("message_id"):
-            token, chat_id, _source = self._resolve_daily_report_telegram_config()
+            token, chat_id, _source = self._resolve_fusion_telegram_config()
             if token and chat_id:
                 scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
                 with (scope_factory() if callable(scope_factory) else nullcontext()):
@@ -219,7 +219,7 @@ class TgConsoleStateMixin:
         return str(int(datetime.now().timestamp() * 1000))[-10:]
 
     def _tg_console_status_data(self) -> Dict[str, Any]:
-        token, chat_id, source = self._resolve_daily_report_telegram_config()
+        token, chat_id, source = self._resolve_fusion_telegram_config()
         state = self._tg_console_state(chat_id=chat_id)
         chat_configured = bool(token and chat_id)
         last_error = state.get("last_error") or self._tg_console_last_error

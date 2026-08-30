@@ -4,6 +4,7 @@ Pure dict builders for the MP dashboard ``get_page`` payload. Instance
 methods (``self``) read live state via MRO; staticmethods are stateless.
 """
 
+from collections.abc import Mapping
 from typing import Any, Dict, List, Tuple
 
 from .effective_state import derive_effective_state
@@ -12,9 +13,62 @@ from .effective_state import derive_effective_state
 class DashboardSchemaMixin:
     """Mixin bundling dashboard card / schema construction helpers."""
 
+    @staticmethod
+    def _dashboard_row_value(row: Any, key: str, default: Any = None) -> Any:
+        if isinstance(row, Mapping):
+            return row.get(key, default)
+        return getattr(row, key, default)
+
+    @classmethod
+    def _dashboard_data_row_sort_key(cls, row: Any) -> Tuple[str, int]:
+        updated = next((
+            cls._dashboard_row_value(row, key)
+            for key in ("updated_at", "updated_time", "update_time", "created_at", "create_time")
+            if cls._dashboard_row_value(row, key) not in (None, "")
+        ), "")
+        try:
+            row_id = int(cls._dashboard_row_value(row, "id", 0) or 0)
+        except (TypeError, ValueError):
+            row_id = 0
+        return str(updated or ""), row_id
+
+    @staticmethod
+    def _is_duplicate_plugin_data_error(error: Exception) -> bool:
+        name = error.__class__.__name__.lower()
+        message = str(error or "").lower()
+        return "multipleresults" in name or "multiple rows" in message or "multiple results" in message
+
+    @staticmethod
+    def _dashboard_record(value: Any, key: str) -> Dict[str, Any]:
+        if value in (None, ""):
+            return {}
+        if not isinstance(value, Mapping):
+            raise TypeError(f"{key} 数据格式无效")
+        return dict(value)
+
+    def _read_dashboard_task_data(self, key: str) -> Tuple[Dict[str, Any], int]:
+        try:
+            return self._dashboard_record(self.get_data(key), key), 0
+        except Exception as error:
+            if not self._is_duplicate_plugin_data_error(error):
+                raise
+            data_oper = getattr(self, "plugindata", None)
+            get_all = getattr(data_oper, "get_data_all", None)
+            if not callable(get_all):
+                raise
+            rows = get_all("Signal") or []
+            matches = [
+                row for row in rows
+                if str(self._dashboard_row_value(row, "key", "") or "") == key
+            ]
+            if not matches:
+                raise
+            latest_row = max(matches, key=self._dashboard_data_row_sort_key)
+            value = self._dashboard_row_value(latest_row, "value")
+            return self._dashboard_record(value, key), len(matches) if len(matches) > 1 else 0
+
     def _task_definitions(self) -> List[Dict[str, Any]]:
         return [
-            {"key": "daily_report", "name": "每日汇报", "enabled": self._daily_report_enabled, "schedule_required": True, "schedule_enabled": self._daily_report_enabled, "cron": self._daily_report_cron, "last_keys": ["last_daily_report", "last_daily_report_preview"], "next": self._daily_report_cron, "icon": "mdi-newspaper-variant"},
             {"key": "subscribe_reminder", "name": "订阅追新", "enabled": self._subscribe_reminder_enabled, "schedule_required": True, "schedule_enabled": self._subscribe_reminder_schedule_enabled, "cron": self._subscribe_reminder_cron, "last_keys": ["last_subscribe_reminder"], "next": self._subscribe_reminder_cron, "icon": "mdi-bell-ring"},
             {"key": "site_stat", "name": "站点统计", "enabled": self._site_stat_enabled, "schedule_required": True, "schedule_enabled": self._site_stat_schedule_enabled, "cron": self._site_stat_cron, "last_keys": ["last_site_stat"], "next": self._site_stat_cron, "icon": "mdi-chart-pie"},
             {"key": "health_check", "name": "健康巡查", "enabled": self._health_check_enabled, "schedule_required": True, "schedule_enabled": self._health_check_schedule_enabled, "cron": self._health_check_cron, "last_keys": ["last_health_check"], "next": self._health_check_cron, "icon": "mdi-heart-pulse"},
@@ -39,17 +93,41 @@ class DashboardSchemaMixin:
                 cron=task.get("cron", ""),
                 fusion_notification_managed=bool(self._fusion_notify_enabled),
             )
-            records = [self.get_data(k) or {} for k in task.get("last_keys", [])]
-            records = [r for r in records if r]
-            latest = sorted(records, key=lambda r: str(r.get("time") or ""), reverse=True)[0] if records else {}
-            success = latest.get("success")
-            if success is True:
-                state, color = "成功", "success"
-            elif success is False:
-                state, color = "失败", "error"
+            records = []
+            errors = []
+            duplicate_count = 0
+            for key in task.get("last_keys", []):
+                try:
+                    record, duplicates = self._read_dashboard_task_data(key)
+                    duplicate_count += duplicates
+                    if record:
+                        records.append(record)
+                except Exception as error:
+                    errors.append(f"{key}: {str(error)[:160]}")
+            if errors:
+                latest = {}
+                status, state, color = "data_error", "数据异常", "error"
             else:
-                state, color = "无记录", "default"
-            rows.append({**task, "effective_state": effective_state, "effective_enabled": effective_state["active"], "latest": latest, "state": state, "color": color})
+                latest = sorted(records, key=lambda record: str(record.get("time") or ""), reverse=True)[0] if records else {}
+                success = latest.get("success")
+                if success is True:
+                    status, state, color = "success", "成功", "success"
+                elif success is False:
+                    status, state, color = "failed", "失败", "error"
+                else:
+                    status, state, color = "empty", "无记录", "default"
+            rows.append({
+                **task,
+                "effective_state": effective_state,
+                "effective_enabled": effective_state["active"],
+                "latest": latest,
+                "status": status,
+                "state": state,
+                "color": color,
+                "data_error": bool(errors),
+                "data_error_summary": "；".join(errors),
+                "duplicate_count": duplicate_count,
+            })
         return rows
 
     def _task_flow_panel(self) -> dict:

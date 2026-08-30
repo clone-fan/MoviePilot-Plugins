@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { h as getPluginApiEnvelope, i as createV31QuickActions, b as useBackupRestore, j as useActionRunner, k as resolveActionAvailability, A as ACTION_OPERATION_MODE, r as resolvePluginApi, l as actionGroupRegistry, m as ACTION_DISABLED_REASON, u as useAgentOpsTheme, a as getActionForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-DVoiFPdr.js';
+import { h as getPluginApiEnvelope, i as createV31QuickActions, b as useBackupRestore, j as useActionRunner, k as resolveActionAvailability, A as ACTION_OPERATION_MODE, r as resolvePluginApi, l as actionGroupRegistry, m as ACTION_DISABLED_REASON, u as useAgentOpsTheme, a as getActionForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-euW2LARS.js';
 import { ca as mdiYinYang, ar as mdiViewDashboardOutline, cb as mdiTrashCanOutline, cc as mdiTagMultiple, cd as mdiRss, aP as mdiRefresh, ce as mdiLeaf, ba as mdiHeartPulse, cf as mdiEye, cg as mdiDatabase, ch as mdiCog, bD as mdiCloudUploadOutline, ci as mdiCheckCircle, bN as mdiChartPie, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, cj as mdiCalendarToday, ck as mdiCalendarCheck, bU as mdiBroom, b$ as mdiBackupRestore, bX as mdiBellOutline, cl as mdiArrowUp, cm as mdiArrowDown, am as _export_sfc } from './mdi-DveizHBi.js';
 
 // 共享格式化工具 — 跨组件复用，禁止在各 vue 里各写一份
@@ -1956,7 +1956,7 @@ const {
 } = useSiteChart(apiHandle);
 
 const fusionBuildAction = getActionForSurface('create_tg_console_card', 'dashboardFusion');
-const fusionRefreshAction = getActionForSurface('run_daily_report', 'dashboardFusion');
+const fusionRefreshAction = getActionForSurface('refresh_tg_console_card', 'dashboardFusion');
 
 function siteChartError() {
   return String(siteChart.last_error || siteChart.error || '').trim()

@@ -20,9 +20,7 @@ class PluginContractMixin:
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
         return [
-            {"cmd": "/signal_report", "event": EventType.PluginAction, "desc": "发送 Signal 每日汇报", "category": "Signal", "data": {"action": "signal_report"}},
             {"cmd": "/signal_subscribe", "event": EventType.PluginAction, "desc": "立即推送订阅追新", "category": "Signal", "data": {"action": "signal_subscribe"}},
-            {"cmd": "/signal_report_preview", "event": EventType.PluginAction, "desc": "预览 Signal 每日汇报（不发送）", "category": "Signal", "data": {"action": "signal_report_preview"}},
             {"cmd": "/signal_health", "event": EventType.PluginAction, "desc": "执行 Signal 健康巡查", "category": "Signal", "data": {"action": "signal_health"}},
             {"cmd": "/signal_logs", "event": EventType.PluginAction, "desc": "预览 MoviePilot 日志清理范围", "category": "Signal", "data": {"action": "signal_logs"}},
             {"cmd": "/signal_logs_clean", "event": EventType.PluginAction, "desc": "执行插件日志清理（按保留行数截断）", "category": "Signal", "data": {"action": "signal_logs_clean"}},
@@ -31,7 +29,7 @@ class PluginContractMixin:
             {"cmd": "/signal_market", "event": EventType.PluginAction, "desc": "同步插件库记录", "category": "Signal", "data": {"action": "signal_market"}},
             {"cmd": "/signal_plugin_updates", "event": EventType.PluginAction, "desc": "检查插件更新并发送提醒", "category": "Signal", "data": {"action": "signal_plugin_updates"}},
             {"cmd": "/signal_plugin_install", "event": EventType.PluginAction, "desc": "按范围自动安装插件更新", "category": "Signal", "data": {"action": "signal_plugin_install"}},
-            {"cmd": "/signal_run_all", "event": EventType.PluginAction, "desc": "依次执行每日汇报与健康巡查", "category": "Signal", "data": {"action": "signal_run_all"}},
+            {"cmd": "/signal_run_all", "event": EventType.PluginAction, "desc": "依次执行健康巡查与站点统计", "category": "Signal", "data": {"action": "signal_run_all"}},
             {"cmd": "/signal_plugin_preview", "event": EventType.PluginAction, "desc": "预览插件卸载与残留清理范围", "category": "Signal", "data": {"action": "signal_plugin_preview"}},
             {"cmd": "/signal_plugin_clean", "event": EventType.PluginAction, "desc": "插件卸载安全提示（需在配置页显式确认后执行）", "category": "Signal", "data": {"action": "signal_plugin_clean"}},
             {"cmd": "/signal_seed_clean", "event": EventType.PluginAction, "desc": "执行自动删种（按规则暂停/删除种子）", "category": "Signal", "data": {"action": "signal_seed_clean"}},
@@ -46,10 +44,9 @@ class PluginContractMixin:
             {"path": "/reset_tg_console_card", "endpoint": self.api_reset_tg_console_card, "auth": "bear", "methods": ["POST"], "summary": "重置 Telegram 融合汇报卡"},
             {"path": "/installed_plugins", "endpoint": self.api_installed_plugins, "auth": "bear", "methods": ["GET"], "summary": "已安装插件列表，供插件卸载下拉选择"},
             {"path": "/plugin_markets", "endpoint": self.api_plugin_markets, "auth": "bear", "methods": ["GET"], "summary": "已配置插件库仓库列表，供更新黑名单下拉选择"},
-            {"path": "/run_daily_report", "endpoint": self.api_run_daily_report, "auth": "bear", "methods": ["POST"], "summary": "立即刷新融合汇报"},
+            {"path": "/refresh_tg_console_card", "endpoint": self.api_refresh_tg_console_card, "auth": "bear", "methods": ["POST"], "summary": "刷新当前融合通知卡"},
             {"path": "/run_subscribe_reminder", "endpoint": self.api_run_subscribe_reminder, "auth": "bear", "methods": ["POST"], "summary": "立即推送订阅追新"},
             {"path": "/run_today_transfer", "endpoint": self.api_run_today_transfer, "auth": "bear", "methods": ["POST"], "summary": "立即刷新今日入库"},
-            {"path": "/preview_daily_report", "endpoint": self.api_preview_daily_report, "auth": "bear", "methods": ["POST"], "summary": "预览每日汇报（不发送）"},
             {"path": "/run_health_check", "endpoint": self.api_run_health_check, "auth": "bear", "methods": ["POST"], "summary": "立即执行健康巡查"},
             {"path": "/preview_log_clean", "endpoint": self.api_preview_log_clean, "auth": "bear", "methods": ["POST"], "summary": "预览日志清理范围"},
             {"path": "/run_log_clean", "endpoint": self.api_run_log_clean, "auth": "bear", "methods": ["POST"], "summary": "执行插件日志清理"},
@@ -101,8 +98,8 @@ class PluginContractMixin:
 
         fusion_notify_on = can_register("fusion_notify")
         if fusion_notify_on:
-            self._append_cron_service(services, "Signal.FusionCardCreate", "Signal - 每日建立融合卡", self._fusion_card_create_cron, self.run_daily_fusion_card_create)
-            self._append_cron_service(services, "Signal.FusionCardRefresh", "Signal - 周期刷新融合卡", self._fusion_card_refresh_cron, self.run_daily_fusion_card_refresh)
+            self._append_cron_service(services, "Signal.FusionCardCreate", "Signal - 建立融合卡", self._fusion_card_create_cron, self.run_fusion_card_create)
+            self._append_cron_service(services, "Signal.FusionCardRefresh", "Signal - 周期刷新融合卡", self._fusion_card_refresh_cron, self.run_fusion_card_refresh)
         if can_register("subscribe_reminder", self._subscribe_reminder_schedule_enabled):
             self._append_cron_service(services, "Signal.SubscribeReminder", "Signal - 订阅追新推送", self._subscribe_reminder_cron, self.run_subscribe_reminder_scheduled)
         if can_register("site_stat", self._site_stat_schedule_enabled):

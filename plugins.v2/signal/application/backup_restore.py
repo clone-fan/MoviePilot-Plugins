@@ -272,13 +272,22 @@ class BackupRestoreService:
             from app.db.systemconfig_oper import SystemConfigOper
 
             oper = SystemConfigOper()
+            self._require_method(oper, "all", "配置快照")
             self._require_method(oper, "get", "配置读取")
             self._require_method(oper, "set", "配置写回")
-        if any(item.get("data_present") for item in prepared_plugins):
+        if any(item.get("config_present") for item in prepared_plugins):
+            from app.core.plugin import PluginManager
+
+            self._require_method(PluginManager(), "delete_plugin_config", "插件配置补偿删除")
+        if prepared_plugins:
             from app.db.plugindata_oper import PluginDataOper
 
             oper = PluginDataOper()
             self._require_method(oper, "get_data_all", "插件数据读取")
+        if any(item.get("data_present") for item in prepared_plugins):
+            from app.db.plugindata_oper import PluginDataOper
+
+            oper = PluginDataOper()
             self._require_method(oper, "del_data", "插件数据清理")
             self._require_method(oper, "save", "插件数据写回")
         if any(item.get("files_present") for item in prepared_plugins):
@@ -525,70 +534,180 @@ class BackupRestoreService:
 
         return add_archived(strip_selected(current), archived)
 
-    def _restore_plugin_registry(
-        self,
-        registry: Mapping[str, Any],
-        selected_ids: List[str],
-        operation: BackupOperation,
-    ) -> None:
-        if not selected_ids:
-            operation.components.append({
-                "component": "plugin_registry",
-                "status": "absent",
-                "message": "归档没有选中的插件注册状态，视为正常。",
-            })
-            return
-        from app.db.systemconfig_oper import SystemConfigOper
-        from app.schemas.types import SystemConfigKey
+    @staticmethod
+    def _system_config_snapshot(oper: Any, key: Any) -> Dict[str, Any]:
+        values = oper.all()
+        if not isinstance(values, Mapping):
+            raise BackupRestoreError("当前 MoviePilot 配置快照格式无效。")
+        matching_key = next((item for item in values if str(item) == str(key)), None)
+        exists = matching_key is not None
+        return {
+            "key": key,
+            "exists": exists,
+            "value": deepcopy(values.get(matching_key)) if exists else None,
+        }
 
-        installed_key = getattr(SystemConfigKey, "UserInstalledPlugins", PLUGIN_REGISTRY_KEYS[0])
-        folders_key = getattr(SystemConfigKey, "PluginFolders", PLUGIN_REGISTRY_KEYS[1])
+    @classmethod
+    def _verify_system_config_snapshot(cls, oper: Any, snapshot: Mapping[str, Any]) -> None:
+        current = cls._system_config_snapshot(oper, snapshot.get("key"))
+        if bool(current.get("exists")) != bool(snapshot.get("exists")) or current.get("value") != snapshot.get("value"):
+            raise BackupRestoreError(f"配置复核不一致：{snapshot.get('key')}")
+
+    def _restore_plugin_config_snapshot(self, plugin_id: str, snapshot: Mapping[str, Any]) -> None:
+        from app.core.plugin import PluginManager
+        from app.db.systemconfig_oper import SystemConfigOper
+
         oper = SystemConfigOper()
-        errors = []
-        writes = 0
-        try:
-            current_installed = oper.get(installed_key)
-            current_folders = oper.get(folders_key)
-            merged_installed = self._merge_installed_registry(
-                current_installed,
-                list(registry.get("installed") or []),
-                selected_ids,
-            )
-            merged_folders = self._merge_folder_registry(
-                current_folders,
-                registry.get("folders"),
-                selected_ids,
-            )
-        except Exception as err:
-            errors.append(f"插件注册表读取或投影失败：{err}")
+        if snapshot.get("exists"):
+            oper.set(snapshot.get("key"), deepcopy(snapshot.get("value")))
         else:
+            manager = PluginManager()
             try:
-                oper.set(installed_key, merged_installed)
-                writes += 1
-            except Exception as err:
-                errors.append(f"UserInstalledPlugins 写回失败：{err}")
-            try:
-                if current_folders is not None or registry.get("folders") is not None:
-                    oper.set(folders_key, merged_folders)
-                    writes += 1
-            except Exception as err:
-                errors.append(f"PluginFolders 写回失败：{err}")
-        if errors:
-            status = "partial" if writes else "failed"
-            operation.errors.extend(errors[:8])
-        else:
-            status = "success"
-        operation.components.append({
-            "component": "plugin_registry",
-            "status": status,
-            "written": writes,
-            "selected_plugins": list(selected_ids),
-            "errors": errors[:8],
-        })
+                deleted = manager.delete_plugin_config(plugin_id, force=True)
+            except TypeError:
+                deleted = manager.delete_plugin_config(plugin_id)
+            if deleted is False and self._system_config_snapshot(oper, snapshot.get("key")).get("exists"):
+                raise BackupRestoreError("旧配置不存在状态无法恢复。")
+        self._verify_system_config_snapshot(oper, snapshot)
 
     @staticmethod
-    def _replace_plugin_file_tree(source: Path, target: Path, plugin_id: str) -> str:
-        """Replace managed plugin files and preserve Signal operational dirs."""
+    def _plugin_data_records(oper: Any, plugin_id: str) -> List[Dict[str, Any]]:
+        records: List[Dict[str, Any]] = []
+        for row in oper.get_data_all(plugin_id) or []:
+            if isinstance(row, Mapping):
+                key = str(row.get("key") or "").strip()
+                value = row.get("value")
+            else:
+                key = str(getattr(row, "key", "") or "").strip()
+                value = getattr(row, "value", None)
+            if not key:
+                raise BackupRestoreError(f"{plugin_id} 当前 PluginData 包含无效记录。")
+            records.append({"key": key, "value": deepcopy(value)})
+        return records
+
+    @classmethod
+    def _replace_plugin_data_records(cls, oper: Any, plugin_id: str, records: List[Mapping[str, Any]]) -> int:
+        current = cls._plugin_data_records(oper, plugin_id)
+        for key in unique_strings([item["key"] for item in current]):
+            oper.del_data(plugin_id, key)
+        expected = [
+            {"key": str(item["key"]), "value": deepcopy(item.get("value"))}
+            for item in records
+        ]
+        for record in expected:
+            oper.save(plugin_id, record["key"], deepcopy(record["value"]))
+        if cls._plugin_data_records(oper, plugin_id) != expected:
+            raise BackupRestoreError(f"{plugin_id} PluginData 写回复核不一致。")
+        return len(expected)
+
+    @staticmethod
+    def _registry_keys() -> Tuple[Any, Any]:
+        from app.schemas.types import SystemConfigKey
+
+        return (
+            getattr(SystemConfigKey, "UserInstalledPlugins", PLUGIN_REGISTRY_KEYS[0]),
+            getattr(SystemConfigKey, "PluginFolders", PLUGIN_REGISTRY_KEYS[1]),
+        )
+
+    def _plugin_registry_snapshot(self, oper: Any) -> Dict[str, Any]:
+        installed_key, folders_key = self._registry_keys()
+        return {
+            "installed": self._system_config_snapshot(oper, installed_key),
+            "folders": self._system_config_snapshot(oper, folders_key),
+        }
+
+    def _apply_plugin_registry(
+        self,
+        oper: Any,
+        registry: Mapping[str, Any],
+        plugin_id: str,
+        snapshot: Mapping[str, Any],
+    ) -> int:
+        installed_snapshot = snapshot["installed"]
+        folders_snapshot = snapshot["folders"]
+        merged_installed = self._merge_installed_registry(
+            installed_snapshot.get("value"),
+            list(registry.get("installed") or []),
+            [plugin_id],
+        )
+        merged_folders = self._merge_folder_registry(
+            folders_snapshot.get("value"),
+            registry.get("folders"),
+            [plugin_id],
+        )
+        writes = 0
+        if not installed_snapshot.get("exists") or installed_snapshot.get("value") != merged_installed:
+            oper.set(installed_snapshot.get("key"), merged_installed)
+            writes += 1
+        if (
+            folders_snapshot.get("exists")
+            or registry.get("folders") is not None
+        ) and (not folders_snapshot.get("exists") or folders_snapshot.get("value") != merged_folders):
+            oper.set(folders_snapshot.get("key"), merged_folders)
+            writes += 1
+        expected_installed = {**installed_snapshot, "exists": True, "value": merged_installed}
+        self._verify_system_config_snapshot(oper, expected_installed)
+        if folders_snapshot.get("exists") or registry.get("folders") is not None:
+            expected_folders = {**folders_snapshot, "exists": True, "value": merged_folders}
+            self._verify_system_config_snapshot(oper, expected_folders)
+        return writes
+
+    @classmethod
+    def _restore_registry_snapshot(cls, oper: Any, snapshot: Mapping[str, Any]) -> None:
+        for name in ("installed", "folders"):
+            item = snapshot[name]
+            if not item.get("exists"):
+                delete = getattr(oper, "delete", None)
+                if not callable(delete):
+                    raise BackupRestoreError(f"{item.get('key')} 原不存在但宿主不支持删除补偿。")
+                delete(item.get("key"))
+            else:
+                oper.set(item.get("key"), deepcopy(item.get("value")))
+            cls._verify_system_config_snapshot(oper, item)
+
+    @staticmethod
+    def _commit_plugin_file_tree(transaction: Mapping[str, Any]) -> str:
+        rollback = Path(transaction.get("rollback"))
+        if not rollback.exists():
+            return ""
+        try:
+            shutil.rmtree(rollback)
+            return ""
+        except Exception as err:
+            return f"旧插件文件暂存目录清理失败：{err}"
+
+    @staticmethod
+    def _rollback_plugin_file_tree(transaction: Mapping[str, Any]) -> None:
+        target = Path(transaction.get("target"))
+        rollback = Path(transaction.get("rollback"))
+        staging = Path(transaction.get("staging"))
+        had_target = bool(transaction.get("had_target"))
+        protected = list(transaction.get("moved_protected") or [])
+        if had_target and not rollback.exists():
+            raise BackupRestoreError("旧插件文件回滚点丢失。")
+        if rollback.exists() and target.is_dir():
+            for name in protected:
+                source_path = target / name
+                destination = rollback / name
+                if source_path.exists():
+                    if destination.exists():
+                        raise BackupRestoreError(f"保留目录回滚冲突：{name}")
+                    source_path.replace(destination)
+        if target.exists() or target.is_symlink():
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        if rollback.exists():
+            rollback.replace(target)
+        if staging.exists():
+            shutil.rmtree(staging)
+        if had_target != target.exists():
+            raise BackupRestoreError("插件文件存在性回滚复核失败。")
+
+    @staticmethod
+    def _replace_plugin_file_tree(source: Path, target: Path, plugin_id: str, *, retain_rollback: bool = False) -> Any:
+        """Atomically replace managed plugin files and optionally retain rollback."""
         source = Path(source)
         target = Path(target)
         if not source.is_dir() or source.is_symlink():
@@ -601,6 +720,7 @@ class BackupRestoreService:
         token = uuid.uuid4().hex
         staging = target.parent / f".{target.name}.signal-restore-{token}.new"
         rollback = target.parent / f".{target.name}.signal-restore-{token}.old"
+        had_target = target.exists()
         shutil.copytree(source, staging)
         protected_names = SIGNAL_ARCHIVE_EXCLUDED_DIR_NAMES if plugin_id.lower() == "signal" else frozenset()
         moved_protected: List[str] = []
@@ -637,61 +757,141 @@ class BackupRestoreService:
             shutil.rmtree(staging, ignore_errors=True)
             raise
 
-        cleanup_warning = ""
-        if rollback.exists():
-            try:
-                shutil.rmtree(rollback)
-            except Exception as err:
-                cleanup_warning = f"旧插件文件暂存目录清理失败：{err}"
-        return cleanup_warning
+        transaction = {
+            "target": target,
+            "rollback": rollback,
+            "staging": staging,
+            "had_target": had_target,
+            "moved_protected": list(moved_protected),
+        }
+        if retain_rollback:
+            return transaction
+        return BackupRestoreService._commit_plugin_file_tree(transaction)
 
-    def _restore_plugin_item(self, item: Mapping[str, Any], operation: BackupOperation) -> None:
+    def _restore_plugin_item(
+        self,
+        item: Mapping[str, Any],
+        registry: Mapping[str, Any],
+        operation: BackupOperation,
+    ) -> str:
         from app.core.config import settings
         from app.db.plugindata_oper import PluginDataOper
         from app.db.systemconfig_oper import SystemConfigOper
 
         plugin_id = str(item.get("plugin_id") or "").strip()
-        errors = []
+        config_oper = SystemConfigOper()
+        data_oper = PluginDataOper()
+        config_key = self._plugin_config_key(plugin_id)
+        target_root = Path(str(getattr(settings, "CONFIG_PATH", "/config") or "/config")) / "plugins" / plugin_id
+        try:
+            snapshot = {
+                "config": self._system_config_snapshot(config_oper, config_key),
+                "data": self._plugin_data_records(data_oper, plugin_id),
+                "registry": self._plugin_registry_snapshot(config_oper),
+                "files_exist": target_root.exists(),
+            }
+        except Exception as err:
+            message = f"{plugin_id}: 冻结旧状态失败：{err}"
+            operation.errors.append(message)
+            operation.components.append({
+                "component": "plugin",
+                "plugin_id": plugin_id,
+                "status": "failed",
+                "writes": 0,
+                "rollback_complete": True,
+                "errors": [str(err)],
+            })
+            return "failed"
+
         writes = 0
-        if item.get("config_present"):
-            try:
+        registry_writes = 0
+        touched = {"config": False, "data": False, "files": False, "registry": False}
+        file_transaction: Optional[Mapping[str, Any]] = None
+        try:
+            if item.get("config_present"):
+                touched["config"] = True
                 SystemConfigOper().set(self._plugin_config_key(plugin_id), item.get("config"))
+                expected = {"key": config_key, "exists": True, "value": deepcopy(item.get("config"))}
+                self._verify_system_config_snapshot(config_oper, expected)
                 writes += 1
-            except Exception as err:
-                errors.append(f"配置写回失败：{err}")
-        if item.get("data_present"):
-            records = list(item.get("records") or [])
-            try:
-                oper = PluginDataOper()
-                existing = oper.get_data_all(plugin_id) or []
-                existing_keys = {
-                    str(getattr(row, "key", row.get("key") if isinstance(row, Mapping) else ""))
-                    for row in existing
-                }
-                for key in existing_keys:
-                    oper.del_data(plugin_id, key)
-                for record in records:
-                    oper.save(plugin_id, str(record["key"]), decode_json_value(record.get("value")))
-                writes += len(records)
-            except Exception as err:
-                errors.append(f"数据写回失败：{err}")
-        if item.get("files_present"):
-            source = item.get("files_path")
-            target_root = Path(str(getattr(settings, "CONFIG_PATH", "/config") or "/config")) / "plugins" / plugin_id
-            try:
+            if item.get("data_present"):
+                touched["data"] = True
+                records = [
+                    {"key": str(record["key"]), "value": decode_json_value(record.get("value"))}
+                    for record in (item.get("records") or [])
+                ]
+                writes += self._replace_plugin_data_records(data_oper, plugin_id, records)
+            if item.get("files_present"):
+                touched["files"] = True
+                source = item.get("files_path")
                 if isinstance(source, Path) and source.is_dir():
-                    cleanup_warning = self._replace_plugin_file_tree(source, target_root, plugin_id)
+                    file_transaction = self._replace_plugin_file_tree(
+                        source,
+                        target_root,
+                        plugin_id,
+                        retain_rollback=True,
+                    )
                     writes += int(item.get("files_count") or 0)
-                    if cleanup_warning:
-                        errors.append(cleanup_warning)
-            except Exception as err:
-                errors.append(f"文件状态写回失败：{err}")
-        if errors:
-            status = "partial" if writes else "failed"
-            operation.errors.extend([f"{plugin_id}: {error}" for error in errors[:8]])
-        else:
-            status = "success"
-        operation.components.append({"component": "plugin", "plugin_id": plugin_id, "status": status, "writes": writes, "errors": errors[:8]})
+                else:
+                    raise BackupRestoreError("插件文件材料不可用。")
+            touched["registry"] = True
+            registry_writes = self._apply_plugin_registry(config_oper, registry, plugin_id, snapshot["registry"])
+            if file_transaction:
+                cleanup_warning = self._commit_plugin_file_tree(file_transaction)
+                if cleanup_warning:
+                    operation.warnings.append(f"{plugin_id}: {cleanup_warning}")
+        except Exception as err:
+            rollback_errors: List[str] = []
+            unrecovered: List[str] = []
+
+            def compensate(component: str, callback) -> None:
+                try:
+                    callback()
+                except Exception as rollback_err:
+                    unrecovered.append(component)
+                    rollback_errors.append(f"{component}: {rollback_err}")
+
+            if touched["registry"]:
+                compensate("registry", lambda: self._restore_registry_snapshot(config_oper, snapshot["registry"]))
+            if file_transaction is not None:
+                compensate("files", lambda: self._rollback_plugin_file_tree(file_transaction))
+            if touched["data"]:
+                compensate("data", lambda: self._replace_plugin_data_records(data_oper, plugin_id, snapshot["data"]))
+            if touched["config"]:
+                compensate("config", lambda: self._restore_plugin_config_snapshot(plugin_id, snapshot["config"]))
+
+            status = "rollback_failed" if rollback_errors else "failed"
+            operation.errors.append(f"{plugin_id}: 写回失败：{err}")
+            operation.errors.extend(f"{plugin_id}: 补偿失败：{item}" for item in rollback_errors)
+            if rollback_errors:
+                operation.rollback_complete = False
+                operation.manual_recovery_required = True
+                operation.unrecovered_components = unique_strings([
+                    *operation.unrecovered_components,
+                    *unrecovered,
+                ])
+            operation.components.append({
+                "component": "plugin",
+                "plugin_id": plugin_id,
+                "status": status,
+                "writes": writes,
+                "registry_writes": registry_writes,
+                "rollback_complete": not rollback_errors,
+                "unrecovered_components": unrecovered,
+                "errors": [str(err), *rollback_errors][:8],
+            })
+            return status
+
+        operation.components.append({
+            "component": "plugin",
+            "plugin_id": plugin_id,
+            "status": "success",
+            "writes": writes,
+            "registry_writes": registry_writes,
+            "rollback_complete": True,
+            "errors": [],
+        })
+        return "success"
 
     def _apply_prepared(self, prepared: Mapping[str, Any], selection: RestoreSelection, operation: BackupOperation) -> None:
         if ARCHIVE_COMPONENT_MOVIEPILOT in selection.components:
@@ -703,16 +903,13 @@ class BackupRestoreService:
             items = list(prepared.get("plugins") or [])
             if not items:
                 operation.components.append({"component": ARCHIVE_COMPONENT_PLUGINS, "status": "absent", "message": "归档没有可恢复插件，视为正常。"})
-            for item in items:
-                self._restore_plugin_item(item, operation)
             registry = prepared.get("plugin_registry")
             if not isinstance(registry, Mapping):
                 raise BackupRestoreError("插件注册表预检状态无效。")
-            self._restore_plugin_registry(
-                registry,
-                list(prepared.get("selected_plugin_ids") or []),
-                operation,
-            )
+            for item in items:
+                status = self._restore_plugin_item(item, registry, operation)
+                if status == "rollback_failed":
+                    break
 
     def _save_operation(self, operation: BackupOperation) -> None:
         try:
@@ -744,9 +941,23 @@ class BackupRestoreService:
                 "message": str(err),
                 "errors": [str(err)],
                 "components": [],
+                "rollback_complete": True,
+                "manual_recovery_required": False,
+                "unrecovered_components": [],
+                "emergency_archive": "",
             }
         if not BACKUP_OPERATION_LOCK.acquire(blocking=False):
-            return {"success": False, "status": "conflict", "conflict": True, "errors": ["已有恢复操作正在执行，请先查询当前操作状态。"]}
+            return {
+                "success": False,
+                "partial": False,
+                "status": "conflict",
+                "conflict": True,
+                "errors": ["已有恢复操作正在执行，请先查询当前操作状态。"],
+                "rollback_complete": True,
+                "manual_recovery_required": False,
+                "unrecovered_components": [],
+                "emergency_archive": "",
+            }
         operation = BackupOperation(operation_id=str(uuid.uuid4()), kind="backup_restore", backup_id=selection.backup_id)
         self.owner._backup_operation_current = operation
         self._save_operation(operation)
@@ -765,13 +976,22 @@ class BackupRestoreService:
                     trigger="restore_emergency",
                     include_database=self.settings.database_enabled,
                 )
+                operation.emergency_archive = str(Path(emergency["archive_path"]).resolve(strict=False))
                 operation.warnings.append(f"恢复前应急备份：{Path(emergency['archive_path']).name}")
                 self._apply_prepared(prepared, selection, operation)
-            failed = [item for item in operation.components if item.get("status") in {"failed", "partial"}]
-            if failed:
-                operation.finish(status="partial", message="恢复已完成，但部分组件写回失败，请查看结果明细。")
+            if operation.manual_recovery_required:
+                operation.finish(
+                    status="rollback_failed",
+                    message="恢复失败且自动补偿未完成；已停止后续插件，请使用应急归档人工恢复。",
+                )
             else:
-                operation.finish(status="success", message="恢复完成，已按所选范围写回在线配置与插件状态。")
+                failed = [item for item in operation.components if item.get("status") in {"failed", "partial"}]
+                successful = [item for item in operation.components if item.get("status") == "success"]
+                if failed:
+                    status = "partial" if successful or any(item.get("status") == "partial" for item in failed) else "failed"
+                    operation.finish(status=status, message="恢复未全部成功；失败插件已自动恢复旧状态。")
+                else:
+                    operation.finish(status="success", message="恢复完成，已按所选范围写回在线配置与插件状态。")
         except Exception as err:
             operation.errors.append(str(err))
             operation.finish(status="failed", message=str(err))
@@ -783,6 +1003,4 @@ class BackupRestoreService:
             self._save_operation(operation)
             BACKUP_OPERATION_LOCK.release()
         result = operation.to_dict()
-        result["success"] = operation.status in {"success", "partial"}
-        result["partial"] = operation.status == "partial"
         return result

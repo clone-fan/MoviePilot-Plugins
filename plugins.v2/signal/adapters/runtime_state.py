@@ -34,7 +34,7 @@ class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "1.0.23"
+    plugin_version = "1.0.24"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -42,12 +42,11 @@ class RuntimeStateMixin:
     auth_level = 1
 
     MODULES: List[Dict[str, str]] = [
-        {"key": "daily_report", "category": "report", "subcategory": "日报编排", "name": "每日汇报", "phase": "v1.4", "risk": "低", "status": "已直接接替", "source": "Signal", "goal": "固定模板日报与定时/手动发送"},
 
         {"key": "subscribe_today", "category": "subscribe_center", "subcategory": "今日追新", "name": "今日追新", "phase": "v2.0", "risk": "低", "status": "已直接接替", "source": "MoviePilot v2 订阅日历复合 API", "goal": "复用宿主日历今日播出口径"},
         {"key": "subscribe_status", "category": "subscribe_center", "subcategory": "订阅状态", "name": "订阅状态总览", "phase": "v2.0", "risk": "低", "status": "待接替", "source": "SubscribeOper", "goal": "启用、待处理、缺集、今日追新统计"},
         {"key": "subscribe_lack", "category": "subscribe_center", "subcategory": "缺集提醒", "name": "缺集提醒", "phase": "v2.0", "risk": "低", "status": "规划中", "source": "SubscribeOper", "goal": "缺集订阅 Top 列表与提醒"},
-        {"key": "subscribe_notify", "category": "subscribe_center", "subcategory": "追新推送", "name": "订阅追新推送", "phase": "v2.0", "risk": "低", "status": "已直接接替", "source": "Signal + MoviePilot v2 订阅日历复合 API", "goal": "定时、手动、日报、Fusion 和 Telegram 共用同一快照"},
+        {"key": "subscribe_notify", "category": "subscribe_center", "subcategory": "追新推送", "name": "订阅追新推送", "phase": "v2.0", "risk": "低", "status": "已直接接替", "source": "Signal + MoviePilot v2 订阅日历复合 API", "goal": "定时、手动、Fusion 和 Telegram 共用同一快照"},
 
         {"key": "site_snapshot", "category": "site_center", "subcategory": "站点快照", "name": "站点快照", "phase": "v2.1", "risk": "低", "status": "待接替", "source": "SiteStatistic + SiteOper", "goal": "复刻站点统计快照口径"},
         {"key": "site_increment", "category": "site_center", "subcategory": "站点增量", "name": "站点增量", "phase": "v2.1", "risk": "低", "status": "待接替", "source": "SiteStatistic + SiteOper", "goal": "复刻上传/下载/分享率/魔力增量口径"},
@@ -79,14 +78,7 @@ class RuntimeStateMixin:
 
     _enabled = False
     _local_plugin_repo = DEFAULT_LOCAL_PLUGIN_REPO
-    _daily_report_enabled = True
-    _daily_report_schedule_enabled = True
-    _daily_report_cron = "0 22 * * *"
-    _daily_report_greeting = "少爷"
-    _daily_report_telegram_rich_enabled = True
-    _daily_report_telegram_bot_token = ""
-    _daily_report_telegram_chat_id = ""
-    _daily_report_telegram_last_error = ""
+    _fusion_report_greeting = "少爷"
     _tg_console_enabled = True
     _tg_console_poll_enabled = False
     _tg_console_poll_interval = 15
@@ -274,7 +266,6 @@ class RuntimeStateMixin:
         },
     ]
     COMPONENT_ENABLED_ATTRS: Dict[str, str] = {
-        "daily_report": "_daily_report_enabled",
         "fusion_notify": "_fusion_notify_enabled",
         "subscribe_reminder": "_subscribe_reminder_enabled",
         "site_stat": "_site_stat_enabled",

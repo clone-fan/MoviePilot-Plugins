@@ -1,7 +1,7 @@
 """Telegram report HTML rendering helpers.
 
-Pure classmethod/staticmethod helpers extracted from DailyReportMixin so that
-both DailyReportMixin (daily report) and TgConsoleRenderMixin (console render)
+Pure classmethod/staticmethod helpers extracted from FusionReportMixin so that
+both FusionReportMixin and TgConsoleRenderMixin
 share one canonical HTML rendering layer without coupling to each other.
 """
 import re
@@ -151,12 +151,12 @@ class TgReportHtmlMixin:
         try:
             from app.db.site_oper import SiteOper
             site_oper = SiteOper()
+            from ..domain.site_helpers import normalize_site_domain, select_latest_site_userdata_rows, select_user_data_sites
             active_domains = {
-                str(getattr(site, "domain", "") or "").strip()
-                for site in (site_oper.list_active() or [])
-                if str(getattr(site, "domain", "") or "").strip()
+                normalize_site_domain(getattr(site, "domain", ""))
+                for site in select_user_data_sites(site_oper.list_active() or [])
+                if normalize_site_domain(getattr(site, "domain", ""))
             }
-            from ..domain.site_helpers import select_latest_site_userdata_rows
             rows = site_oper.get_userdata() if callable(getattr(site_oper, "get_userdata", None)) else site_oper.get_userdata_latest()
             latest = select_latest_site_userdata_rows(rows, active_domains)
             today = cls._today_prefix()

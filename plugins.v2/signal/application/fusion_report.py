@@ -1,48 +1,42 @@
 import json
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from app.core.config import settings
 from app.log import logger
 from ..domain import html_utils
 
 
-class DailyReportMixin:
-    """Daily report generation, preview, Telegram rich message, and config resolution."""
+class FusionReportMixin:
+    """Fusion card data aggregation, refresh orchestration, and Telegram transport helpers."""
 
-    def run_daily_fusion_card_create(self) -> bool:
-        """按每日建立时间创建或换日融合卡，不经过独立日报调度。"""
+    def run_fusion_card_create(self) -> bool:
+        """Create or roll the Fusion card on its configured schedule."""
         ok, _ = self._runtime_gate("scheduler", component="fusion_notify", name="FusionCardCreate")
         if not ok:
             return False
         result = self.api_create_tg_console_card(trigger="scheduled")
         return int(result.get("code", 1)) == 0
 
-    def run_daily_fusion_card_refresh(self) -> bool:
-        """按配置 Cron 更新当前融合卡，日报生成器仅作为内部数据刷新实现。"""
-        ok, _ = self._runtime_gate("scheduler", component="fusion_notify", name="FusionCardRefresh")
-        if not ok:
-            return False
-        return bool(self.run_daily_report())
-
-    def run_daily_report(self) -> bool:
+    def run_fusion_card_refresh(self) -> bool:
+        """Refresh the current Fusion card; never falls back to a second delivery route."""
         with self._subscription_calendar_read_scope():
-            return self._run_daily_report_scoped()
+            return self._run_fusion_card_refresh_scoped()
 
-    def _run_daily_report_scoped(self) -> bool:
-        name = "每日汇报"
-        ok, _ = self._guard_task(name, "daily_report")
+    def _run_fusion_card_refresh_scoped(self) -> bool:
+        name = "融合卡刷新"
+        ok, _ = self._guard_task(name, "fusion_notify")
         if not ok:
             return False
         try:
-            refresh_result = self._refresh_daily_report_live_data()
+            refresh_result = self._refresh_fusion_report_live_data()
             if refresh_result.get("success") is False:
-                error = str(refresh_result.get("message") or refresh_result.get("error") or "站点数据刷新失败，日报已取消")
+                error = str(refresh_result.get("message") or refresh_result.get("error") or "站点数据刷新失败，融合卡刷新已取消")
                 self._save_task_result(name, False, 1, error)
-                self._save_daily_report_result(sent=False, success=False, text="", error=error, message=error, returncode=1)
+                self._save_fusion_report_result(updated=False, success=False, text="", error=error, message=error, returncode=1)
                 return False
-            text = self._build_daily_report_message()
+            text = self._build_fusion_report_message()
             calendar_snapshot = self._subscription_calendar_snapshot_for_scope()
             calendar_partial = calendar_snapshot is not None and calendar_snapshot.is_partial
             calendar_error = calendar_snapshot.failure_message() if calendar_partial else ""
@@ -51,16 +45,16 @@ class DailyReportMixin:
                 if calendar_partial:
                     self._notify_fusion_task_outcome(
                         mtype=self._notification_type("Plugin"),
-                        title="Signal - 每日汇报订阅日历部分失败",
+                        title="Signal - 融合卡订阅日历部分失败",
                         text=calendar_error,
                         outcome=calendar_error,
                         success=False,
-                        component="daily_report",
+                        component="fusion_notify",
                         affected_owner="persistent-subscriptions",
-                        task_key="daily_report",
-                        task_group="每日汇报",
+                        task_key="fusion_card_refresh",
+                        task_group="融合通知",
                             notification_status="error",
-                            notification_target="daily_report_subscription_calendar",
+                            notification_target="fusion_subscription_calendar",
                             notification_fingerprint=self._notification_outcome_fingerprint({
                                 "status": calendar_snapshot.status,
                                 "failed_subscriptions": calendar_snapshot.failed_subscriptions,
@@ -69,75 +63,48 @@ class DailyReportMixin:
                         notification_cooldown=True,
                     )
                     self._save_task_result(name, False, 1, calendar_error if refresh_ok else (self._tg_console_last_error or calendar_error))
-                    self._save_daily_report_result(sent=True, success=False, text=text, error=calendar_error, message=calendar_error, returncode=1)
+                    self._save_fusion_report_result(updated=refresh_ok, success=False, text=text, error=calendar_error, message=calendar_error, returncode=1)
                     return False
                 if refresh_ok:
                     self._save_task_result(name, True, 0, "OK tg_console_card")
-                    self._save_daily_report_result(sent=True, success=True, text=text, error="", message="OK tg_console_card", returncode=0)
+                    self._save_fusion_report_result(updated=True, success=True, text=text, error="", message="OK tg_console_card", returncode=0)
                     return True
                 error = self._tg_console_last_error or "Telegram 融合汇报卡更新失败"
                 self._save_task_result(name, False, 1, error)
-                self._save_daily_report_result(sent=True, success=False, text=text, error=error, message=error, returncode=1)
+                self._save_fusion_report_result(updated=False, success=False, text=text, error=error, message=error, returncode=1)
                 return False
-            if self._send_daily_report_telegram_rich(text):
-                if calendar_partial:
-                    self._notify_fusion_task_outcome(
-                        mtype=self._notification_type("Plugin"),
-                        title="Signal - 每日汇报订阅日历部分失败",
-                        text=calendar_error,
-                        outcome=calendar_error,
-                        success=False,
-                        component="daily_report",
-                        affected_owner="persistent-subscriptions",
-                        task_key="daily_report",
-                        task_group="每日汇报",
-                        notification_status="error",
-                        notification_target="daily_report_subscription_calendar",
-                        notification_fingerprint=self._notification_outcome_fingerprint({
-                            "status": calendar_snapshot.status,
-                            "failed_subscriptions": calendar_snapshot.failed_subscriptions,
-                            "errors": self._subscription_calendar_error_fingerprint_values(calendar_snapshot.errors),
-                        }),
-                        notification_cooldown=True,
-                    )
-                    self._save_task_result(name, False, 1, calendar_error)
-                    self._save_daily_report_result(sent=True, success=False, text=text, error=calendar_error, message=calendar_error, returncode=1)
-                    return False
-                self._save_task_result(name, True, 0, "OK telegram_rich_message")
-                self._save_daily_report_result(sent=True, success=True, text=text, error="", message="OK telegram_rich_message", returncode=0)
-                return True
-            error = self._daily_report_telegram_last_error or "Telegram RichMessage 发送失败"
+            error = "融合通知未启用，禁止使用独立发送回退"
             self._save_task_result(name, False, 1, error)
-            self._save_daily_report_result(sent=True, success=False, text=text, error=error, message=error, returncode=1)
+            self._save_fusion_report_result(updated=False, success=False, text=text, error=error, message=error, returncode=1)
             return False
         except Exception as err:
             self._save_task_result(name, False, -1, str(err))
-            self._save_daily_report_result(sent=True, success=False, text="", error=str(err), message=str(err), returncode=-1)
+            self._save_fusion_report_result(updated=False, success=False, text="", error=str(err), message=str(err), returncode=-1)
             try:
                 from ..infrastructure.subscription_calendar import SubscriptionCalendarError
                 if isinstance(err, SubscriptionCalendarError):
                     self._notify_fusion_task_outcome(
                         mtype=self._notification_type("Plugin"),
-                        title="Signal - 每日汇报订阅日历异常",
-                        text=f"每日汇报读取订阅日历失败：{err}",
-                        outcome=f"每日汇报读取订阅日历失败：{str(err)[:120]}",
+                        title="Signal - 融合卡订阅日历异常",
+                        text=f"融合卡读取订阅日历失败：{err}",
+                        outcome=f"融合卡读取订阅日历失败：{str(err)[:120]}",
                         success=False,
-                        component="daily_report",
+                        component="fusion_notify",
                         affected_owner="persistent-subscriptions",
-                        task_key="daily_report",
-                        task_group="每日汇报",
+                        task_key="fusion_card_refresh",
+                        task_group="融合通知",
                         notification_status="error",
-                        notification_target="daily_report_subscription_calendar",
+                        notification_target="fusion_subscription_calendar",
                         notification_fingerprint=self._notification_error_fingerprint(err),
                         notification_cooldown=True,
                     )
             except Exception as notify_err:
-                logger.warning(f"Signal 每日汇报订阅日历失败通知发送异常：{notify_err}")
-            logger.error(f"Signal 每日汇报执行失败：{err}")
+                logger.warning(f"Signal 融合卡订阅日历失败通知发送异常：{notify_err}")
+            logger.error(f"Signal 融合卡刷新失败：{err}")
             return False
 
-    def _refresh_daily_report_live_data(self) -> Dict[str, Any]:
-        """刷新日报依赖的实时数据；预览不调用，避免只读接口产生副作用。"""
+    def _refresh_fusion_report_live_data(self) -> Dict[str, Any]:
+        """Refresh the live data consumed by the Fusion card."""
         result: Dict[str, Any] = {"success": True}
         try:
             needs_site_data = self._report_site_status or self._report_site_increment or self._report_summary
@@ -145,7 +112,7 @@ class DailyReportMixin:
                 refresh = self._refresh_site_userdata_coordinated()
                 active_count = int(refresh.get("active_count") or 0)
                 if not refresh.get("success"):
-                    message = str(refresh.get("message") or "站点数据刷新失败，日报已取消以避免使用旧快照")
+                    message = str(refresh.get("message") or "站点数据刷新失败，融合卡刷新已取消以避免使用旧快照")
                     logger.warning(f"Signal {message}")
                     self._save_task_result("站点数据统计", False, 1, message)
                     return {"site_userdata": refresh.get("status") or "error", "success": False, "message": message, "active_count": active_count}
@@ -164,95 +131,37 @@ class DailyReportMixin:
 
             return result
         except Exception as err:
-            message = f"日报实时数据刷新失败：{err}"
+            message = f"融合卡实时数据刷新失败：{err}"
             logger.warning(f"Signal {message}")
-            self._save_task_result("每日汇报实时刷新", False, 1, message)
+            self._save_task_result("融合卡实时刷新", False, 1, message)
             return {"site_userdata": "error", "success": False, "error": str(err), "message": message}
 
-    def run_daily_report_preview(self) -> bool:
-        with self._subscription_calendar_read_scope():
-            return self._run_daily_report_preview_scoped()
-
-    def _run_daily_report_preview_scoped(self) -> bool:
-        name = "预览每日汇报"
-        ok, _ = self._guard_task(name, "daily_report")
-        if not ok:
-            return False
-        try:
-            text = self._build_daily_report_message(preview=True)
-            snapshot = self._subscription_calendar_snapshot_for_scope()
-            partial = snapshot is not None and snapshot.is_partial
-            preview_error = snapshot.failure_message() if partial else ""
-            self._save_daily_report_result(sent=False, success=not partial, text=text, error=preview_error)
-            self._save_task_result("日报预览", not partial, 1 if partial else 0, preview_error or text)
-            self._save_task_result(name, not partial, 1 if partial else 0, preview_error or text)
-            return not partial
-        except Exception as err:
-            self._save_daily_report_result(sent=False, success=False, text="", error=str(err))
-            self._save_task_result("日报预览", False, -1, str(err))
-            self._save_task_result(name, False, -1, str(err))
-            logger.error(f"Signal 预览每日汇报 执行失败：{err}")
-            return False
-
-    def _save_daily_report_result(self, sent: bool, success: bool, text: str = "", error: str = "", message: str = "", returncode: int = 0):
+    def _save_fusion_report_result(self, updated: bool, success: bool, text: str = "", error: str = "", message: str = "", returncode: int = 0):
         snapshot = self._subscription_calendar_snapshot_for_scope()
-        self.save_data("last_daily_report", {
+        self.save_data("last_fusion_report", {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "template": "2026-06-20.card-v2-baseline-guard",
-            "sent": bool(sent),
+            "template": "fusion-report-v1",
+            "updated": bool(updated),
             "success": bool(success),
             "returncode": int(returncode),
             "chars": len(text or ""),
-            "sections": self._count_report_sections(text or ""),
-            "preview": (text or "")[:2000],
+            "sections": self._count_fusion_report_sections(text or ""),
+            "text": (text or "")[:2000],
             "message": (message or "")[:1000],
             "error": (error or "")[:1000],
             "calendar_status": str(getattr(snapshot, "status", "") or ""),
             "calendar_errors": list(getattr(snapshot, "errors", ()) or ())[:3],
-        })
+    })
 
     @staticmethod
-    def _count_report_sections(text: str) -> int:
+    def _count_fusion_report_sections(text: str) -> int:
         icons = ["🕒", "🤖", "📡", "📈", "⬇️", "📥", "📦", "📺", "💾", "🎬", "🩺", "✅", "⚠️"]
         return sum(1 for icon in icons if icon in (text or ""))
 
-    def _build_daily_report_message(self, preview: bool = False) -> str:
-        """复刻 locked-heartbeat-report fixed-v1 模板。"""
-        return self._build_heartbeat_message(preview=preview)
+    def _build_fusion_report_message(self, preview: bool = False) -> str:
+        return self._build_fusion_report_content(preview=preview)
 
-    def _build_daily_report_telegram_rich_message(self, preview: bool = False, text: Optional[str] = None) -> Dict[str, Any]:
-        """生成 Telegram Bot API 10.1 sendRichMessage 的 rich_message 载荷。"""
-        return {
-            "html": self._build_daily_report_telegram_html(preview=preview, text=text),
-            "skip_entity_detection": True,
-        }
-
-    def _send_daily_report_telegram_rich(self, text: str) -> bool:
-        self._daily_report_telegram_last_error = ""
-        if not self._daily_report_telegram_rich_enabled:
-            self._daily_report_telegram_last_error = "Telegram RichMessage 未启用"
-            logger.warning(f"Signal 每日汇报未发送：{self._daily_report_telegram_last_error}")
-            return False
-        token, chat_id, source = self._resolve_daily_report_telegram_config()
-        if not token or not chat_id:
-            self._daily_report_telegram_last_error = "Telegram RichMessage Bot Token/Chat ID 未配置，且未找到可用的 MoviePilot 全局 Telegram 通知配置"
-            logger.warning(f"Signal 每日汇报未发送：{self._daily_report_telegram_last_error}")
-            return False
-        try:
-            ok = bool(self._post_telegram_rich_message(
-                self._build_daily_report_telegram_rich_message(text=text),
-                token=token,
-                chat_id=chat_id,
-            ))
-            if not ok and not self._daily_report_telegram_last_error:
-                self._daily_report_telegram_last_error = f"Telegram RichMessage 发送失败（配置来源：{source or '未知'}）"
-            return ok
-        except Exception as err:
-            self._daily_report_telegram_last_error = f"Telegram RichMessage 发送异常：{self._telegram_safe_error(err, limit=500)}"
-            logger.warning(f"Signal {self._daily_report_telegram_last_error}")
-            return False
-
-    def _resolve_daily_report_telegram_config(self) -> Tuple[str, str, str]:
+    def _resolve_fusion_telegram_config(self) -> Tuple[str, str, str]:
         global_token, global_chat_id, name = self._find_moviepilot_telegram_config(self._fusion_notify_msgtype)
         if global_token and global_chat_id:
             return global_token, global_chat_id, f"复用 MoviePilot 通知渠道：{name or 'Telegram'}"
@@ -325,46 +234,6 @@ class DailyReportMixin:
         labels.update(cn_labels.get(raw_value, ()))
         return labels
 
-    def _post_telegram_rich_message(self, rich_message: Dict[str, Any], token: Optional[str] = None, chat_id: Optional[str] = None) -> bool:
-        ok, _ = self._runtime_gate("telegram", component="daily_report", name="Telegram RichMessage")
-        if not ok:
-            return False
-        bot_token = str(token or "").strip()
-        target_chat_id = str(chat_id or "").strip()
-        if not bot_token or not target_chat_id:
-            self._daily_report_telegram_last_error = "Telegram RichMessage Bot Token/Chat ID 未配置"
-            logger.warning(f"Signal {self._daily_report_telegram_last_error}")
-            return False
-
-        base_url = f"https://api.telegram.org/bot{bot_token}"
-        try:
-            chat_id_int = int(target_chat_id)
-        except Exception:
-            chat_id_int = 0
-        if chat_id_int:
-            draft_id = int(datetime.now().timestamp() * 1000) % 2147483647 or 1
-            draft_payload = {
-                "chat_id": chat_id_int,
-                "draft_id": draft_id,
-                "rich_message": {
-                    "html": "<tg-thinking>生成日报中...</tg-thinking>",
-                    "skip_entity_detection": True,
-                },
-            }
-            try:
-                draft_res = self._telegram_http_post_json(f"{base_url}/sendRichMessageDraft", draft_payload, timeout=15)
-                if not self._telegram_response_ok(draft_res, "RichMessageDraft"):
-                    logger.warning("Signal Telegram RichMessage 草稿发送失败，继续发送终态")
-            except Exception as err:
-                logger.warning(f"Signal Telegram RichMessage 草稿发送异常，继续发送终态：{self._telegram_safe_error(err, limit=500)}")
-
-        payload = {
-            "chat_id": target_chat_id,
-            "rich_message": rich_message,
-        }
-        res = self._telegram_http_post_json(f"{base_url}/sendRichMessage", payload, timeout=15)
-        return self._telegram_response_ok(res, "RichMessage")
-
     @staticmethod
     def _telegram_http_post_json(url: str, payload: Dict[str, Any], timeout: int = 15) -> Any:
         proxies = getattr(settings, "PROXY", None) or None
@@ -410,24 +279,6 @@ class DailyReportMixin:
             return text[:limit]
         return text
 
-    def _telegram_response_ok(self, response: Any, action: str) -> bool:
-        if not getattr(response, "ok", False):
-            self._daily_report_telegram_last_error = f"Telegram {action} HTTP {getattr(response, 'status_code', '')}：{self._telegram_safe_error(getattr(response, 'text', ''), limit=200)}"
-            logger.warning(f"Signal {self._daily_report_telegram_last_error}")
-            return False
-        try:
-            data = response.json()
-        except Exception:
-            self._daily_report_telegram_last_error = f"Telegram {action} 返回非 JSON：{self._telegram_safe_error(getattr(response, 'text', ''), limit=200)}"
-            logger.warning(f"Signal {self._daily_report_telegram_last_error}")
-            return False
-        if isinstance(data, dict) and data.get("ok") is True:
-            return True
-        description = (data or {}).get("description") if isinstance(data, dict) else data
-        self._daily_report_telegram_last_error = f"Telegram {action} 返回失败：{self._telegram_safe_error(description, limit=200)}"
-        logger.warning(f"Signal {self._daily_report_telegram_last_error}")
-        return False
-
     def _telegram_response_data(self, response: Any, action: str) -> Tuple[bool, Dict[str, Any]]:
         if not getattr(response, "ok", False):
             self._tg_console_last_error = f"Telegram {action} HTTP {getattr(response, 'status_code', '')}：{self._telegram_safe_error(getattr(response, 'text', ''), limit=200)}"
@@ -446,50 +297,11 @@ class DailyReportMixin:
         logger.warning(f"Signal {self._tg_console_last_error}")
         return False, data if isinstance(data, dict) else {}
 
-    def _build_daily_report_telegram_html(self, preview: bool = False, text: Optional[str] = None) -> str:
-        report_text = text if text is not None else self._build_daily_report_message(preview=preview)
-        parts = self._split_daily_report_text(report_text)
-        title = self._html_escape(parts.get("title") or "Signal 每日汇报")
-        chunks = [f"<h2>{title}</h2>"]
-        intro = [self._html_escape(line) for line in (parts.get("intro") or []) if str(line or "").strip()]
-        if intro:
-            chunks.append("<p>" + "<br>".join(intro) + "</p>")
-        overview = self._telegram_overview_table(parts)
-        if overview:
-            chunks.append(overview)
-        for section in parts.get("sections") or []:
-            header = str(section.get("title") or "").strip()
-            lines = section.get("lines") or []
-            if header.startswith("🤖"):
-                chunks.append(self._telegram_quote_html(header, self._telegram_section_items(lines), max_items=3))
-            elif header.startswith("📡"):
-                chunks.append(self._telegram_status_summary(header, lines))
-            elif header.startswith("📈"):
-                chunks.append(self._telegram_details_html(header, self._telegram_increment_table("", lines)))
-            elif header.startswith("📥") or header.startswith("📦") or header.startswith("📺"):
-                body = self._telegram_general_list_html(header, self._telegram_section_items(lines))
-                chunks.append(self._telegram_details_html(header, body))
-            elif header.startswith("💾"):
-                chunks.append(self._telegram_details_html(header, self._telegram_storage_table("", lines)))
-            elif header.startswith("🎬"):
-                chunks.append(self._telegram_details_html(header, self._telegram_media_table("", lines)))
-            elif header.startswith("🩺"):
-                body = self._telegram_health_list_html(self._telegram_section_items(lines))
-                chunks.append(self._telegram_details_html(header, body))
-            elif header.startswith("🧾") or header.startswith("⚠️"):
-                continue
-            else:
-                chunks.append(f"<h3>{self._html_escape(header)}</h3>{self._telegram_list_html(self._telegram_section_items(lines))}")
-        return self._clip_telegram_html("\n".join(chunks))
-
-    def _build_daily_report_telegram_body_html(self, text: str) -> str:
-        return self._build_daily_report_telegram_html(text=text)
-
     @staticmethod
-    def _split_daily_report_text(text: str) -> Dict[str, Any]:
-        return html_utils.split_daily_report_text(text)
+    def _split_fusion_report_text(text: str) -> Dict[str, Any]:
+        return html_utils.split_fusion_report_text(text)
 
-    def _build_heartbeat_message(self, preview: bool = False) -> str:
+    def _build_fusion_report_content(self, preview: bool = False) -> str:
         site_increment = self._get_site_increment_locked()
         site_health = self._get_site_health_locked()
         transfer_health = self._get_transfer_health_locked()
@@ -500,8 +312,8 @@ class DailyReportMixin:
         media_stats = self._get_media_stats_locked()
 
         lines = [
-            self._daily_report_title(),
-            self._daily_greeting_locked(),
+            self._fusion_report_title(),
+            self._fusion_greeting_locked(),
             "",
             f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         ]
@@ -526,26 +338,26 @@ class DailyReportMixin:
         if self._report_summary:
             summary = self._get_summary_locked(site_health, transfer_health, downloader_health, storage_health)
             if summary:
-                header = "🧾 今日摘要"
+                header = "🧾 融合摘要"
                 first = str(summary[0] or "").strip()
                 if first.startswith("⚠"):
-                    header = "⚠️ 今日提醒"
+                    header = "⚠️ 融合提醒"
                     summary = summary[1:]
-                elif "今日摘要" in first:
+                elif "融合摘要" in first:
                     summary = summary[1:]
                 lines.extend(["", header, ""])
                 lines.extend(self._report_body_lines(summary or ["⦁ 系统正常"]))
         return "\n".join(lines)
 
     @staticmethod
-    def _daily_report_title() -> str:
+    def _fusion_report_title() -> str:
         weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         now = datetime.now()
-        return f"📮 MP 运维日报｜{now.strftime('%Y-%m-%d')} {weekdays[now.weekday()]}"
+        return f"📮 MP 融合汇报｜{now.strftime('%Y-%m-%d')} {weekdays[now.weekday()]}"
 
     @classmethod
     def _report_body_lines(cls, items: List[str]) -> List[str]:
-        """将日报内容转成图标化数据条；短项横向排布，长项保留纵向。"""
+        """将融合内容转成图标化数据条；短项横向排布，长项保留纵向。"""
         cleaned = [cls._report_visual_line(item) for item in (items or []) if str(item or "").strip()]
         cleaned = [line for line in cleaned if line]
         if not cleaned:
@@ -691,7 +503,7 @@ class DailyReportMixin:
         if err or not latest:
             lines.append(f"⦁ 最新版本：暂时查不到（{err or '无响应'}），稍后再看")
         elif check.get("has_update"):
-            lines.append(f"⦁ 最新版本：后端 {latest} —— 有新版，{self._daily_report_greeting}记得抽空更新")
+            lines.append(f"⦁ 最新版本：后端 {latest} —— 有新版，{self._fusion_report_greeting}记得抽空更新")
         else:
             lines.append(f"⦁ 最新版本：{latest}，已是最新 ✅")
         return lines
@@ -729,7 +541,7 @@ class DailyReportMixin:
             items.append(f"⦁ 失败：{title} - {errmsg[:36]}" if errmsg else f"⦁ 失败：{title}")
         return items
 
-    def _daily_greeting_locked(self) -> str:
+    def _fusion_greeting_locked(self) -> str:
         hour = datetime.now().hour
         if 0 <= hour <= 5:
             part = "凌晨"
@@ -739,8 +551,8 @@ class DailyReportMixin:
             part = "下午"
         else:
             part = "晚上"
-        who = (self._daily_report_greeting or "少爷").strip() or "少爷"
-        return f"{who}，{part}好。给你送上今天的心跳播报。"
+        who = (self._fusion_report_greeting or "少爷").strip() or "少爷"
+        return f"{who}，{part}好。当前融合状态已更新。"
 
     def _get_media_stats_locked(self) -> List[str]:
         """媒体统计（电影/电视剧/剧集/用户）——尝试媒体服务器统计接口，取不到则提示。"""
@@ -795,12 +607,12 @@ class DailyReportMixin:
             if risky:
                 warnings.append(clean.replace("⦁ ", "⦁ "))
         if warnings:
-            return ["⚠️ 今日提醒"] + warnings[:5]
-        return ["✅ 今日摘要", "⦁ 系统正常", "⦁ 站点快照正常", "⦁ 无失败转移", "⦁ 下载器无异常"]
+            return ["⚠️ 融合提醒"] + warnings[:5]
+        return ["✅ 融合摘要", "⦁ 系统正常", "⦁ 站点快照正常", "⦁ 无失败转移", "⦁ 下载器无异常"]
 
     def _get_today_subscribe_updates_locked(self) -> List[str]:
         """读取 MoviePilot v2 官方复合日历快照，失败不得转为空结果。"""
         return self._read_today_subscribe_updates()
 
     def _build_summary(self) -> str:
-        return "；".join([f"插件：{'启用' if self._enabled else '未启用'}", f"每日汇报：{'启用' if self._daily_report_enabled else '停用'} {self._daily_report_cron}", f"汇报栏目：健康={'开' if self._health_in_report else '关'} / 订阅={'开' if self._subscribe_in_report else '关'} / 站点={'开' if self._site_stat_in_report else '关'}", f"插件日志清理：{'启用' if self._log_clean_enabled else '停用'} {self._log_clean_cron} 保留{self._log_clean_rows}行", f"自动备份：{'启用' if self._backup_enabled else '停用'} {self._backup_cron} 保留{self._backup_keep_count}个", f"系统更新：{'启用' if self._mp_update_enabled else '停用'} {self._mp_update_cron}", f"插件更新：{'启用' if self._plugin_update_reminder_enabled else '停用'} {self._plugin_update_reminder_cron}（自动安装{'开' if self._plugin_auto_install_enabled else '关'}）", f"插件库同步：{'启用' if self._market_update_enabled else '停用'} {self._market_update_cron}"])
+        return "；".join([f"插件：{'启用' if self._enabled else '未启用'}", f"融合通知：{'启用' if self._fusion_notify_enabled else '停用'} 建卡 {self._fusion_card_create_cron} / 刷新 {self._fusion_card_refresh_cron}", f"融合栏目：健康={'开' if self._health_in_report else '关'} / 订阅={'开' if self._subscribe_in_report else '关'} / 站点={'开' if self._site_stat_in_report else '关'}", f"插件日志清理：{'启用' if self._log_clean_enabled else '停用'} {self._log_clean_cron} 保留{self._log_clean_rows}行", f"自动备份：{'启用' if self._backup_enabled else '停用'} {self._backup_cron} 保留{self._backup_keep_count}个", f"系统更新：{'启用' if self._mp_update_enabled else '停用'} {self._mp_update_cron}", f"插件更新：{'启用' if self._plugin_update_reminder_enabled else '停用'} {self._plugin_update_reminder_cron}（自动安装{'开' if self._plugin_auto_install_enabled else '关'}）", f"插件库同步：{'启用' if self._market_update_enabled else '停用'} {self._market_update_cron}"])

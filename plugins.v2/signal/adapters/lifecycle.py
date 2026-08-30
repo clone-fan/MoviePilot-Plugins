@@ -64,6 +64,17 @@ class LifecycleMixin:
 
     def _refresh_site_userdata_coordinated(self) -> Dict[str, Any]:
         try:
+            from app.utils.string import StringUtils
+            host_normalizer = getattr(StringUtils, "get_url_domain", None)
+            if not callable(host_normalizer):
+                raise AttributeError("StringUtils.get_url_domain is unavailable")
+
+            def normalize_domain(value: Any) -> str:
+                normalized = str(host_normalizer(str(value or "")) or "").strip().lower()
+                return normalized or site_helpers.normalize_site_domain(value)
+        except Exception:
+            normalize_domain = site_helpers.normalize_site_domain
+        try:
             from app.db.site_oper import SiteOper
             active_sites = site_helpers.select_user_data_sites(SiteOper().list_active() or [])
         except Exception as err:
@@ -81,8 +92,8 @@ class LifecycleMixin:
             self._save_site_refresh_state(result)
             return result
         active_site_count = len(active_sites)
-        active_domains = {getattr(site, "domain", "") for site in active_sites}
-        active_domains = {str(value).strip() for value in active_domains if str(value).strip()}
+        active_domains = {normalize_domain(getattr(site, "domain", "")) for site in active_sites}
+        active_domains.discard("")
         active_count = active_site_count
         active_identity_invalid = len(active_domains) != active_site_count
         if active_identity_invalid:
@@ -129,32 +140,61 @@ class LifecycleMixin:
 
         try:
             from app.chain.site import SiteChain
+            from app.helper.sites import SitesHelper
 
-            refreshed = SiteChain().refresh_userdatas()
-            if refreshed is None:
+            if not active_sites:
                 result = {
-                    "success": False,
-                    "status": "stopped",
-                    "active_count": active_count,
+                    "success": True,
+                    "status": "ok",
+                    "active_count": 0,
                     "count": 0,
-                    "active_domains": sorted(active_domains),
-                    "message": "站点数据刷新被系统停止，已取消统计以避免使用旧快照",
+                    "active_domains": [],
+                    "errors": [],
+                    "identity_missing": False,
+                    "identity_mismatch": False,
+                    "message": "",
                 }
             else:
-                items = list(refreshed.items()) if isinstance(refreshed, dict) else []
-                returned_domains = {
-                    str(getattr(row, "domain", None) or "").strip()
-                    for _name, row in items
-                    if str(getattr(row, "domain", None) or "").strip()
-                }
-                identity_missing = bool(active_domains) and not active_domains.issubset(returned_domains)
-                identity_mismatch = active_identity_invalid or active_domains != returned_domains
-                errors = [
-                    f"{name or '未知站点'}：{str(getattr(row, 'err_msg', '') or '')[:120]}"
-                    for name, row in items
-                    if str(getattr(row, "err_msg", "") or "").strip()
-                ]
-                count = len(items)
+                indexers = SitesHelper().get_indexers() or []
+                indexer_lookup: Dict[str, Dict[str, Any]] = {}
+                duplicate_domains = set()
+                for indexer in indexers:
+                    if not isinstance(indexer, dict):
+                        continue
+                    domain = normalize_domain(indexer.get("domain") or indexer.get("url"))
+                    if not domain:
+                        continue
+                    if domain in indexer_lookup:
+                        duplicate_domains.add(domain)
+                    else:
+                        indexer_lookup[domain] = indexer
+
+                errors = [f"{domain}：indexer 匹配重复" for domain in sorted(duplicate_domains & active_domains)]
+                returned_domains = set()
+                chain = SiteChain()
+                for site in active_sites:
+                    domain = normalize_domain(getattr(site, "domain", ""))
+                    indexer = indexer_lookup.get(domain)
+                    label = str(getattr(site, "name", None) or domain or "未知站点")
+                    if domain in duplicate_domains or not indexer:
+                        errors.append(f"{label}：找不到对应 indexer")
+                        continue
+                    try:
+                        userdata = chain.refresh_userdata(site=indexer)
+                    except Exception as err:
+                        errors.append(f"{label}：{str(err)[:120]}")
+                        continue
+                    if userdata is None:
+                        errors.append(f"{label}：未返回用户数据")
+                        continue
+                    returned_domains.add(domain)
+                    error = str(getattr(userdata, "err_msg", "") or "").strip()
+                    if error:
+                        errors.append(f"{label}：{error[:120]}")
+
+                count = len(returned_domains)
+                identity_missing = bool(active_domains - returned_domains)
+                identity_mismatch = active_domains != returned_domains
                 success = count == active_count and not errors and not identity_mismatch
                 result = {
                     "success": success,
@@ -169,8 +209,8 @@ class LifecycleMixin:
                     "message": (
                         ""
                         if success
-                        else f"已触发 {active_count} 个站点刷新，但仅得到 {count} 个可用结果"
-                        + ("（返回结果与启用站点不一致）" if identity_mismatch else "")
+                        else f"已触发 {active_count} 个 PT 站点刷新，但仅得到 {count} 个可用结果"
+                        + ("（返回结果与 PT 站点不一致）" if identity_mismatch else "")
                         + (f"（{'；'.join(errors[:3])}）" if errors else "")
                         + "，已取消统计以避免使用旧快照"
                     ),
@@ -467,13 +507,7 @@ class LifecycleMixin:
         self._fusion_notify_enabled = bool(config.get("fusion_notify_enabled")) if "fusion_notify_enabled" in config else True
         self._fusion_card_create_cron = self._normalize_fusion_refresh_cron(config.get("fusion_card_create_cron"), "5 0 * * *")
         self._fusion_card_refresh_cron = self._normalize_fusion_refresh_cron(config.get("fusion_card_refresh_cron"), "0 * * * *")
-        self._daily_report_enabled = True
-        self._daily_report_schedule_enabled = True
-        self._daily_report_cron = self._fusion_card_refresh_cron
-        self._daily_report_greeting = "少爷"
-        self._daily_report_telegram_rich_enabled = True
-        self._daily_report_telegram_bot_token = ""
-        self._daily_report_telegram_chat_id = ""
+        self._fusion_report_greeting = "少爷"
         self._fusion_notify_schedule_enabled = self._fusion_notify_enabled
         self._fusion_notify_cron = self._fusion_card_refresh_cron
         self._fusion_notify_msgtype = config.get("fusion_notify_msgtype") or "Plugin"

@@ -60,6 +60,8 @@ class PluginOpsMixin:
                 parts.append(f"清理 {cleaned} 项配置或数据")
             if deleted:
                 parts.append(f"删除 {deleted} 项残留")
+            if data.get("restart_required"):
+                parts.append("MoviePilot 内存仍有残留，需重启后复核")
             return "，".join(parts)
         errors = data.get("errors") or []
         detail = str(errors[0])[:120] if errors else "操作未完成"
@@ -108,54 +110,109 @@ class PluginOpsMixin:
     def _build_plugin_uninstall_status(self, clean: bool = False, override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         options = self._plugin_uninstall_options(override)
         raw_ids = list(options["raw_ids"])
-        ids: List[str] = []
-        for rid in raw_ids:
-            pid = self._normalize_plugin_id(rid)
-            if pid and pid not in ids:
-                ids.append(pid)
-        result = {"success": True, "dry_run": not clean, "plugin_id": "、".join(ids),
+        result = {"success": True, "status": "ready" if not clean else "failed", "dry_run": not clean, "plugin_id": "",
                   "note": "执行按钮始终卸载插件本体；按勾选项额外清理配置、数据、运行源码和本地源码，同时删除日志与历史卸载残留；不会生成备份，操作不可逆。",
                   "clear_config": options["clear_config"],
                   "clear_data": options["clear_data"],
                   "delete_source": options["delete_source"],
                    "uninstalled": [], "cleaned_config": [], "cleaned_data": [],
-                   "candidates": [], "deleted": [], "verification": [], "errors": [], "blocked": "",
-                   "attempted_actions": 0}
-        if not ids:
+                   "candidates": [], "deleted": [], "verification": [], "errors": [],
+                   "persistent_errors": [], "host_residuals": [], "blocked": "",
+                   "fully_removed": False, "restart_required": False, "attempted_actions": 0}
+        if not raw_ids:
             result.update({"success": False, "blocked": "请先在配置页选择目标插件。"})
             return result
+
+        installed_lookup = {
+            plugin_id.lower(): plugin_id
+            for plugin_id in self._installed_plugin_canonical_ids()
+        }
+        ids: List[str] = []
+        seen = set()
+        validation_errors: List[str] = []
         forbidden = {"signal", "moviepilot"}
-        for pid in ids:
-            if pid.lower() in forbidden:
-                result["errors"].append(f"{pid}: 为避免自毁或误删核心组件，禁止卸载 Signal / MoviePilot 本体，已跳过。")
+        for raw_id in raw_ids:
+            raw_text = str(raw_id or "").strip()
+            plugin_id = self._normalize_plugin_id(raw_text)
+            if not plugin_id:
+                validation_errors.append(f"{raw_text or '<empty>'}: 插件 ID 格式非法，拒绝修改或清洗后执行")
                 continue
+            canonical_id = installed_lookup.get(plugin_id.lower())
+            if not canonical_id:
+                validation_errors.append(f"{plugin_id}: 不能精确匹配当前已安装插件")
+                continue
+            if canonical_id.lower() in forbidden:
+                validation_errors.append(f"{canonical_id}: 禁止卸载 Signal / MoviePilot 本体")
+                continue
+            if canonical_id.lower() not in seen:
+                seen.add(canonical_id.lower())
+                ids.append(canonical_id)
+        result["plugin_id"] = "、".join(ids or [str(item or "").strip() for item in raw_ids])
+        if validation_errors:
+            result.update({
+                "success": False,
+                "status": "failed",
+                "blocked": "；".join(validation_errors),
+                "errors": validation_errors,
+            })
+            return result
+
+        prepared: List[Tuple[str, List[Dict[str, Any]]]] = []
+        path_errors: List[str] = []
+        for pid in ids:
             candidates = self._plugin_uninstall_candidates(pid, delete_source=options["delete_source"])
             for item in candidates:
                 item["plugin_id"] = pid
             result["candidates"].extend(candidates)
-            if not clean:
-                continue
-            allowed_candidates = []
             for item in candidates:
                 path = Path(item.get("path") or "")
-                if self._plugin_uninstall_path_allowed(path, delete_source=options["delete_source"]):
-                    allowed_candidates.append(item)
-                else:
-                    result["errors"].append(f"{path}: 路径越界，不在允许范围内，已跳过删除。")
+                if not self._plugin_uninstall_path_allowed(path, delete_source=options["delete_source"]):
+                    path_errors.append(f"{path}: 路径越界，不在允许范围内")
+            prepared.append((pid, candidates))
+        if path_errors:
+            result.update({
+                "success": False,
+                "status": "failed",
+                "blocked": "；".join(path_errors),
+                "errors": path_errors,
+            })
+            return result
+        if not clean:
+            return result
+
+        for pid, allowed_candidates in prepared:
             result["attempted_actions"] += 1
-            ok, message, cleaned = self._uninstall_moviepilot_plugin(pid, clear_config=options["clear_config"], clear_data=options["clear_data"])
-            result["uninstalled"].append({"plugin_id": pid, "success": ok, "message": message})
+            ok, message, details = self._uninstall_moviepilot_plugin(
+                pid,
+                clear_config=options["clear_config"],
+                clear_data=options["clear_data"],
+            )
+            plugin_status = str(details.get("status") or ("completed" if ok else "failed"))
+            plugin_persistent_errors = [str(item) for item in (details.get("persistent_errors") or [])]
+            plugin_host_residuals = [str(item) for item in (details.get("host_residuals") or [])]
+            result["persistent_errors"].extend(f"{pid}: {item}" for item in plugin_persistent_errors)
+            result["host_residuals"].extend(f"{pid}: {item}" for item in plugin_host_residuals)
+            result["uninstalled"].append({
+                "plugin_id": pid,
+                "success": ok,
+                "status": plugin_status,
+                "fully_removed": plugin_status == "completed",
+                "restart_required": plugin_status == "restart_required",
+                "message": message,
+            })
             result["uninstalled"][-1]["verification"] = {
                 key: bool(value)
-                for key, value in cleaned.items()
+                for key, value in details.items()
                 if key in {"installed_list", "plugin_folders", "api", "scheduler", "runtime"}
             }
-            if cleaned.get("config"):
+            if details.get("config"):
                 result["cleaned_config"].append(pid)
-            if cleaned.get("data"):
+            if details.get("data"):
                 result["cleaned_data"].append(pid)
-            if not ok:
-                result["errors"].append(f"{pid}: {message}")
+            if plugin_status == "failed":
+                result["errors"].extend(f"{pid}: {item}" for item in plugin_persistent_errors)
+                if not plugin_persistent_errors:
+                    result["errors"].append(f"{pid}: {message}")
             if allowed_candidates:
                 self._isolate_plugin_runtime_candidates(pid, allowed_candidates, result)
             for item in allowed_candidates:
@@ -180,9 +237,24 @@ class PluginOpsMixin:
                 if path.exists() and self._plugin_uninstall_path_allowed(path, delete_source=options["delete_source"]):
                     path_clean = False
                     result["errors"].append(f"{pid}: 最终复核仍有残留：{path}")
-            result["verification"].append({"plugin_id": pid, "paths": path_clean})
+            result["verification"].append({
+                "plugin_id": pid,
+                "installed_list": bool(details.get("installed_list")),
+                "plugin_folders": bool(details.get("plugin_folders")),
+                "config": bool(details.get("config") or details.get("config_missing") or not options["clear_config"]),
+                "data": bool(details.get("data") or details.get("data_missing") or not options["clear_data"]),
+                "api": bool(details.get("api")),
+                "scheduler": bool(details.get("scheduler")),
+                "runtime": bool(details.get("runtime")),
+                "paths": path_clean,
+            })
         self._remove_empty_isolation_root()
-        result["success"] = not result["errors"]
+        if result["errors"]:
+            result.update({"success": False, "status": "failed", "fully_removed": False, "restart_required": False})
+        elif result["host_residuals"]:
+            result.update({"success": True, "status": "restart_required", "fully_removed": False, "restart_required": True})
+        else:
+            result.update({"success": True, "status": "completed", "fully_removed": True, "restart_required": False})
         return result
     @staticmethod
     def _remove_plugin_api_safely(plugin_id: str) -> bool:

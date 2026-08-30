@@ -40,9 +40,7 @@ class EventsMixin:
             return
         action = (event.event_data or {}).get("action", "")
         handlers = {
-            "signal_report": [("每日汇报", self.run_daily_report, "daily_report")],
             "signal_subscribe": [("订阅追新", self.run_subscribe_reminder, "subscribe_reminder")],
-            "signal_report_preview": [("预览每日汇报", self.run_daily_report_preview, "daily_report")],
             "signal_health": [("健康巡查", self.run_health_check, "health_check")],
             "signal_logs": [("日志清理预览", self.run_log_preview, "log_clean")],
             "signal_logs_clean": [("日志清理", self.run_log_clean, "log_clean")],
@@ -53,7 +51,7 @@ class EventsMixin:
             # Compatibility command: installation now runs through the plugin
             # update check and does not create a separate task path.
             "signal_plugin_install": [("插件更新", self.run_plugin_auto_install, "plugin_update_reminder")],
-            "signal_run_all": [("每日汇报", self.run_daily_report, "daily_report"), ("健康巡查", self.run_health_check, "health_check")],
+            "signal_run_all": [("健康巡查", self.run_health_check, "health_check"), ("站点数据统计", self.run_site_stat_scheduled, "site_stat")],
             "signal_plugin_preview": [("插件卸载预览", self.run_plugin_uninstall_preview, None)],
             "signal_plugin_clean": [("插件卸载", self.run_plugin_uninstall_confirm_required, None)],
             "signal_seed_clean": [("自动删种", self.run_seed_clean, "seed_clean")],
@@ -130,7 +128,7 @@ class EventsMixin:
         data = str(info.get("text") or "").strip()
         if not data:
             return
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         if not token or not chat_id:
             return
         callback = {

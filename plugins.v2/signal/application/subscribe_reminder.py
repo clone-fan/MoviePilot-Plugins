@@ -32,7 +32,7 @@ class SubscribeReminderMixin:
             return self._run_subscribe_reminder_scoped(scheduled=scheduled)
 
     def _run_subscribe_reminder_scoped(self, scheduled: bool = False) -> bool:
-        """独立推送今日订阅追新（与每日汇报分开，按 subscribe_reminder_cron 调度，也可手动触发）。"""
+        """独立推送今日订阅追新，按 subscribe_reminder_cron 调度，也可手动触发。"""
         name = "订阅追新"
         ok, _ = self._guard_task(name, "subscribe_reminder")
         if not ok:
@@ -165,7 +165,7 @@ class SubscribeReminderMixin:
         return snapshot
 
     def _read_today_subscribe_updates(self) -> List[str]:
-        """为日报、Fusion 和 Telegram 提供同一宿主快照的文本条目。"""
+        """为 Fusion 和 Telegram 提供同一宿主快照的文本条目。"""
         snapshot = self._read_today_subscription_calendar_snapshot()
         items = list(snapshot.items)
         if snapshot.is_partial:

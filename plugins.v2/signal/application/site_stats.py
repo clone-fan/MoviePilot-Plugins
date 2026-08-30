@@ -14,6 +14,81 @@ from ..domain import site_helpers
 class SiteStatsMixin:
     """Site statistics, health checks, storage inspection, and report data collection."""
 
+    @staticmethod
+    def _health_result(
+        name: str,
+        status: str,
+        detail: str,
+        *,
+        affected_owner: str,
+        target: str = "",
+        alert_detail: str = "",
+    ) -> Dict[str, Any]:
+        status = status if status in {"ok", "fault", "unavailable", "checker_error"} else "checker_error"
+        return {
+            "name": name,
+            "status": status,
+            "ok": status in {"ok", "unavailable"},
+            "complete": status == "ok",
+            "alertable": status == "fault",
+            "affected_owner": affected_owner,
+            "target": target,
+            "detail": str(detail or ""),
+            "alert_detail": str(alert_detail or detail or "") if status == "fault" else "",
+        }
+
+    @classmethod
+    def _normalize_health_result(cls, item: Any) -> Dict[str, Any]:
+        source = dict(item or {}) if isinstance(item, dict) else {}
+        status = str(source.get("status") or ("ok" if source.get("ok") else "checker_error"))
+        normalized = cls._health_result(
+            str(source.get("name") or "health_check"),
+            status,
+            str(source.get("detail") or source.get("error") or ""),
+            affected_owner=str(source.get("affected_owner") or "signal-health-checker"),
+            target=str(source.get("target") or source.get("path") or ""),
+            alert_detail=str(source.get("alert_detail") or ""),
+        )
+        normalized.update({key: value for key, value in source.items() if key not in normalized})
+        return normalized
+
+    @classmethod
+    def _aggregate_health_results(
+        cls,
+        name: str,
+        outcomes: List[Dict[str, Any]],
+        *,
+        affected_owner: str,
+        unavailable_detail: str,
+    ) -> Dict[str, Any]:
+        normalized = [cls._normalize_health_result(item) for item in outcomes]
+        if not normalized:
+            return cls._health_result(name, "unavailable", unavailable_detail, affected_owner=affected_owner)
+        faults = [item for item in normalized if item["status"] == "fault"]
+        checker_errors = [item for item in normalized if item["status"] == "checker_error"]
+        oks = [item for item in normalized if item["status"] == "ok"]
+        if faults:
+            status = "fault"
+            owner = faults[0].get("affected_owner") or affected_owner
+        elif checker_errors:
+            status = "checker_error"
+            owner = "signal-health-checker"
+        elif oks:
+            status = "ok"
+            owner = affected_owner
+        else:
+            status = "unavailable"
+            owner = affected_owner
+        detail = "；".join(str(item.get("detail") or "") for item in normalized if item.get("detail"))
+        alert_detail = "；".join(str(item.get("alert_detail") or item.get("detail") or "") for item in faults)
+        return cls._health_result(
+            name,
+            status,
+            detail or unavailable_detail,
+            affected_owner=owner,
+            alert_detail=alert_detail,
+        )
+
 
     def run_health_check_scheduled(self) -> bool:
         return self.run_health_check(scheduled=True)
@@ -26,10 +101,20 @@ class SiteStatsMixin:
             data = self._build_health_summary()
         except Exception as err:
             logger.error(f"Signal 健康巡查执行失败：{err}", exc_info=True)
-            data = {"success": False, "checks": [{"name": "health_check", "ok": False, "detail": str(err)[:160]}], "total": 1, "pass": 0, "fail": 1}
+            check = self._health_result(
+                "health_check",
+                "checker_error",
+                f"检查未完成：{str(err)[:160]}",
+                affected_owner="signal-health-checker",
+            )
+            data = {"success": False, "complete": False, "checks": [check], "total": 1, "pass": 0, "fail": 1, "alertable_fail": 0, "incomplete": 1}
+        checks = [self._normalize_health_result(item) for item in (data.get("checks") or [])]
+        data["checks"] = checks
         text = self._format_health_summary(data)
         failed = int(data.get("fail") or 0)
+        alertable_checks = [item for item in checks if item.get("alertable") is True]
         success = bool(data.get("success")) and failed == 0
+        complete = bool(data.get("complete", all(item.get("complete") for item in checks)))
         self._save_task_result("健康巡查", success, 0 if success else 1, text)
         self.save_data("last_health_check", {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -38,16 +123,17 @@ class SiteStatsMixin:
             "total": data.get("total") or 0,
             "pass": data.get("pass") or 0,
             "fail": failed,
+            "alertable_fail": len(alertable_checks),
+            "incomplete": int(data.get("incomplete") or 0),
+            "complete": complete,
             "output": text,
         })
-        if failed:
+        if alertable_checks:
             if self._health_check_notify:
                 failed_checks = []
                 ordinary_scheduled = scheduled and not self._fusion_notify_enabled
                 if ordinary_scheduled:
-                    for item in data.get("checks") or []:
-                        if not isinstance(item, dict) or item.get("ok"):
-                            continue
+                    for item in alertable_checks:
                         failed_checks.append({
                             "name": str(item.get("name") or ""),
                             "target": str(item.get("target") or item.get("path") or ""),
@@ -59,16 +145,24 @@ class SiteStatsMixin:
                     failed_checks.sort(key=lambda item: (
                         item["name"], item["target"], item["severity"], item["detail"]
                     ))
+                owners = sorted({str(item.get("affected_owner") or "") for item in alertable_checks if item.get("affected_owner")})
+                affected_owner = owners[0] if len(owners) == 1 else "multiple:" + ",".join(owners)
+                labels = self._health_name_map()
+                title = (
+                    f"Signal - {labels.get(alertable_checks[0].get('name'), alertable_checks[0].get('name') or '巡查项')}异常"
+                    if len(alertable_checks) == 1
+                    else f"Signal - 健康巡查发现 {len(alertable_checks)} 项异常"
+                )
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._health_check_notify_type),
-                    title=f"Signal - 健康巡查发现 {failed} 项异常",
-                    text="\n".join([f"发现 {failed} 项异常", *self._health_failure_lines(data)]),
-                    outcome=f"巡检发现 {failed} 项异常",
+                    title=title,
+                    text="\n".join([f"发现 {len(alertable_checks)} 项异常", *self._health_failure_lines({"checks": alertable_checks})]),
+                    outcome=f"巡检发现 {len(alertable_checks)} 项异常",
                     success=False,
                     component="health_check",
                     task_key="health_check",
                     task_group="维护任务",
-                    affected_owner="persistent-storage",
+                    affected_owner=affected_owner,
                     notification_status="error" if ordinary_scheduled else "",
                     notification_target="health_check",
                     notification_fingerprint=(
@@ -78,7 +172,7 @@ class SiteStatsMixin:
                     notification_cooldown=ordinary_scheduled,
                     notification_manual=notify,
                 )
-        elif (
+        elif success and complete and (
             scheduled or (notify and self._health_check_completion_notify_enabled)
         ) and not self._fusion_notify_enabled:
             self._notify_fusion_task_outcome(
@@ -100,7 +194,7 @@ class SiteStatsMixin:
                 notification_notify_noop=self._health_check_completion_notify_enabled,
                 notification_manual=notify,
             )
-        elif self._health_check_completion_notify_enabled:
+        elif success and complete and self._health_check_completion_notify_enabled:
             self._notify_fusion_task_outcome(
                 mtype=self._notification_type(self._health_check_completion_notify_type),
                 title="Signal - 健康巡查完成",
@@ -220,16 +314,16 @@ class SiteStatsMixin:
             latest_data = self._latest_site_userdata_rows(site_oper)
             active_sites = site_helpers.select_user_data_sites(site_oper.list_active() or [])
             active_domains = {
-                str(getattr(site, "domain", "") or "").strip()
+                site_helpers.normalize_site_domain(getattr(site, "domain", ""))
                 for site in active_sites
-                if str(getattr(site, "domain", "") or "").strip()
+                if site_helpers.normalize_site_domain(getattr(site, "domain", ""))
             }
             latest_data = [d for d in latest_data if d]
             # An explicit empty active-site set means there is nothing to report.
             # Falling back to every historical row can leak disabled/deleted sites.
             active_latest = [
                 d for d in latest_data
-                if str(getattr(d, "domain", "") or "").strip() in active_domains
+                if site_helpers.normalize_site_domain(getattr(d, "domain", "")) in active_domains
             ]
             result["active_count"] = len(active_sites)
             result["visible_count"] = len(active_latest)
@@ -362,13 +456,13 @@ class SiteStatsMixin:
             latest = self._latest_site_userdata_rows(site_oper)
             active_sites = site_helpers.select_user_data_sites(site_oper.list_active() or [])
             active_domains = {
-                str(getattr(site, "domain", "") or "").strip()
+                site_helpers.normalize_site_domain(getattr(site, "domain", ""))
                 for site in active_sites
-                if str(getattr(site, "domain", "") or "").strip()
+                if site_helpers.normalize_site_domain(getattr(site, "domain", ""))
             }
             latest = [
                 row for row in latest
-                if row and str(getattr(row, "domain", "") or "").strip() in active_domains
+                if row and site_helpers.normalize_site_domain(getattr(row, "domain", "")) in active_domains
             ]
             if not latest:
                 return ["⦁ 未取到站点快照"]
@@ -574,18 +668,15 @@ class SiteStatsMixin:
             return [f"⦁ 存储检查异常：{e}"]
     def _health_directory_entries(self) -> List[Tuple[str, str, Any]]:
         from app.core.config import settings
+        from app.helper.directory import DirectoryHelper
 
         config_path = str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config"))
         targets = [("配置目录", config_path, "local"), ("插件目录", str(Path(__file__).resolve().parent), "local")]
-        try:
-            from app.helper.directory import DirectoryHelper
-            helper = DirectoryHelper()
-            for d in helper.get_download_dirs() or []:
-                targets.append(("下载目录", getattr(d, "download_path", None) or getattr(d, "path", None), getattr(d, "storage", None)))
-            for d in helper.get_library_dirs() or []:
-                targets.append(("媒体库目录", getattr(d, "library_path", None) or getattr(d, "path", None), getattr(d, "library_storage", None) or getattr(d, "storage", None)))
-        except Exception:
-            pass
+        helper = DirectoryHelper()
+        for d in helper.get_download_dirs() or []:
+            targets.append(("下载目录", getattr(d, "download_path", None) or getattr(d, "path", None), getattr(d, "storage", None)))
+        for d in helper.get_library_dirs() or []:
+            targets.append(("媒体库目录", getattr(d, "library_path", None) or getattr(d, "path", None), getattr(d, "library_storage", None) or getattr(d, "storage", None)))
         return self._dedupe_directory_entries(targets)
     def _health_directory_targets(self) -> List[Tuple[str, str]]:
         return [(label, path) for label, path, _ in self._health_directory_entries()]
@@ -593,96 +684,143 @@ class SiteStatsMixin:
         """按 MoviePilot 配置的存储、下载目录与媒体库目录检查容量。"""
         try:
             from app.core.config import settings
-            selected = set(self._health_check_storage_targets or ["storages", "config", "download", "library"])
-            details = []
-            ok = True
-
-            def add_usage(label: str, path: str, storage: Any = "local"):
-                nonlocal ok
-                if not path:
-                    return
-                if not self._is_local_storage(storage):
-                    details.append(f"{label} {storage} 由存储服务管理")
-                    return
-                try:
-                    stat = shutil.disk_usage(path)
-                    item_ok, detail = self._storage_usage_detail(label, stat.total, stat.used, stat.free)
-                    ok = ok and item_ok
-                    details.append(detail)
-                except FileNotFoundError:
-                    ok = False
-                    details.append(f"{label} 不存在 {path}")
-                except PermissionError:
-                    ok = False
-                    details.append(f"{label} 无权限 {path}")
-
-            if "config" in selected:
-                add_usage("配置目录", str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config")))
-
-            if selected.intersection({"download", "library"}):
-                try:
-                    for label, path, storage in self._health_directory_entries():
-                        if label.startswith("下载目录") and "download" in selected:
-                            add_usage(label, path, storage)
-                        if label.startswith("媒体库目录") and "library" in selected:
-                            add_usage(label, path, storage)
-                except Exception as err:
-                    ok = False
-                    details.append(f"目录配置异常 {str(err)[:50]}")
-
-            if "storages" in selected:
-                try:
-                    from app.db.systemconfig_oper import SystemConfigOper
-                    from app.schemas.types import SystemConfigKey
-                    from app.chain.storage import StorageChain
-                    storages = SystemConfigOper().get(SystemConfigKey.Storages) or []
-                    sc = StorageChain()
-                    for s in storages:
-                        name = s.get("name") or s.get("type") or "存储"
-                        usage = sc.storage_usage(s.get("type") or "local")
-                        if not usage:
-                            continue
-                        total = usage.get("total") if isinstance(usage, dict) else getattr(usage, "total", None)
-                        used = usage.get("used") if isinstance(usage, dict) else getattr(usage, "used", None)
-                        free = (usage.get("available") or usage.get("free")) if isinstance(usage, dict) else (getattr(usage, "available", None) or getattr(usage, "free", None))
-                        item_ok, detail = self._storage_usage_detail(name, total, used, free)
-                        ok = ok and item_ok
-                        details.append(detail)
-                except Exception:
-                    pass
-
-            if not details:
-                add_usage("配置目录", str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config")))
-            return {"name": "storage", "ok": ok, "detail": "；".join(details[:6]) if details else "未检测到可检查的存储"}
         except Exception as err:
-            return {"name": "storage", "ok": False, "detail": f"存储检查异常：{str(err)[:100]}"}
+            return self._health_result(
+                "storage",
+                "checker_error",
+                f"检查未完成：无法加载存储检查环境：{str(err)[:100]}",
+                affected_owner="signal-health-checker",
+            )
+
+        selected = set(getattr(self, "_health_check_storage_targets", None) or ["storages", "config", "download", "library"])
+        outcomes: List[Dict[str, Any]] = []
+
+        def add_usage(label: str, path: str, storage: Any = "local") -> None:
+            if not path:
+                outcomes.append(self._health_result("storage", "unavailable", f"{label} 无可检查路径", affected_owner="persistent-storage", target=label))
+                return
+            if not self._is_local_storage(storage):
+                outcomes.append(self._health_result("storage", "unavailable", f"{label} {storage} 无本地容量接口", affected_owner="persistent-storage", target=label))
+                return
+            try:
+                stat = shutil.disk_usage(path)
+            except (FileNotFoundError, PermissionError, OSError) as err:
+                outcomes.append(self._health_result("storage", "fault", f"{label} 容量查询失败：{err}", affected_owner="persistent-storage", target=path))
+                return
+            except Exception as err:
+                outcomes.append(self._health_result("storage", "checker_error", f"{label} 容量解析失败：{err}", affected_owner="signal-health-checker", target=path))
+                return
+            try:
+                item_ok, detail = self._storage_usage_detail(label, stat.total, stat.used, stat.free)
+                status = "ok" if item_ok else "fault"
+                outcomes.append(self._health_result("storage", status, detail, affected_owner="persistent-storage", target=path))
+            except Exception as err:
+                outcomes.append(self._health_result("storage", "checker_error", f"{label} 容量解析失败：{err}", affected_owner="signal-health-checker", target=path))
+
+        if "config" in selected:
+            add_usage("配置目录", str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config")))
+
+        if selected.intersection({"download", "library"}):
+            try:
+                directory_entries = self._health_directory_entries()
+            except Exception as err:
+                outcomes.append(self._health_result("storage", "checker_error", f"目录配置解析失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
+            else:
+                for label, path, storage in directory_entries:
+                    if label.startswith("下载目录") and "download" in selected:
+                        add_usage(label, path, storage)
+                    if label.startswith("媒体库目录") and "library" in selected:
+                        add_usage(label, path, storage)
+
+        if "storages" in selected:
+            try:
+                from app.db.systemconfig_oper import SystemConfigOper
+                from app.schemas.types import SystemConfigKey
+                from app.chain.storage import StorageChain
+            except Exception as err:
+                outcomes.append(self._health_result("storage", "checker_error", f"存储检查依赖加载失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
+            else:
+                try:
+                    storages = SystemConfigOper().get(SystemConfigKey.Storages) or []
+                except Exception as err:
+                    outcomes.append(self._health_result("storage", "checker_error", f"存储配置读取失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
+                    storages = []
+                if not storages:
+                    outcomes.append(self._health_result("storage", "unavailable", "未配置可查询容量的存储", affected_owner="persistent-storage"))
+                else:
+                    sc = StorageChain()
+                    for storage in storages:
+                        if not isinstance(storage, dict):
+                            outcomes.append(self._health_result("storage", "checker_error", "存储配置条目格式无效", affected_owner="signal-health-checker"))
+                            continue
+                        name = storage.get("name") or storage.get("type") or "存储"
+                        storage_type = storage.get("type") or "local"
+                        try:
+                            usage = sc.storage_usage(storage_type)
+                        except Exception as err:
+                            outcomes.append(self._health_result("storage", "fault", f"{name} 容量查询失败：{str(err)[:100]}", affected_owner="persistent-storage", target=str(name)))
+                            continue
+                        if not usage:
+                            outcomes.append(self._health_result("storage", "unavailable", f"{name} 无法检查容量", affected_owner="persistent-storage", target=str(name)))
+                            continue
+                        try:
+                            total = usage.get("total") if isinstance(usage, dict) else getattr(usage, "total", None)
+                            used = usage.get("used") if isinstance(usage, dict) else getattr(usage, "used", None)
+                            free = (usage.get("available") or usage.get("free")) if isinstance(usage, dict) else (getattr(usage, "available", None) or getattr(usage, "free", None))
+                            if int(total or 0) <= 0:
+                                outcomes.append(self._health_result("storage", "unavailable", f"{name} 无法检查容量", affected_owner="persistent-storage", target=str(name)))
+                                continue
+                            item_ok, detail = self._storage_usage_detail(str(name), total, used, free)
+                        except Exception as err:
+                            outcomes.append(self._health_result("storage", "checker_error", f"{name} 容量数据解析失败：{str(err)[:100]}", affected_owner="signal-health-checker", target=str(name)))
+                            continue
+                        outcomes.append(self._health_result("storage", "ok" if item_ok else "fault", detail, affected_owner="persistent-storage", target=str(name)))
+
+        return self._aggregate_health_results(
+            "storage",
+            outcomes,
+            affected_owner="persistent-storage",
+            unavailable_detail="未检测到可检查的存储",
+        )
     def _build_health_summary(self, persist: bool = True) -> Dict[str, Any]:
-        checks = []
+        checks: List[Dict[str, Any]] = []
         try:
             from app.db.subscribe_oper import SubscribeOper
-            count = len(SubscribeOper().list() or [])
-            checks.append({"name": "subscribe", "ok": True, "detail": f"订阅 {count} 个"})
         except Exception as err:
-            checks.append({"name": "subscribe", "ok": False, "detail": str(err)[:120]})
+            checks.append(self._health_result("subscribe", "checker_error", f"订阅检查依赖加载失败：{str(err)[:120]}", affected_owner="signal-health-checker"))
+        else:
+            try:
+                count = len(SubscribeOper().list() or [])
+                checks.append(self._health_result("subscribe", "ok", f"订阅 {count} 个", affected_owner="persistent-subscriptions"))
+            except Exception as err:
+                checks.append(self._health_result("subscribe", "fault", f"订阅查询失败：{str(err)[:120]}", affected_owner="persistent-subscriptions"))
         try:
             from app.db.site_oper import SiteOper
-            sites = SiteOper().list() or []
-            active = SiteOper().list_active() or []
-            checks.append({"name": "sites", "ok": True, "detail": f"共 {len(sites)} 个，启用 {len(active)} 个"})
         except Exception as err:
-            checks.append({"name": "sites", "ok": False, "detail": str(err)[:120]})
+            checks.append(self._health_result("sites", "checker_error", f"站点检查依赖加载失败：{str(err)[:120]}", affected_owner="signal-health-checker"))
+        else:
+            try:
+                site_oper = SiteOper()
+                sites = site_oper.list() or []
+                active = site_oper.list_active() or []
+                checks.append(self._health_result("sites", "ok", f"共 {len(sites)} 个，启用 {len(active)} 个", affected_owner="persistent-sites"))
+            except Exception as err:
+                checks.append(self._health_result("sites", "fault", f"站点查询失败：{str(err)[:120]}", affected_owner="persistent-sites"))
         try:
             from app.helper.downloader import DownloaderHelper
-            downloader_helper = DownloaderHelper()
-            services = downloader_helper.get_services()
-            checks.append({"name": "downloaders", "ok": True, "detail": f"在线 {len(services)} 个"})
         except Exception as err:
-            checks.append({"name": "downloaders", "ok": False, "detail": str(err)[:120]})
+            checks.append(self._health_result("downloaders", "checker_error", f"下载器检查依赖加载失败：{str(err)[:120]}", affected_owner="signal-health-checker"))
+        else:
+            try:
+                services = DownloaderHelper().get_services()
+                checks.append(self._health_result("downloaders", "ok", f"在线 {len(services)} 个", affected_owner="downloaders"))
+            except Exception as err:
+                checks.append(self._health_result("downloaders", "fault", f"下载器查询失败：{str(err)[:120]}", affected_owner="downloaders"))
         try:
             services = self.get_service() or []
-            checks.append({"name": "signal_services", "ok": True, "detail": f"已调度 {len(services)} 个"})
+            checks.append(self._health_result("signal_services", "ok", f"已调度 {len(services)} 个", affected_owner="signal-runtime"))
         except Exception as err:
-            checks.append({"name": "signal_services", "ok": False, "detail": str(err)[:120]})
+            checks.append(self._health_result("signal_services", "checker_error", f"本插件任务汇总失败：{str(err)[:120]}", affected_owner="signal-health-checker"))
         selected_items = set(self._health_check_items or ["数据库", "存储空间", "目录权限"])
         if "数据库" in selected_items:
             checks.append(self._check_database())
@@ -690,8 +828,22 @@ class SiteStatsMixin:
             checks.append(self._check_storage())
         if "目录权限" in selected_items:
             checks.append(self._check_directory())
-        success = all(x["ok"] for x in checks)
-        result = {"success": success, "checks": checks, "total": len(checks), "pass": len([x for x in checks if x["ok"]]), "fail": len([x for x in checks if not x["ok"]])}
+        checks = [self._normalize_health_result(item) for item in checks]
+        faults = [item for item in checks if item["status"] == "fault"]
+        checker_errors = [item for item in checks if item["status"] == "checker_error"]
+        incomplete = [item for item in checks if item["status"] in {"unavailable", "checker_error"}]
+        success = not faults and not checker_errors
+        complete = not incomplete
+        result = {
+            "success": success,
+            "complete": complete,
+            "checks": checks,
+            "total": len(checks),
+            "pass": len([item for item in checks if item["ok"]]),
+            "fail": len([item for item in checks if not item["ok"]]),
+            "alertable_fail": len(faults),
+            "incomplete": len(incomplete),
+        }
         if persist:
             self.save_data("last_health_check", {
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -700,6 +852,9 @@ class SiteStatsMixin:
                 "total": result["total"],
                 "pass": result["pass"],
                 "fail": result["fail"],
+                "alertable_fail": result["alertable_fail"],
+                "incomplete": result["incomplete"],
+                "complete": complete,
                 "output": self._format_health_summary(result),
             })
         return result
@@ -731,7 +886,7 @@ class SiteStatsMixin:
         return "\n".join(lines)
     @classmethod
     def _format_health_report_lines(cls, data: Dict[str, Any]) -> List[str]:
-        """日报专用健康摘要：正常项只列名称，异常项才展开关键原因。"""
+        """融合卡健康摘要：正常项只列名称，异常项才展开关键原因。"""
         name_map = cls._health_name_map()
         checks = data.get("checks") or []
         total = data.get("total", len(checks))
@@ -923,32 +1078,60 @@ class SiteStatsMixin:
         try:
             from app.core.config import settings
             from sqlalchemy import create_engine, text
+        except Exception as err:
+            return self._health_result(
+                "database",
+                "checker_error",
+                f"检查未完成：数据库检查依赖加载失败：{str(err)[:100]}",
+                affected_owner="signal-health-checker",
+            )
 
+        outcomes: List[Dict[str, Any]] = []
+        try:
             db_type = str(self._settings_value(settings, "DB_TYPE", "db_type", default="sqlite")).lower()
-            targets = self._health_check_database_targets or ["current"]
-            details = []
-            for target in targets:
-                target = str(target or "current").lower()
-                use_type = db_type if target in ("current", "main", "moviepilot") else target
+            targets = getattr(self, "_health_check_database_targets", None) or ["current"]
+        except Exception as err:
+            return self._health_result("database", "checker_error", f"数据库检查参数解析失败：{str(err)[:100]}", affected_owner="signal-health-checker")
+        for target in targets:
+            target = str(target or "current").lower()
+            use_type = db_type if target in ("current", "main", "moviepilot") else target
+            try:
                 if use_type in ("postgres", "postgresql"):
                     url_getter = getattr(settings, "DB_POSTGRESQL_URL", None)
                     db_url = url_getter() if callable(url_getter) else self._settings_value(settings, "DB_URL", "db_url")
                     if not db_url:
-                        raise RuntimeError("PostgreSQL 连接地址为空")
-                    engine = create_engine(db_url, echo=False, pool_pre_ping=True)
+                        outcomes.append(self._health_result("database", "unavailable", "PostgreSQL 连接地址为空，无法检查", affected_owner="persistent-database", target="postgresql"))
+                        continue
                     label = "PostgreSQL 主库"
                 else:
                     config_path = Path(str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config")))
                     db_file = config_path / "user.db"
+                    if not db_file.exists():
+                        outcomes.append(self._health_result("database", "fault", f"SQLite 主库不存在：{db_file}", affected_owner="persistent-database", target=str(db_file)))
+                        continue
                     db_url = f"sqlite:///{db_file.as_posix()}"
-                    engine = create_engine(db_url, echo=False, pool_pre_ping=True)
                     label = f"SQLite 主库 {db_file}"
+                engine = create_engine(db_url, echo=False, pool_pre_ping=True)
+            except Exception as err:
+                outcomes.append(self._health_result("database", "checker_error", f"数据库检查参数或引擎创建失败：{str(err)[:100]}", affected_owner="signal-health-checker", target=use_type))
+                continue
+            try:
                 with engine.connect() as conn:
                     conn.execute(text("SELECT 1"))
-                details.append(f"{label} 连接正常")
-            return {"name": "database", "ok": True, "detail": "；".join(details)}
-        except Exception as err:
-            return {"name": "database", "ok": False, "detail": f"数据库异常：{str(err)[:100]}"}
+            except Exception as err:
+                outcomes.append(self._health_result("database", "fault", f"{label} 查询失败：{str(err)[:100]}", affected_owner="persistent-database", target=label))
+            else:
+                outcomes.append(self._health_result("database", "ok", f"{label} 连接正常", affected_owner="persistent-database", target=label))
+            finally:
+                dispose = getattr(engine, "dispose", None)
+                if callable(dispose):
+                    dispose()
+        return self._aggregate_health_results(
+            "database",
+            outcomes,
+            affected_owner="persistent-database",
+            unavailable_detail="没有可检查的数据库目标",
+        )
 
     def _storage_usage_detail(self, label: str, total: Any, used: Any, free: Any) -> Tuple[bool, str]:
         total = int(total or 0)
@@ -965,38 +1148,44 @@ class SiteStatsMixin:
     def _check_directory(self) -> Dict[str, Any]:
         """按选择范围检查关键目录是否存在且可读写进入。"""
         try:
-            import os
-
-            selected = set(self._health_check_directory_targets or ["config", "plugin", "download", "library"])
+            selected = set(getattr(self, "_health_check_directory_targets", None) or ["config", "plugin", "download", "library"])
             wanted = {
                 "config": "配置目录",
                 "plugin": "插件目录",
                 "download": "下载目录",
                 "library": "媒体库目录",
             }
-            details = []
-            ok = True
-            for label, path, storage in self._health_directory_entries():
-                if not any(label.startswith(wanted[key]) for key in selected if key in wanted):
-                    continue
-                if not self._is_local_storage(storage):
-                    details.append(f"{label} {storage} 由存储服务管理")
-                    continue
-                if not os.path.exists(path):
-                    ok = False
-                    details.append(f"{label} 不存在 {path}")
-                    continue
-                if not os.access(path, os.R_OK | os.W_OK | os.X_OK):
-                    ok = False
-                    details.append(f"{label} 权限不足 {path}")
-                    continue
-                details.append(f"{label} 正常")
-            return {"name": "directory", "ok": ok, "detail": "；".join(details[:8]) if details else "未选择目录"}
+            entries = self._health_directory_entries()
         except Exception as err:
-            return {"name": "directory", "ok": False, "detail": f"目录检查异常：{str(err)[:100]}"}
+            return self._health_result("directory", "checker_error", f"目录检查参数解析失败：{str(err)[:100]}", affected_owner="signal-health-checker")
+        outcomes: List[Dict[str, Any]] = []
+        for label, path, storage in entries:
+            if not any(label.startswith(wanted[key]) for key in selected if key in wanted):
+                continue
+            if not self._is_local_storage(storage):
+                outcomes.append(self._health_result("directory", "unavailable", f"{label} {storage} 由存储服务管理，无法本地检查", affected_owner="persistent-directory", target=str(path or label)))
+                continue
+            try:
+                exists = os.path.exists(path)
+                accessible = os.access(path, os.R_OK | os.W_OK | os.X_OK) if exists else False
+            except Exception as err:
+                outcomes.append(self._health_result("directory", "checker_error", f"{label} 路径解析失败：{str(err)[:100]}", affected_owner="signal-health-checker", target=str(path or label)))
+                continue
+            if not exists:
+                outcomes.append(self._health_result("directory", "fault", f"{label} 不存在 {path}", affected_owner="persistent-directory", target=str(path)))
+            elif not accessible:
+                outcomes.append(self._health_result("directory", "fault", f"{label} 权限不足 {path}", affected_owner="persistent-directory", target=str(path)))
+            else:
+                outcomes.append(self._health_result("directory", "ok", f"{label} 正常", affected_owner="persistent-directory", target=str(path)))
+        return self._aggregate_health_results(
+            "directory",
+            outcomes,
+            affected_owner="persistent-directory",
+            unavailable_detail="未选择目录",
+        )
 
     def _get_health_report_locked(self, persist_missing: bool = True) -> List[str]:
-        """日报中的健康巡查栏目：优先使用最近巡查结果，没有记录时现场生成一次。"""
+        """融合卡健康巡查栏目：优先使用最近巡查结果，没有记录时现场生成一次。"""
         data = self.get_data("last_health_check") or {}
         if data.get("checks"):
             return self._format_health_report_lines(data)

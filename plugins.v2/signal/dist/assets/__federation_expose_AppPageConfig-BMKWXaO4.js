@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, am as _export_sfc, c4 as mdiAlertOutline, bu as mdiDeleteOutline, aX as mdiPlay, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
 import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-DMiuzSrX.js';
-import { g as getPluginApi, D as DEFAULT_PLUGIN_API_TIMEOUT_MS, r as resolvePluginApi, w as withTimeout, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-DVoiFPdr.js';
+import { g as getPluginApi, D as DEFAULT_PLUGIN_API_TIMEOUT_MS, r as resolvePluginApi, w as withTimeout, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-euW2LARS.js';
 
 const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$k,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$a} = await importShared('vue');
 
@@ -4491,7 +4491,7 @@ const heroMap = {
   fusion: { kicker: '融合通知', on: '已开启，通知统一走卡片', off: '已关闭，各组件自行发送', desc: '开启后所有通知汇入一张 Telegram 卡片，各组件独立渠道将被接管。' },
   server: { kicker: '媒体通知', on: '正在监听媒体事件', off: '未启用', desc: '接收 Emby/Jellyfin/Plex Webhook 事件并转发给用户。' },
   subscribe: { kicker: '订阅追新', on: '每日自动检查更新', off: '未启用', desc: '每日检查订阅更新并按规则推送通知。' },
-  sites: { kicker: '站点统计', on: '正在采集站点数据', off: '未启用', desc: '采集每日站点上传/下载增量，供应仪表盘和日报。' },
+  sites: { kicker: '站点统计', on: '正在采集站点数据', off: '未启用', desc: '采集每日站点上传/下载增量，供应仪表盘和融合卡。' },
   hc: { kicker: '健康巡查', on: '定时巡检中', off: '未启用', desc: '检查数据库、存储空间、目录是否正常，异常时告警。' },
   seedremove: { kicker: '自动删种', on: '按条件自动清理', off: '未启用', desc: '按分享率、大小、做种时间等规则自动暂停或删除种子。' },
   dltagmain: { kicker: '下载器助手', on: '自动整理下载任务', off: '未启用', desc: '统一处理标签、恢复做种与失效任务，不替代按规则自动删种。' },
@@ -4657,7 +4657,7 @@ const replicaCards = computed(() => {
         { key: 'fusion_card_refresh_cron', icon: 'mdi-calendar-clock', label: '刷新时间', value: cronVal(form.fusion_card_refresh_cron) },
         { key: 'fusion_notify_msgtype', icon: 'mdi-email-outline', label: '消息类型', value: valOr(form.fusion_notify_msgtype, 'Plugin') },
       ] },
-      { type: 'actions', actions: getActionsForSurface(['create_tg_console_card', 'run_daily_report'], 'config') },
+      { type: 'actions', actions: getActionsForSurface(['create_tg_console_card', 'refresh_tg_console_card'], 'config') },
     ],
     server: [
       { type: 'section', icon: 'mdi-cog-outline', title: '通知范围', note: '选择哪些事件要通知', grid: 'grid-3', fields: [

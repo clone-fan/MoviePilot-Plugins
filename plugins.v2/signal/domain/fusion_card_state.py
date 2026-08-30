@@ -33,7 +33,6 @@ SENSITIVE_PERSISTED_KEYS = {
     "token",
 }
 LEGACY_TEMPLATE_PERSISTED_KEYS = {
-    "daily_report_template",
     "html",
     "rich_html",
     "telegram_html",

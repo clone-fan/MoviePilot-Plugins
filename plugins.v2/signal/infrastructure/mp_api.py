@@ -9,65 +9,14 @@ from app.log import logger
 class MpApiMixin:
     """HTTP API endpoint methods exposed through MoviePilot plugin get_api()."""
 
-    def api_preview_daily_report(self) -> Dict[str, Any]:
-        scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
-        with (scope_factory() if callable(scope_factory) else nullcontext()):
-            return self._api_preview_daily_report_scoped()
-
-    def _api_preview_daily_report_scoped(self) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("每日汇报")
-        if not ok:
-            return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
-        snapshot = None
-        try:
-            text = self._build_daily_report_message(preview=True)
-            snapshot = self._subscription_calendar_snapshot_for_scope()
-            status = str(getattr(snapshot, "status", "") or "")
-            errors = list(getattr(snapshot, "errors", ()) or ())
-            items = list(getattr(snapshot, "items", ()) or ())
-            degraded = status in {"partial", "failed", "invalid"}
-            data = {
-                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "template": "2026-06-20.card-v2-baseline-guard",
-                "sent": False,
-                "success": not degraded,
-                "calendar_status": status,
-                "calendar_items": items,
-                "calendar_errors": errors[:3],
-                "chars": len(text or ""),
-                "sections": self._count_report_sections(text or ""),
-                "preview": text,
-                "telegram_rich_message": self._build_daily_report_telegram_rich_message(preview=True, text=text),
-                "error": (getattr(snapshot, "failure_message", lambda: "")() if degraded else ""),
-            }
-            return {
-                "code": 1 if degraded else 0,
-                "msg": data["error"] or "每日汇报预览已生成",
-                "data": data,
-                "text": text,
-            }
-        except Exception as err:
-            snapshot = self._subscription_calendar_snapshot_for_scope()
-            status = str(getattr(snapshot, "status", "failed") or "failed")
-            errors = list(getattr(snapshot, "errors", ()) or ())
-            message = getattr(snapshot, "failure_message", lambda: f"每日汇报预览失败：{err}")()
-            return {
-                "code": 1,
-                "msg": message,
-                "data": {
-                    "sent": False,
-                    "success": False,
-                    "calendar_status": status,
-                    "calendar_items": list(getattr(snapshot, "items", ()) or ()),
-                    "calendar_errors": errors[:3] or [str(err)[:240]],
-                    "preview": "",
-                    "error": message,
-                },
-                "text": "",
-            }
-
-    def api_run_daily_report(self) -> Dict[str, Any]:
-        return self._api_run_task("每日汇报", self.run_daily_report, "daily_report")
+    def api_refresh_tg_console_card(self) -> Dict[str, Any]:
+        success = bool(self.run_fusion_card_refresh())
+        message = "融合通知卡已刷新" if success else (self._tg_console_last_error or "融合通知卡刷新失败")
+        return {
+            "code": 0 if success else 1,
+            "msg": message,
+            "data": self._tg_console_action_status_data(0 if success else 1, message),
+        }
 
     def api_create_tg_console_card(self, trigger: str = "manual") -> Dict[str, Any]:
         scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
@@ -79,7 +28,7 @@ class MpApiMixin:
         if not ok:
             self._save_task_result("融合通知卡", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         if not token or not chat_id:
             msg = "融合通知 Bot Token/Chat ID 未配置"
             self._save_task_result("融合通知卡", False, 1, msg)
@@ -123,7 +72,7 @@ class MpApiMixin:
         return self._api_run_task("订阅追新", self.run_subscribe_reminder, "subscribe_reminder")
 
     def api_run_today_transfer(self) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("今日入库", "daily_report")
+        ok, msg = self._can_run_task("今日入库")
         if not ok:
             self._save_task_result("今日入库", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg), "text": msg}
@@ -172,13 +121,23 @@ class MpApiMixin:
                     "effective_enabled": bool(item.get("effective_enabled")),
                     "effective_state": item.get("effective_state") or {},
                     "state": item.get("state"),
+                    "status": item.get("status"),
                     "color": item.get("color"),
                     "next": item.get("next"),
                     "last_time": latest.get("time") or "",
                     "last_summary": self._task_result_summary(latest),
+                    "data_error": bool(item.get("data_error")),
+                    "data_error_summary": item.get("data_error_summary") or "",
+                    "duplicate_count": int(item.get("duplicate_count") or 0),
                 })
-            failed = [t for t in tasks if self._enabled and t["enabled"] and t["state"] == "失败"]
-            health = self.get_data("last_health_check") or {}
+            failed = [t for t in tasks if self._enabled and t["enabled"] and t["status"] in {"failed", "data_error"}]
+            try:
+                health, health_duplicates = self._read_dashboard_task_data("last_health_check")
+                health_error = ""
+            except Exception as error:
+                health = {}
+                health_duplicates = 0
+                health_error = str(error)[:160]
             return {
                 "code": 0,
                 "data": {
@@ -192,6 +151,9 @@ class MpApiMixin:
                         "time": health.get("time") or "",
                         "success": health.get("success"),
                         "output": health.get("output") or "",
+                        "data_error": bool(health_error),
+                        "data_error_summary": health_error,
+                        "duplicate_count": health_duplicates,
                     },
                     "tg_console": self._tg_console_status_data(),
                 },
@@ -503,7 +465,14 @@ class MpApiMixin:
             self._save_task_result("插件卸载", False, 2, str(err))
             return {"code": 1, "msg": str(err), "data": self._skipped_data(str(err), {"blocked": str(err), "uninstalled": []})}
         ok, data = self._run_plugin_uninstall_clean(override=override)
-        return {"code": 0 if ok else 1, "msg": "插件卸载执行成功" if ok else "插件卸载未执行或失败，详情请查看插件日志。", "data": data}
+        status = str(data.get("status") or "failed")
+        if status == "completed":
+            message = "插件卸载执行成功，终态复核无残留。"
+        elif status == "restart_required":
+            message = "插件持久化清理已完成，请重启 MoviePilot 后复核内存残留。"
+        else:
+            message = "插件卸载未执行或失败，详情请查看逐项复核。"
+        return {"code": 0 if ok else 1, "msg": message, "data": data}
 
     def api_agentopsassistant_purge_status(self) -> Dict[str, Any]:
         """Read-only fixed-target audit; never deletes or creates a backup."""
@@ -559,7 +528,7 @@ class MpApiMixin:
     def api_preview_tg_console(self) -> Dict[str, Any]:
         scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
         with (scope_factory() if callable(scope_factory) else nullcontext()):
-            token, chat_id, _source = self._resolve_daily_report_telegram_config()
+            token, chat_id, _source = self._resolve_fusion_telegram_config()
             state = self._tg_console_state(chat_id=chat_id)
             state.pop("v7_model", None)
             try:
@@ -591,7 +560,7 @@ class MpApiMixin:
         if not ok:
             self._save_task_result("融合通知卡", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
-        token, chat_id, _source = self._resolve_daily_report_telegram_config()
+        token, chat_id, _source = self._resolve_fusion_telegram_config()
         state = self._tg_console_state(chat_id=chat_id)
         state["message_id"] = 0
         state["notices"] = []
