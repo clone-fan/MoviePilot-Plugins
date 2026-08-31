@@ -1,7 +1,7 @@
 import re
 from contextlib import nullcontext
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
 from app.log import logger
@@ -350,23 +350,6 @@ class MpApiMixin:
         if not ok:
             return {"code": 1, "msg": msg, "data": {"current": None, "recent": []}}
         return {"code": 0, "msg": "备份操作状态获取成功", "data": self._backup_restore_service().operation_status()}
-
-    def api_run_updates(self) -> Dict[str, Any]:
-        ok, msg = self._can_run_task("更新检查")
-        if not ok:
-            return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
-        try:
-            success = bool(self.run_updates(scheduled=False, notify=True))
-            data = getattr(self, "_last_updates_result", {"success": success, "modules": []})
-            return {
-                "code": 0 if success else 1,
-                "msg": data.get("message") or ("更新检查完成" if success else "更新检查失败"),
-                "data": data,
-                "text": data.get("message") or "",
-            }
-        except Exception as err:
-            logger.error(f"Signal 统一更新检查失败：{err}")
-            return {"code": 1, "msg": f"更新检查失败：{err}", "data": {"success": False, "modules": []}}
 
     def api_preview_market_update(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("插件库同步", "market_update")
@@ -738,55 +721,14 @@ class MpApiMixin:
                 return {"code": 1, "msg": msg, "data": payload}
             payload = chart.get("data") or {}
             snapshot_error = str(payload.get("error") or "").strip()
-            snapshot_quality_error = ""
-            if payload.get("counter_reset_count"):
-                snapshot_quality_error = f"{payload['counter_reset_count']} 个站点累计值回退"
-            elif payload.get("error_count"):
-                snapshot_quality_error = f"{payload['error_count']} 个站点刷新异常"
-            elif payload.get("invalid_count"):
-                snapshot_quality_error = f"{payload['invalid_count']} 个站点缺少有效日期"
-            elif payload.get("baseline_missing"):
-                snapshot_quality_error = f"{payload['baseline_missing']} 个站点缺少有效基线"
-            elif payload.get("missing_count") or (
-                payload.get("active_count") is not None
-                and payload.get("visible_count") is not None
-                and payload.get("visible_count") != payload.get("active_count")
-            ):
-                missing_count = payload.get("missing_count") or max(
-                    0, int(payload.get("active_count") or 0) - int(payload.get("visible_count") or 0)
-                )
-                snapshot_quality_error = f"{missing_count} 个启用站点没有最新快照"
-            elif payload.get("stale_count") and payload.get("basis") == "today":
-                snapshot_quality_error = f"{payload['stale_count']} 个站点快照过期"
-            elif payload.get("data_valid") is False:
-                snapshot_quality_error = "站点统计数据不完整"
-            if trigger in {"manual", "scheduled"} and str(payload.get("basis") or "") == "latest":
-                msg = (
-                    f"站点刷新后仍未生成今日快照（最近 {payload.get('date') or payload.get('latest_date') or '未知日期'}），"
-                    "已取消统计，避免发送过期数据"
-                )
-                self._save_task_result("站点数据统计", False, 1, msg)
-                if scheduled_failure_notify:
-                    self._notify_fusion_task_outcome(
-                        mtype=self._notification_type(self._site_stat_notify_type),
-                        title="Signal - 站点统计",
-                        text=msg,
-                        outcome=f"站点统计失败：{msg}",
-                        success=False,
-                        component="site_stat",
-                        task_key="site_stat",
-                        task_group="站点统计",
-                        affected_owner="persistent-sites",
-                        notification_status="error",
-                        notification_target="daily_increment",
-                        notification_fingerprint=self._notification_error_fingerprint(msg),
-                        notification_cooldown=False,
-                        notification_manual=notify,
-                    )
-                return {"code": 1, "msg": msg, "data": payload}
-            if snapshot_error or snapshot_quality_error:
-                detail = snapshot_error or snapshot_quality_error
-                msg = f"站点统计图数据获取失败：{detail}"
+            # 刷新协调器只贡献逐站点原因，快照层决定可计入集合，
+            # 发布层只做"有无可计入站点"的二分：个别站点故障不取消整次统计。
+            states = self._merge_site_states(payload.get("site_states"), refresh.get("sites"))
+            counted = self._site_state_counted(states)
+            faults = self._site_state_faults(states)
+            excluded_lines = self._format_site_state_lines(states)
+            if snapshot_error:
+                msg = f"站点统计图数据获取失败：{snapshot_error}"
                 self._save_task_result("站点数据统计", False, 1, msg)
                 if scheduled_failure_notify:
                     self._notify_fusion_task_outcome(
@@ -801,22 +743,68 @@ class MpApiMixin:
                         affected_owner="persistent-sites",
                         notification_status="error",
                         notification_target="daily_increment",
-                        notification_fingerprint=self._notification_error_fingerprint(detail),
+                        notification_fingerprint=self._notification_error_fingerprint(snapshot_error),
                         notification_cooldown=False,
                         notification_manual=notify,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
+            if not counted and int(payload.get("active_count") or 0) > 0:
+                # 没有任何可计入站点：只发一条统计侧通知并逐站列出原因，
+                # 不再额外触发站点故障目标，避免成对重复告警。
+                msg = "本次没有可计入今日增量的站点"
+                text = "\n".join([msg, *excluded_lines]) if excluded_lines else msg
+                payload["site_states"] = states
+                payload["counted_count"] = 0
+                payload["fault_count"] = len(faults)
+                payload["unavailable_count"] = len([
+                    item for item in states if str(item.get("status") or "") == "unavailable"
+                ])
+                payload["checker_error_count"] = len([
+                    item for item in states if str(item.get("status") or "") == "checker_error"
+                ])
+                self._save_task_result("站点数据统计", False, 1, text)
+                if scheduled_failure_notify:
+                    self._notify_fusion_task_outcome(
+                        mtype=self._notification_type(self._site_stat_notify_type),
+                        title="Signal - 站点统计",
+                        text=text,
+                        outcome=f"站点统计失败：{msg}",
+                        success=False,
+                        component="site_stat",
+                        task_key="site_stat",
+                        task_group="站点统计",
+                        affected_owner="persistent-sites",
+                        notification_status="error",
+                        notification_target="daily_increment",
+                        notification_fingerprint=self._notification_outcome_fingerprint({
+                            "excluded": self._site_state_fingerprint_items(states),
+                        }),
+                        notification_cooldown=True,
+                        notification_manual=notify,
+                    )
+                return {"code": 1, "msg": msg, "data": payload}
+            # 返回体必须和通知口径一致：快照层只知道快照结论，
+            # 刷新侧的站点故障要写回 payload，否则 API 会出现
+            # "通知说站点异常、payload 说全部正常" 的矛盾。
+            payload["site_states"] = states
+            payload["counted_count"] = len(counted)
+            payload["fault_count"] = len(faults)
+            payload["unavailable_count"] = len([
+                item for item in states if str(item.get("status") or "") == "unavailable"
+            ])
+            payload["checker_error_count"] = len([
+                item for item in states if str(item.get("status") or "") == "checker_error"
+            ])
             site_count = len(payload.get("sites") or [])
             upload = self._format_bytes(payload.get("upload_total", 0))
             download = self._format_bytes(payload.get("download_total", 0))
-            label = "今日" if payload.get("basis") != "latest" else f"最近快照 {payload.get('date') or ''}".strip()
-            text = f"已刷新 {site_count} 个站点｜{label}｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无可用增量"
+            text = f"已刷新 {site_count} 个站点｜今日｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无可用增量"
             self._save_task_result("站点数据统计", True, 0, text)
             if scheduled_success_notify:
                 has_increment = bool(payload.get("upload_total") or payload.get("download_total"))
                 notification_text = text
                 if not getattr(self, "_fusion_notify_enabled", False):
-                    notification_text = self._format_site_stat_success_notification(payload, text)
+                    notification_text = self._format_site_stat_success_notification(payload, text, states)
                 fingerprint_sites = sorted([
                     {
                         "name": str(item.get("name") or ""),
@@ -848,6 +836,8 @@ class MpApiMixin:
                     notification_cooldown=has_increment,
                     notification_manual=notify,
                 )
+            if scheduled_failure_notify:
+                self._notify_site_fault_outcome(faults, manual=notify)
             return {"code": 0, "msg": text, "data": payload}
         except Exception as err:
             self._save_task_result("站点数据统计", False, -1, str(err))
@@ -871,8 +861,17 @@ class MpApiMixin:
                 )
             return {"code": 1, "msg": f"站点数据统计刷新失败：{err}", "data": {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}}
 
-    def _format_site_stat_success_notification(self, payload: Dict[str, Any], summary: str) -> str:
-        """Format the standalone MoviePilot success body from the current payload."""
+    def _format_site_stat_success_notification(
+        self,
+        payload: Dict[str, Any],
+        summary: str,
+        states: Optional[List[Dict[str, Any]]] = None,
+    ) -> str:
+        """Format the standalone MoviePilot success body from the current payload.
+
+        A partially available run publishes the countable sites and then lists
+        every excluded site with its own reason; there is no aggregate count.
+        """
         sites = payload.get("sites") or []
         detail_lines = []
         for item in sites:
@@ -882,7 +881,59 @@ class MpApiMixin:
             upload = self._format_bytes(item.get("upload", 0))
             download = self._format_bytes(item.get("download", 0))
             detail_lines.append(f"⦁ {name}：上传 {upload}｜下载 {download}")
-        return "\n".join([summary, *detail_lines]) if detail_lines else summary
+        excluded_lines = self._format_site_state_lines(
+            states if states is not None else payload.get("site_states")
+        )
+        body = [*detail_lines, *excluded_lines]
+        return "\n".join([summary, *body]) if body else summary
+
+    def _notify_site_fault_outcome(self, faults: List[Dict[str, Any]], *, manual: bool = False) -> None:
+        """Deliver site faults through their own notification target.
+
+        Cooldown, the four outcome states and the single recovery message are
+        owned by ``notification_outcome_state_v1``; this only classifies.  With
+        Fusion enabled the same call becomes an anomaly event, so the ordinary
+        recovery bookkeeping is skipped there and the two routes stay exclusive.
+        """
+        if faults:
+            self._notify_fusion_task_outcome(
+                mtype=self._notification_type(self._site_stat_notify_type),
+                title="Signal - 站点异常",
+                text="\n".join([
+                    f"发现 {len(faults)} 个站点异常",
+                    *self._format_site_state_lines(faults, suffix="需要处理"),
+                ]),
+                outcome=f"站点异常 {len(faults)} 个",
+                success=False,
+                component="site_stat",
+                task_key="site_stat",
+                task_group="站点统计",
+                affected_owner="persistent-sites",
+                notification_status="error",
+                notification_target="site_faults",
+                notification_fingerprint=self._notification_outcome_fingerprint({
+                    "faults": self._site_state_fingerprint_items(faults),
+                }),
+                notification_cooldown=True,
+                notification_manual=manual,
+            )
+            return
+        if getattr(self, "_fusion_notify_enabled", False):
+            return
+        self._notify_fusion_task_outcome(
+            mtype=self._notification_type(self._site_stat_notify_type),
+            title="Signal - 站点异常恢复",
+            text="全部启用站点刷新正常",
+            outcome="站点异常已恢复",
+            success=True,
+            component="site_stat",
+            task_key="site_stat",
+            task_group="站点统计",
+            affected_owner="persistent-sites",
+            notification_status="recovered",
+            notification_target="site_faults",
+            notification_manual=False,
+        )
 
     @staticmethod
     def _site_refresh_state_is_current_failure(state: Dict[str, Any], data: Dict[str, Any]) -> bool:

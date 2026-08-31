@@ -2,7 +2,7 @@ import re
 import threading
 import time
 from datetime import datetime
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from app.log import logger
 
@@ -150,6 +150,10 @@ class LifecycleMixin:
                     "count": 0,
                     "active_domains": [],
                     "errors": [],
+                    "ok_count": 0,
+                    "sites": [],
+                    "faults": [],
+                    "checker_errors": [],
                     "identity_missing": False,
                     "identity_mismatch": False,
                     "message": "",
@@ -171,6 +175,10 @@ class LifecycleMixin:
 
                 errors = [f"{domain}：indexer 匹配重复" for domain in sorted(duplicate_domains & active_domains)]
                 returned_domains = set()
+                # One entry per active site.  A single failing site is reported
+                # as its own state and never cancels the whole statistics run;
+                # only an overall refresh failure does that.
+                sites: List[Dict[str, str]] = []
                 chain = SiteChain()
                 for site in active_sites:
                     domain = normalize_domain(getattr(site, "domain", ""))
@@ -178,42 +186,52 @@ class LifecycleMixin:
                     label = str(getattr(site, "name", None) or domain or "未知站点")
                     if domain in duplicate_domains or not indexer:
                         errors.append(f"{label}：找不到对应 indexer")
+                        sites.append({
+                            "name": label,
+                            "domain": domain,
+                            "status": "checker_error",
+                            "reason": "indexer 匹配重复" if domain in duplicate_domains else "找不到对应 indexer",
+                        })
                         continue
                     try:
                         userdata = chain.refresh_userdata(site=indexer)
                     except Exception as err:
                         errors.append(f"{label}：{str(err)[:120]}")
+                        sites.append({"name": label, "domain": domain, "status": "fault", "reason": str(err)[:120]})
                         continue
                     if userdata is None:
                         errors.append(f"{label}：未返回用户数据")
+                        sites.append({"name": label, "domain": domain, "status": "fault", "reason": "未返回用户数据"})
                         continue
                     returned_domains.add(domain)
                     error = str(getattr(userdata, "err_msg", "") or "").strip()
                     if error:
                         errors.append(f"{label}：{error[:120]}")
+                        sites.append({"name": label, "domain": domain, "status": "fault", "reason": error[:120]})
+                        continue
+                    sites.append({"name": label, "domain": domain, "status": "ok", "reason": ""})
 
                 count = len(returned_domains)
+                faults = [item for item in sites if item["status"] == "fault"]
+                checker_errors = [item for item in sites if item["status"] == "checker_error"]
+                ok_count = len([item for item in sites if item["status"] == "ok"])
                 identity_missing = bool(active_domains - returned_domains)
                 identity_mismatch = active_domains != returned_domains
-                success = count == active_count and not errors and not identity_mismatch
                 result = {
-                    "success": success,
-                    "status": "ok" if success else ("partial" if count else "empty"),
+                    "success": True,
+                    "status": "ok" if ok_count == active_count else ("partial" if ok_count else "empty"),
                     "active_count": active_count,
                     "count": count,
+                    "ok_count": ok_count,
+                    "sites": sites,
+                    "faults": faults,
+                    "checker_errors": checker_errors,
                     "active_domains": sorted(active_domains),
                     "errors": errors,
                     "identity_missing": identity_missing,
                     "identity_mismatch": identity_mismatch,
                     "active_identity_invalid": active_identity_invalid,
-                    "message": (
-                        ""
-                        if success
-                        else f"已触发 {active_count} 个 PT 站点刷新，但仅得到 {count} 个可用结果"
-                        + ("（返回结果与 PT 站点不一致）" if identity_mismatch else "")
-                        + (f"（{'；'.join(errors[:3])}）" if errors else "")
-                        + "，已取消统计以避免使用旧快照"
-                    ),
+                    "message": "",
                 }
         except Exception as err:
             result = {

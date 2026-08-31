@@ -116,10 +116,34 @@ class FusionReportMixin:
                     logger.warning(f"Signal {message}")
                     self._save_task_result("站点数据统计", False, 1, message)
                     return {"site_userdata": refresh.get("status") or "error", "success": False, "message": message, "active_count": active_count}
+                # count 只表示"站点返回了数据"，其中可能包含带 err_msg 的故障站点。
+                # 融合卡文案必须用真正健康的 ok_count，并逐站列出被排除的站点，
+                # 否则 7 个站点里 1 个未登录时仍会写成"已刷新 7 个站点用户数据"。
                 count = int(refresh.get("count") or 0)
-                message = f"已刷新 {count} 个站点用户数据" if count else "已触发站点用户数据刷新，未返回可用数据"
-                self._save_task_result("站点数据统计", True, 0, message)
-                result.update({"site_userdata": "ok", "count": count})
+                states = self._merge_site_states([], refresh.get("sites"))
+                faults = self._site_state_faults(states)
+                ok_count = int(refresh.get("ok_count") or 0)
+                excluded_lines = self._format_site_state_lines(states, suffix="未计入本次刷新")
+                if ok_count:
+                    headline = (
+                        f"已刷新 {ok_count}/{active_count} 个站点用户数据"
+                        if active_count and ok_count != active_count
+                        else f"已刷新 {ok_count} 个站点用户数据"
+                    )
+                else:
+                    headline = "已触发站点用户数据刷新，未返回可用数据"
+                message = "\n".join([headline, *excluded_lines]) if excluded_lines else headline
+                refresh_success = bool(ok_count) or active_count == 0
+                self._save_task_result("站点数据统计", refresh_success, 0 if refresh_success else 1, message)
+                result.update({
+                    "site_userdata": "ok" if ok_count == active_count else ("partial" if ok_count else "empty"),
+                    "count": count,
+                    "ok_count": ok_count,
+                    "active_count": active_count,
+                    "site_states": states,
+                    "fault_count": len(faults),
+                    "message": message,
+                })
             else:
                 result["site_userdata"] = "skipped"
 

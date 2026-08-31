@@ -57,7 +57,6 @@ class PluginContractMixin:
             {"path": "/download_backup_archive", "endpoint": self.api_download_backup_archive, "auth": "bear", "methods": ["POST"], "summary": "下载手动备份归档"},
             {"path": "/run_backup_restore", "endpoint": self.api_run_backup_restore, "auth": "bear", "methods": ["POST"], "summary": "按稳定 backup_id 执行选择性在线恢复"},
             {"path": "/backup_operation_status", "endpoint": self.api_backup_operation_status, "auth": "bear", "methods": ["GET"], "summary": "查询当前备份恢复操作和最近结果"},
-            {"path": "/run_updates", "endpoint": self.api_run_updates, "auth": "bear", "methods": ["POST"], "summary": "按已保存配置执行统一更新检查"},
             {"path": "/run_mp_update", "endpoint": self.api_run_mp_update, "auth": "bear", "methods": ["POST"], "summary": "立即检查并更新MoviePilot后端/前端"},
             {"path": "/run_mp_update_apply", "endpoint": self.api_run_mp_update_apply, "auth": "bear", "methods": ["POST"], "summary": "执行MoviePilot后端/前端更新并重启"},
             {"path": "/preview_market_update", "endpoint": self.api_preview_market_update, "auth": "bear", "methods": ["POST"], "summary": "预览插件库同步"},

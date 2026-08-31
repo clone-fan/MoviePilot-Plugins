@@ -348,25 +348,18 @@ const actionDefinitions = [
     label: '健康巡查', desc: '检查关键状态', icon: 'mdi-heart-pulse', iconKey: 'heartPulse', tone: 'green',
     presentations: { config: { icon: 'mdi-heart-pulse-solid' } },
   }),
-  defineAction('run_updates', {
-    key: 'updates', groupId: 'system_maintenance',
-    availabilityComponent: '', taskKey: '', componentLabel: '更新管理',
-    componentConfigKeys: ['mp_update_enabled', 'plugin_update_reminder_enabled', 'market_update_enabled'],
-    componentMode: 'any',
-    label: '更新检查', desc: '按已保存的更新管理配置执行', icon: 'mdi-update', iconKey: 'refresh', tone: 'amber',
-  }),
   defineAction('run_mp_update', {
     key: 'mp_update', component: 'mp_update', groupId: 'system_maintenance',
     label: 'MP 更新', desc: '检查主程序更新', icon: 'mdi-update', iconKey: 'refresh', tone: 'amber',
     presentations: { config: { label: '立即检查并更新' } },
   }),
   defineAction('run_market_update', {
-    key: 'plugin_market_sync', component: 'market_update', groupId: 'plugin_governance',
+    key: 'plugin_market_sync', component: 'market_update', groupId: 'system_maintenance',
     label: '插件库同步', desc: '同步插件库记录', icon: 'mdi-cloud-sync-outline', iconKey: 'cloudUpload', tone: 'amber',
     presentations: { config: { label: '立即同步插件库', icon: 'mdi-database-sync-outline' } },
   }),
   defineAction('run_plugin_update_reminder', {
-    key: 'plugin_update_reminder', component: 'plugin_update_reminder', groupId: 'plugin_governance',
+    key: 'plugin_update_reminder', component: 'plugin_update_reminder', groupId: 'system_maintenance',
     label: '插件更新', desc: '检查已安装插件更新', icon: 'mdi-bell-alert-outline', iconKey: 'bell', tone: 'amber',
     presentations: { config: { label: '立即检查并更新插件', icon: 'mdi-puzzle-check-outline' } },
   }),
@@ -487,7 +480,6 @@ const quickActionPaths = freeze([
   'run_health_check',
   'run_seed_clean',
   'run_log_clean',
-  'run_updates',
 ]);
 
 const fusionCardActionPaths = freeze([
@@ -508,7 +500,9 @@ const configActionPaths = freeze([
   'run_backup',
   'run_backup_restore',
   'run_log_clean',
-  'run_updates',
+  'run_mp_update',
+  'run_plugin_update_reminder',
+  'run_market_update',
   'run_plugin_uninstall',
   'run_agentopsassistant_purge',
 ]);

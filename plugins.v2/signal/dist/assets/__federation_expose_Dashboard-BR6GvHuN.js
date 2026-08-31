@@ -1,5 +1,5 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
-import { h as getPluginApiEnvelope, i as createV31QuickActions, b as useBackupRestore, j as useActionRunner, k as resolveActionAvailability, A as ACTION_OPERATION_MODE, r as resolvePluginApi, l as actionGroupRegistry, m as ACTION_DISABLED_REASON, u as useAgentOpsTheme, a as getActionForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-euW2LARS.js';
+import { h as getPluginApiEnvelope, i as createV31QuickActions, b as useBackupRestore, j as useActionRunner, k as resolveActionAvailability, A as ACTION_OPERATION_MODE, r as resolvePluginApi, l as actionGroupRegistry, m as ACTION_DISABLED_REASON, u as useAgentOpsTheme, a as getActionForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-BYWDHpjj.js';
 import { ca as mdiYinYang, ar as mdiViewDashboardOutline, cb as mdiTrashCanOutline, cc as mdiTagMultiple, cd as mdiRss, aP as mdiRefresh, ce as mdiLeaf, ba as mdiHeartPulse, cf as mdiEye, cg as mdiDatabase, ch as mdiCog, bD as mdiCloudUploadOutline, ci as mdiCheckCircle, bN as mdiChartPie, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, cj as mdiCalendarToday, ck as mdiCalendarCheck, bU as mdiBroom, b$ as mdiBackupRestore, bX as mdiBellOutline, cl as mdiArrowUp, cm as mdiArrowDown, am as _export_sfc } from './mdi-DveizHBi.js';
 
 // 共享格式化工具 — 跨组件复用，禁止在各 vue 里各写一份
@@ -65,12 +65,12 @@ function useSiteChart(api) {
 
   const siteDateLabel = computed$f(() => {
     if (!siteChart.date) return '等待统计'
-    return siteChart.basis === 'latest' ? `最近快照 ${siteChart.date}` : siteChart.date
+    return siteChart.date
   });
 
   const siteDateNote = computed$f(() => {
     if (!siteChart.date) return '等待统计'
-    return siteChart.basis === 'latest' ? '最近快照' : '今天 00:00 起'
+    return '今天 00:00 起'
   });
 
   const sitePieSegments = computed$f(() => {
@@ -106,7 +106,6 @@ function useSiteChart(api) {
     if (siteChart.last_error || siteChart.error) return '站点统计失败'
     if (siteChart.basis === 'skipped') return '站点统计未启用'
     if (siteChart.data_valid === true) return '暂无站点增量'
-    if (siteChart.basis === 'latest') return '暂无今日增量'
     return '等待站点统计'
   });
 
@@ -115,7 +114,6 @@ function useSiteChart(api) {
     if (siteChart.message) return siteChart.message
     if (siteChart.basis === 'skipped') return '启用插件和站点统计组件后，可手动刷新生成数据'
     if (siteChart.data_valid === true) return '已刷新但没有可展示的上传/下载增量'
-    if (siteChart.basis === 'latest') return '今日基线不足，暂用最近快照等待下一次刷新'
     return '点击立即刷新或站点统计后显示最新可用数据'
   });
 
@@ -775,7 +773,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$a,openBlock:_openBlock$k,createElementBlock:_createElementBlock$f,normalizeStyle:_normalizeStyle$1} = await importShared('vue');
+const {createElementVNode:_createElementVNode$a,openBlock:_openBlock$k,createElementBlock:_createElementBlock$f,normalizeStyle:_normalizeStyle$2} = await importShared('vue');
 
 
 const _hoisted_1$d = ["width", "height"];
@@ -811,7 +809,7 @@ const iconStyle = computed$b(() => ({
 return (_ctx, _cache) => {
   return (_openBlock$k(), _createElementBlock$f("i", {
     class: "v31-svg-icon",
-    style: _normalizeStyle$1(iconStyle.value),
+    style: _normalizeStyle$2(iconStyle.value),
     "aria-hidden": "true"
   }, [
     (_openBlock$k(), _createElementBlock$f("svg", {
@@ -1111,7 +1109,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {toDisplayString:_toDisplayString$8,createElementVNode:_createElementVNode$7,normalizeClass:_normalizeClass$7,normalizeStyle:_normalizeStyle,openBlock:_openBlock$e,createElementBlock:_createElementBlock$a} = await importShared('vue');
+const {toDisplayString:_toDisplayString$8,createElementVNode:_createElementVNode$7,normalizeClass:_normalizeClass$7,normalizeStyle:_normalizeStyle$1,openBlock:_openBlock$e,createElementBlock:_createElementBlock$a} = await importShared('vue');
 
 
 const _hoisted_1$8 = ["aria-label"];
@@ -1153,7 +1151,7 @@ const ariaLabel = computed$9(() => {
 return (_ctx, _cache) => {
   return (_openBlock$e(), _createElementBlock$a("div", {
     class: _normalizeClass$7(["v31-donut", { 'v31-donut--empty': !normalizedSegments.value.length }]),
-    style: _normalizeStyle(ringStyle.value),
+    style: _normalizeStyle$1(ringStyle.value),
     "aria-label": ariaLabel.value
   }, [
     _createElementVNode$7("div", _hoisted_2$8, [
@@ -1228,7 +1226,7 @@ const _hoisted_4$5 = { class: "v31-site-traffic-card__name" };
 const _hoisted_5$3 = { class: "v31-site-traffic-card__metrics" };
 const _hoisted_6$3 = { class: "v31-site-traffic-card__metric-pill v31-site-traffic-card__metric-pill--upload" };
 const _hoisted_7$3 = { class: "v31-site-traffic-card__metric-pill v31-site-traffic-card__metric-pill--download" };
-const _hoisted_8$3 = { class: "v31-site-traffic-card__percent" };
+const _hoisted_8$2 = { class: "v31-site-traffic-card__percent" };
 const _hoisted_9$1 = { class: "v31-site-traffic-card__percent-icon" };
 
 
@@ -1274,7 +1272,7 @@ return (_ctx, _cache) => {
         _createTextVNode$3(" " + _toDisplayString$6(__props.download), 1)
       ])
     ]),
-    _createElementVNode$5("span", _hoisted_8$3, [
+    _createElementVNode$5("span", _hoisted_8$2, [
       _createElementVNode$5("span", _hoisted_9$1, [
         _createVNode$9(_sfc_main$k, {
           icon: _unref$7(v31Icons).chartPie,
@@ -1302,7 +1300,7 @@ const _hoisted_7$2 = {
   key: 0,
   class: "v31-site-panel__notice v31-site-panel__notice--error"
 };
-const _hoisted_8$2 = {
+const _hoisted_8$1 = {
   key: 1,
   class: "v31-site-panel__notice v31-site-panel__notice--stale"
 };
@@ -1406,7 +1404,7 @@ return (_ctx, _cache) => {
           (displayError.value)
             ? (_openBlock$b(), _createElementBlock$7("div", _hoisted_7$2, _toDisplayString$5(displayError.value), 1))
             : (view.value.stale)
-              ? (_openBlock$b(), _createElementBlock$7("div", _hoisted_8$2, " 最近快照 " + _toDisplayString$5(staleDate.value) + "，等待今日站点数据刷新 ", 1))
+              ? (_openBlock$b(), _createElementBlock$7("div", _hoisted_8$1, " 最近快照 " + _toDisplayString$5(staleDate.value) + "，等待今日站点数据刷新 ", 1))
               : (view.value.baselineMissing && !view.value.cards.length)
                 ? (_openBlock$b(), _createElementBlock$7("div", _hoisted_9, " 今日基线不足，等待下一次站点数据刷新 "))
                 : _createCommentVNode$7("", true),
@@ -1590,17 +1588,16 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$1,renderSlot:_renderSlot,toDisplayString:_toDisplayString$2,normalizeClass:_normalizeClass$4,openBlock:_openBlock$7,createElementBlock:_createElementBlock$3,createCommentVNode:_createCommentVNode$4,renderList:_renderList,Fragment:_Fragment$1,createVNode:_createVNode$5} = await importShared('vue');
+const {createElementVNode:_createElementVNode$1,renderSlot:_renderSlot,toDisplayString:_toDisplayString$2,normalizeClass:_normalizeClass$4,openBlock:_openBlock$7,createElementBlock:_createElementBlock$3,createCommentVNode:_createCommentVNode$4,renderList:_renderList,Fragment:_Fragment$1,createVNode:_createVNode$5,normalizeStyle:_normalizeStyle} = await importShared('vue');
 
 
 const _hoisted_1$2 = ["data-action-presentation", "data-action-size", "data-action-count"];
 const _hoisted_2$2 = { class: "v31-quick-actions__header" };
 const _hoisted_3$1 = { class: "v31-quick-actions__header-actions" };
 const _hoisted_4$1 = ["data-tone"];
-const _hoisted_5$1 = { class: "v31-quick-actions__grid" };
-const _hoisted_6$1 = ["disabled", "aria-busy", "aria-disabled", "aria-haspopup", "data-state", "data-action-id", "data-action-mode", "data-tone", "data-disabled-reason", "aria-label", "title", "onClick"];
-const _hoisted_7$1 = ["data-state"];
-const _hoisted_8$1 = { class: "v31-quick-action__label" };
+const _hoisted_5$1 = ["disabled", "aria-busy", "aria-disabled", "aria-haspopup", "data-state", "data-action-id", "data-action-mode", "data-tone", "data-disabled-reason", "aria-label", "title", "onClick"];
+const _hoisted_6$1 = ["data-state"];
+const _hoisted_7$1 = { class: "v31-quick-action__label" };
 
 const {computed: computed$6} = await importShared('vue');
 
@@ -1712,7 +1709,10 @@ return (_ctx, _cache) => {
           }, _toDisplayString$2(actionView.value.feedbackMessage), 11, _hoisted_4$1))
         : _createCommentVNode$4("", true)
     ]),
-    _createElementVNode$1("div", _hoisted_5$1, [
+    _createElementVNode$1("div", {
+      class: "v31-quick-actions__grid",
+      style: _normalizeStyle({ '--v31-quick-action-columns': visibleActions.value.length })
+    }, [
       (_openBlock$7(true), _createElementBlock$3(_Fragment$1, null, _renderList(visibleActions.value, (action) => {
         return (_openBlock$7(), _createElementBlock$3("button", {
           key: action.id || action.key || action.path,
@@ -1739,17 +1739,17 @@ return (_ctx, _cache) => {
               icon: action.icon,
               size: "18"
             }, null, 8, ["icon"])
-          ], 8, _hoisted_7$1),
-          _createElementVNode$1("span", _hoisted_8$1, _toDisplayString$2(action.label), 1)
-        ], 10, _hoisted_6$1))
+          ], 8, _hoisted_6$1),
+          _createElementVNode$1("span", _hoisted_7$1, _toDisplayString$2(action.label), 1)
+        ], 10, _hoisted_5$1))
       }), 128))
-    ])
+    ], 4)
   ], 8, _hoisted_1$2))
 }
 }
 
 };
-const QuickActionsBand = /*#__PURE__*/_export_sfc(_sfc_main$7, [['__scopeId',"data-v-485cdfa3"]]);
+const QuickActionsBand = /*#__PURE__*/_export_sfc(_sfc_main$7, [['__scopeId',"data-v-6dd2e804"]]);
 
 const {createVNode:_createVNode$4,normalizeClass:_normalizeClass$3,openBlock:_openBlock$6,createElementBlock:_createElementBlock$2} = await importShared('vue');
 

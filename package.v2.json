@@ -3,7 +3,7 @@
     "name": "媒体融合 Signal",
     "description": "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。",
     "labels": "MoviePilot,媒体融合,Signal,通知汇报,数据监控,下载管理,系统维护,插件卸载,每日汇报,TG融合汇报卡,订阅追新,站点统计,健康巡查,日志清理,自动备份,更新检查,自动删种,媒体通知",
-    "version": "1.0.24",
+    "version": "1.0.25",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=2.12.0",
     "release": true,
     "history": {
+      "v1.0.25": "更新管理三卡各自独立按钮与独立 API，删除聚合更新检查入口；站点统计改为逐站点四态，单站点故障不再取消整次统计，站点故障走独立通知目标并支持冷却与恢复。",
       "v1.0.24": "修复运行契约与破坏性路径安全：强化插件卸载目标校验与终态，恢复失败自动补偿与 rollback_failed，健康巡查四态分类，限定 PT 私有站点刷新，移除每日汇报外露链并保留 Fusion 独立刷新，Dashboard 支持局部降级与重复数据只读容错。",
       "v1.0.23": "手动执行结果通知必发：配置页按钮与手动 API 不再受无变化抑制与 24 小时冷却影响",
       "v1.0.22": "订阅日历改为宿主进程内直读，修复电影订阅读取失败导致的订阅追新告警",

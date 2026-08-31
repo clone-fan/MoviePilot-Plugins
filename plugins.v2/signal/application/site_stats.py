@@ -90,6 +90,153 @@ class SiteStatsMixin:
         )
 
 
+    SITE_STAT_STATE_LABELS = {
+        "ok": "正常",
+        "fault": "站点异常",
+        "unavailable": "无今日数据",
+        "checker_error": "Signal 检查异常",
+    }
+
+    @staticmethod
+    def _site_stat_state(
+        name: Any,
+        domain: Any,
+        status: str,
+        reason: str = "",
+        **extra: Any,
+    ) -> Dict[str, Any]:
+        """Normalize one site into the shared four-state vocabulary.
+
+        ``fault`` is the only alertable state: it means the site itself failed
+        (login, connection, site error, or missing user data).  ``unavailable``
+        means the value cannot be computed today, and ``checker_error`` means
+        Signal's own matching failed.  Neither cancels the whole run.
+        """
+        status = status if status in {"ok", "fault", "unavailable", "checker_error"} else "checker_error"
+        normalized_domain = site_helpers.normalize_site_domain(domain)
+        state: Dict[str, Any] = {
+            "name": str(name or normalized_domain or "未知站点"),
+            "domain": normalized_domain,
+            "status": status,
+            "reason": str(reason or ""),
+            "alertable": status == "fault",
+        }
+        state.update({key: value for key, value in extra.items() if key not in state})
+        return state
+
+    @classmethod
+    def _sorted_site_states(cls, states: Any) -> List[Dict[str, Any]]:
+        normalized = [dict(item) for item in (states or []) if isinstance(item, dict)]
+        return sorted(
+            normalized,
+            key=lambda item: (
+                str(item.get("name") or ""),
+                str(item.get("domain") or ""),
+                str(item.get("status") or ""),
+            ),
+        )
+
+    @classmethod
+    def _merge_site_states(cls, snapshot_states: Any, refresh_states: Any) -> List[Dict[str, Any]]:
+        """Merge the snapshot conclusion with the refresh-side per-site outcome.
+
+        The snapshot layer decides whether today's increment can be computed.
+        The refresh layer knows whether the site itself just failed, so a
+        refresh ``fault``/``checker_error`` overrides an otherwise countable
+        snapshot conclusion.
+        """
+        merged: Dict[str, Dict[str, Any]] = {}
+        order: List[str] = []
+
+        def state_key(item: Dict[str, Any]) -> str:
+            return str(item.get("domain") or item.get("name") or "").strip().lower()
+
+        def label_key(item: Dict[str, Any]) -> str:
+            return str(item.get("name") or "").strip().lower()
+
+        for item in (snapshot_states or []):
+            if not isinstance(item, dict):
+                continue
+            key = state_key(item)
+            if key not in merged:
+                order.append(key)
+            merged[key] = dict(item)
+
+        def resolve_key(item: Dict[str, Any]) -> Optional[str]:
+            """Match one refresh entry to a snapshot entry.
+
+            The refresh coordinator normalizes host names through the
+            MoviePilot helper while the snapshot layer uses the Signal domain
+            helper, so a sub-domain site can produce two different keys for the
+            same site.  Fall back to the display name and then to a
+            dot-boundary suffix relation before treating it as a new site.
+            """
+            key = state_key(item)
+            if key in merged:
+                return key
+            name = label_key(item)
+            if name:
+                for candidate_key, candidate in merged.items():
+                    if label_key(candidate) == name:
+                        return candidate_key
+            if key:
+                for candidate_key in merged:
+                    if not candidate_key:
+                        continue
+                    if key.endswith(f".{candidate_key}") or candidate_key.endswith(f".{key}"):
+                        return candidate_key
+            return None
+
+        for item in (refresh_states or []):
+            if not isinstance(item, dict):
+                continue
+            key = resolve_key(item)
+            if key is None:
+                key = state_key(item)
+                order.append(key)
+                merged[key] = dict(item)
+                continue
+            current = merged[key]
+            status = str(item.get("status") or "")
+            if status in {"fault", "checker_error"}:
+                current["status"] = status
+                current["reason"] = str(item.get("reason") or current.get("reason") or "")
+                current["alertable"] = status == "fault"
+                if not str(current.get("name") or "").strip():
+                    current["name"] = str(item.get("name") or "")
+        return [merged[key] for key in order]
+
+    @classmethod
+    def _site_state_faults(cls, states: Any) -> List[Dict[str, Any]]:
+        return [item for item in cls._sorted_site_states(states) if item.get("status") == "fault"]
+
+    @classmethod
+    def _site_state_counted(cls, states: Any) -> List[Dict[str, Any]]:
+        return [item for item in cls._sorted_site_states(states) if item.get("status") == "ok"]
+
+    @classmethod
+    def _site_state_fingerprint_items(cls, states: Any) -> List[Dict[str, str]]:
+        return [
+            {"site": str(item.get("name") or item.get("domain") or ""), "reason": str(item.get("reason") or "")}
+            for item in cls._sorted_site_states(states)
+            if item.get("status") != "ok"
+        ]
+
+    @classmethod
+    def _format_site_state_lines(cls, states: Any, *, suffix: str = "未计入今日增量") -> List[str]:
+        """Render one line per excluded site instead of an aggregate count."""
+        lines = []
+        for item in cls._sorted_site_states(states):
+            status = str(item.get("status") or "")
+            if status == "ok":
+                continue
+            name = str(item.get("name") or item.get("domain") or "未知站点")
+            label = cls.SITE_STAT_STATE_LABELS.get(status, "状态未知")
+            reason = str(item.get("reason") or "").strip()
+            detail = f"（{reason}）" if reason else ""
+            lines.append(f"⦁ {name}：{label}{detail}，{suffix}")
+        return lines
+
     def run_health_check_scheduled(self) -> bool:
         return self.run_health_check(scheduled=True)
 
@@ -258,9 +405,6 @@ class SiteStatsMixin:
             snapshot = self._site_increment_snapshot()
             if snapshot.get("error"):
                 return [f"⦁ 异常 - {snapshot['error']}"]
-            if snapshot.get("basis") == "latest":
-                latest_day = snapshot.get("date") or snapshot.get("latest_date") or "未知日期"
-                return [f"⦁ 站点快照过期（最新 {latest_day}），等待今日站点数据刷新"]
 
             rows = []
             for item in snapshot.get("sites") or []:
@@ -275,18 +419,7 @@ class SiteStatsMixin:
                     f"⦁ {name}：⬆ {self._format_bytes(item.get('upload', 0))} ｜ "
                     f"⬇ {self._format_bytes(item.get('download', 0))}{suffix}"
                 )
-            if snapshot.get("stale_count"):
-                rows.append(f"⦁ 另 {snapshot['stale_count']} 个站点快照过期，未计入今日增量")
-            if snapshot.get("error_count"):
-                rows.append(f"⦁ 另 {snapshot['error_count']} 个站点刷新异常，未计入今日增量")
-            if snapshot.get("invalid_count"):
-                rows.append(f"⦁ 另 {snapshot['invalid_count']} 个站点缺少有效日期，未计入今日增量")
-            if snapshot.get("counter_reset_count"):
-                rows.append(f"⦁ 另 {snapshot['counter_reset_count']} 个站点累计值回退，未计入今日增量")
-            if snapshot.get("baseline_missing"):
-                rows.append(f"⦁ 另 {snapshot['baseline_missing']} 个站点基线不足，未计入今日增量")
-            if snapshot.get("missing_count"):
-                rows.append(f"⦁ 另 {snapshot['missing_count']} 个启用站点没有最新快照，未计入今日增量")
+            rows.extend(self._format_site_state_lines(snapshot.get("site_states")))
             if rows:
                 return rows
             if snapshot.get("baseline_missing") and not snapshot.get("baseline_ready"):
@@ -295,18 +428,22 @@ class SiteStatsMixin:
         except Exception as e:
             return [f"⦁ 异常 - {e}"]
     def _site_increment_snapshot(self) -> Dict[str, Any]:
-        """站点上传/下载增量快照。
+        """站点上传/下载增量快照，逐站点四态、只认今日口径。
 
-        The dashboard may expose the most recent usable snapshot after a
-        midnight rollover, but callers must be able to distinguish that state
-        from a current-day result. Scheduled execution uses the refresh gate
-        in ``mp_api`` and never treats this fallback as a successful refresh.
+        Every active site gets its own ``ok``/``fault``/``unavailable``/
+        ``checker_error`` state in ``site_states``.  ``basis`` is always
+        ``today``: a snapshot that was not updated today is ``unavailable``
+        rather than a fallback increment, so an old value can never be
+        published as today's result.  Individual unavailable sites never
+        cancel the run; the publishing layer only asks whether any countable
+        site remains.
         """
         result = {"date": self._today_prefix(), "basis": "today", "sites": [], "upload_total": 0, "download_total": 0,
                   "baseline_ready": False, "baseline_missing": 0, "latest_date": "", "stale": False,
                   "stale_count": 0, "error_count": 0, "invalid_count": 0, "counter_reset_count": 0,
                   "data_valid": False, "active_count": 0, "visible_count": 0, "missing_count": 0,
-                  "active_domains": [],
+                  "active_domains": [], "site_states": [], "counted_count": 0, "fault_count": 0,
+                  "unavailable_count": 0,
                   "latest_updated_at": "", "error": ""}
         try:
             from app.db.site_oper import SiteOper
@@ -333,6 +470,8 @@ class SiteStatsMixin:
                 result["error"] = "启用站点存在无效域名，已取消统计以避免使用旧快照"
                 return result
             today = self._today_prefix()
+            result["date"] = today
+            result["basis"] = "today"
             error_count = len([d for d in active_latest if str(getattr(d, "err_msg", None) or "").strip()])
             valid_latest = [d for d in active_latest if not str(getattr(d, "err_msg", None) or "").strip()]
             all_days = sorted({self._normalize_day(getattr(d, "updated_day", None)) for d in active_latest if self._normalize_day(getattr(d, "updated_day", None))}, reverse=True)
@@ -355,13 +494,50 @@ class SiteStatsMixin:
                 and result["invalid_count"] == 0
                 and result["stale_count"] == 0
             )
-            days = sorted({self._normalize_day(getattr(d, "updated_day", None)) for d in valid_latest if self._normalize_day(getattr(d, "updated_day", None))}, reverse=True)
-            basis_day = today if any(day == today for day in days) else (days[0] if days else today)
-            result["date"] = basis_day
-            result["basis"] = "today" if basis_day == today else "latest"
-            if result["basis"] == "latest":
-                result["stale"] = True
-            if not valid_latest:
+            site_labels: Dict[str, str] = {}
+            for site in active_sites:
+                label_key = site_helpers.normalize_site_domain(getattr(site, "domain", ""))
+                if label_key:
+                    site_labels.setdefault(label_key, str(getattr(site, "name", None) or label_key))
+            rows_by_domain: Dict[str, Any] = {}
+            for row in active_latest:
+                row_key = site_helpers.normalize_site_domain(getattr(row, "domain", ""))
+                if row_key:
+                    rows_by_domain.setdefault(row_key, row)
+            states: Dict[str, Dict[str, Any]] = {}
+            countable: Dict[str, Any] = {}
+            for site_domain in sorted(active_domains):
+                row = rows_by_domain.get(site_domain)
+                label = site_labels.get(site_domain) or site_domain
+                if row is None:
+                    states[site_domain] = self._site_stat_state(label, site_domain, "unavailable", "没有最新快照")
+                    continue
+                label = str(getattr(row, "name", None) or label)
+                row_error = str(getattr(row, "err_msg", None) or "").strip()
+                if row_error:
+                    states[site_domain] = self._site_stat_state(label, site_domain, "fault", row_error[:120])
+                    continue
+                row_day = self._normalize_day(getattr(row, "updated_day", None))
+                if not row_day:
+                    states[site_domain] = self._site_stat_state(label, site_domain, "unavailable", "缺少有效日期")
+                    continue
+                if row_day != today:
+                    states[site_domain] = self._site_stat_state(
+                        label, site_domain, "unavailable", f"快照未更新到今日（最新 {row_day}）"
+                    )
+                    continue
+                states[site_domain] = self._site_stat_state(label, site_domain, "unavailable", "今日增量未计算")
+                countable[site_domain] = row
+
+            def publish_states() -> None:
+                site_states = self._sorted_site_states(states.values())
+                result["site_states"] = site_states
+                result["counted_count"] = len(self._site_state_counted(site_states))
+                result["fault_count"] = len(self._site_state_faults(site_states))
+                result["unavailable_count"] = len([item for item in site_states if item.get("status") == "unavailable"])
+
+            if not active_latest:
+                publish_states()
                 return result
             previous_cache: Dict[str, List[Any]] = {}
             out: List[Dict[str, Any]] = []
@@ -371,14 +547,12 @@ class SiteStatsMixin:
             for current in valid_latest:
                 name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
                 domain = getattr(current, "domain", None)
-                if self._normalize_day(getattr(current, "updated_day", None)) != basis_day:
+                state_key = site_helpers.normalize_site_domain(domain)
+                if state_key not in countable:
                     continue
                 delta = None
                 baseline_found = False
-                try:
-                    base_dt = datetime.strptime(basis_day, "%Y-%m-%d")
-                except Exception:
-                    base_dt = datetime.strptime(today, "%Y-%m-%d")
+                base_dt = datetime.strptime(today, "%Y-%m-%d")
                 for i in range(1, 8):
                     prev_day = (base_dt - timedelta(days=i)).strftime("%Y-%m-%d")
                     if prev_day not in previous_cache:
@@ -389,19 +563,23 @@ class SiteStatsMixin:
                         delta, reason = self._site_userdata_delta_with_reason(current, previous)
                         if reason == "counter_reset":
                             counter_reset_count += 1
+                            states[state_key] = self._site_stat_state(name, domain, "unavailable", "累计值回退")
                             break
                         if reason == "invalid":
                             baseline_missing_count += 1
+                            states[state_key] = self._site_stat_state(name, domain, "unavailable", "基线数据无效")
                             break
                     if delta is not None:
                         break
                 if delta is None and not baseline_found:
                     baseline_missing_count += 1
+                    states[state_key] = self._site_stat_state(name, domain, "unavailable", "缺少有效基线")
                     continue
                 if delta is None:
                     continue
                 baseline_ready_count += 1
                 up, dl = delta
+                states[state_key] = self._site_stat_state(name, domain, "ok", "", upload=up, download=dl)
                 if up == 0 and dl == 0:
                     continue
                 out.append({
@@ -411,6 +589,7 @@ class SiteStatsMixin:
                     "ratio": getattr(current, "ratio", None),
                     "bonus": getattr(current, "bonus", None),
                 })
+            publish_states()
             result["sites"] = out
             result["upload_total"] = sum(int(d.get("upload", 0)) for d in out)
             result["download_total"] = sum(int(d.get("download", 0)) for d in out)
