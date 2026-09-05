@@ -37,7 +37,7 @@ class Signal(_runtime_state.RuntimeStateMixin, _lifecycle.LifecycleMixin, _forma
 
     # The official market gate reads this literal from the class body of
     # __init__.py, so it cannot live only on RuntimeStateMixin.
-    plugin_version = "3.0.0"
+    plugin_version = "3.0.1"
 
     @eventmanager.register(EventType.PluginAction)
     def handle_command(self, event: Event = None):

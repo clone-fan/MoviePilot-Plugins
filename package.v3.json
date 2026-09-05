@@ -3,7 +3,7 @@
     "name": "媒体融合 Signal",
     "description": "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。",
     "labels": "MoviePilot,媒体融合,Signal,通知汇报,数据监控,下载管理,系统维护,插件卸载,每日汇报,TG融合汇报卡,订阅追新,站点统计,健康巡查,日志清理,自动备份,更新检查,自动删种,媒体通知",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=3.0.0",
     "release": true,
     "history": {
+      "v3.0.1": "移除 MoviePilot 主界面侧栏入口：Signal 不再向左侧导航插入条目，配置入口仍在插件管理的配置页；同时修正 V3 融合卡与 Telegram 控制台残留的 1.0.25 兜底版本号。",
       "v3.0.0": "独立 V3 版本：迁移至 plugins.v3 与稳定 SDK；修复订阅日历与下载填充的 V3 媒体身份（media_source + media_id）、通用识别入口参数、宿主 Model/会话越界访问、Release 更新通道与代际插件路径；新增侧栏全页入口。仅支持 MoviePilot V3。",
       "v1.0.25": "更新管理三卡各自独立按钮与独立 API，删除聚合更新检查入口；站点统计改为逐站点四态，单站点故障不再取消整次统计，站点故障走独立通知目标并支持冷却与恢复。",
       "v1.0.24": "修复运行契约与破坏性路径安全：强化插件卸载目标校验与终态，恢复失败自动补偿与 rollback_failed，健康巡查四态分类，限定 PT 私有站点刷新，移除每日汇报外露链并保留 Fusion 独立刷新，Dashboard 支持局部降级与重复数据只读容错。",

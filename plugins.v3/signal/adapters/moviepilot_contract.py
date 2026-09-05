@@ -86,24 +86,10 @@ class PluginContractMixin:
         """声明使用 MoviePilot Vue 联邦组件渲染。"""
         return "vue", "dist/assets"
 
-    def get_sidebar_nav(self) -> List[Dict[str, Any]]:
-        """注册主界面侧栏全页入口。
-
-        nav_key 为 `config` 时，V3 前端按 PascalCase 解析为 `./AppPageConfig`，
-        与 Signal 既有的联邦暴露名一致，因此不需要新增或改名前端入口。
-        """
-        if not self.get_state():
-            return []
-        return [
-            {
-                "nav_key": "config",
-                "title": "媒体融合 Signal",
-                "icon": "mdi-radar",
-                "section": "system",
-                "permission": "admin",
-                "order": 50,
-            }
-        ]
+    # 按用户要求，Signal 不注册 MoviePilot 主界面侧栏全页入口：不实现
+    # `get_sidebar_nav()`。宿主对未声明该钩子的插件不会报错，只是不在左侧
+    # 导航插入条目；配置入口仍走插件管理内的配置页（联邦暴露 `./Config`
+    # 与 `./AppPageConfig`），不受影响。
 
     def get_service(self) -> List[Dict[str, Any]]:
         if not self.get_state():
