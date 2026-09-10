@@ -102,10 +102,13 @@ def validate_v7_card_model(model: Dict[str, Any]) -> Dict[str, Any]:
     for item in modules:
         if item.get("tier") not in FUSION_TIER_ORDER:
             raise ValueError(f"unsupported V7 module tier: {item.get('tier')}")
-        if item.get("always_visible_preview") and not item.get("preview_rows"):
+        site_content = item.get("owner") == "persistent-sites" and (item.get("context") or item.get("notice_rows"))
+        if item.get("always_visible_preview") and not item.get("preview_rows") and not site_content:
             raise ValueError(f"visible V7 module has no preview rows: {item.get('owner')}")
         if item.get("details_rows") is not None and not isinstance(item.get("details_rows"), list):
             raise ValueError(f"Details rows must be a list: {item.get('owner')}")
+        if item.get("notice_rows") is not None and not isinstance(item.get("notice_rows"), list):
+            raise ValueError(f"Notice rows must be a list: {item.get('owner')}")
     return deepcopy(model)
 
 
@@ -139,7 +142,7 @@ def _identity(value: Any) -> Dict[str, Any]:
         "owner": "card",
         "tier": "identity",
         "title": str(data.get("title") or "运维助手 · 融合通知"),
-        "version": str(data.get("version") or "v3.0.1"),
+        "version": str(data.get("version") or "v3.0.2"),
         "refreshed_at": str(data.get("refreshed_at") or ""),
     }
 
@@ -211,7 +214,7 @@ def _loading_module(value: Any) -> Dict[str, Any]:
 
 
 def _module(owner: str, tier: str, data: Dict[str, Any], *, always_visible: bool) -> Dict[str, Any]:
-    return {
+    module = {
         "owner": owner,
         "tier": tier,
         "kind": str(data.get("kind") or tier),
@@ -232,3 +235,6 @@ def _module(owner: str, tier: str, data: Dict[str, Any], *, always_visible: bool
         "affected_owner": str(data.get("affected_owner") or ""),
         "affected_owners": [str(owner) for owner in data.get("affected_owners") or [] if owner],
     }
+    if owner == "persistent-sites":
+        module["notice_rows"] = deepcopy(data.get("notice_rows") or [])
+    return module

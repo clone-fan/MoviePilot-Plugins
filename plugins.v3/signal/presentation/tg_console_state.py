@@ -18,10 +18,55 @@ from ..domain.fusion_card_state import (
     sanitize_fusion_persisted_state,
 )
 from ..domain.fusion_event_ledger import empty_event_ledger, normalize_event_ledger
+from ..domain import site_helpers
 
 
 class TgConsoleStateMixin:
     """Telegram console state management, action registration, status data"""
+
+    @classmethod
+    def _normalize_site_diagnostic(cls, records: Any) -> List[Dict[str, Any]]:
+        if not isinstance(records, list):
+            return []
+        sources = {"render", "unknown", "site_stat_manual", "site_stat_scheduled", "fusion_create_manual", "fusion_create_scheduled", "fusion_refresh"}
+        def enum(value, allowed, default):
+            return value if isinstance(value, str) and value in allowed else default
+
+        result = []
+        for record in [item for item in records if isinstance(item, dict)][-5:]:
+            raw_sites = record.get("sites") if isinstance(record.get("sites"), list) else []
+            valid_sites = [item for item in raw_sites if isinstance(item, dict)]
+            sites = []
+            for item in valid_sites[:50]:
+                raw_domain = item.get("domain") if isinstance(item.get("domain"), str) else ""
+                try:
+                    domain = site_helpers.normalize_site_domain(raw_domain)
+                except ValueError:
+                    domain = ""
+                site = {
+                    "name": cls._site_safe_name(item.get("name") if isinstance(item.get("name"), str) else ""),
+                    "domain": domain,
+                    "status": enum(item.get("status"), {"ok", "fault", "unavailable", "checker_error"}, "checker_error"),
+                    "reason_code": item.get("reason_code") if isinstance(item.get("reason_code"), str) and item["reason_code"] in cls.SITE_STAT_REASONS else "checker_error",
+                    "baseline_status": enum(item.get("baseline_status"), {"ready", "missing", "invalid", "discontinuous", "counter_reset"}, "invalid"),
+                    "snapshot_day": cls._site_timestamp(str(item.get("snapshot_day") or "") + " 00:00:00")[:10],
+                    "snapshot_at": cls._site_timestamp(item.get("snapshot_at")),
+                    "baseline_day": cls._site_timestamp(str(item.get("baseline_day") or "") + " 00:00:00")[:10],
+                    "refresh_status": enum(item.get("refresh_status"), {"ok", "fault", "checker_error", "running", "timeout", "error", "unknown"}, "unknown"),
+                    "refresh_at": cls._site_timestamp(item.get("refresh_at")),
+                    "refresh_source": enum(item.get("refresh_source"), sources - {"render", "unknown"}, ""),
+                }
+                sites.append(site)
+            try:
+                omitted = max(0, int(record.get("omitted_count") or 0))
+            except (TypeError, ValueError, OverflowError):
+                omitted = 0
+            fingerprint = str(record.get("fingerprint") or "")
+            result.append({"source": enum(record.get("source"), sources, "render"),
+                           "observed_at": cls._site_timestamp(record.get("observed_at")),
+                           "fingerprint": fingerprint if re.fullmatch(r"[0-9a-fA-F]{64}", fingerprint) else "",
+                           "omitted_count": omitted + max(0, len(valid_sites) - 50), "sites": sites})
+        return result
 
     def _tg_console_state(self, chat_id: str = "") -> Dict[str, Any]:
         today = self._today_prefix()
@@ -32,7 +77,10 @@ class TgConsoleStateMixin:
         previous_message_id = self._safe_int(state.get("message_id"), 0, 0)
         previous_card = state.get("fusion_card")
         state_chat_id = str(state.get("chat_id") or "")
-        changed = False
+        target_chat_id = str(chat_id or state_chat_id)
+        diagnostic = self._normalize_site_diagnostic(state.get("site_diagnostic")) if state_chat_id and target_chat_id and state_chat_id == target_chat_id else []
+        changed = state.get("site_diagnostic") != diagnostic or "site_refresh" in state
+        state.pop("site_refresh", None)
         if state.get("date") != today or (chat_id and state_chat_id and state_chat_id != str(chat_id)):
             state = {
                 "date": today,
@@ -50,6 +98,7 @@ class TgConsoleStateMixin:
                 "last_error": "",
                 "fusion_card": previous_card,
                 "v7_event_ledger": empty_event_ledger(today),
+                "site_diagnostic": diagnostic,
             }
             changed = True
         else:
@@ -70,6 +119,7 @@ class TgConsoleStateMixin:
             if state.get("v7_event_ledger") != ledger:
                 changed = True
             state["v7_event_ledger"] = ledger
+            state["site_diagnostic"] = diagnostic
         if "v7_completion_events" in state:
             state.pop("v7_completion_events", None)
             changed = True
@@ -115,10 +165,13 @@ class TgConsoleStateMixin:
             "last_error": "",
             "fusion_card": fusion_card,
             "v7_event_ledger": normalize_event_ledger(previous.get("v7_event_ledger"), today),
+            "site_diagnostic": self._normalize_site_diagnostic(previous.get("site_diagnostic")),
         }
 
     def _save_tg_console_state(self, state: Dict[str, Any]) -> None:
         sanitized = sanitize_fusion_persisted_state(state)
+        sanitized["site_diagnostic"] = self._normalize_site_diagnostic(sanitized.get("site_diagnostic"))
+        sanitized.pop("site_refresh", None)
         state.clear()
         state.update(sanitized)
         notices = list((state or {}).get("notices") or [])

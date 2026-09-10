@@ -22,8 +22,7 @@ class FusionReportMixin:
       DTOs, keeping it idempotent but no longer strictly necessary.
     - Site data read: app.sdk.queries.query_site_data() returns SiteDataDTO
       with .site (SiteConfigDTO) nested, replacing direct SiteOper calls.
-    - Error propagation: refresh_result.get("success") is False means upstream
-      failure; the entire refresh aborts rather than rendering with stale data.
+    - Refresh failures are rendered on the existing card before returning failure.
     """
 
     def run_fusion_card_create(self) -> bool:
@@ -46,11 +45,6 @@ class FusionReportMixin:
             return False
         try:
             refresh_result = self._refresh_fusion_report_live_data()
-            if refresh_result.get("success") is False:
-                error = str(refresh_result.get("message") or refresh_result.get("error") or "站点数据刷新失败，融合卡刷新已取消")
-                self._save_task_result(name, False, 1, error)
-                self._save_fusion_report_result(updated=False, success=False, text="", error=error, message=error, returncode=1)
-                return False
             text = self._build_fusion_report_message()
             calendar_snapshot = self._subscription_calendar_snapshot_for_scope()
             calendar_partial = calendar_snapshot is not None and calendar_snapshot.is_partial
@@ -80,7 +74,7 @@ class FusionReportMixin:
                     self._save_task_result(name, False, 1, calendar_error if refresh_ok else (self._tg_console_last_error or calendar_error))
                     self._save_fusion_report_result(updated=refresh_ok, success=False, text=text, error=calendar_error, message=calendar_error, returncode=1)
                     return False
-                if refresh_ok:
+                if refresh_ok and refresh_result.get("success") is not False:
                     self._save_task_result(name, True, 0, "OK tg_console_card")
                     self._save_fusion_report_result(updated=True, success=True, text=text, error="", message="OK tg_console_card", returncode=0)
                     return True
@@ -122,24 +116,25 @@ class FusionReportMixin:
         """Refresh the live data consumed by the Fusion card."""
         result: Dict[str, Any] = {"success": True}
         try:
-            needs_site_data = self._report_site_status or self._report_site_increment or self._report_summary
+            needs_site_data = getattr(self, "_site_stat_enabled", False) and (
+                self._report_site_status or self._report_site_increment or self._report_summary or self._fusion_notify_enabled)
             if needs_site_data:
-                refresh = self._refresh_site_userdata_coordinated()
+                refresh = self._refresh_site_userdata_coordinated(source="fusion_refresh")
                 active_count = int(refresh.get("active_count") or 0)
-                if not refresh.get("success"):
-                    message = str(refresh.get("message") or "站点数据刷新失败，融合卡刷新已取消以避免使用旧快照")
-                    logger.warning(f"Signal {message}")
-                    self._save_task_result("站点数据统计", False, 1, message)
-                    return {"site_userdata": refresh.get("status") or "error", "success": False, "message": message, "active_count": active_count}
                 # count 只表示"站点返回了数据"，其中可能包含带 err_msg 的故障站点。
                 # 融合卡文案必须用真正健康的 ok_count，并逐站列出被排除的站点，
                 # 否则 7 个站点里 1 个未登录时仍会写成"已刷新 7 个站点用户数据"。
                 count = int(refresh.get("count") or 0)
-                states = self._merge_site_states([], refresh.get("sites"))
+                states = list(refresh.get("sites") or [])
                 faults = self._site_state_faults(states)
                 ok_count = int(refresh.get("ok_count") or 0)
                 excluded_lines = self._format_site_state_lines(states, suffix="未计入本次刷新")
-                if ok_count:
+                site_error = self._site_refresh_failure_message(refresh)
+                if site_error:
+                    headline = site_error
+                elif not active_count:
+                    headline = "未启用 PT 站点"
+                elif ok_count:
                     headline = (
                         f"已刷新 {ok_count}/{active_count} 个站点用户数据"
                         if active_count and ok_count != active_count
@@ -148,9 +143,11 @@ class FusionReportMixin:
                 else:
                     headline = "已触发站点用户数据刷新，未返回可用数据"
                 message = "\n".join([headline, *excluded_lines]) if excluded_lines else headline
-                refresh_success = bool(ok_count) or active_count == 0
+                refresh_success = not site_error
                 self._save_task_result("站点数据统计", refresh_success, 0 if refresh_success else 1, message)
                 result.update({
+                    "success": refresh_success,
+                    "site_refresh": refresh,
                     "site_userdata": "ok" if ok_count == active_count else ("partial" if ok_count else "empty"),
                     "count": count,
                     "ok_count": ok_count,
@@ -169,11 +166,11 @@ class FusionReportMixin:
                 result["health_check"] = "skipped"
 
             return result
-        except Exception as err:
-            message = f"融合卡实时数据刷新失败：{err}"
+        except Exception:
+            message = "融合卡实时数据刷新失败"
             logger.warning(f"Signal {message}")
             self._save_task_result("融合卡实时刷新", False, 1, message)
-            return {"site_userdata": "error", "success": False, "error": str(err), "message": message}
+            return {**result, "site_userdata": "error", "success": False, "error": message, "message": message}
 
     def _save_fusion_report_result(self, updated: bool, success: bool, text: str = "", error: str = "", message: str = "", returncode: int = 0):
         snapshot = self._subscription_calendar_snapshot_for_scope()

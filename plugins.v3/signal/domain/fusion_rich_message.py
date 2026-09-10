@@ -5,6 +5,7 @@ from copy import deepcopy
 from typing import Any, Dict, Iterable, List, Sequence
 
 from .fusion_completion import normalize_completion_tasks
+from .fusion_composition import _site_count_label
 
 from .fusion_card_model import validate_v7_card_model
 
@@ -167,6 +168,9 @@ def _persistent_blocks(module: Dict[str, Any], state: str) -> List[Dict[str, Any
             ])
         if site_rows:
             blocks.append(_multirow_table(site_rows))
+        notices = _details_block("未计入今日流量", _row_blocks(module.get("notice_rows"), secondary_a=True), False)
+        if notices:
+            blocks.append(notices)
     return [_details_block(summary, blocks, True)] if blocks else []
 
 
@@ -421,17 +425,13 @@ def _summary(module: Dict[str, Any]) -> List[Any]:
 
 def _dynamic_summary_count(module: Dict[str, Any]) -> str:
     owner = str(module.get("owner") or "").strip()
+    if owner == "persistent-sites":
+        count = str(module.get("count") or "").strip()
+        # Detail filtering must never change the collector's population counts.
+        return count if count == "等待首次采集" else _site_count_label(count, ())
     authored = _compact_summary_count(module.get("count"))
     if authored == "等待首次采集":
         return authored
-    if owner == "persistent-sites":
-        rows = _rows(module.get("preview_rows")) + _rows(module.get("details_rows"))
-        match = re.fullmatch(r"(\d+)/(\d+)在线", authored)
-        if match:
-            online, total = (int(item) for item in match.groups())
-            if not rows or total == len(rows):
-                return f"{min(online, total)}/{total}在线"
-        return f"{len(rows)}/{len(rows)}在线" if rows else ""
     if owner == "persistent-storage":
         rows = _rows(module.get("preview_rows")) + _rows(module.get("details_rows"))
         return f"{len(rows)}个容器" if rows else ""

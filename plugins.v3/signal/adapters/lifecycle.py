@@ -7,6 +7,7 @@ V3 migration note:
 import re
 import threading
 import time
+from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional
 
@@ -24,10 +25,14 @@ class LifecycleMixin:
     _site_refresh_state_key = "site_stat_refresh_state_v1"
     _site_refresh_condition = threading.Condition(threading.RLock())
     _site_refresh_running = False
+    _site_refresh_started_at = 0.0
+    _site_refresh_running_key = None
+    _site_refresh_running_started_at = ""
     _site_refresh_last_result = None
     _site_refresh_last_finished_at = 0.0
     _site_refresh_last_key = None
     _site_refresh_cache_ttl_seconds = 5.0
+    SITE_REFRESH_SOURCES = {"site_stat_manual", "site_stat_scheduled", "fusion_create_manual", "fusion_create_scheduled", "fusion_refresh"}
 
     @classmethod
     def _clear_site_refresh_cache(cls):
@@ -37,25 +42,49 @@ class LifecycleMixin:
             cls._site_refresh_last_key = None
 
     def _save_site_refresh_state(self, result: Mapping[str, Any]) -> None:
-        """Persist the last refresh outcome so a failed run cannot look healthy after reload."""
+        """Keep one bounded, safe completed result; never persist raw host errors."""
         saver = getattr(self, "save_data", None)
         if not callable(saver):
             return
+        status = str(result.get("status") or "error")
+        if status not in {"ok", "partial", "empty", "active_sites_error", "timeout", "error"}:
+            status = "error"
+        sites = []
+        for item in result.get("sites") or []:
+            if not isinstance(item, dict):
+                continue
+            item_status = item.get("status") if item.get("status") in {"ok", "fault", "checker_error"} else "checker_error"
+            code, reason = "ok", ""
+            if item_status == "fault":
+                code = item.get("reason_code")
+                if code not in {"fetch_login", "fetch_timeout", "fetch_connect", "fetch_empty", "fetch_error"}:
+                    code, _ = self._site_error_details(item.get("reason"))
+                reason = self.SITE_STAT_REASONS[code].removeprefix("采集失败：")
+            elif item_status == "checker_error":
+                code, reason = "checker_error", "站点身份匹配失败"
+            sites.append({"name": self._site_safe_name(item.get("name")),
+                          "domain": site_helpers.normalize_site_domain(item.get("domain")),
+                          "status": item_status, "reason_code": code, "reason": reason,
+                          "attempted_at": self._site_timestamp(item.get("attempted_at")),
+                          "finished_at": self._site_timestamp(item.get("finished_at"))})
         payload = {
-            "success": bool(result.get("success")),
-            "status": str(result.get("status") or "error"),
-            "message": str(result.get("message") or "")[:500],
+            "success": bool(result.get("success")), "status": status,
+            "message": {"active_sites_error": "读取启用站点失败", "timeout": "等待站点刷新超时", "error": "站点刷新检查失败"}.get(status, ""),
             "active_count": int(result.get("active_count") or 0),
-            "active_scope_known": bool(result.get("active_scope_known", True)),
-            "active_domains": sorted({str(item).strip() for item in (result.get("active_domains") or []) if str(item).strip()}),
-            "count": int(result.get("count") or 0),
-            "errors": [str(item)[:160] for item in (result.get("errors") or [])[:3]],
-            "finished_at": datetime.now().isoformat(timespec="microseconds"),
+            "active_scope_known": result.get("active_scope_known") is True,
+            "active_domains": sorted({site_helpers.normalize_site_domain(item) for item in result.get("active_domains") or [] if item}),
+            "count": int(result.get("count") or 0), "ok_count": int(result.get("ok_count") or 0),
+            "source": result.get("source") if result.get("source") in self.SITE_REFRESH_SOURCES else "unknown",
+            "started_at": self._site_timestamp(result.get("started_at")),
+            "finished_at": self._site_timestamp(result.get("finished_at")),
+            "data_date": self._site_timestamp(str(result.get("data_date") or "") + " 00:00:00")[:10],
+            "sites": sites,
+            "errors": [f"{item['name']}：{item['reason']}" for item in sites if item["status"] != "ok"],
         }
         try:
             saver(self._site_refresh_state_key, payload)
-        except Exception as err:
-            logger.warning(f"Signal 站点刷新状态保存失败：{err}")
+        except Exception:
+            logger.warning("Signal 站点刷新状态保存失败")
 
     def _load_site_refresh_state(self) -> Dict[str, Any]:
         loader = getattr(self, "get_data", None)
@@ -63,202 +92,164 @@ class LifecycleMixin:
             return {}
         try:
             raw = loader(self._site_refresh_state_key)
-        except Exception as err:
-            logger.warning(f"Signal 站点刷新状态读取失败：{err}")
+        except Exception:
+            logger.warning("Signal 站点刷新状态读取失败")
             return {}
         return dict(raw) if isinstance(raw, dict) else {}
 
-    def _refresh_site_userdata_coordinated(self) -> Dict[str, Any]:
-        try:
-            from app.sdk.utilities import StringUtils
-            host_normalizer = getattr(StringUtils, "get_url_domain", None)
-            if not callable(host_normalizer):
-                raise AttributeError("StringUtils.get_url_domain is unavailable")
+    @staticmethod
+    def _site_refresh_inflight_snapshot() -> Dict[str, Any]:
+        cls = LifecycleMixin
+        with cls._site_refresh_condition:
+            key = cls._site_refresh_running_key
+            running = bool(cls._site_refresh_running and key and cls._site_refresh_running_started_at)
+            return {"running": running, "scope": sorted(key[2]) if running else [],
+                    "date": key[0] if running else "", "started_at": cls._site_refresh_running_started_at if running else "",
+                    "elapsed_seconds": max(0.0, time.monotonic() - cls._site_refresh_started_at) if running else 0.0}
 
-            def normalize_domain(value: Any) -> str:
-                normalized = str(host_normalizer(str(value or "")) or "").strip().lower()
-                return normalized or site_helpers.normalize_site_domain(value)
-        except Exception:
-            normalize_domain = site_helpers.normalize_site_domain
+    def _refresh_site_userdata_coordinated(self, *, source: str = "site_stat_manual") -> Dict[str, Any]:
+        source = source if source in self.SITE_REFRESH_SOURCES else "unknown"
+        started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        data_date = started_at[:10]
+        active_sites = []
+        active_domains = set()
+
+        def finish(result: Dict[str, Any]) -> Dict[str, Any]:
+            result.setdefault("active_count", len(active_sites))
+            result.setdefault("active_domains", sorted(active_domains))
+            result.setdefault("active_scope_known", True)
+            result.setdefault("count", 0)
+            result.setdefault("ok_count", 0)
+            result.setdefault("sites", [])
+            result.setdefault("errors", [])
+            result.update(started_at=started_at, finished_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                          data_date=data_date, source=source)
+            return result
+
         try:
             from app.db.oper.site import SiteOper
             active_sites = site_helpers.select_user_data_sites(SiteOper().list_active() or [])
-        except Exception as err:
-            # An active-site lookup failure is not equivalent to an empty
-            # configuration.  Fail closed before touching the refresh chain.
-            result = {
-                "success": False,
-                "status": "active_sites_error",
-                "active_count": 0,
-                "count": 0,
-                "active_scope_known": False,
-                "active_domains": [],
-                "message": f"读取启用站点失败：{err}，已取消统计以避免使用旧快照",
-            }
+            active_domains = {site_helpers.normalize_site_domain(getattr(site, "domain", "")) for site in active_sites}
+            active_domains.discard("")
+        except Exception:
+            result = finish({"success": False, "status": "active_sites_error", "active_scope_known": False,
+                             "message": "读取启用站点失败"})
             self._save_site_refresh_state(result)
             return result
-        active_site_count = len(active_sites)
-        active_domains = {normalize_domain(getattr(site, "domain", "")) for site in active_sites}
-        active_domains.discard("")
-        active_count = active_site_count
-        active_identity_invalid = len(active_domains) != active_site_count
-        if active_identity_invalid:
-            result = {
-                "success": False,
-                "status": "active_sites_error",
-                "active_count": active_count,
-                "count": 0,
-                "active_domains": sorted(active_domains),
-                "active_identity_invalid": True,
-                "message": "启用站点存在无效域名，已取消统计以避免使用旧快照",
-            }
+        if len(active_domains) != len(active_sites):
+            result = finish({"success": False, "status": "active_sites_error", "active_identity_invalid": True,
+                             "message": "启用站点身份匹配失败"})
             self._save_site_refresh_state(result)
             return result
-        cache_key = (active_count, frozenset(active_domains))
 
         cls = LifecycleMixin
         with cls._site_refresh_condition:
-            now = time.monotonic()
-            if (
-                cls._site_refresh_last_result is not None
-                and cls._site_refresh_last_key == cache_key
-                and now - cls._site_refresh_last_finished_at <= cls._site_refresh_cache_ttl_seconds
-            ):
-                return dict(cls._site_refresh_last_result)
+            def cached_result():
+                key = (datetime.now().strftime("%Y-%m-%d"), len(active_sites), frozenset(active_domains))
+                age = time.monotonic() - cls._site_refresh_last_finished_at
+                if (cls._site_refresh_last_result is not None and cls._site_refresh_last_key == key
+                        and cls._site_refresh_last_result.get("data_date") == key[0]
+                        and 0 <= age <= cls._site_refresh_cache_ttl_seconds):
+                    return deepcopy(cls._site_refresh_last_result)
+                return None
+
+            cached = cached_result()
+            if cached is not None:
+                return cached
             if cls._site_refresh_running:
-                completed = cls._site_refresh_condition.wait_for(
-                    lambda: not cls._site_refresh_running, timeout=60.0
-                )
+                completed = cls._site_refresh_condition.wait_for(lambda: not cls._site_refresh_running, timeout=60.0)
                 if not completed:
-                    timeout_result = {
-                        "success": False,
-                        "status": "timeout",
-                        "active_count": active_count,
-                        "count": 0,
-                        "active_domains": sorted(active_domains),
-                        "message": "等待正在执行的站点刷新超时，已取消本次统计",
-                    }
-                    self._save_site_refresh_state(timeout_result)
-                    return timeout_result
-                if cls._site_refresh_last_result is not None and cls._site_refresh_last_key == cache_key:
-                    return dict(cls._site_refresh_last_result)
+                    data_date = datetime.now().strftime("%Y-%m-%d")
+                    result = finish({"success": False, "status": "timeout", "message": "等待站点刷新超时"})
+                    self._save_site_refresh_state(result)
+                    return result
+                cached = cached_result()
+                if cached is not None:
+                    return cached
+            started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            data_date = started_at[:10]
+            cache_key = (data_date, len(active_sites), frozenset(active_domains))
+            cls._site_refresh_started_at = time.monotonic()
+            cls._site_refresh_running_key = cache_key
+            cls._site_refresh_running_started_at = started_at
             cls._site_refresh_running = True
 
         try:
             from app.chain.site import SiteChain
             from app.sdk.network import SitesHelper
+            from app.sdk.utilities import StringUtils
 
-            if not active_sites:
-                result = {
-                    "success": True,
-                    "status": "ok",
-                    "active_count": 0,
-                    "count": 0,
-                    "active_domains": [],
-                    "errors": [],
-                    "ok_count": 0,
-                    "sites": [],
-                    "faults": [],
-                    "checker_errors": [],
-                    "identity_missing": False,
-                    "identity_mismatch": False,
-                    "message": "",
-                }
-            else:
-                indexers = SitesHelper().get_indexers() or []
-                indexer_lookup: Dict[str, Dict[str, Any]] = {}
-                duplicate_domains = set()
-                for indexer in indexers:
-                    if not isinstance(indexer, dict):
-                        continue
-                    domain = normalize_domain(indexer.get("domain") or indexer.get("url"))
-                    if not domain:
-                        continue
-                    if domain in indexer_lookup:
-                        duplicate_domains.add(domain)
-                    else:
-                        indexer_lookup[domain] = indexer
+            host_normalizer = getattr(StringUtils, "get_url_domain", site_helpers.normalize_site_domain)
+            def host_domain(value):
+                return str(host_normalizer(str(value or "")) or "").strip().lower()
 
-                errors = [f"{domain}：indexer 匹配重复" for domain in sorted(duplicate_domains & active_domains)]
-                returned_domains = set()
-                # One entry per active site.  A single failing site is reported
-                # as its own state and never cancels the whole statistics run;
-                # only an overall refresh failure does that.
-                sites: List[Dict[str, str]] = []
-                chain = SiteChain()
-                for site in active_sites:
-                    domain = normalize_domain(getattr(site, "domain", ""))
-                    indexer = indexer_lookup.get(domain)
-                    label = str(getattr(site, "name", None) or domain or "未知站点")
-                    if domain in duplicate_domains or not indexer:
-                        errors.append(f"{label}：找不到对应 indexer")
-                        sites.append({
-                            "name": label,
-                            "domain": domain,
-                            "status": "checker_error",
-                            "reason": "indexer 匹配重复" if domain in duplicate_domains else "找不到对应 indexer",
-                        })
-                        continue
+            exact_lookup: Dict[str, List[Dict[str, Any]]] = {}
+            host_lookup: Dict[str, List[Dict[str, Any]]] = {}
+            for indexer in (SitesHelper().get_indexers() or []) if active_sites else []:
+                if not isinstance(indexer, dict):
+                    continue
+                raw_domain = indexer.get("domain") or indexer.get("url")
+                domain = site_helpers.normalize_site_domain(raw_domain)
+                if domain:
+                    exact_lookup.setdefault(domain, []).append(indexer)
+                    host_lookup.setdefault(host_domain(raw_domain), []).append(indexer)
+            active_host_domains = [host_domain(getattr(site, "domain", "")) for site in active_sites]
+            returned_domains = set()
+            sites = []
+            chain = SiteChain() if active_sites else None
+            for site in active_sites:
+                raw_domain = getattr(site, "domain", "")
+                domain = site_helpers.normalize_site_domain(raw_domain)
+                label = self._site_safe_name(getattr(site, "name", None) or domain or "未知站点")
+                candidates = exact_lookup.get(domain)
+                if candidates is None:
+                    key = host_domain(raw_domain)
+                    candidates = host_lookup.get(key, []) if active_host_domains.count(key) == 1 else []
+                item = {"name": label, "domain": domain, "status": "ok", "reason_code": "ok", "reason": "",
+                        "attempted_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+                if len(candidates) != 1:
+                    item.update(status="checker_error", reason_code="checker_error", reason="站点身份匹配失败")
+                else:
+                    error = ""
                     try:
-                        userdata = chain.refresh_userdata(site=indexer)
+                        userdata = chain.refresh_userdata(site=candidates[0])
+                        if userdata is None:
+                            error = "未返回用户数据"
+                        else:
+                            returned_domains.add(domain)
+                            error = str(getattr(userdata, "err_msg", "") or "").strip()
                     except Exception as err:
-                        errors.append(f"{label}：{str(err)[:120]}")
-                        sites.append({"name": label, "domain": domain, "status": "fault", "reason": str(err)[:120]})
-                        continue
-                    if userdata is None:
-                        errors.append(f"{label}：未返回用户数据")
-                        sites.append({"name": label, "domain": domain, "status": "fault", "reason": "未返回用户数据"})
-                        continue
-                    returned_domains.add(domain)
-                    error = str(getattr(userdata, "err_msg", "") or "").strip()
+                        error = str(err)
                     if error:
-                        errors.append(f"{label}：{error[:120]}")
-                        sites.append({"name": label, "domain": domain, "status": "fault", "reason": error[:120]})
-                        continue
-                    sites.append({"name": label, "domain": domain, "status": "ok", "reason": ""})
-
-                count = len(returned_domains)
-                faults = [item for item in sites if item["status"] == "fault"]
-                checker_errors = [item for item in sites if item["status"] == "checker_error"]
-                ok_count = len([item for item in sites if item["status"] == "ok"])
-                identity_missing = bool(active_domains - returned_domains)
-                identity_mismatch = active_domains != returned_domains
-                result = {
-                    "success": True,
-                    "status": "ok" if ok_count == active_count else ("partial" if ok_count else "empty"),
-                    "active_count": active_count,
-                    "count": count,
-                    "ok_count": ok_count,
-                    "sites": sites,
-                    "faults": faults,
-                    "checker_errors": checker_errors,
-                    "active_domains": sorted(active_domains),
-                    "errors": errors,
-                    "identity_missing": identity_missing,
-                    "identity_mismatch": identity_mismatch,
-                    "active_identity_invalid": active_identity_invalid,
-                    "message": "",
-                }
-        except Exception as err:
-            result = {
-                "success": False,
-                "status": "error",
-                "active_count": active_count,
-                "count": 0,
-                "active_domains": sorted(active_domains),
-                "message": f"站点用户数据刷新失败：{err}",
-            }
+                        code, reason = self._site_error_details(error)
+                        item.update(status="fault", reason_code=code, reason=reason)
+                item["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                sites.append(item)
+            ok_count = sum(item["status"] == "ok" for item in sites)
+            result = {"success": True, "status": "ok" if ok_count == len(active_sites) else ("partial" if ok_count else "empty"),
+                      "count": len(returned_domains), "ok_count": ok_count, "sites": sites,
+                      "returned_domains": sorted(returned_domains),
+                      "faults": [item for item in sites if item["status"] == "fault"],
+                      "checker_errors": [item for item in sites if item["status"] == "checker_error"],
+                      "errors": [f"{item['name']}：{item['reason']}" for item in sites if item["status"] != "ok"],
+                      "identity_missing": bool(active_domains - returned_domains), "identity_mismatch": active_domains != returned_domains,
+                      "active_identity_invalid": False, "message": ""}
+        except Exception:
+            result = {"success": False, "status": "error", "message": "站点刷新检查失败"}
         finally:
-            if "result" in locals():
-                self._save_site_refresh_state(result)
+            result = finish(result)
+            self._save_site_refresh_state(result)
             with cls._site_refresh_condition:
-                if "result" in locals():
-                    cls._site_refresh_last_result = dict(result)
-                    cls._site_refresh_last_finished_at = time.monotonic()
-                    cls._site_refresh_last_key = cache_key
+                cls._site_refresh_last_result = deepcopy(result)
+                cls._site_refresh_last_finished_at = time.monotonic()
+                cls._site_refresh_last_key = cache_key
+                cls._site_refresh_started_at = 0.0
+                cls._site_refresh_running_key = None
+                cls._site_refresh_running_started_at = ""
                 cls._site_refresh_running = False
                 cls._site_refresh_condition.notify_all()
         return result
+
 
     def _load_plugin_config(self, config: Dict[str, Any]):
         self._load_report_config(config)

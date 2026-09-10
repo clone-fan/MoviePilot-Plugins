@@ -47,10 +47,24 @@ class MpApiMixin:
             self._save_task_result("融合通知卡", False, -1, msg)
             logger.warning(f"Signal {msg}")
             return {"code": 1, "msg": msg, "data": self._tg_console_action_status_data(1, msg)}
+        site_error = ""
+        sent = ok
         if ok:
+            state.pop("site_refresh", None)
+            if getattr(self, "_site_stat_enabled", False):
+                source = {"manual": "fusion_create_manual", "scheduled": "fusion_create_scheduled"}.get(trigger, "unknown")
+                refresh = self._refresh_site_userdata_coordinated(source=source)
+                state["site_refresh"] = refresh
+                site_error = self._site_refresh_failure_message(refresh)
             columns_ok = self._refresh_fusion_columns(state)
             self._compose_tg_console_v7_model(state)
-            ok = bool(self._tg_console_upsert_card(token, chat_id, state)) and bool(columns_ok)
+            try:
+                sent = bool(self._tg_console_upsert_card(token, chat_id, state))
+            except Exception as err:
+                sent = False
+                self._tg_console_last_error = f"融合通知卡发送异常：{self._telegram_safe_error(err, limit=500)}"
+                state["last_error"] = self._tg_console_last_error
+            ok = sent and bool(columns_ok) and not site_error
         calendar_status = str(state.get("subscription_calendar_status") or "").strip()
         if calendar_status in {"partial", "failed", "invalid"}:
             ok = False
@@ -58,6 +72,10 @@ class MpApiMixin:
                 f"订阅日历状态：{calendar_status}"
                 + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
             )
+        if site_error:
+            transport_error = "" if sent else self._telegram_safe_error(self._tg_console_last_error or state.get("last_error") or "发送失败", limit=500)
+            self._tg_console_last_error = "；".join(part for part in (site_error, transport_error) if part)
+            state["last_error"] = self._tg_console_last_error
         self._save_tg_console_state(state)
         if not ok:
             msg = self._tg_console_last_error or state.get("last_error") or "融合通知卡创建失败"
@@ -617,28 +635,19 @@ class MpApiMixin:
             data = self._site_increment_snapshot()
             if data.get("error"):
                 return {"code": 1, "msg": f"站点统计图数据获取失败：{data['error']}", "data": data}
-            state_loader = getattr(self, "_load_site_refresh_state", None)
-            refresh_state = state_loader() if callable(state_loader) else {}
-            if self._site_refresh_state_is_current_failure(refresh_state, data):
-                message = str(refresh_state.get("message") or "站点数据刷新失败，已取消统计以避免使用旧快照")
-                data["refresh_state"] = refresh_state
-                data["error"] = message
-                data["data_valid"] = False
-                data["stale"] = True
-                return {"code": 1, "msg": message, "data": data}
             return {"code": 0, "data": data}
-        except Exception as err:
-            logger.error(f"站点统计图数据获取失败：{err}")
+        except Exception:
+            logger.error("站点统计图数据获取失败")
             return {
                 "code": 1,
-                "msg": str(err),
+                "msg": "站点统计检查失败",
                 "data": {
                     "date": "",
                     "basis": "today",
                     "sites": [],
                     "upload_total": 0,
                     "download_total": 0,
-                    "error": str(err),
+                    "error": "站点统计检查失败",
                 },
             }
 
@@ -666,17 +675,12 @@ class MpApiMixin:
             data = self._skipped_data(msg, {"date": "", "basis": "skipped", "sites": [], "upload_total": 0, "download_total": 0})
             return {"code": 1, "msg": msg, "data": data}
         try:
-            refresh = self._refresh_site_userdata_for_stat()
+            refresh = self._refresh_site_userdata_for_stat(trigger=trigger)
+            snapshot = self._site_increment_snapshot(refresh_result=refresh)
             if not refresh.get("success"):
-                msg = str(refresh.get("message") or "站点用户数据刷新失败")
-                payload = {
-                    "date": self._today_prefix(),
-                    "basis": "today",
-                    "sites": [],
-                    "upload_total": 0,
-                    "download_total": 0,
-                    "refresh": refresh,
-                }
+                msg = self._site_refresh_failure_message(refresh)
+                payload = snapshot
+                payload["refresh"] = refresh
                 self._save_task_result("站点数据统计", False, 1, msg)
                 if scheduled_failure_notify:
                     self._notify_fusion_task_outcome(
@@ -696,7 +700,7 @@ class MpApiMixin:
                         notification_manual=notify,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
-            chart = self.api_site_stat_chart()
+            chart = {"code": 1 if snapshot.get("error") else 0, "msg": snapshot.get("error") or "", "data": snapshot}
             if (chart or {}).get("code", 0) != 0:
                 msg = (chart or {}).get("msg") or "站点统计图数据获取失败"
                 payload = (chart or {}).get("data") or {"date": "", "basis": "today", "sites": [], "upload_total": 0, "download_total": 0}
@@ -723,10 +727,13 @@ class MpApiMixin:
             snapshot_error = str(payload.get("error") or "").strip()
             # 刷新协调器只贡献逐站点原因，快照层决定可计入集合，
             # 发布层只做"有无可计入站点"的二分：个别站点故障不取消整次统计。
-            states = self._merge_site_states(payload.get("site_states"), refresh.get("sites"))
+            states = list(payload.get("site_states") or [])
             counted = self._site_state_counted(states)
             faults = self._site_state_faults(states)
             excluded_lines = self._format_site_state_lines(states)
+            active_count = int(payload.get("active_count") or 0)
+            refresh_count = payload.get("refresh_ok_count")
+            refresh_label = str(refresh_count) if refresh_count is not None else "未知"
             if snapshot_error:
                 msg = f"站点统计图数据获取失败：{snapshot_error}"
                 self._save_task_result("站点数据统计", False, 1, msg)
@@ -751,17 +758,8 @@ class MpApiMixin:
             if not counted and int(payload.get("active_count") or 0) > 0:
                 # 没有任何可计入站点：只发一条统计侧通知并逐站列出原因，
                 # 不再额外触发站点故障目标，避免成对重复告警。
-                msg = "本次没有可计入今日增量的站点"
+                msg = f"刷新成功 {refresh_label}/{active_count} 站｜今日增量暂不可用"
                 text = "\n".join([msg, *excluded_lines]) if excluded_lines else msg
-                payload["site_states"] = states
-                payload["counted_count"] = 0
-                payload["fault_count"] = len(faults)
-                payload["unavailable_count"] = len([
-                    item for item in states if str(item.get("status") or "") == "unavailable"
-                ])
-                payload["checker_error_count"] = len([
-                    item for item in states if str(item.get("status") or "") == "checker_error"
-                ])
                 self._save_task_result("站点数据统计", False, 1, text)
                 if scheduled_failure_notify:
                     self._notify_fusion_task_outcome(
@@ -783,22 +781,10 @@ class MpApiMixin:
                         notification_manual=notify,
                     )
                 return {"code": 1, "msg": msg, "data": payload}
-            # 返回体必须和通知口径一致：快照层只知道快照结论，
-            # 刷新侧的站点故障要写回 payload，否则 API 会出现
-            # "通知说站点异常、payload 说全部正常" 的矛盾。
-            payload["site_states"] = states
-            payload["counted_count"] = len(counted)
-            payload["fault_count"] = len(faults)
-            payload["unavailable_count"] = len([
-                item for item in states if str(item.get("status") or "") == "unavailable"
-            ])
-            payload["checker_error_count"] = len([
-                item for item in states if str(item.get("status") or "") == "checker_error"
-            ])
-            site_count = len(payload.get("sites") or [])
             upload = self._format_bytes(payload.get("upload_total", 0))
             download = self._format_bytes(payload.get("download_total", 0))
-            text = f"已刷新 {site_count} 个站点｜今日｜上传 {upload}｜下载 {download}" if site_count else "已刷新站点数据，暂无可用增量"
+            text = (f"刷新成功 {refresh_label}/{active_count} 站｜可统计 {len(counted)}/{active_count} 站｜今日上传 {upload}｜下载 {download}"
+                    if active_count else "未启用 PT 站点")
             self._save_task_result("站点数据统计", True, 0, text)
             if scheduled_success_notify:
                 has_increment = bool(payload.get("upload_total") or payload.get("download_total"))
@@ -935,33 +921,7 @@ class MpApiMixin:
             notification_manual=False,
         )
 
-    @staticmethod
-    def _site_refresh_state_is_current_failure(state: Dict[str, Any], data: Dict[str, Any]) -> bool:
-        if not state or state.get("success") is not False:
-            return False
-        if state.get("active_scope_known") is not True:
-            return False
-        if state.get("active_count") is not None and data.get("active_count") is not None:
-            try:
-                if int(state.get("active_count")) != int(data.get("active_count")):
-                    return False
-            except (TypeError, ValueError):
-                return False
-        persisted_domains = {str(item).strip() for item in (state.get("active_domains") or []) if str(item).strip()}
-        current_domains = {str(item).strip() for item in (data.get("active_domains") or []) if str(item).strip()}
-        if persisted_domains != current_domains:
-            return False
-        finished_at = str(state.get("finished_at") or "").strip()
-        latest_updated_at = str(data.get("latest_updated_at") or "").strip()
-        # A later host refresh can recover the persisted Signal failure.  If
-        # no newer snapshot exists, keep surfacing the failure after reload.
-        # MoviePilot V2 stores updated_time at one-second precision.  Treat an
-        # equal-second host row as the recovery edge rather than holding the
-        # error until the next second; a later row is the authoritative signal.
-        failure_second = finished_at[:19].replace("T", " ")
-        return not latest_updated_at or not finished_at or latest_updated_at < failure_second
-
-    def _refresh_site_userdata_for_stat(self) -> Dict[str, Any]:
+    def _refresh_site_userdata_for_stat(self, trigger: str = "manual") -> Dict[str, Any]:
         """Refresh active MoviePilot site data before a stat run.
 
         This is intentionally kept out of ``api_site_stat_chart`` because GET
@@ -969,7 +929,8 @@ class MpApiMixin:
         success when MoviePilot has no active sites; otherwise it means the
         refresh produced no usable current-day data.
         """
-        return self._refresh_site_userdata_coordinated()
+        source = {"manual": "site_stat_manual", "scheduled": "site_stat_scheduled"}.get(trigger, "unknown")
+        return self._refresh_site_userdata_coordinated(source=source)
 
     def api_preview_downloader_helper(self) -> Dict[str, Any]:
         ok, msg = self._can_run_task("下载器助手", "dltag")

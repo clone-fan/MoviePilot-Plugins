@@ -313,7 +313,15 @@ class TgConsoleFusionMixin:
             state["last_error"] = "融合通知当前没有可刷新的 active card"
             self._save_tg_console_state(state)
             return False
-        self._tg_console_set_report_section(state, "fusion_report", "立即刷新", fusion_text, level="success")
+        refresh = (live_result or {}).get("site_refresh") if getattr(self, "_site_stat_enabled", False) else None
+        site_error = self._site_refresh_failure_message(refresh)
+        live_failed = isinstance(live_result, dict) and live_result.get("success") is False
+        if live_failed and not site_error:
+            site_error = "融合卡实时数据刷新失败"
+        state.pop("site_refresh", None)
+        if isinstance(refresh, dict):
+            state["site_refresh"] = refresh
+        self._tg_console_set_report_section(state, "fusion_report", "立即刷新", fusion_text, level="error" if site_error else "success")
         previous_context = getattr(self, "_fusion_refresh_context", None)
         self._fusion_refresh_context = {"live_result": live_result or {}}
         try:
@@ -328,13 +336,14 @@ class TgConsoleFusionMixin:
             else:
                 self._fusion_refresh_context = previous_context
         try:
-            ok = bool(self._tg_console_upsert_card(token, chat_id, state)) and bool(columns_ok)
+            sent = bool(self._tg_console_upsert_card(token, chat_id, state))
+            ok = sent and bool(columns_ok) and not site_error
         except Exception as err:
+            sent = False
+            ok = False
             self._tg_console_last_error = f"Telegram 融合通知全量刷新异常：{self._telegram_safe_error(err, limit=500)}"
             state["last_error"] = self._tg_console_last_error
-            self._save_tg_console_state(state)
             logger.warning(f"Signal {self._tg_console_last_error}")
-            return False
         calendar_status = str(state.get("subscription_calendar_status") or "").strip()
         if calendar_status in {"partial", "failed", "invalid"}:
             ok = False
@@ -345,6 +354,10 @@ class TgConsoleFusionMixin:
         if ok:
             self._tg_console_last_error = ""
             state["last_error"] = ""
+        if site_error:
+            transport_error = "" if sent else self._telegram_safe_error(self._tg_console_last_error or state.get("last_error") or "发送失败", limit=500)
+            self._tg_console_last_error = "；".join(part for part in (site_error, transport_error) if part)
+            state["last_error"] = self._tg_console_last_error
         self._save_tg_console_state(state)
         return ok
 

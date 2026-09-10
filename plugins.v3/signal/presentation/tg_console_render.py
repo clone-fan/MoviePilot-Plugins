@@ -1,6 +1,8 @@
 import re
 import os
-from datetime import datetime
+import hashlib
+import json
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.sdk.logging import logger
@@ -46,15 +48,31 @@ class TgConsoleRenderMixin:
         return state["v7_model"]
 
     def _compose_tg_console_v7_model(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        site_snapshot = self._site_increment_snapshot()
-        site_rows = [
-            [str(item.get("name") or "站点"), f"↑{self._format_bytes(item.get('upload', 0))} · ↓{self._format_bytes(item.get('download', 0))}"]
-            for item in site_snapshot.get("sites") or []
-            if isinstance(item, dict)
-        ]
-        site_total = int(site_snapshot.get("active_count") or site_snapshot.get("visible_count") or len(site_rows))
-        site_online = max(0, site_total - int(site_snapshot.get("error_count") or 0) - int(site_snapshot.get("stale_count") or 0))
-        site_count = f"{site_online} / {site_total} 在线" if site_total else ""
+        refresh_input = state.pop("site_refresh", None)
+        site_enabled = bool(getattr(self, "_site_stat_enabled", False))
+        site_snapshot = self._site_increment_snapshot(refresh_result=refresh_input) if site_enabled else {"site_states": [], "active_count": 0}
+        # The snapshot separates nonzero details from complete states and counts.
+        site_rows = [[str(item.get("name") or "站点"),
+                      f"↑{self._format_bytes(item['upload'])} · ↓{self._format_bytes(item['download'])}"]
+                     for item in site_snapshot.get("sites") or []]
+        site_notices = [[str(item.get("name") or "站点"), self._site_notice_detail(item, site_snapshot.get("date"))]
+                        for item in site_snapshot.get("site_states") or [] if item.get("status") != "ok"]
+        site_total = int(site_snapshot.get("active_count") or 0)
+        counted = int(site_snapshot.get("counted_count") or 0)
+        site_count = (f"{site_snapshot.get('updated_count', 0)}/{site_total}已更新 · {site_snapshot.get('counted_count', 0)}/{site_total}可统计"
+                      if site_total else "未启用 PT 站点")
+        site_summary = (f"↑{self._format_bytes(site_snapshot['upload_total'])}  ↓{self._format_bytes(site_snapshot['download_total'])}"
+                        if counted else "暂不可用")
+        if not site_total:
+            site_count = "站点统计检查失败" if site_snapshot.get("error") else "未启用 PT 站点"
+            site_rows = [[site_count, ""]]
+            site_summary = ""
+        if site_enabled:
+            source = (refresh_input or {}).get("source") if isinstance(refresh_input, dict) else ""
+            self._record_site_diagnostic(state, site_snapshot, source or site_snapshot.get("refresh_source") or "render")
+        # The collector owns current site anomalies. Other component events stay intact.
+        for key in ("site_stat", "persistent-sites"):
+            self._clear_v7_anomaly(state, key)
 
         storage_lines = self._get_storage_health_locked()
         storage_rows = parse_storage_rows(storage_lines)
@@ -110,6 +128,8 @@ class TgConsoleRenderMixin:
             identity=self._v7_identity(),
             site_rows=site_rows,
             site_count=site_count,
+            site_summary=site_summary,
+            site_notice_rows=site_notices,
             storage_rows=storage_rows,
             subscription_rows=subscription_rows,
             completion_rows=completion_rows,
@@ -121,6 +141,40 @@ class TgConsoleRenderMixin:
         state["v7_state"] = card_state
         state["v7_model"] = build_v7_card_model(snapshot, state=card_state)
         return state["v7_model"]
+
+    @classmethod
+    def _site_notice_detail(cls, item: Dict[str, Any], statistics_day: Any) -> str:
+        # Do not repeat the same collection time as the last successful time.
+        evidence = dict(item)
+        if evidence.get("last_success_at") == evidence.get("snapshot_at"):
+            evidence["last_success_at"] = ""
+        detail = cls._site_state_detail(evidence)
+        code = str(item.get("reason_code") or "")
+        if code not in {"baseline_missing", "baseline_invalid", "baseline_discontinuous", "counter_reset"}:
+            return detail
+        try:
+            yesterday = (datetime.strptime(str(statistics_day), "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        except ValueError:
+            return detail
+        # This is the required comparison date, never a fabricated collection time.
+        reference = f"昨日（{yesterday}）"
+        reason = {
+            "baseline_missing": f"缺少{reference}的记录",
+            "baseline_invalid": f"{reference}的记录无效",
+            "baseline_discontinuous": f"{reference}累计值低于更早记录",
+            "counter_reset": f"今日累计值低于{reference}",
+        }[code] + "，今日增量暂不可用"
+        return detail.replace(cls.SITE_STAT_REASONS[code], reason, 1)
+
+    def _record_site_diagnostic(self, state: Dict[str, Any], site_snapshot: Dict[str, Any], source: str) -> None:
+        sites = sorted((item for item in site_snapshot.get("site_states") or [] if isinstance(item, dict)), key=lambda item: str(item.get("domain") or ""))
+        semantics = [(item.get("domain", ""), item.get("status", ""), item.get("reason_code", ""), item.get("baseline_status", "")) for item in sites]
+        fingerprint = hashlib.sha256(json.dumps(semantics, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
+        history = self._normalize_site_diagnostic(state.get("site_diagnostic"))
+        if not history or history[-1]["fingerprint"] != fingerprint:
+            history.append({"source": source, "observed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "fingerprint": fingerprint, "omitted_count": max(0, len(sites) - 50), "sites": sites[:50]})
+        state["site_diagnostic"] = self._normalize_site_diagnostic(history)
 
     @staticmethod
     def _record_v7_anomaly(state: Dict[str, Any], key: str, anomaly: Dict[str, Any]) -> None:
@@ -181,7 +235,7 @@ class TgConsoleRenderMixin:
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "3.0.1") or "3.0.1")
+        version = str(getattr(self, "plugin_version", "3.0.2") or "3.0.2")
         return {"version": version if version.startswith("v") else f"v{version}", "refreshed_at": datetime.now().strftime("%H:%M")}
 
     @staticmethod
@@ -192,31 +246,47 @@ class TgConsoleRenderMixin:
         snapshot = state.get("v7_snapshot") if isinstance(state, dict) else None
         return [dict(item) for item in (snapshot or {}).get("realtime") or [] if isinstance(item, dict)]
 
-    @staticmethod
-    def _current_v7_anomalies(site_snapshot: Dict[str, Any], storage_lines: List[str]) -> List[Dict[str, Any]]:
+    @classmethod
+    def _current_v7_anomalies(cls, site_snapshot: Dict[str, Any], storage_lines: List[str]) -> List[Dict[str, Any]]:
+        anomalies = []
+        site_rows = []
+        ignored = {"ok", "baseline_missing", "baseline_invalid", "baseline_discontinuous", "counter_reset", "refresh_running"}
+        for item in site_snapshot.get("site_states") or []:
+            code = item.get("reason_code")
+            if code in ignored:
+                continue
+            reason = cls.SITE_STAT_REASONS.get(code, "站点统计检查失败")
+            detail = f"{item.get('name') or item.get('domain') or '站点'}：{reason}"
+            if item.get("last_success_at"):
+                detail += f"；最后成功 {item['last_success_at']}"
+            stamp = cls._site_timestamp(item.get("snapshot_at"))
+            site_rows.append([detail, f"实际采集 {stamp[5:16]}" if stamp else "采集时间未知"])
+        if site_snapshot.get("error") and not site_rows:
+            site_rows.append(["站点统计检查失败", "采集时间未知"])
+        if site_rows:
+            latest = cls._site_timestamp(site_snapshot.get("latest_updated_at"))
+            anomalies.append({"owner": "current-anomalies", "kicker": "当前异常", "count": f"{len(site_rows)} 项",
+                              "primary": "站点数据", "context": "需要关注 · 站点数据",
+                              "meta": f"数据时间 {latest[5:16]}" if latest else "数据时间未知",
+                              # Keep valid totals and site explanations visible alongside anomalies.
+                              "affected_owners": [], "details_rows": site_rows})
         rows = []
-        affected = []
-        if int(site_snapshot.get("error_count") or 0) or int(site_snapshot.get("stale_count") or 0):
-            rows.append(["站点快照存在异常或过期", datetime.now().strftime("%H:%M")])
-            affected.append("persistent-sites")
         for line in storage_lines or []:
             text = str(line or "")
             if "空间偏紧" in text or "检查异常" in text:
                 rows.append([re.sub(r"^[\s⦁•]+", "", text), datetime.now().strftime("%H:%M")])
-                if "persistent-storage" not in affected:
-                    affected.append("persistent-storage")
-        if not rows:
-            return []
-        return [{
+        if rows:
+            anomalies.append({
             "owner": "current-anomalies",
             "kicker": "当前异常",
             "count": f"{len(rows)} 项",
-            "primary": "、".join("站点数据" if owner == "persistent-sites" else "存储空间" for owner in affected),
+            "primary": "存储空间",
             "context": "需要关注 · 健康巡查",
             "meta": f"最近 {rows[0][1]}",
-            "affected_owners": affected,
+            "affected_owners": ["persistent-storage"],
             "details_rows": rows,
-        }]
+            })
+        return anomalies
 
     def _build_tg_console_reply_markup(self, state: Dict[str, Any]) -> Dict[str, Any]:
         return {"inline_keyboard": []}

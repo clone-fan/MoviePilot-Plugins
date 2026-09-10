@@ -3,6 +3,7 @@
 import os
 import re
 import shutil
+import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -97,8 +98,123 @@ class SiteStatsMixin:
         "checker_error": "Signal 检查异常",
     }
 
+    SITE_STAT_REASONS = {
+        "ok": "",
+        "fetch_login": "采集失败：登录失效或未授权",
+        "fetch_timeout": "采集失败：请求超时",
+        "fetch_connect": "采集失败：连接失败",
+        "fetch_empty": "采集失败：未返回用户数据",
+        "fetch_error": "采集失败：宿主返回采集错误",
+        "checker_error": "站点统计检查失败",
+        "refresh_running": "正在更新",
+        "refresh_timeout": "更新等待超时",
+        "snapshot_missing": "尚无站点快照",
+        "snapshot_invalid": "快照数据无效",
+        "snapshot_stale": "数据未更新至今日",
+        "baseline_missing": "今日增量暂不可用：缺少昨日基准",
+        "baseline_invalid": "今日增量暂不可用：昨日基准无效",
+        "baseline_discontinuous": "历史基准异常，今日增量暂不可用",
+        "counter_reset": "累计值回退，今日增量暂不可用",
+    }
+
     @staticmethod
+    def _site_safe_name(value: Any) -> str:
+        return "".join(char for char in str(value or "") if not unicodedata.category(char).startswith("C"))[:80]
+
+    @staticmethod
+    def _site_error_details(value: Any) -> Tuple[str, str]:
+        text = str(value or "").lower()
+        for words, code, reason in (
+            (("登录", "未登录", "login", "401", "403", "cookie"), "fetch_login", "登录失效或未授权"),
+            (("超时", "timeout", "timed out"), "fetch_timeout", "请求超时"),
+            (("连接", "网络", "connect", "network"), "fetch_connect", "连接失败"),
+            (("未返回用户数据", "无 userdata", "no userdata"), "fetch_empty", "未返回用户数据"),
+        ):
+            if any(word in text for word in words):
+                return code, reason
+        return "fetch_error", "宿主返回采集错误"
+
+    @staticmethod
+    def _site_snapshot_day(row: Any) -> str:
+        value = getattr(row, "updated_day", None)
+        try:
+            text = value.strftime("%Y-%m-%d") if hasattr(value, "strftime") else str(value or "").strip()[:10]
+            return datetime.strptime(text, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except (TypeError, ValueError):
+            return ""
+
+    @classmethod
+    def _site_snapshot_time(cls, row: Any) -> str:
+        day = cls._site_snapshot_day(row)
+        clock = str(getattr(row, "updated_time", None) or "").strip()
+        if not day or not re.fullmatch(r"\d{2}:\d{2}:\d{2}", clock):
+            return ""
+        try:
+            return datetime.strptime(f"{day} {clock}", "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return ""
+
+    @staticmethod
+    def _site_timestamp(value: Any) -> str:
+        text = str(value or "").strip()[:19].replace("T", " ")
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", text):
+            return ""
+        try:
+            return datetime.strptime(text, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return ""
+
+    @classmethod
+    def _site_valid_counters(cls, row: Any) -> Optional[Tuple[int, int]]:
+        values = tuple(cls._site_userdata_number(row, key) for key in ("upload", "download"))
+        return values if all(value is not None and value >= 0 for value in values) else None
+
+    def _site_baseline_decision(self, current: Any, previous: Any, earlier_rows: List[Any]) -> Dict[str, Any]:
+        """Only yesterday is a baseline; older daily rows can only disprove it."""
+        decision = {"status": "invalid", "reason_code": "baseline_invalid", "baseline_day": "", "upload": None, "download": None}
+        today = self._today_prefix()
+        yesterday = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        current_values = self._site_valid_counters(current)
+        if self._site_snapshot_day(current) != today or current_values is None:
+            return decision
+        if previous is None:
+            return {**decision, "status": "missing", "reason_code": "baseline_missing"}
+        domain = site_helpers.normalize_site_domain(getattr(current, "domain", ""))
+        previous_values = self._site_valid_counters(previous)
+        if (self._site_snapshot_day(previous) != yesterday or previous_values is None
+                or str(getattr(previous, "err_msg", "") or "").strip()
+                or site_helpers.normalize_site_domain(getattr(previous, "domain", "")) != domain):
+            return decision
+        if any(value < baseline for value, baseline in zip(current_values, previous_values)):
+            return {**decision, "status": "counter_reset", "reason_code": "counter_reset"}
+
+        earliest = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
+        by_day: Dict[str, List[Any]] = {}
+        for row in earlier_rows:
+            day = self._site_snapshot_day(row)
+            if earliest <= day < yesterday:
+                by_day.setdefault(day, []).append(row)
+        history = []
+        for day in sorted(by_day, reverse=True):
+            selected = site_helpers.select_latest_site_userdata_rows(by_day[day], {domain}, include_errors=True)
+            if selected and not str(getattr(selected[0], "err_msg", "") or "").strip():
+                counters = self._site_valid_counters(selected[0])
+                if counters is not None:
+                    history.append(counters)
+        for index, baseline in enumerate(previous_values):
+            for counters in history:
+                earlier = counters[index]
+                if baseline == 0 and earlier == 0:
+                    continue
+                if earlier > baseline:
+                    return {**decision, "status": "discontinuous", "reason_code": "baseline_discontinuous"}
+                break
+        return {"status": "ready", "reason_code": "ok", "baseline_day": yesterday,
+                "upload": current_values[0] - previous_values[0], "download": current_values[1] - previous_values[1]}
+
+    @classmethod
     def _site_stat_state(
+        cls,
         name: Any,
         domain: Any,
         status: str,
@@ -115,14 +231,30 @@ class SiteStatsMixin:
         status = status if status in {"ok", "fault", "unavailable", "checker_error"} else "checker_error"
         normalized_domain = site_helpers.normalize_site_domain(domain)
         state: Dict[str, Any] = {
-            "name": str(name or normalized_domain or "未知站点"),
+            "name": cls._site_safe_name(name or normalized_domain or "未知站点"),
             "domain": normalized_domain,
             "status": status,
             "reason": str(reason or ""),
             "alertable": status == "fault",
+            "reason_code": {"ok": "ok", "fault": "fetch_error", "checker_error": "checker_error"}.get(status, "snapshot_missing"),
+            "snapshot_day": "", "snapshot_at": "", "last_success_at": "",
+            "baseline_day": "", "baseline_status": "missing", "updated_today": False,
+            "upload": None, "download": None,
+            "refresh_status": "unknown", "refresh_at": "", "refresh_source": "",
         }
-        state.update({key: value for key, value in extra.items() if key not in state})
+        state.update({key: value for key, value in extra.items() if key not in {"name", "domain", "status", "reason", "alertable"}})
         return state
+
+    @classmethod
+    def _site_state_detail(cls, item: Dict[str, Any]) -> str:
+        reason = cls.SITE_STAT_REASONS.get(str(item.get("reason_code") or ""), "站点统计检查失败")
+        at = str(item.get("snapshot_at") or "")
+        day = str(item.get("snapshot_day") or "")
+        collected = f"采集 {at}" if at else (f"采集 {day}，时间未知" if day else "采集时间未知")
+        parts = [reason, collected]
+        if item.get("last_success_at"):
+            parts.append(f"最后成功 {item['last_success_at']}")
+        return "；".join(part for part in parts if part)
 
     @classmethod
     def _sorted_site_states(cls, states: Any) -> List[Dict[str, Any]]:
@@ -231,10 +363,7 @@ class SiteStatsMixin:
             if status == "ok":
                 continue
             name = str(item.get("name") or item.get("domain") or "未知站点")
-            label = cls.SITE_STAT_STATE_LABELS.get(status, "状态未知")
-            reason = str(item.get("reason") or "").strip()
-            detail = f"（{reason}）" if reason else ""
-            lines.append(f"⦁ {name}：{label}{detail}，{suffix}")
+            lines.append(f"⦁ {name}：{cls._site_state_detail(item)}，{suffix}")
         return lines
 
     def run_health_check_scheduled(self) -> bool:
@@ -407,7 +536,7 @@ class SiteStatsMixin:
                 return [f"⦁ 异常 - {snapshot['error']}"]
 
             rows = []
-            for item in snapshot.get("sites") or []:
+            for item in self._site_state_counted(snapshot.get("site_states")):
                 name = str(item.get("name") or "未知站点")
                 extras = []
                 if item.get("ratio") not in (None, ""):
@@ -424,195 +553,207 @@ class SiteStatsMixin:
                 return rows
             if snapshot.get("baseline_missing") and not snapshot.get("baseline_ready"):
                 return ["⦁ 暂无增量（基线不足）"]
-            return ["⦁ 无"]
-        except Exception as e:
-            return [f"⦁ 异常 - {e}"]
-    def _site_increment_snapshot(self) -> Dict[str, Any]:
-        """站点上传/下载增量快照，逐站点四态、只认今日口径。
-
-        Every active site gets its own ``ok``/``fault``/``unavailable``/
-        ``checker_error`` state in ``site_states``.  ``basis`` is always
-        ``today``: a snapshot that was not updated today is ``unavailable``
-        rather than a fallback increment, so an old value can never be
-        published as today's result.  Individual unavailable sites never
-        cancel the run; the publishing layer only asks whether any countable
-        site remains.
-        """
-        result = {"date": self._today_prefix(), "basis": "today", "sites": [], "upload_total": 0, "download_total": 0,
+            return ["⦁ 未启用 PT 站点"] if not snapshot.get("active_count") else ["⦁ 今日增量暂不可用"]
+        except Exception:
+            return ["⦁ 站点统计检查失败"]
+    def _site_increment_snapshot(self, *, refresh_result: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Read daily PT snapshots without refreshing or persisting anything."""
+        today = self._today_prefix()
+        result = {"date": today, "basis": "today", "sites": [], "upload_total": 0, "download_total": 0,
                   "baseline_ready": False, "baseline_missing": 0, "latest_date": "", "stale": False,
                   "stale_count": 0, "error_count": 0, "invalid_count": 0, "counter_reset_count": 0,
                   "data_valid": False, "active_count": 0, "visible_count": 0, "missing_count": 0,
-                  "active_domains": [], "site_states": [], "counted_count": 0, "fault_count": 0,
-                  "unavailable_count": 0,
-                  "latest_updated_at": "", "error": ""}
+                  "active_domains": [], "site_states": [], "counted_count": 0, "updated_count": 0,
+                  "refresh_ok_count": None, "fault_count": 0, "unavailable_count": 0,
+                  "checker_error_count": 0, "latest_updated_at": "", "error": ""}
+        active_sites = []
+        def publish():
+            loader = getattr(self, "_load_site_refresh_state", None)
+            refresh = refresh_result if isinstance(refresh_result, dict) else (loader() if callable(loader) else {})
+            inflight_reader = getattr(self, "_site_refresh_inflight_snapshot", None)
+            inflight = inflight_reader() if callable(inflight_reader) else {}
+            return self._apply_site_refresh_outcome(result, refresh, inflight)
+
         try:
             from app.db.oper.site import SiteOper
             site_oper = SiteOper()
-            latest_data = self._latest_site_userdata_rows(site_oper)
             active_sites = site_helpers.select_user_data_sites(site_oper.list_active() or [])
-            active_domains = {
-                site_helpers.normalize_site_domain(getattr(site, "domain", ""))
-                for site in active_sites
-                if site_helpers.normalize_site_domain(getattr(site, "domain", ""))
-            }
-            latest_data = [d for d in latest_data if d]
-            # An explicit empty active-site set means there is nothing to report.
-            # Falling back to every historical row can leak disabled/deleted sites.
-            active_latest = [
-                d for d in latest_data
-                if site_helpers.normalize_site_domain(getattr(d, "domain", "")) in active_domains
-            ]
+            active_domains = {site_helpers.normalize_site_domain(getattr(site, "domain", "")) for site in active_sites}
+            active_domains.discard("")
             result["active_count"] = len(active_sites)
-            result["visible_count"] = len(active_latest)
-            result["missing_count"] = max(0, result["active_count"] - result["visible_count"])
             result["active_domains"] = sorted(active_domains)
-            if len(active_domains) != result["active_count"]:
-                result["error"] = "启用站点存在无效域名，已取消统计以避免使用旧快照"
-                return result
-            today = self._today_prefix()
-            result["date"] = today
-            result["basis"] = "today"
-            error_count = len([d for d in active_latest if str(getattr(d, "err_msg", None) or "").strip()])
-            valid_latest = [d for d in active_latest if not str(getattr(d, "err_msg", None) or "").strip()]
-            all_days = sorted({self._normalize_day(getattr(d, "updated_day", None)) for d in active_latest if self._normalize_day(getattr(d, "updated_day", None))}, reverse=True)
-            latest_day = all_days[0] if all_days else ""
-            result["latest_date"] = latest_day
-            latest_timestamps = []
-            for row in active_latest:
-                day = self._normalize_day(getattr(row, "updated_day", None))
-                clock = str(getattr(row, "updated_time", None) or "")[:8]
-                if day and re.match(r"^\d{2}:\d{2}:\d{2}$", clock):
-                    latest_timestamps.append(f"{day} {clock}")
-            result["latest_updated_at"] = max(latest_timestamps, default="")
-            result["error_count"] = error_count
-            result["invalid_count"] = len([d for d in active_latest if not self._normalize_day(getattr(d, "updated_day", None))])
-            result["stale_count"] = len([d for d in active_latest if self._normalize_day(getattr(d, "updated_day", None)) not in ("", today)])
-            result["stale"] = bool(result["stale_count"])
-            result["data_valid"] = (
-                result["visible_count"] == result["active_count"]
-                and error_count == 0
-                and result["invalid_count"] == 0
-                and result["stale_count"] == 0
-            )
-            site_labels: Dict[str, str] = {}
-            for site in active_sites:
-                label_key = site_helpers.normalize_site_domain(getattr(site, "domain", ""))
-                if label_key:
-                    site_labels.setdefault(label_key, str(getattr(site, "name", None) or label_key))
-            rows_by_domain: Dict[str, Any] = {}
-            for row in active_latest:
-                row_key = site_helpers.normalize_site_domain(getattr(row, "domain", ""))
-                if row_key:
-                    rows_by_domain.setdefault(row_key, row)
-            states: Dict[str, Dict[str, Any]] = {}
-            countable: Dict[str, Any] = {}
-            for site_domain in sorted(active_domains):
-                row = rows_by_domain.get(site_domain)
-                label = site_labels.get(site_domain) or site_domain
-                if row is None:
-                    states[site_domain] = self._site_stat_state(label, site_domain, "unavailable", "没有最新快照")
-                    continue
-                label = str(getattr(row, "name", None) or label)
-                row_error = str(getattr(row, "err_msg", None) or "").strip()
-                if row_error:
-                    states[site_domain] = self._site_stat_state(label, site_domain, "fault", row_error[:120])
-                    continue
-                row_day = self._normalize_day(getattr(row, "updated_day", None))
-                if not row_day:
-                    states[site_domain] = self._site_stat_state(label, site_domain, "unavailable", "缺少有效日期")
-                    continue
-                if row_day != today:
-                    states[site_domain] = self._site_stat_state(
-                        label, site_domain, "unavailable", f"快照未更新到今日（最新 {row_day}）"
-                    )
-                    continue
-                states[site_domain] = self._site_stat_state(label, site_domain, "unavailable", "今日增量未计算")
-                countable[site_domain] = row
+            if len(active_domains) != len(active_sites):
+                result["error"] = "启用站点身份匹配失败"
+                result["site_states"] = [self._site_stat_state(
+                    getattr(site, "name", ""), getattr(site, "domain", ""), "checker_error",
+                    "启用站点身份匹配失败", reason_code="checker_error") for site in active_sites]
+                return publish()
+            if not active_sites:
+                return publish()
 
-            def publish_states() -> None:
-                site_states = self._sorted_site_states(states.values())
-                result["site_states"] = site_states
-                result["counted_count"] = len(self._site_state_counted(site_states))
-                result["fault_count"] = len(self._site_state_faults(site_states))
-                result["unavailable_count"] = len([item for item in site_states if item.get("status") == "unavailable"])
-
-            if not active_latest:
-                publish_states()
-                return result
+            getter = getattr(site_oper, "get_userdata", None)
+            raw_latest = (getter() if callable(getter) else None) or site_oper.get_userdata_latest() or []
+            latest_data = self._latest_site_userdata_rows(site_oper, raw_rows=raw_latest)
+            rows_by_domain = {site_helpers.normalize_site_domain(getattr(row, "domain", "")): row for row in latest_data
+                              if site_helpers.normalize_site_domain(getattr(row, "domain", "")) in active_domains}
+            result["visible_count"] = len(rows_by_domain)
+            result["missing_count"] = len(active_sites) - len(rows_by_domain)
+            base_dt = datetime.strptime(today, "%Y-%m-%d")
             previous_cache: Dict[str, List[Any]] = {}
-            out: List[Dict[str, Any]] = []
-            baseline_ready_count = 0
-            baseline_missing_count = 0
-            counter_reset_count = 0
-            for current in valid_latest:
-                name = getattr(current, "name", None) or getattr(current, "domain", None) or "未知站点"
-                domain = getattr(current, "domain", None)
-                state_key = site_helpers.normalize_site_domain(domain)
-                if state_key not in countable:
-                    continue
-                delta = None
-                baseline_found = False
-                base_dt = datetime.strptime(today, "%Y-%m-%d")
-                for i in range(1, 8):
-                    prev_day = (base_dt - timedelta(days=i)).strftime("%Y-%m-%d")
-                    if prev_day not in previous_cache:
-                        previous_cache[prev_day] = site_oper.get_userdata_by_date(prev_day) or []
-                    previous = self._find_site_userdata_snapshot(previous_cache[prev_day], name, domain)
-                    if previous:
-                        baseline_found = True
-                        delta, reason = self._site_userdata_delta_with_reason(current, previous)
-                        if reason == "counter_reset":
-                            counter_reset_count += 1
-                            states[state_key] = self._site_stat_state(name, domain, "unavailable", "累计值回退")
-                            break
-                        if reason == "invalid":
-                            baseline_missing_count += 1
-                            states[state_key] = self._site_stat_state(name, domain, "unavailable", "基线数据无效")
-                            break
-                    if delta is not None:
-                        break
-                if delta is None and not baseline_found:
-                    baseline_missing_count += 1
-                    states[state_key] = self._site_stat_state(name, domain, "unavailable", "缺少有效基线")
-                    continue
-                if delta is None:
-                    continue
-                baseline_ready_count += 1
-                up, dl = delta
-                states[state_key] = self._site_stat_state(name, domain, "ok", "", upload=up, download=dl)
-                if up == 0 and dl == 0:
-                    continue
-                out.append({
-                    "name": name,
-                    "upload": up,
-                    "download": dl,
-                    "ratio": getattr(current, "ratio", None),
-                    "bonus": getattr(current, "bonus", None),
-                })
-            publish_states()
-            result["sites"] = out
-            result["upload_total"] = sum(int(d.get("upload", 0)) for d in out)
-            result["download_total"] = sum(int(d.get("download", 0)) for d in out)
-            result["baseline_ready"] = bool(baseline_ready_count)
-            result["baseline_missing"] = baseline_missing_count
-            result["counter_reset_count"] = counter_reset_count
-            result["data_valid"] = bool(active_latest) and not any(
-                (
-                    result["stale_count"],
-                    result["error_count"],
-                    result["invalid_count"],
-                    result["counter_reset_count"],
-                    result["baseline_missing"],
-                    result["missing_count"],
-                )
-            )
-        except Exception as err:
-            result["error"] = str(err)
-            logger.warning(f"Signal 站点增量数据获取失败：{err}")
-        return result
+            latest_by_day: Dict[str, Dict[str, Any]] = {}
+            for offset in range(1, 8):
+                day = (base_dt - timedelta(days=offset)).strftime("%Y-%m-%d")
+                previous_cache[day] = site_oper.get_userdata_by_date(day) or []
+                latest_by_day[day] = {
+                    site_helpers.normalize_site_domain(getattr(row, "domain", "")): row
+                    for row in site_helpers.select_latest_site_userdata_rows(previous_cache[day], active_domains, include_errors=True)
+                }
+            yesterday = (base_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+            earliest = (base_dt - timedelta(days=7)).strftime("%Y-%m-%d")
+            last_success: Dict[str, str] = {}
+            raw_history = list(raw_latest) + [row for rows in previous_cache.values() for row in rows]
+            for row in raw_history:
+                domain = site_helpers.normalize_site_domain(getattr(row, "domain", ""))
+                day = self._site_snapshot_day(row)
+                at = self._site_snapshot_time(row)
+                if (domain in active_domains and earliest <= day <= today and at
+                        and not str(getattr(row, "err_msg", "") or "").strip()
+                        and self._site_valid_counters(row) is not None):
+                    last_success[domain] = max(last_success.get(domain, ""), at)
+            for site in active_sites:
+                domain = site_helpers.normalize_site_domain(getattr(site, "domain", ""))
+                row = rows_by_domain.get(domain)
+                label = getattr(row, "name", None) or getattr(site, "name", None) or domain
+                metadata = {"snapshot_day": self._site_snapshot_day(row), "snapshot_at": self._site_snapshot_time(row),
+                            "last_success_at": last_success.get(domain, ""), "ratio": getattr(row, "ratio", None),
+                            "bonus": getattr(row, "bonus", None)}
+                status, code = "unavailable", "snapshot_missing"
+                if row is not None:
+                    row_error = str(getattr(row, "err_msg", "") or "").strip()
+                    if row_error:
+                        status, code = "fault", self._site_error_details(row_error)[0]
+                    elif (not metadata["snapshot_day"] or metadata["snapshot_day"] > today
+                          or self._site_valid_counters(row) is None):
+                        code = "snapshot_invalid"
+                        metadata["baseline_status"] = "invalid"
+                    elif metadata["snapshot_day"] != today:
+                        code = "snapshot_stale"
+                    else:
+                        metadata["updated_today"] = True
+                        previous = latest_by_day[yesterday].get(domain)
+                        earlier = [rows[domain] for day, rows in latest_by_day.items() if day < yesterday and domain in rows]
+                        decision = self._site_baseline_decision(row, previous, earlier)
+                        code = decision["reason_code"]
+                        status = "ok" if decision["status"] == "ready" else "unavailable"
+                        metadata.update(baseline_status=decision["status"], baseline_day=decision["baseline_day"],
+                                        upload=decision["upload"], download=decision["download"])
+                result["site_states"].append(self._site_stat_state(
+                    label, domain, status, self.SITE_STAT_REASONS[code], reason_code=code, **metadata))
+        except Exception:
+            result["error"] = "站点统计检查失败" if active_sites else "读取启用站点失败"
+            result["site_states"] = [self._site_stat_state(
+                getattr(site, "name", ""), getattr(site, "domain", ""), "checker_error",
+                "站点统计检查失败", reason_code="checker_error") for site in active_sites]
+            logger.warning("Signal 站点统计检查失败")
+        return publish()
+
+    def _apply_site_refresh_outcome(self, snapshot: Dict[str, Any], refresh_state: Dict[str, Any], inflight: Dict[str, Any]) -> Dict[str, Any]:
+        """Associate failures with each site's own timestamp, then recalculate totals."""
+        domains = set(snapshot.get("active_domains") or [])
+        refresh = refresh_state if isinstance(refresh_state, dict) else {}
+        scope = {site_helpers.normalize_site_domain(value) for value in refresh.get("active_domains") or []}
+        same_scope = (refresh.get("active_scope_known") is True and scope == domains
+                      and refresh.get("active_count") == snapshot.get("active_count"))
+        source = refresh.get("source") if refresh.get("source") in getattr(self, "SITE_REFRESH_SOURCES", ()) else ""
+        if same_scope:
+            snapshot["refresh_source"] = source
+            snapshot["refresh_at"] = self._site_timestamp(refresh.get("finished_at"))
+            if refresh.get("data_date") == snapshot["date"] and isinstance(refresh.get("ok_count"), int):
+                snapshot["refresh_ok_count"] = max(0, min(refresh["ok_count"], snapshot["active_count"]))
+        outcomes = {site_helpers.normalize_site_domain(item.get("domain")): item for item in refresh.get("sites") or []
+                    if isinstance(item, dict)} if same_scope else {}
+
+        for state in snapshot.get("site_states") or []:
+            outcome = outcomes.get(state["domain"])
+            global_failure = same_scope and refresh.get("success") is False and refresh.get("status") != "running" and not outcomes
+            if outcome is not None or global_failure:
+                item = outcome if outcome is not None else refresh
+                finished = self._site_timestamp(item.get("finished_at")) or self._site_timestamp(refresh.get("finished_at"))
+                status = str(item.get("status") or "error")
+                state.update(refresh_status=status if status in {"ok", "fault", "checker_error", "running", "timeout", "error"} else "error",
+                             refresh_at=finished, refresh_source=source)
+                snapshot_at = state.get("snapshot_at") or ""
+                valid_success = (state.get("updated_today") or
+                                 (state.get("reason_code") == "snapshot_stale" and state.get("last_success_at") == snapshot_at))
+                recovered = bool(valid_success and snapshot_at and finished and snapshot_at > finished)
+                if not recovered and (global_failure or status in {"fault", "checker_error"}):
+                    if global_failure:
+                        code = "refresh_timeout" if status == "timeout" else "checker_error"
+                        state_status = "unavailable" if status == "timeout" else "checker_error"
+                    else:
+                        state_status = status
+                        code = "checker_error" if status == "checker_error" else item.get("reason_code")
+                        if code not in self.SITE_STAT_REASONS or not str(code).startswith("fetch_") and status == "fault":
+                            code = self._site_error_details(item.get("reason"))[0]
+                    state.update(status=state_status, reason_code=code, reason=self.SITE_STAT_REASONS[code],
+                                 updated_today=False, upload=None, download=None)
+                elif recovered and status in {"fault", "checker_error", "timeout", "error"}:
+                    state["refresh_status"] = "ok"
+
+            live_scope = {site_helpers.normalize_site_domain(value) for value in inflight.get("scope") or []}
+            if (inflight.get("running") is True and inflight.get("date") == snapshot["date"]
+                    and live_scope == domains and self._site_timestamp(inflight.get("started_at"))
+                    and not state.get("updated_today") and state["status"] not in {"fault", "checker_error"}):
+                expired = float(inflight.get("elapsed_seconds") or 0) >= 60.0
+                code = "refresh_timeout" if expired or state.get("reason_code") == "refresh_timeout" else "refresh_running"
+                state.update(status="unavailable", reason_code=code, reason=self.SITE_STAT_REASONS[code],
+                             refresh_status="timeout" if code == "refresh_timeout" else "running", upload=None, download=None)
+        return self._publish_site_snapshot(snapshot)
+
+    @staticmethod
+    def _site_refresh_failure_message(refresh: Any) -> str:
+        if not isinstance(refresh, dict) or not refresh:
+            return ""
+        if refresh.get("success") is False:
+            return {"timeout": "站点更新等待超时", "active_sites_error": "读取启用站点失败"}.get(refresh.get("status"), "站点刷新检查失败")
+        if int(refresh.get("active_count") or 0) > 0 and int(refresh.get("ok_count") or 0) == 0:
+            return "本轮站点刷新未取得可用数据"
+        return ""
 
     @classmethod
-    def _latest_site_userdata_rows(cls, site_oper: Any) -> List[Any]:
+    def _publish_site_snapshot(cls, result: Dict[str, Any]) -> Dict[str, Any]:
+        """All displayed counts and totals come from the final per-site states."""
+        states = cls._sorted_site_states(result.get("site_states"))
+        result["site_states"] = states
+        for state in states:
+            state["alertable"] = state["status"] == "fault"
+            if state["status"] != "ok":
+                state["upload"] = state["download"] = None
+        countable = [state for state in states if state["status"] == "ok"]
+        result["counted_count"] = len(countable)
+        result["updated_count"] = sum(bool(state.get("updated_today")) for state in states)
+        for status in ("fault", "unavailable", "checker_error"):
+            result[f"{status}_count"] = sum(state["status"] == status for state in states)
+        result["sites"] = [{key: state.get(key) for key in ("name", "domain", "upload", "download", "ratio", "bonus")}
+                           for state in countable if state["upload"] or state["download"]]
+        result["upload_total"] = sum(item["upload"] for item in result["sites"])
+        result["download_total"] = sum(item["download"] for item in result["sites"])
+        result["baseline_ready"] = bool(countable)
+        result["data_valid"] = result["active_count"] > 0 and len(countable) == result["active_count"]
+        codes = [state.get("reason_code") for state in states]
+        result["baseline_missing"] = sum(code in {"baseline_missing", "baseline_invalid", "baseline_discontinuous"} for code in codes)
+        result["counter_reset_count"] = codes.count("counter_reset")
+        result["stale_count"] = codes.count("snapshot_stale")
+        result["stale"] = bool(result["stale_count"])
+        result["invalid_count"] = codes.count("snapshot_invalid")
+        result["error_count"] = result["fault_count"]
+        result["latest_date"] = max((state.get("snapshot_day", "") for state in states), default="")
+        result["latest_updated_at"] = max((state.get("snapshot_at", "") for state in states), default="")
+        return result
+
+
+    @classmethod
+    def _latest_site_userdata_rows(cls, site_oper: Any, *, raw_rows: Optional[List[Any]] = None) -> List[Any]:
         """Return one newest row per domain, including the newest error row.
 
         MoviePilot's ``get_userdata_latest`` intentionally filters error rows.
@@ -620,11 +761,13 @@ class SiteStatsMixin:
         refresh just failed.  Site statistics must retain that signal so an
         error cannot silently look like an old successful snapshot.
         """
-        getter = getattr(site_oper, "get_userdata", None)
-        rows = getter() if callable(getter) else None
-        if not rows:
-            rows = site_oper.get_userdata_latest() or []
-        return site_helpers.select_latest_site_userdata_rows(rows)
+        rows = raw_rows
+        if rows is None:
+            getter = getattr(site_oper, "get_userdata", None)
+            rows = getter() if callable(getter) else None
+            if not rows:
+                rows = site_oper.get_userdata_latest() or []
+        return site_helpers.select_latest_site_userdata_rows(rows, include_errors=True)
     def _site_increment_data(self) -> List[Dict[str, Any]]:
         """今日各站点上传/下载增量（原始字节），供旧调用兼容。"""
         return list((self._site_increment_snapshot().get("sites") or []))

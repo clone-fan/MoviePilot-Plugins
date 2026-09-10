@@ -77,6 +77,8 @@ def compose_v7_snapshot(
     identity: Optional[Dict[str, Any]] = None,
     site_rows: Optional[Iterable[Any]] = None,
     site_count: str = "",
+    site_summary: Optional[str] = None,
+    site_notice_rows: Optional[Iterable[Any]] = None,
     storage_rows: Optional[Iterable[Any]] = None,
     subscription_rows: Optional[Iterable[Any]] = None,
     completion_rows: Optional[Iterable[Any]] = None,
@@ -90,8 +92,13 @@ def compose_v7_snapshot(
     storage = _normalized_rows(storage_rows)
     subscriptions = _normalized_rows(subscription_rows)
     _persistent_module(persistent, "sites", sites, _site_count_label(site_count, sites), enabled)
-    if sites and persistent.get("sites"):
-        persistent["sites"]["context"] = _site_aggregate(sites)
+    if persistent.get("sites"):
+        site_module = persistent["sites"]
+        site_module["context"] = _site_aggregate(sites) if site_summary is None else site_summary
+        site_module["notice_rows"] = _normalized_rows(site_notice_rows)
+        if site_summary is not None:
+            # An explicit snapshot summary can be valid even with no nonzero details.
+            site_module["preview_rows"], site_module["details_rows"] = split_preview_details(sites)
     _persistent_module(persistent, "storage", storage, f"{len(storage)}个容器" if storage else "", enabled)
     _persistent_module(persistent, "subscriptions", subscriptions, f"{len(subscriptions)}个" if subscriptions else "", enabled)
 
@@ -221,8 +228,9 @@ def _metric(text: str, pattern: str) -> str:
 
 
 def _site_aggregate(rows: Sequence[Sequence[Any]]) -> str:
-    upload = _sum_data_metrics(_pair_metric(row, "↑") for row in rows)
-    download = _sum_data_metrics(_pair_metric(row, "↓") for row in rows)
+    counted = [row for row in rows if _pair_metric(row, "↑") and _pair_metric(row, "↓")]
+    upload = _sum_data_metrics(_pair_metric(row, "↑") for row in counted)
+    download = _sum_data_metrics(_pair_metric(row, "↓") for row in counted)
     return "  ".join(item for item in (f"↑{upload}" if upload else "", f"↓{download}" if download else "") if item)
 
 
@@ -260,6 +268,17 @@ def _progress(percent: int, width: int = 10) -> str:
 
 def _site_count_label(value: Any, rows: Sequence[Any]) -> str:
     compact = "".join(str(value or "").split())
+    if compact == "未启用PT站点":
+        return "未启用 PT 站点"
+    if compact == "站点统计检查失败":
+        return "站点统计检查失败"
+    if "已更新" in compact or "可统计" in compact:
+        match = re.fullmatch(r"(\d+)/(\d+)已更新·(\d+)/(\d+)可统计", compact)
+        if match:
+            updated, total, counted, counted_total = (int(item) for item in match.groups())
+            if total == counted_total and 0 <= updated <= total and 0 <= counted <= total:
+                return f"{updated}/{total}已更新 · {counted}/{total}可统计"
+        raise ValueError("站点已更新/可统计计数无效")
     match = re.fullmatch(r"(\d+)/(\d+)在线", compact)
     if match:
         online, total = (int(item) for item in match.groups())
