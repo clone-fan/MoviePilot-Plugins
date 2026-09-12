@@ -1,5 +1,6 @@
 import re
 import os
+import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -15,6 +16,8 @@ from ..domain.fusion_transport import (
 
 class TgConsoleCallbackMixin:
     """Telegram polling, message/callback handling, action execution, card upsert"""
+
+    _tg_console_card_lock = threading.RLock()
 
     def poll_tg_console_updates(self) -> bool:
         ok, _ = self._runtime_gate("scheduler", component="fusion_notify", name="TGConsolePoll")
@@ -302,7 +305,14 @@ class TgConsoleCallbackMixin:
         text = str(value or "").lower()
         return "message is not modified" in text or "message not modified" in text
 
-    def _tg_console_upsert_card(self, token: str, chat_id: str, state: Dict[str, Any]) -> bool:
+    def _tg_console_upsert_card(self, token: str, chat_id: str, state: Dict[str, Any], *, generation: Optional[int] = None) -> bool:
+        # Telegram can cancel an edit when another edit of the same card arrives.
+        with self._tg_console_card_lock:
+            if generation is not None and self._should_cancel(generation):
+                return False
+            return self._tg_console_upsert_card_locked(token, chat_id, state)
+
+    def _tg_console_upsert_card_locked(self, token: str, chat_id: str, state: Dict[str, Any]) -> bool:
         ok, _ = self._runtime_gate("telegram", component="fusion_notify", name="Telegram fusion card upsert")
         if not ok:
             return False

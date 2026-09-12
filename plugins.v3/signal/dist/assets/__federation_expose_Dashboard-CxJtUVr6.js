@@ -30,7 +30,7 @@ const sitePieColors = [
   { color: 'color-mix(in srgb, rgb(var(--aoa-color-warning-rgb)) 68%, rgb(var(--aoa-color-info-rgb)))', glow: 'rgba(var(--aoa-color-warning-rgb), 0.20)' },
 ];
 
-const {reactive: reactive$2,computed: computed$f} = await importShared('vue');
+const {reactive: reactive$2,computed: computed$g} = await importShared('vue');
 
 // 站点统计图表状态 — 跨 Dashboard.vue / Page.vue 共享，禁止各 vue 里各写一份
 // 入参：api(MP 插件 API 句柄)
@@ -53,27 +53,27 @@ function useSiteChart(api) {
     last_error: '',
   });
 
-  const siteRows = computed$f(() => [...(siteChart.sites || [])].sort((a, b) => {
+  const siteRows = computed$g(() => [...(siteChart.sites || [])].sort((a, b) => {
     const av = (Number(a.upload) || 0) + (Number(a.download) || 0);
     const bv = (Number(b.upload) || 0) + (Number(b.download) || 0);
     return bv - av
   }));
 
-  const siteTrafficTotal = computed$f(() => siteRows.value.reduce((sum, site) => {
+  const siteTrafficTotal = computed$g(() => siteRows.value.reduce((sum, site) => {
     return sum + (Number(site.upload) || 0) + (Number(site.download) || 0)
   }, 0));
 
-  const siteDateLabel = computed$f(() => {
+  const siteDateLabel = computed$g(() => {
     if (!siteChart.date) return '等待统计'
     return siteChart.date
   });
 
-  const siteDateNote = computed$f(() => {
+  const siteDateNote = computed$g(() => {
     if (!siteChart.date) return '等待统计'
     return '今天 00:00 起'
   });
 
-  const sitePieSegments = computed$f(() => {
+  const sitePieSegments = computed$g(() => {
     const total = siteTrafficTotal.value;
     if (!total) return []
     let cursor = 0;
@@ -87,7 +87,7 @@ function useSiteChart(api) {
     })
   });
 
-  const sitePieStyle = computed$f(() => {
+  const sitePieStyle = computed$g(() => {
     if (!sitePieSegments.value.length) {
       return {
         background: 'conic-gradient(rgba(var(--aoa-color-line-rgb), 0.16) 0 82deg, rgba(var(--aoa-color-line-rgb), 0.055) 82deg 360deg)',
@@ -99,17 +99,17 @@ function useSiteChart(api) {
     return { background: `conic-gradient(${stops})` }
   });
 
-  const siteTableRows = computed$f(() => sitePieSegments.value.slice(0, 6));
-  const hasSiteChart = computed$f(() => !!(siteChart.sites && siteChart.sites.length));
+  const siteTableRows = computed$g(() => sitePieSegments.value.slice(0, 6));
+  const hasSiteChart = computed$g(() => !!(siteChart.sites && siteChart.sites.length));
 
-  const siteEmptyTitle = computed$f(() => {
+  const siteEmptyTitle = computed$g(() => {
     if (siteChart.last_error || siteChart.error) return '站点统计失败'
     if (siteChart.basis === 'skipped') return '站点统计未启用'
     if (siteChart.data_valid === true) return '暂无站点增量'
     return '等待站点统计'
   });
 
-  const siteEmptyDesc = computed$f(() => {
+  const siteEmptyDesc = computed$g(() => {
     if (siteChart.last_error || siteChart.error) return siteChart.last_error || siteChart.error
     if (siteChart.message) return siteChart.message
     if (siteChart.basis === 'skipped') return '启用插件和站点统计组件后，可手动刷新生成数据'
@@ -184,7 +184,7 @@ function useSiteChart(api) {
   }
 }
 
-const {computed: computed$e,ref: ref$2} = await importShared('vue');
+const {computed: computed$f,ref: ref$2} = await importShared('vue');
 
 function resolveMaybeValue(value) {
   if (typeof value === 'function') return value()
@@ -291,14 +291,14 @@ function useQuickActionController(options = {}) {
     },
   });
 
-  const actions = computed$e(() => registeredActions
+  const actions = computed$f(() => registeredActions
     .map(action => ({ ...action, availability: getActionAvailability(action) }))
     .filter(action => action.availability.visible));
 
-  const operationSpec = computed$e(() => buildQuickActionOperationSpec(activeAction.value, {
+  const operationSpec = computed$f(() => buildQuickActionOperationSpec(activeAction.value, {
     backupRestoreCanExecute: backupRestore.canExecute.value,
   }));
-  const operationBusy = computed$e(() => operationState.value === 'running' || operationSubmitting.value);
+  const operationBusy = computed$f(() => operationState.value === 'running' || operationSubmitting.value);
 
   async function loadActionContext() {
     // API handles are explicit Vue refs at the federated entrypoints. Resolve
@@ -459,6 +459,8 @@ function createFusionCardState(overrides = {}) {
     updatedAt: String(source.updatedAt || source.updated_at || source.date || ''),
     isBuilt: source.isBuilt === true || source.built === true || finiteNumber(source.message_id, 0) > 0,
     enabled: source.enabled !== false,
+    lastError: String(source.lastError || source.last_error || ''),
+    renderState: String(source.renderState || source.render_state || ''),
   }
 }
 
@@ -469,6 +471,8 @@ function applyFusionCardPayload(target, payload) {
     updatedAt: String(source.updated_at || source.date || target.updatedAt || ''),
     isBuilt: source.built === true || finiteNumber(source.message_id, 0) > 0 || source.isBuilt === true,
     enabled: source.enabled !== false,
+    lastError: String(source.last_error ?? source.lastError ?? target.lastError ?? ''),
+    renderState: String(source.render_state ?? source.renderState ?? target.renderState ?? ''),
   })
 }
 
@@ -486,11 +490,13 @@ function buildRuntimeTasks(dashboard) {
       name: task?.name || '注册任务',
       enabled: pluginEnabled && task?.effective_enabled === true,
       state: task?.state || '',
+      status: task?.status || '',
       schedule: pluginEnabled
         ? (rawSchedule.startsWith('下次') ? rawSchedule : `下次 ${rawSchedule}`)
         : '插件已停用',
     }
-  }).filter(task => task.enabled)
+  }).filter(task => task.enabled).sort((left, right) =>
+    Number(['failed', 'data_error'].includes(right.status)) - Number(['failed', 'data_error'].includes(left.status)))
 }
 
 function buildSiteCards(rows, total, icons) {
@@ -563,8 +569,14 @@ function buildDashboardViewSnapshot(input = {}) {
   const enabledCount = runtimeTasks.length;
   const inferredTaskTotal = Math.max(enabledCount, Array.isArray(dashboard.tasks) ? dashboard.tasks.length : 0);
   const totalCount = finiteNumber(dashboard.task_total, 0) || inferredTaskTotal;
-  const taskFailed = finiteNumber(dashboard.task_failed, 0);
-  const healthOk = dashboard.health?.success !== false && taskFailed === 0;
+  const taskFailed = finiteNumber(dashboard.task_failed,
+    runtimeTasks.filter(task => ['failed', 'data_error'].includes(task.status)).length);
+  const healthReadError = dashboard.health?.data_error === true;
+  const healthOk = !healthReadError && dashboard.health?.success !== false && taskFailed === 0;
+  const healthDetail = taskFailed > 0 ? `最近执行有 ${taskFailed} 项异常`
+    : healthReadError ? '健康巡查记录读取异常'
+      : '最近健康巡查发现异常';
+  const statusColor = !pluginEnabled ? '#8E8E93' : healthOk ? '#34C759' : '#FFB020';
   const chartTrafficTotal = finiteNumber(siteChart.upload_total) + finiteNumber(siteChart.download_total);
   const trafficTotal = finiteNumber(input.siteTrafficTotal, 0) || chartTrafficTotal;
   const [trafficValue = '0.0', trafficUnit = 'MB'] = formatGB(trafficTotal).split(' ');
@@ -578,19 +590,20 @@ function buildDashboardViewSnapshot(input = {}) {
           key: 'system',
           label: '系统状态',
           icon: icons.checkCircle,
-          iconColor: pluginEnabled ? '#34C759' : '#8E8E93',
-          value: pluginEnabled ? '运行平稳' : '插件已停用',
+          iconColor: statusColor,
+          value: pluginEnabled ? (healthOk ? '运行平稳' : '需要关注') : '插件已停用',
           detail: pluginEnabled
-            ? (healthOk ? '当前任务未发现异常' : `当前有 ${taskFailed} 个异常组件`)
+            ? (healthOk ? '最近执行未发现异常' : healthDetail)
             : '开启插件总开关后恢复运行',
         },
         {
           key: 'runtime',
           label: '运行状态',
           dot: pluginEnabled,
-          pulse: pluginEnabled,
-          value: pluginEnabled ? '正常' : '停用',
-          detail: `异常组件 ${taskFailed}`,
+          iconColor: statusColor,
+          pulse: pluginEnabled && healthOk,
+          value: pluginEnabled ? (healthOk ? '正常' : '有异常') : '停用',
+          detail: pluginEnabled ? (healthOk ? '最近执行结果正常' : healthDetail) : '插件当前未运行',
         },
         {
           key: 'enabled',
@@ -600,7 +613,7 @@ function buildDashboardViewSnapshot(input = {}) {
           value: String(enabledCount),
           total: String(totalCount),
           large: true,
-          detail: pluginEnabled ? '组件运行正常' : '组件当前均未运行',
+          detail: pluginEnabled ? '已启用定时或事件任务' : '组件当前均未运行',
         },
         {
           key: 'traffic',
@@ -657,11 +670,13 @@ function buildDashboardViewSnapshot(input = {}) {
       updatedAt: String(fusionCard.updatedAt || ''),
       isBuilt: fusionCard.isBuilt === true,
       enabled: pluginEnabled && fusionCard.enabled !== false,
+      lastError: String(fusionCard.lastError || ''),
+      renderState: String(fusionCard.renderState || ''),
     },
   }
 }
 
-const {computed: computed$d,unref} = await importShared('vue');
+const {computed: computed$e,unref} = await importShared('vue');
 
 function resolveValue(value, fallback) {
   const resolved = typeof value === 'function' ? value() : unref(value);
@@ -670,7 +685,7 @@ function resolveValue(value, fallback) {
 
 function useDashboardViewModel(options = {}) {
   const actionRunner = options.actionRunner || {};
-  const snapshot = computed$d(() => buildDashboardViewSnapshot({
+  const snapshot = computed$e(() => buildDashboardViewSnapshot({
     dashboard: resolveValue(options.dashboard, {}),
     siteChart: resolveValue(options.siteChart, {}),
     siteRows: resolveValue(options.siteRows, []),
@@ -690,7 +705,7 @@ function useDashboardViewModel(options = {}) {
     },
   }));
 
-  const pick = selector => computed$d(() => selector(snapshot.value));
+  const pick = selector => computed$e(() => selector(snapshot.value));
 
   return {
     snapshot,
@@ -730,7 +745,7 @@ const _hoisted_3$b = {
   "data-dashboard-region": "bottom"
 };
 
-const {computed: computed$c} = await importShared('vue');
+const {computed: computed$d} = await importShared('vue');
 
 
 
@@ -744,7 +759,7 @@ const _sfc_main$l = {
 
 const props = __props;
 
-const shellClass = computed$c(() => [
+const shellClass = computed$d(() => [
   `v31-dashboard-shell--${props.surface || 'dialog'}`,
   props.themeClass,
 ]);
@@ -773,13 +788,13 @@ return (_ctx, _cache) => {
 
 };
 
-const {createElementVNode:_createElementVNode$a,openBlock:_openBlock$k,createElementBlock:_createElementBlock$f,normalizeStyle:_normalizeStyle$2} = await importShared('vue');
+const {createElementVNode:_createElementVNode$a,openBlock:_openBlock$k,createElementBlock:_createElementBlock$f,normalizeStyle:_normalizeStyle$3} = await importShared('vue');
 
 
 const _hoisted_1$d = ["width", "height"];
 const _hoisted_2$c = ["d"];
 
-const {computed: computed$b} = await importShared('vue');
+const {computed: computed$c} = await importShared('vue');
 
 
 
@@ -794,12 +809,12 @@ const _sfc_main$k = {
 
 const props = __props;
 
-const normalizedSize = computed$b(() => {
+const normalizedSize = computed$c(() => {
   const rawSize = String(props.size).trim();
   return /^\d+(\.\d+)?$/.test(rawSize) ? `${rawSize}px` : rawSize
 });
 
-const iconStyle = computed$b(() => ({
+const iconStyle = computed$c(() => ({
   '--v31-icon-size': normalizedSize.value,
   inlineSize: normalizedSize.value,
   blockSize: normalizedSize.value,
@@ -809,7 +824,7 @@ const iconStyle = computed$b(() => ({
 return (_ctx, _cache) => {
   return (_openBlock$k(), _createElementBlock$f("i", {
     class: "v31-svg-icon",
-    style: _normalizeStyle$2(iconStyle.value),
+    style: _normalizeStyle$3(iconStyle.value),
     "aria-hidden": "true"
   }, [
     (_openBlock$k(), _createElementBlock$f("svg", {
@@ -972,7 +987,7 @@ return (_ctx, _cache) => {
 const {renderSlot:_renderSlot$3,resolveDynamicComponent:_resolveDynamicComponent$2,normalizeClass:_normalizeClass$9,withCtx:_withCtx$6,openBlock:_openBlock$h,createBlock:_createBlock$a} = await importShared('vue');
 
 
-const {computed: computed$a} = await importShared('vue');
+const {computed: computed$b} = await importShared('vue');
 
 
 
@@ -987,7 +1002,7 @@ const _sfc_main$h = {
 
 const props = __props;
 
-const cardClass = computed$a(() => [
+const cardClass = computed$b(() => [
   'aoa-surface-card',
   props.light ? 'v31-glass-card-light' : 'v31-glass-card',
   props.light ? 'aoa-surface-card--muted' : '',
@@ -1008,7 +1023,7 @@ return (_ctx, _cache) => {
 
 };
 
-const {openBlock:_openBlock$g,createBlock:_createBlock$9,createCommentVNode:_createCommentVNode$9,normalizeClass:_normalizeClass$8,createElementBlock:_createElementBlock$c,createElementVNode:_createElementVNode$8,toDisplayString:_toDisplayString$9,withCtx:_withCtx$5} = await importShared('vue');
+const {openBlock:_openBlock$g,createBlock:_createBlock$9,createCommentVNode:_createCommentVNode$9,normalizeClass:_normalizeClass$8,normalizeStyle:_normalizeStyle$2,createElementBlock:_createElementBlock$c,createElementVNode:_createElementVNode$8,toDisplayString:_toDisplayString$9,withCtx:_withCtx$5} = await importShared('vue');
 
 
 const _hoisted_1$a = { class: "v31-kpi-card__icon" };
@@ -1050,8 +1065,9 @@ return (_ctx, _cache) => {
         (__props.item.dot)
           ? (_openBlock$g(), _createElementBlock$c("span", {
               key: 1,
-              class: _normalizeClass$8(["v31-status-dot", { 'v31-status-dot--pulse': __props.item.pulse }])
-            }, null, 2))
+              class: _normalizeClass$8(["v31-status-dot", { 'v31-status-dot--pulse': __props.item.pulse }]),
+              style: _normalizeStyle$2({ backgroundColor: __props.item.iconColor || undefined })
+            }, null, 6))
           : _createCommentVNode$9("", true)
       ]),
       _createElementVNode$8("div", _hoisted_2$9, [
@@ -1117,7 +1133,7 @@ const _hoisted_2$8 = { class: "v31-donut__inner" };
 const _hoisted_3$7 = { class: "v31-donut__value" };
 const _hoisted_4$7 = { class: "v31-donut__label" };
 
-const {computed: computed$9} = await importShared('vue');
+const {computed: computed$a} = await importShared('vue');
 
 
 
@@ -1133,8 +1149,8 @@ const _sfc_main$e = {
 
 const props = __props;
 
-const normalizedSegments = computed$9(() => Array.isArray(props.segments) ? props.segments : []);
-const ringStyle = computed$9(() => {
+const normalizedSegments = computed$a(() => Array.isArray(props.segments) ? props.segments : []);
+const ringStyle = computed$a(() => {
   if (props.pieStyle && typeof props.pieStyle === 'object' && Object.keys(props.pieStyle).length) {
     return props.pieStyle
   }
@@ -1142,7 +1158,7 @@ const ringStyle = computed$9(() => {
     background: 'conic-gradient(rgba(var(--aoa-color-line-rgb), 0.16) 0 82deg, rgba(var(--aoa-color-line-rgb), 0.055) 82deg 360deg)',
   }
 });
-const ariaLabel = computed$9(() => {
+const ariaLabel = computed$a(() => {
   if (!normalizedSegments.value.length) return `${props.value} ${props.label}，暂无站点流量分段`
   const names = normalizedSegments.value.map(item => item?.name).filter(Boolean).slice(0, 4).join('、');
   return `${props.value} ${props.label}，按 PT 站点${names ? ` ${names}` : ''} 流量分段`
@@ -1319,7 +1335,7 @@ const _hoisted_14 = { key: 3 };
 const _hoisted_15 = { key: 4 };
 const _hoisted_16 = ["data-empty"];
 
-const {computed: computed$8} = await importShared('vue');
+const {computed: computed$9} = await importShared('vue');
 
 
 const _sfc_main$b = {
@@ -1334,10 +1350,10 @@ const _sfc_main$b = {
 
 const props = __props;
 
-const surfaceComponent = computed$8(() => props.nativeContent ? 'section' : _sfc_main$h);
-const surfaceClass = computed$8(() => props.nativeContent ? 'v31-site-panel' : undefined);
+const surfaceComponent = computed$9(() => props.nativeContent ? 'section' : _sfc_main$h);
+const surfaceClass = computed$9(() => props.nativeContent ? 'v31-site-panel' : undefined);
 
-const view = computed$8(() => {
+const view = computed$9(() => {
   const site = props.site && typeof props.site === 'object' ? props.site : {};
   return {
     dateNote: String(site.dateNote || '今天 00:00 起'),
@@ -1358,13 +1374,13 @@ const view = computed$8(() => {
   }
 });
 
-const staleDate = computed$8(() => String(
+const staleDate = computed$9(() => String(
   view.value.summaryRows.find(row => row.label === '统计时间')?.value || '未知日期',
 ));
 
-const displayError = computed$8(() => String(props.error || view.value.error || ''));
+const displayError = computed$9(() => String(props.error || view.value.error || ''));
 
-const siteState = computed$8(() => {
+const siteState = computed$9(() => {
   if (props.loading) return 'loading'
   if (displayError.value) return 'error'
   return view.value.cards.length ? 'ready' : 'empty'
@@ -1461,7 +1477,7 @@ const SiteDataPanel = /*#__PURE__*/_export_sfc(_sfc_main$b, [['__scopeId',"data-
 const {openBlock:_openBlock$a,createBlock:_createBlock$6,createCommentVNode:_createCommentVNode$6,renderSlot:_renderSlot$1,toDisplayString:_toDisplayString$4,createTextVNode:_createTextVNode$1,normalizeClass:_normalizeClass$5,createElementBlock:_createElementBlock$6} = await importShared('vue');
 
 
-const {computed: computed$7} = await importShared('vue');
+const {computed: computed$8} = await importShared('vue');
 
 
 const _sfc_main$a = {
@@ -1475,7 +1491,7 @@ const _sfc_main$a = {
 
 const props = __props;
 
-const toneClass = computed$7(() => props.tone ? `v31-status-chip--${props.tone}` : '');
+const toneClass = computed$8(() => props.tone ? `v31-status-chip--${props.tone}` : '');
 
 return (_ctx, _cache) => {
   return (_openBlock$a(), _createElementBlock$6("span", {
@@ -1520,8 +1536,8 @@ return (_ctx, _cache) => {
     _createElementVNode$3("div", _hoisted_2$4, [
       _createElementVNode$3("span", _hoisted_3$3, _toDisplayString$3(__props.task.name), 1),
       _createVNode$7(_sfc_main$a, {
-        label: __props.task.state || '运行中',
-        tone: __props.task.state === '失败' ? 'danger' : 'plain-green'
+        label: __props.task.state || '无记录',
+        tone: ['failed', 'data_error'].includes(__props.task.status) || __props.task.state === '失败' ? 'danger' : __props.task.state === '成功' ? 'plain-green' : ''
       }, null, 8, ["label", "tone"])
     ]),
     _createElementVNode$3("span", _hoisted_4$3, _toDisplayString$3(__props.task.schedule), 1)
@@ -1566,7 +1582,7 @@ return (_ctx, _cache) => {
             size: "18"
           }, null, 8, ["icon"]),
           _cache[0] || (_cache[0] = _createElementVNode$2("span", null, "任务运行", -1)),
-          _cache[1] || (_cache[1] = _createElementVNode$2("small", null, "当前实时任务", -1))
+          _cache[1] || (_cache[1] = _createElementVNode$2("small", null, "最近执行结果", -1))
         ]),
         _createVNode$6(_sfc_main$a, { label: "异常优先" })
       ]),
@@ -1579,7 +1595,7 @@ return (_ctx, _cache) => {
               }, null, 8, ["task"]))
             }), 128))
           ]))
-        : (_openBlock$8(), _createElementBlock$4("div", _hoisted_4$2, "当前没有正在运行的任务"))
+        : (_openBlock$8(), _createElementBlock$4("div", _hoisted_4$2, "当前没有启用的任务"))
     ]),
     _: 1
   }))
@@ -1599,7 +1615,7 @@ const _hoisted_5$1 = ["disabled", "aria-busy", "aria-disabled", "aria-haspopup",
 const _hoisted_6$1 = ["data-state"];
 const _hoisted_7$1 = { class: "v31-quick-action__label" };
 
-const {computed: computed$6} = await importShared('vue');
+const {computed: computed$7} = await importShared('vue');
 
 
 const _sfc_main$7 = {
@@ -1632,15 +1648,15 @@ const props = __props;
 
 const emit = __emit;
 
-const actionView = computed$6(() => ({
+const actionView = computed$7(() => ({
   items: Array.isArray(props.actions?.items) ? props.actions.items : [],
   runningKey: String(props.actions?.runningKey || ''),
   runningKeys: Array.isArray(props.actions?.runningKeys) ? props.actions.runningKeys : [],
   feedbackMessage: String(props.actions?.feedbackMessage || ''),
   feedbackOk: props.actions?.feedbackOk !== false,
 }));
-const visibleActions = computed$6(() => actionView.value.items.filter(action => action?.availability?.visible !== false));
-const runningKeySet = computed$6(() => new Set([
+const visibleActions = computed$7(() => actionView.value.items.filter(action => action?.availability?.visible !== false));
+const runningKeySet = computed$7(() => new Set([
   actionView.value.runningKey,
   ...actionView.value.runningKeys,
 ].map(key => String(key || '')).filter(Boolean)));
@@ -1754,7 +1770,7 @@ const QuickActionsBand = /*#__PURE__*/_export_sfc(_sfc_main$7, [['__scopeId',"da
 const {createVNode:_createVNode$4,normalizeClass:_normalizeClass$3,openBlock:_openBlock$6,createElementBlock:_createElementBlock$2} = await importShared('vue');
 
 
-const {computed: computed$5} = await importShared('vue');
+const {computed: computed$6} = await importShared('vue');
 
 
 const _sfc_main$6 = {
@@ -1768,7 +1784,7 @@ const _sfc_main$6 = {
 
 const props = __props;
 
-const variantClass = computed$5(() => props.tone ? `v31-icon-circle--${props.tone}` : '');
+const variantClass = computed$6(() => props.tone ? `v31-icon-circle--${props.tone}` : '');
 
 return (_ctx, _cache) => {
   return (_openBlock$6(), _createElementBlock$2("span", {
@@ -1796,6 +1812,8 @@ const _hoisted_6 = { class: "v31-fusion-mini__buttons" };
 const _hoisted_7 = ["disabled", "aria-busy", "aria-label", "data-disabled-reason", "title"];
 const _hoisted_8 = ["disabled", "aria-busy", "aria-label", "data-disabled-reason", "title"];
 
+const {computed: computed$5} = await importShared('vue');
+
 
 const _sfc_main$5 = {
   __name: 'FusionMiniCard',
@@ -1804,6 +1822,8 @@ const _sfc_main$5 = {
   updatedAt: { type: String, default: '' },
   isBuilt: { type: Boolean, default: false },
   enabled: { type: Boolean, default: true },
+  lastError: { type: String, default: '' },
+  renderState: { type: String, default: '' },
   refreshing: { type: Boolean, default: false },
   building: { type: Boolean, default: false },
   buildDisabledReason: { type: String, default: '' },
@@ -1815,6 +1835,12 @@ const _sfc_main$5 = {
 const props = __props;
 
 
+
+const settled = computed$5(() => props.enabled && props.isBuilt && !props.lastError && props.renderState !== 'loading');
+const statusLabel = computed$5(() => !props.enabled ? '已停用'
+  : props.lastError ? '刷新失败'
+    : props.renderState === 'loading' ? '采集中'
+      : props.isBuilt ? '已建立' : '未建立');
 
 function busyReason() {
   if (props.building) return '融合卡建卡正在执行，请等待完成。'
@@ -1854,10 +1880,11 @@ return (_ctx, _cache) => {
       _createElementVNode("div", _hoisted_5, [
         _cache[3] || (_cache[3] = _createElementVNode("span", null, "状态", -1)),
         _createVNode$3(_sfc_main$a, {
-          label: __props.enabled ? (__props.isBuilt ? '已建立' : '未建立') : '已停用',
-          tone: __props.enabled && __props.isBuilt ? 'green' : '',
-          icon: __props.enabled && __props.isBuilt ? _unref$4(v31Icons).checkCircle : ''
-        }, null, 8, ["label", "tone", "icon"])
+          label: statusLabel.value,
+          tone: __props.enabled && __props.lastError ? 'danger' : settled.value ? 'green' : '',
+          icon: settled.value ? _unref$4(v31Icons).checkCircle : '',
+          title: __props.lastError || undefined
+        }, null, 8, ["label", "tone", "icon", "title"])
       ])
     ]),
     _createElementVNode("div", _hoisted_6, [
@@ -1988,6 +2015,7 @@ const quickActionController = useQuickActionController({
   },
   onFailure: async ({ action }) => {
     if (actionRefreshes(action, 'siteChart')) await refreshSiteChart();
+    if (actionRefreshes(action, 'fusionCard')) await loadFusionCard();
   },
 });
 
@@ -2028,6 +2056,7 @@ async function loadFusionCard({ throwOnError = false } = {}) {
     applyFusionCardPayload(fusionCard, payload);
     return { ok: true, data: payload }
   } catch (error) {
+    fusionCard.lastError = '融合卡状态读取失败，请稍后重试';
     if (throwOnError) throw error
     return { ok: false, error }
   }
@@ -2133,13 +2162,15 @@ return (_ctx, _cache) => {
         "updated-at": _unref$3(fusionView).updatedAt,
         "is-built": _unref$3(fusionView).isBuilt,
         enabled: _unref$3(fusionView).enabled,
+        "last-error": _unref$3(fusionView).lastError,
+        "render-state": _unref$3(fusionView).renderState,
         "build-disabled-reason": fusionBuildAvailability.value.disabledReason,
         "refresh-disabled-reason": fusionRefreshAvailability.value.disabledReason,
         refreshing: _unref$3(actionRunner).isActionRunning(_unref$3(fusionRefreshAction)),
         building: _unref$3(actionRunner).isActionRunning(_unref$3(fusionBuildAction)),
         onBuild: handleFusionBuild,
         onRefresh: handleFusionRefresh
-      }, null, 8, ["card-id", "updated-at", "is-built", "enabled", "build-disabled-reason", "refresh-disabled-reason", "refreshing", "building"])
+      }, null, 8, ["card-id", "updated-at", "is-built", "enabled", "last-error", "render-state", "build-disabled-reason", "refresh-disabled-reason", "refreshing", "building"])
     ]),
     status: _withCtx$2(() => [
       (error.value)

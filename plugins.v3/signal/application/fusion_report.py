@@ -39,18 +39,25 @@ class FusionReportMixin:
             return self._run_fusion_card_refresh_scoped()
 
     def _run_fusion_card_refresh_scoped(self) -> bool:
+        generation = getattr(self, "_runtime_generation", 0)
         name = "融合卡刷新"
         ok, _ = self._guard_task(name, "fusion_notify")
-        if not ok:
+        if not ok or self._should_cancel(generation):
             return False
         try:
-            refresh_result = self._refresh_fusion_report_live_data()
+            refresh_result = self._refresh_fusion_report_live_data(generation=generation)
+            if self._should_cancel(generation) or refresh_result.get("cancelled"):
+                return False
             text = self._build_fusion_report_message()
             calendar_snapshot = self._subscription_calendar_snapshot_for_scope()
             calendar_partial = calendar_snapshot is not None and calendar_snapshot.is_partial
             calendar_error = calendar_snapshot.failure_message() if calendar_partial else ""
+            if self._should_cancel(generation):
+                return False
             if self._fusion_notify_enabled:
-                refresh_ok = self._refresh_fusion_card(text, refresh_result)
+                refresh_ok = self._refresh_fusion_card(text, refresh_result, generation=generation)
+                if self._should_cancel(generation):
+                    return False
                 if calendar_partial:
                     self._notify_fusion_task_outcome(
                         mtype=self._notification_type("Plugin"),
@@ -87,6 +94,8 @@ class FusionReportMixin:
             self._save_fusion_report_result(updated=False, success=False, text=text, error=error, message=error, returncode=1)
             return False
         except Exception as err:
+            if self._should_cancel(generation):
+                return False
             self._save_task_result(name, False, -1, str(err))
             self._save_fusion_report_result(updated=False, success=False, text="", error=str(err), message=str(err), returncode=-1)
             try:
@@ -112,14 +121,19 @@ class FusionReportMixin:
             logger.error(f"Signal 融合卡刷新失败：{err}")
             return False
 
-    def _refresh_fusion_report_live_data(self) -> Dict[str, Any]:
+    def _refresh_fusion_report_live_data(self, *, generation=None) -> Dict[str, Any]:
         """Refresh the live data consumed by the Fusion card."""
+        generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
+        if self._should_cancel(generation):
+            return {"success": False, "cancelled": True}
         result: Dict[str, Any] = {"success": True}
         try:
             needs_site_data = getattr(self, "_site_stat_enabled", False) and (
                 self._report_site_status or self._report_site_increment or self._report_summary or self._fusion_notify_enabled)
             if needs_site_data:
-                refresh = self._refresh_site_userdata_coordinated(source="fusion_refresh")
+                refresh = self._refresh_site_userdata_coordinated(source="fusion_refresh", generation=generation)
+                if self._should_cancel(generation) or refresh.get("status") == "cancelled":
+                    return {"success": False, "cancelled": True}
                 active_count = int(refresh.get("active_count") or 0)
                 # count 只表示"站点返回了数据"，其中可能包含带 err_msg 的故障站点。
                 # 融合卡文案必须用真正健康的 ok_count，并逐站列出被排除的站点，
@@ -167,6 +181,8 @@ class FusionReportMixin:
 
             return result
         except Exception:
+            if self._should_cancel(generation):
+                return {"success": False, "cancelled": True}
             message = "融合卡实时数据刷新失败"
             logger.warning(f"Signal {message}")
             self._save_task_result("融合卡实时刷新", False, 1, message)

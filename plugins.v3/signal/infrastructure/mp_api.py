@@ -9,8 +9,16 @@ from app.sdk.logging import logger
 class MpApiMixin:
     """HTTP API endpoint methods exposed through MoviePilot plugin get_api()."""
 
+    @staticmethod
+    def _cancelled_fusion_action() -> Dict[str, Any]:
+        return {"code": 1, "msg": "融合通知操作已取消：插件已停止或重新加载",
+                "data": {"cancelled": True, "skipped": True}}
+
     def api_refresh_tg_console_card(self) -> Dict[str, Any]:
+        generation = getattr(self, "_runtime_generation", 0)
         success = bool(self.run_fusion_card_refresh())
+        if self._should_cancel(generation):
+            return self._cancelled_fusion_action()
         message = "融合通知卡已刷新" if success else (self._tg_console_last_error or "融合通知卡刷新失败")
         return {
             "code": 0 if success else 1,
@@ -24,11 +32,16 @@ class MpApiMixin:
             return self._api_create_tg_console_card_scoped(trigger=trigger)
 
     def _api_create_tg_console_card_scoped(self, trigger: str = "manual") -> Dict[str, Any]:
+        generation = getattr(self, "_runtime_generation", 0)
         ok, msg = self._can_run_task("融合通知卡", "fusion_notify")
+        if self._should_cancel(generation):
+            return self._cancelled_fusion_action()
         if not ok:
             self._save_task_result("融合通知卡", False, 2, msg)
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
         token, chat_id, _source = self._resolve_fusion_telegram_config()
+        if self._should_cancel(generation):
+            return self._cancelled_fusion_action()
         if not token or not chat_id:
             msg = "融合通知 Bot Token/Chat ID 未配置"
             self._save_task_result("融合通知卡", False, 1, msg)
@@ -39,8 +52,10 @@ class MpApiMixin:
         state = self._new_tg_console_card_state(chat_id=chat_id, trigger=trigger)
         self._prepare_tg_console_v7_loading(state)
         try:
-            ok = self._tg_console_upsert_card(token, chat_id, state)
+            ok = self._tg_console_upsert_card(token, chat_id, state, generation=generation)
         except Exception as err:
+            if self._should_cancel(generation):
+                return self._cancelled_fusion_action()
             msg = f"融合通知卡创建异常：{self._telegram_safe_error(err, limit=500)}"
             state["last_error"] = msg
             self._save_tg_console_state(state)
@@ -50,41 +65,69 @@ class MpApiMixin:
         site_error = ""
         sent = ok
         if ok:
-            state.pop("site_refresh", None)
-            if getattr(self, "_site_stat_enabled", False):
-                source = {"manual": "fusion_create_manual", "scheduled": "fusion_create_scheduled"}.get(trigger, "unknown")
-                refresh = self._refresh_site_userdata_coordinated(source=source)
-                state["site_refresh"] = refresh
-                site_error = self._site_refresh_failure_message(refresh)
-            columns_ok = self._refresh_fusion_columns(state)
-            self._compose_tg_console_v7_model(state)
+            # Preserve the new card identity before any slow or failing collector.
+            with self._site_refresh_condition:
+                if self._should_cancel(generation):
+                    return self._cancelled_fusion_action()
+                self._save_tg_console_state(state)
             try:
-                sent = bool(self._tg_console_upsert_card(token, chat_id, state))
+                state.pop("site_refresh", None)
+                if getattr(self, "_site_stat_enabled", False):
+                    source = {"manual": "fusion_create_manual", "scheduled": "fusion_create_scheduled"}.get(trigger, "unknown")
+                    refresh = self._refresh_site_userdata_coordinated(source=source, generation=generation)
+                    if self._should_cancel(generation) or refresh.get("status") == "cancelled":
+                        return self._cancelled_fusion_action()
+                    state["site_refresh"] = refresh
+                    site_error = self._site_refresh_failure_message(refresh)
+                columns_ok = self._refresh_fusion_columns(state, generation=generation)
+                if self._should_cancel(generation):
+                    return self._cancelled_fusion_action()
+                if columns_ok:
+                    self._compose_tg_console_v7_model(state)
+                else:
+                    site_error = "；".join(filter(None, (site_error, "融合卡栏目采集失败，请稍后刷新重试")))
+                    self._prepare_tg_console_v7_failure(state, site_error)
+            except Exception:
+                if self._should_cancel(generation):
+                    return self._cancelled_fusion_action()
+                columns_ok = False
+                site_error = "融合卡数据采集失败，请稍后刷新重试"
+                self._prepare_tg_console_v7_failure(state, site_error)
+                logger.warning(f"Signal {site_error}")
+            if self._should_cancel(generation):
+                return self._cancelled_fusion_action()
+            try:
+                sent = bool(self._tg_console_upsert_card(token, chat_id, state, generation=generation))
             except Exception as err:
+                if self._should_cancel(generation):
+                    return self._cancelled_fusion_action()
                 sent = False
                 self._tg_console_last_error = f"融合通知卡发送异常：{self._telegram_safe_error(err, limit=500)}"
                 state["last_error"] = self._tg_console_last_error
             ok = sent and bool(columns_ok) and not site_error
-        calendar_status = str(state.get("subscription_calendar_status") or "").strip()
-        if calendar_status in {"partial", "failed", "invalid"}:
-            ok = False
-            state["last_error"] = (
-                f"订阅日历状态：{calendar_status}"
-                + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
-            )
-        if site_error:
-            transport_error = "" if sent else self._telegram_safe_error(self._tg_console_last_error or state.get("last_error") or "发送失败", limit=500)
-            self._tg_console_last_error = "；".join(part for part in (site_error, transport_error) if part)
-            state["last_error"] = self._tg_console_last_error
-        self._save_tg_console_state(state)
-        if not ok:
-            msg = self._tg_console_last_error or state.get("last_error") or "融合通知卡创建失败"
-            self._save_task_result("融合通知卡", False, 1, msg)
-            return {"code": 1, "msg": msg, "data": self._tg_console_action_status_data(1, msg)}
-        message_id = state.get("message_id") or 0
-        msg = f"融合通知卡已创建 #{message_id}" if message_id else "融合通知卡已创建"
-        self._save_task_result("融合通知卡", True, 0, msg)
-        return {"code": 0, "msg": msg, "data": self._tg_console_action_status_data(0, msg)}
+        with self._site_refresh_condition:
+            if self._should_cancel(generation):
+                return self._cancelled_fusion_action()
+            calendar_status = str(state.get("subscription_calendar_status") or "").strip()
+            if calendar_status in {"partial", "failed", "invalid"}:
+                ok = False
+                state["last_error"] = (
+                    f"订阅日历状态：{calendar_status}"
+                    + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
+                )
+            if site_error:
+                transport_error = "" if sent else self._telegram_safe_error(self._tg_console_last_error or state.get("last_error") or "发送失败", limit=500)
+                self._tg_console_last_error = "；".join(part for part in (site_error, transport_error) if part)
+                state["last_error"] = self._tg_console_last_error
+            self._save_tg_console_state(state)
+            if not ok:
+                msg = self._tg_console_last_error or state.get("last_error") or "融合通知卡创建失败"
+                self._save_task_result("融合通知卡", False, 1, msg)
+                return {"code": 1, "msg": msg, "data": self._tg_console_action_status_data(1, msg)}
+            message_id = state.get("message_id") or 0
+            msg = f"融合通知卡已创建 #{message_id}" if message_id else "融合通知卡已创建"
+            self._save_task_result("融合通知卡", True, 0, msg)
+            return {"code": 0, "msg": msg, "data": self._tg_console_action_status_data(0, msg)}
 
     def api_run_subscribe_reminder(self) -> Dict[str, Any]:
         return self._api_run_task("订阅追新", self.run_subscribe_reminder, "subscribe_reminder")

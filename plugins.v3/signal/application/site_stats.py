@@ -675,7 +675,8 @@ class SiteStatsMixin:
 
         for state in snapshot.get("site_states") or []:
             outcome = outcomes.get(state["domain"])
-            global_failure = same_scope and refresh.get("success") is False and refresh.get("status") != "running" and not outcomes
+            global_failure = (same_scope and refresh.get("success") is False
+                              and refresh.get("status") != "running" and outcome is None)
             if outcome is not None or global_failure:
                 item = outcome if outcome is not None else refresh
                 finished = self._site_timestamp(item.get("finished_at")) or self._site_timestamp(refresh.get("finished_at"))
@@ -715,7 +716,8 @@ class SiteStatsMixin:
         if not isinstance(refresh, dict) or not refresh:
             return ""
         if refresh.get("success") is False:
-            return {"timeout": "站点更新等待超时", "active_sites_error": "读取启用站点失败"}.get(refresh.get("status"), "站点刷新检查失败")
+            return {"timeout": "站点更新等待超时", "active_sites_error": "读取启用站点失败",
+                    "cancelled": "站点刷新已停止"}.get(refresh.get("status"), "站点刷新检查失败")
         if int(refresh.get("active_count") or 0) > 0 and int(refresh.get("ok_count") or 0) == 0:
             return "本轮站点刷新未取得可用数据"
         return ""
@@ -915,6 +917,21 @@ class SiteStatsMixin:
             tail = f"（做种：{self._format_duration(seed)}）" if seed else ""
             items.append(f"  - {label}{tail}")
         return items
+    @staticmethod
+    def _query_storage_usage(storage_type: str) -> Tuple[Optional[Dict[str, Any]], str]:
+        from app.chain.storage import StorageChain
+
+        # V3 routes capacity reads through the same management action as its dashboard.
+        result = StorageChain().manage_storage(storage=storage_type, action="usage")
+        if not isinstance(result, dict):
+            raise TypeError("存储容量接口返回格式无效")
+        if result.get("success") is not True:
+            return None, str(result.get("message") or "")
+        usage = result.get("data")
+        if usage is not None and not isinstance(usage, dict):
+            raise TypeError("存储容量数据格式无效")
+        return usage, ""
+
     def _get_storage_health_locked(self) -> List[str]:
         """按 MP 配置的存储分别显示真实用量。
         与 MoviePilot 官方仪表盘 _build_storage 口径一致：只展示能取到真实用量的存储；
@@ -929,14 +946,12 @@ class SiteStatsMixin:
             except Exception:
                 storages = []
 
-            # 各存储用量（网络盘）——不同版本 API 可能不同，取不到则回退
+            # Only the maintained V3 storage management contract is used.
             usage_map = {}
             try:
-                from app.chain.storage import StorageChain
-                sc = StorageChain()
                 for s in storages:
                     try:
-                        u = sc.storage_usage(s.get("type") or "local")
+                        u, _ = self._query_storage_usage(s.get("type") or "local")
                         if u:
                             usage_map[s.get("name")] = u
                     except Exception:
@@ -965,7 +980,7 @@ class SiteStatsMixin:
                 if u is not None:
                     total = u.get("total") if isinstance(u, dict) else getattr(u, "total", None)
                     used = u.get("used") if isinstance(u, dict) else getattr(u, "used", None)
-                    free = (u.get("available") or u.get("free")) if isinstance(u, dict) else (getattr(u, "available", None) or getattr(u, "free", None))
+                    free = u.get("available") if u.get("available") is not None else u.get("free")
                     self._append_usage_line(items, name, total, used, free)
                 elif stype == "local" and local_path:
                     try:
@@ -1058,7 +1073,6 @@ class SiteStatsMixin:
             try:
                 from app.db.oper.systemconfig import SystemConfigOper
                 from app.schemas.types import SystemConfigKey
-                from app.chain.storage import StorageChain
             except Exception as err:
                 outcomes.append(self._health_result("storage", "checker_error", f"存储检查依赖加载失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
             else:
@@ -1070,7 +1084,6 @@ class SiteStatsMixin:
                 if not storages:
                     outcomes.append(self._health_result("storage", "unavailable", "未配置可查询容量的存储", affected_owner="persistent-storage"))
                 else:
-                    sc = StorageChain()
                     for storage in storages:
                         if not isinstance(storage, dict):
                             outcomes.append(self._health_result("storage", "checker_error", "存储配置条目格式无效", affected_owner="signal-health-checker"))
@@ -1078,17 +1091,22 @@ class SiteStatsMixin:
                         name = storage.get("name") or storage.get("type") or "存储"
                         storage_type = storage.get("type") or "local"
                         try:
-                            usage = sc.storage_usage(storage_type)
+                            usage, reason = self._query_storage_usage(storage_type)
+                        except (ImportError, AttributeError, TypeError, ValueError):
+                            outcomes.append(self._health_result("storage", "checker_error", f"{name} 容量接口调用异常", affected_owner="signal-health-checker", target=str(name)))
+                            continue
                         except Exception as err:
                             outcomes.append(self._health_result("storage", "fault", f"{name} 容量查询失败：{str(err)[:100]}", affected_owner="persistent-storage", target=str(name)))
                             continue
                         if not usage:
-                            outcomes.append(self._health_result("storage", "unavailable", f"{name} 无法检查容量", affected_owner="persistent-storage", target=str(name)))
+                            unavailable = not reason or any(word in reason for word in ("不支持", "未启用", "未配置"))
+                            status = "unavailable" if unavailable else "fault"
+                            outcomes.append(self._health_result("storage", status, f"{name} 无法检查容量" + (f"：{reason[:100]}" if reason else ""), affected_owner="persistent-storage", target=str(name)))
                             continue
                         try:
                             total = usage.get("total") if isinstance(usage, dict) else getattr(usage, "total", None)
                             used = usage.get("used") if isinstance(usage, dict) else getattr(usage, "used", None)
-                            free = (usage.get("available") or usage.get("free")) if isinstance(usage, dict) else (getattr(usage, "available", None) or getattr(usage, "free", None))
+                            free = usage.get("available") if usage.get("available") is not None else usage.get("free")
                             if int(total or 0) <= 0:
                                 outcomes.append(self._health_result("storage", "unavailable", f"{name} 无法检查容量", affected_owner="persistent-storage", target=str(name)))
                                 continue

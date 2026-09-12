@@ -293,6 +293,7 @@ class TgConsoleStateMixin:
             "card_generation": (state.get("fusion_card") or {}).get("generation") or 0,
             "card_lifecycle": (state.get("fusion_card") or {}).get("lifecycle") or "awaiting_create",
             "card_can_update": can_update_fusion_card(state.get("fusion_card")),
+            "render_state": state.get("v7_state") or "",
             "last_update_id": state.get("last_update_id") or 0,
             "notice_count": len(state.get("notices") or []),
             "pending_count": len([x for x in (state.get("pending_actions") or {}).values() if x.get("confirm_for")]),

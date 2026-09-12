@@ -293,13 +293,15 @@ class TgConsoleFusionMixin:
     def _emit_console_report(self, section_key: str, title: str, text: str = "", level: str = "info") -> bool:
         return self._emit_fusion_notice(section_key, title, text, level=level)
 
-    def _refresh_fusion_card(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None) -> bool:
+    def _refresh_fusion_card(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None, *, generation: Optional[int] = None) -> bool:
+        generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
         scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
         with (scope_factory() if callable(scope_factory) else nullcontext()):
-            return self._refresh_fusion_card_scoped(fusion_text=fusion_text, live_result=live_result)
+            return self._refresh_fusion_card_scoped(fusion_text=fusion_text, live_result=live_result, generation=generation)
 
-    def _refresh_fusion_card_scoped(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None) -> bool:
-        if not self._fusion_notify_enabled:
+    def _refresh_fusion_card_scoped(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None, *, generation: Optional[int] = None) -> bool:
+        generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
+        if not self._fusion_notify_enabled or self._should_cancel(generation):
             return False
         token, chat_id, _source = self._resolve_fusion_telegram_config()
         if not token or not chat_id:
@@ -325,8 +327,20 @@ class TgConsoleFusionMixin:
         previous_context = getattr(self, "_fusion_refresh_context", None)
         self._fusion_refresh_context = {"live_result": live_result or {}}
         try:
-            columns_ok = self._refresh_fusion_columns(state)
-            self._compose_tg_console_v7_model(state)
+            columns_ok = self._refresh_fusion_columns(state, generation=generation)
+            if self._should_cancel(generation):
+                return False
+            if columns_ok:
+                self._compose_tg_console_v7_model(state)
+            else:
+                site_error = "；".join(filter(None, (site_error, "融合卡栏目采集失败，请稍后刷新重试")))
+                self._prepare_tg_console_v7_failure(state, site_error)
+        except Exception:
+            if self._should_cancel(generation):
+                return False
+            columns_ok = False
+            site_error = "融合卡数据采集失败，请稍后刷新重试"
+            self._prepare_tg_console_v7_failure(state, site_error)
         finally:
             if previous_context is None:
                 try:
@@ -335,37 +349,46 @@ class TgConsoleFusionMixin:
                     pass
             else:
                 self._fusion_refresh_context = previous_context
+        if self._should_cancel(generation):
+            return False
         try:
-            sent = bool(self._tg_console_upsert_card(token, chat_id, state))
+            sent = bool(self._tg_console_upsert_card(token, chat_id, state, generation=generation))
             ok = sent and bool(columns_ok) and not site_error
         except Exception as err:
+            if self._should_cancel(generation):
+                return False
             sent = False
             ok = False
             self._tg_console_last_error = f"Telegram 融合通知全量刷新异常：{self._telegram_safe_error(err, limit=500)}"
             state["last_error"] = self._tg_console_last_error
             logger.warning(f"Signal {self._tg_console_last_error}")
-        calendar_status = str(state.get("subscription_calendar_status") or "").strip()
-        if calendar_status in {"partial", "failed", "invalid"}:
-            ok = False
-            state["last_error"] = (
-                f"订阅日历状态：{calendar_status}"
-                + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
-            )
-        if ok:
-            self._tg_console_last_error = ""
-            state["last_error"] = ""
-        if site_error:
-            transport_error = "" if sent else self._telegram_safe_error(self._tg_console_last_error or state.get("last_error") or "发送失败", limit=500)
-            self._tg_console_last_error = "；".join(part for part in (site_error, transport_error) if part)
-            state["last_error"] = self._tg_console_last_error
-        self._save_tg_console_state(state)
-        return ok
+        with self._site_refresh_condition:
+            if self._should_cancel(generation):
+                return False
+            calendar_status = str(state.get("subscription_calendar_status") or "").strip()
+            if calendar_status in {"partial", "failed", "invalid"}:
+                ok = False
+                state["last_error"] = (
+                    f"订阅日历状态：{calendar_status}"
+                    + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
+                )
+            if ok:
+                self._tg_console_last_error = ""
+                state["last_error"] = ""
+            if site_error:
+                transport_error = "" if sent else self._telegram_safe_error(self._tg_console_last_error or state.get("last_error") or "发送失败", limit=500)
+                self._tg_console_last_error = "；".join(part for part in (site_error, transport_error) if part)
+                state["last_error"] = self._tg_console_last_error
+            self._save_tg_console_state(state)
+            return ok
 
-    def _refresh_fusion_columns(self, state: Dict[str, Any]) -> bool:
+    def _refresh_fusion_columns(self, state: Dict[str, Any], *, generation: Optional[int] = None) -> bool:
         valid_columns = {x["key"] for x in self._fusion_column_registry()}
         enabled = set(self._fusion_notify_columns or valid_columns) & valid_columns
         ok = True
         for item in self._fusion_column_registry():
+            if generation is not None and self._should_cancel(generation):
+                return False
             key = item["key"]
             if key not in enabled:
                 continue

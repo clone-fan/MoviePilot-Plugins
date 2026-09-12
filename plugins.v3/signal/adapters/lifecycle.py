@@ -28,10 +28,12 @@ class LifecycleMixin:
     _site_refresh_started_at = 0.0
     _site_refresh_running_key = None
     _site_refresh_running_started_at = ""
+    _site_refresh_partial_result = None
     _site_refresh_last_result = None
     _site_refresh_last_finished_at = 0.0
     _site_refresh_last_key = None
     _site_refresh_cache_ttl_seconds = 5.0
+    _fusion_site_refresh_timeout_seconds = 30.0
     SITE_REFRESH_SOURCES = {"site_stat_manual", "site_stat_scheduled", "fusion_create_manual", "fusion_create_scheduled", "fusion_refresh"}
 
     @classmethod
@@ -107,12 +109,18 @@ class LifecycleMixin:
                     "date": key[0] if running else "", "started_at": cls._site_refresh_running_started_at if running else "",
                     "elapsed_seconds": max(0.0, time.monotonic() - cls._site_refresh_started_at) if running else 0.0}
 
-    def _refresh_site_userdata_coordinated(self, *, source: str = "site_stat_manual") -> Dict[str, Any]:
+    def _refresh_site_userdata_coordinated(self, *, source: str = "site_stat_manual", generation: Optional[int] = None) -> Dict[str, Any]:
         source = source if source in self.SITE_REFRESH_SOURCES else "unknown"
+        wait_seconds = self._fusion_site_refresh_timeout_seconds if source.startswith("fusion_") else 60.0
         started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         data_date = started_at[:10]
         active_sites = []
         active_domains = set()
+        cls = LifecycleMixin
+        runtime_generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
+
+        def cancelled():
+            return self._should_cancel(runtime_generation)
 
         def finish(result: Dict[str, Any]) -> Dict[str, Any]:
             result.setdefault("active_count", len(active_sites))
@@ -126,24 +134,48 @@ class LifecycleMixin:
                           data_date=data_date, source=source)
             return result
 
+        def stopped_result():
+            return finish({"success": False, "status": "cancelled", "message": "站点刷新已停止"})
+
+        def timeout_result():
+            # Called under the coordinator lock. Keep completed sites, while
+            # leaving only unfinished sites subject to the batch timeout.
+            key = (data_date, len(active_sites), frozenset(active_domains))
+            partial = cls._site_refresh_partial_result if cls._site_refresh_running_key == key else None
+            partial = deepcopy(partial) if partial else {}
+            sites = partial.get("sites") or []
+            return finish({"success": False, "status": "timeout", "message": "等待站点刷新超时",
+                           "sites": sites, "count": len(partial.get("returned_domains") or []),
+                           "ok_count": sum(item["status"] == "ok" for item in sites)})
+
+        if cancelled():
+            return stopped_result()
         try:
             from app.db.oper.site import SiteOper
             active_sites = site_helpers.select_user_data_sites(SiteOper().list_active() or [])
             active_domains = {site_helpers.normalize_site_domain(getattr(site, "domain", "")) for site in active_sites}
             active_domains.discard("")
         except Exception:
-            result = finish({"success": False, "status": "active_sites_error", "active_scope_known": False,
-                             "message": "读取启用站点失败"})
-            self._save_site_refresh_state(result)
-            return result
+            with cls._site_refresh_condition:
+                if cancelled():
+                    return stopped_result()
+                result = finish({"success": False, "status": "active_sites_error", "active_scope_known": False,
+                                 "message": "读取启用站点失败"})
+                self._save_site_refresh_state(result)
+                return result
         if len(active_domains) != len(active_sites):
-            result = finish({"success": False, "status": "active_sites_error", "active_identity_invalid": True,
-                             "message": "启用站点身份匹配失败"})
-            self._save_site_refresh_state(result)
-            return result
+            with cls._site_refresh_condition:
+                if cancelled():
+                    return stopped_result()
+                result = finish({"success": False, "status": "active_sites_error", "active_identity_invalid": True,
+                                 "message": "启用站点身份匹配失败"})
+                self._save_site_refresh_state(result)
+                return result
 
-        cls = LifecycleMixin
         with cls._site_refresh_condition:
+            if cancelled():
+                return stopped_result()
+
             def cached_result():
                 key = (datetime.now().strftime("%Y-%m-%d"), len(active_sites), frozenset(active_domains))
                 age = time.monotonic() - cls._site_refresh_last_finished_at
@@ -157,10 +189,13 @@ class LifecycleMixin:
             if cached is not None:
                 return cached
             if cls._site_refresh_running:
-                completed = cls._site_refresh_condition.wait_for(lambda: not cls._site_refresh_running, timeout=60.0)
+                completed = cls._site_refresh_condition.wait_for(
+                    lambda: cancelled() or not cls._site_refresh_running, timeout=wait_seconds)
+                if cancelled():
+                    return stopped_result()
                 if not completed:
                     data_date = datetime.now().strftime("%Y-%m-%d")
-                    result = finish({"success": False, "status": "timeout", "message": "等待站点刷新超时"})
+                    result = timeout_result()
                     self._save_site_refresh_state(result)
                     return result
                 cached = cached_result()
@@ -172,83 +207,130 @@ class LifecycleMixin:
             cls._site_refresh_started_at = time.monotonic()
             cls._site_refresh_running_key = cache_key
             cls._site_refresh_running_started_at = started_at
+            cls._site_refresh_partial_result = None
             cls._site_refresh_running = True
 
+        results = []
+
+        def collect():
+            try:
+                from app.chain.site import SiteChain
+                from app.sdk.network import SitesHelper
+                from app.sdk.utilities import StringUtils
+
+                host_normalizer = getattr(StringUtils, "get_url_domain", site_helpers.normalize_site_domain)
+                def host_domain(value):
+                    return str(host_normalizer(str(value or "")) or "").strip().lower()
+
+                exact_lookup: Dict[str, List[Dict[str, Any]]] = {}
+                host_lookup: Dict[str, List[Dict[str, Any]]] = {}
+                for indexer in (SitesHelper().get_indexers() or []) if active_sites else []:
+                    if not isinstance(indexer, dict):
+                        continue
+                    raw_domain = indexer.get("domain") or indexer.get("url")
+                    domain = site_helpers.normalize_site_domain(raw_domain)
+                    if domain:
+                        exact_lookup.setdefault(domain, []).append(indexer)
+                        host_lookup.setdefault(host_domain(raw_domain), []).append(indexer)
+                active_host_domains = [host_domain(getattr(site, "domain", "")) for site in active_sites]
+                returned_domains = set()
+                sites = []
+                chain = SiteChain() if active_sites else None
+                for site in active_sites:
+                    if cancelled():
+                        break
+                    raw_domain = getattr(site, "domain", "")
+                    domain = site_helpers.normalize_site_domain(raw_domain)
+                    label = self._site_safe_name(getattr(site, "name", None) or domain or "未知站点")
+                    candidates = exact_lookup.get(domain)
+                    if candidates is None:
+                        key = host_domain(raw_domain)
+                        candidates = host_lookup.get(key, []) if active_host_domains.count(key) == 1 else []
+                    item = {"name": label, "domain": domain, "status": "ok", "reason_code": "ok", "reason": "",
+                            "attempted_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+                    if len(candidates) != 1:
+                        item.update(status="checker_error", reason_code="checker_error", reason="站点身份匹配失败")
+                    else:
+                        error = ""
+                        try:
+                            userdata = chain.refresh_userdata(site=candidates[0])
+                            if userdata is None:
+                                error = "未返回用户数据"
+                            else:
+                                returned_domains.add(domain)
+                                error = str(getattr(userdata, "err_msg", "") or "").strip()
+                        except Exception as err:
+                            error = str(err)
+                        if error:
+                            code, reason = self._site_error_details(error)
+                            item.update(status="fault", reason_code=code, reason=reason)
+                    item["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    sites.append(item)
+                    with cls._site_refresh_condition:
+                        if not cancelled():
+                            cls._site_refresh_partial_result = {
+                                "sites": deepcopy(sites), "returned_domains": sorted(returned_domains)}
+                ok_count = sum(item["status"] == "ok" for item in sites)
+                result = {"success": True, "status": "ok" if ok_count == len(active_sites) else ("partial" if ok_count else "empty"),
+                          "count": len(returned_domains), "ok_count": ok_count, "sites": sites,
+                          "returned_domains": sorted(returned_domains),
+                          "faults": [item for item in sites if item["status"] == "fault"],
+                          "checker_errors": [item for item in sites if item["status"] == "checker_error"],
+                          "errors": [f"{item['name']}：{item['reason']}" for item in sites if item["status"] != "ok"],
+                          "identity_missing": bool(active_domains - returned_domains), "identity_mismatch": active_domains != returned_domains,
+                          "active_identity_invalid": False, "message": ""}
+            except Exception:
+                result = {"success": False, "status": "error", "message": "站点刷新检查失败"}
+            finally:
+                result = finish(result)
+                with cls._site_refresh_condition:
+                    if cancelled():
+                        result = stopped_result()
+                    else:
+                        self._save_site_refresh_state(result)
+                        cls._site_refresh_last_result = deepcopy(result)
+                        cls._site_refresh_last_finished_at = time.monotonic()
+                        cls._site_refresh_last_key = cache_key
+                    results.append(result)
+                    cls._site_refresh_started_at = 0.0
+                    cls._site_refresh_running_key = None
+                    cls._site_refresh_running_started_at = ""
+                    cls._site_refresh_partial_result = None
+                    cls._site_refresh_running = False
+                    cls._site_refresh_condition.notify_all()
+            return result
+
+        if not source.startswith("fusion_"):
+            return collect()
+
+        # A slow host parser keeps the one shared collection running, but must not
+        # leave a newly sent Fusion card in its loading state indefinitely.
+        worker = threading.Thread(target=collect, name="Signal-site-refresh", daemon=True)
         try:
-            from app.chain.site import SiteChain
-            from app.sdk.network import SitesHelper
-            from app.sdk.utilities import StringUtils
-
-            host_normalizer = getattr(StringUtils, "get_url_domain", site_helpers.normalize_site_domain)
-            def host_domain(value):
-                return str(host_normalizer(str(value or "")) or "").strip().lower()
-
-            exact_lookup: Dict[str, List[Dict[str, Any]]] = {}
-            host_lookup: Dict[str, List[Dict[str, Any]]] = {}
-            for indexer in (SitesHelper().get_indexers() or []) if active_sites else []:
-                if not isinstance(indexer, dict):
-                    continue
-                raw_domain = indexer.get("domain") or indexer.get("url")
-                domain = site_helpers.normalize_site_domain(raw_domain)
-                if domain:
-                    exact_lookup.setdefault(domain, []).append(indexer)
-                    host_lookup.setdefault(host_domain(raw_domain), []).append(indexer)
-            active_host_domains = [host_domain(getattr(site, "domain", "")) for site in active_sites]
-            returned_domains = set()
-            sites = []
-            chain = SiteChain() if active_sites else None
-            for site in active_sites:
-                raw_domain = getattr(site, "domain", "")
-                domain = site_helpers.normalize_site_domain(raw_domain)
-                label = self._site_safe_name(getattr(site, "name", None) or domain or "未知站点")
-                candidates = exact_lookup.get(domain)
-                if candidates is None:
-                    key = host_domain(raw_domain)
-                    candidates = host_lookup.get(key, []) if active_host_domains.count(key) == 1 else []
-                item = {"name": label, "domain": domain, "status": "ok", "reason_code": "ok", "reason": "",
-                        "attempted_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-                if len(candidates) != 1:
-                    item.update(status="checker_error", reason_code="checker_error", reason="站点身份匹配失败")
-                else:
-                    error = ""
-                    try:
-                        userdata = chain.refresh_userdata(site=candidates[0])
-                        if userdata is None:
-                            error = "未返回用户数据"
-                        else:
-                            returned_domains.add(domain)
-                            error = str(getattr(userdata, "err_msg", "") or "").strip()
-                    except Exception as err:
-                        error = str(err)
-                    if error:
-                        code, reason = self._site_error_details(error)
-                        item.update(status="fault", reason_code=code, reason=reason)
-                item["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                sites.append(item)
-            ok_count = sum(item["status"] == "ok" for item in sites)
-            result = {"success": True, "status": "ok" if ok_count == len(active_sites) else ("partial" if ok_count else "empty"),
-                      "count": len(returned_domains), "ok_count": ok_count, "sites": sites,
-                      "returned_domains": sorted(returned_domains),
-                      "faults": [item for item in sites if item["status"] == "fault"],
-                      "checker_errors": [item for item in sites if item["status"] == "checker_error"],
-                      "errors": [f"{item['name']}：{item['reason']}" for item in sites if item["status"] != "ok"],
-                      "identity_missing": bool(active_domains - returned_domains), "identity_mismatch": active_domains != returned_domains,
-                      "active_identity_invalid": False, "message": ""}
+            worker.start()
         except Exception:
-            result = {"success": False, "status": "error", "message": "站点刷新检查失败"}
-        finally:
-            result = finish(result)
-            self._save_site_refresh_state(result)
             with cls._site_refresh_condition:
-                cls._site_refresh_last_result = deepcopy(result)
-                cls._site_refresh_last_finished_at = time.monotonic()
-                cls._site_refresh_last_key = cache_key
+                cls._site_refresh_running = False
                 cls._site_refresh_started_at = 0.0
                 cls._site_refresh_running_key = None
                 cls._site_refresh_running_started_at = ""
-                cls._site_refresh_running = False
                 cls._site_refresh_condition.notify_all()
-        return result
+                if cancelled():
+                    return stopped_result()
+                result = finish({"success": False, "status": "error", "message": "站点刷新检查失败"})
+                self._save_site_refresh_state(result)
+            return result
+        with cls._site_refresh_condition:
+            if not results:
+                cls._site_refresh_condition.wait_for(lambda: bool(results) or cancelled(), timeout=wait_seconds)
+            if cancelled():
+                return stopped_result()
+            if results:
+                return deepcopy(results[0])
+            # Persist under the same lock as completion so a late result wins.
+            result = timeout_result()
+            self._save_site_refresh_state(result)
+            return result
 
 
     def _load_plugin_config(self, config: Dict[str, Any]):
@@ -258,9 +340,10 @@ class LifecycleMixin:
         self._load_download_media_config(config)
 
     def _reset_runtime_state(self):
-        self._runtime_generation = int(getattr(self, "_runtime_generation", 0) or 0) + 1
-        self._runtime_cancel_event = threading.Event()
-        self._runtime_active = bool(getattr(self, "_enabled", False))
+        with LifecycleMixin._site_refresh_condition:
+            self._runtime_generation = int(getattr(self, "_runtime_generation", 0) or 0) + 1
+            self._runtime_cancel_event = threading.Event()
+            self._runtime_active = bool(getattr(self, "_enabled", False))
         self._runtime_timers = set()
         self._msg_seen = {}
         self._backup_selection_cache = {}
@@ -281,13 +364,18 @@ class LifecycleMixin:
         # uninstall workflow, never as an implicit startup side effect.
 
     def _stop_runtime_state(self) -> bool:
-        self._runtime_active = False
-        self._runtime_generation = int(getattr(self, "_runtime_generation", 0) or 0) + 1
-        cancel_event = getattr(self, "_runtime_cancel_event", None)
-        if cancel_event is None:
-            cancel_event = threading.Event()
-            self._runtime_cancel_event = cancel_event
-        cancel_event.set()
+        cls = LifecycleMixin
+        with cls._site_refresh_condition:
+            self._runtime_active = False
+            cls._site_refresh_partial_result = None
+            self._runtime_generation = int(getattr(self, "_runtime_generation", 0) or 0) + 1
+            cancel_event = getattr(self, "_runtime_cancel_event", None)
+            if cancel_event is None:
+                cancel_event = threading.Event()
+                self._runtime_cancel_event = cancel_event
+            cancel_event.set()
+            cls._clear_site_refresh_cache()
+            cls._site_refresh_condition.notify_all()
         errors = []
         for timer in list(getattr(self, "_runtime_timers", set()) or set()):
             try:

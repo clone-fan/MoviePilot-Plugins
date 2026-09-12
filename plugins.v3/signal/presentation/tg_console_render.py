@@ -142,6 +142,24 @@ class TgConsoleRenderMixin:
         state["v7_model"] = build_v7_card_model(snapshot, state=card_state)
         return state["v7_model"]
 
+    def _prepare_tg_console_v7_failure(self, state: Dict[str, Any], message: str) -> None:
+        """Build a terminal card without calling the collector that just failed."""
+        snapshot = {
+            "identity": self._v7_identity(),
+            "anomalies": [{
+                "owner": "current-anomalies",
+                "kicker": "当前异常",
+                "count": "1 项",
+                "primary": "融合卡采集未完成",
+                "context": message,
+                "details_rows": [["稍后使用刷新重试", datetime.now().strftime("%H:%M")]],
+                "affected_owners": [],
+            }],
+        }
+        state["v7_snapshot"] = snapshot
+        state["v7_state"] = "alert"
+        state["v7_model"] = build_v7_card_model(snapshot, state="alert")
+
     @classmethod
     def _site_notice_detail(cls, item: Dict[str, Any], statistics_day: Any) -> str:
         # Do not repeat the same collection time as the last successful time.
@@ -235,7 +253,7 @@ class TgConsoleRenderMixin:
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "3.0.2") or "3.0.2")
+        version = str(getattr(self, "plugin_version", "3.0.3") or "3.0.3")
         return {"version": version if version.startswith("v") else f"v{version}", "refreshed_at": datetime.now().strftime("%H:%M")}
 
     @staticmethod
