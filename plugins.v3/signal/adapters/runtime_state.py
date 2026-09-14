@@ -34,7 +34,7 @@ class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "3.0.3"
+    plugin_version = "3.0.4"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -294,6 +294,7 @@ class RuntimeStateMixin:
         # The call is versioned, idempotent and swallows its own faults, so it
         # can never block startup.
         self.run_identity_migration()
+        self._schedule_site_refresh_recovery()
 
     def get_state(self) -> bool:
         return self._is_runtime_active()

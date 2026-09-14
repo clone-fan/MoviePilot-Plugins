@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.sdk.config import settings
 from app.sdk.logging import logger
@@ -33,42 +33,53 @@ class FusionReportMixin:
         result = self.api_create_tg_console_card(trigger="scheduled")
         return int(result.get("code", 1)) == 0
 
-    def run_fusion_card_refresh(self) -> bool:
+    def run_fusion_card_refresh(self, *, expected_card: Optional[Dict[str, Any]] = None, generation: Optional[int] = None) -> bool:
         """Refresh the current Fusion card; never falls back to a second delivery route."""
-        with self._subscription_calendar_read_scope():
-            return self._run_fusion_card_refresh_scoped()
+        generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
+        with self._site_refresh_completion_scope(), self._subscription_calendar_read_scope():
+            return self._run_fusion_card_refresh_scoped(expected_card=expected_card, generation=generation)
 
-    def _run_fusion_card_refresh_scoped(self) -> bool:
-        generation = getattr(self, "_runtime_generation", 0)
+    def _run_fusion_card_refresh_scoped(self, *, expected_card: Optional[Dict[str, Any]] = None, generation: Optional[int] = None) -> bool:
+        generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
+        with self._tg_console_card_lock, self._site_refresh_condition:
+            if self._should_cancel(generation):
+                return False
+            target = expected_card if expected_card is not None else self._tg_console_state()
+
+        def cancelled():
+            return (self._should_cancel(generation)
+                    or (target.get("message_id") and not self._is_current_fusion_card(target)))
+
         name = "融合卡刷新"
         ok, _ = self._guard_task(name, "fusion_notify")
-        if not ok or self._should_cancel(generation):
+        if not ok or cancelled():
             return False
         try:
             refresh_result = self._refresh_fusion_report_live_data(generation=generation)
-            if self._should_cancel(generation) or refresh_result.get("cancelled"):
+            if cancelled() or refresh_result.get("cancelled"):
                 return False
             text = self._build_fusion_report_message()
             calendar_snapshot = self._subscription_calendar_snapshot_for_scope()
             calendar_partial = calendar_snapshot is not None and calendar_snapshot.is_partial
             calendar_error = calendar_snapshot.failure_message() if calendar_partial else ""
-            if self._should_cancel(generation):
+            if cancelled():
                 return False
             if self._fusion_notify_enabled:
-                refresh_ok = self._refresh_fusion_card(text, refresh_result, generation=generation)
-                if self._should_cancel(generation):
-                    return False
-                if calendar_partial:
-                    self._notify_fusion_task_outcome(
-                        mtype=self._notification_type("Plugin"),
-                        title="Signal - 融合卡订阅日历部分失败",
-                        text=calendar_error,
-                        outcome=calendar_error,
-                        success=False,
-                        component="fusion_notify",
-                        affected_owner="persistent-subscriptions",
-                        task_key="fusion_card_refresh",
-                        task_group="融合通知",
+                refresh_ok = self._refresh_fusion_card(text, refresh_result, generation=generation, expected_card=target)
+                with self._tg_console_card_lock:
+                    if cancelled():
+                        return False
+                    if calendar_partial:
+                        self._notify_fusion_task_outcome(
+                            mtype=self._notification_type("Plugin"),
+                            title="Signal - 融合卡订阅日历部分失败",
+                            text=calendar_error,
+                            outcome=calendar_error,
+                            success=False,
+                            component="fusion_notify",
+                            affected_owner="persistent-subscriptions",
+                            task_key="fusion_card_refresh",
+                            task_group="融合通知",
                             notification_status="error",
                             notification_target="fusion_subscription_calendar",
                             notification_fingerprint=self._notification_outcome_fingerprint({
@@ -76,28 +87,37 @@ class FusionReportMixin:
                                 "failed_subscriptions": calendar_snapshot.failed_subscriptions,
                                 "errors": self._subscription_calendar_error_fingerprint_values(calendar_snapshot.errors),
                             }),
-                        notification_cooldown=True,
-                    )
-                    self._save_task_result(name, False, 1, calendar_error if refresh_ok else (self._tg_console_last_error or calendar_error))
-                    self._save_fusion_report_result(updated=refresh_ok, success=False, text=text, error=calendar_error, message=calendar_error, returncode=1)
+                            notification_cooldown=True,
+                        )
+                    with self._site_refresh_condition:
+                        if cancelled():
+                            return False
+                        if calendar_partial:
+                            self._save_task_result(name, False, 1, calendar_error if refresh_ok else (self._tg_console_last_error or calendar_error))
+                            self._save_fusion_report_result(updated=refresh_ok, success=False, text=text, error=calendar_error, message=calendar_error, returncode=1)
+                            return False
+                        site_refresh = refresh_result.get("site_refresh") or {}
+                        if site_refresh.get("pending") or (site_refresh.get("status") == "timeout" and site_refresh.get("operation_id")):
+                            # The card callback owns this collection's final outcome.
+                            return bool(refresh_ok)
+                        if refresh_ok and refresh_result.get("success") is not False:
+                            self._save_task_result(name, True, 0, "OK tg_console_card")
+                            self._save_fusion_report_result(updated=True, success=True, text=text, error="", message="OK tg_console_card", returncode=0)
+                            return True
+                        error = self._tg_console_last_error or "Telegram 融合汇报卡更新失败"
+                        self._save_task_result(name, False, 1, error)
+                        self._save_fusion_report_result(updated=False, success=False, text=text, error=error, message=error, returncode=1)
                     return False
-                if refresh_ok and refresh_result.get("success") is not False:
-                    self._save_task_result(name, True, 0, "OK tg_console_card")
-                    self._save_fusion_report_result(updated=True, success=True, text=text, error="", message="OK tg_console_card", returncode=0)
-                    return True
-                error = self._tg_console_last_error or "Telegram 融合汇报卡更新失败"
-                self._save_task_result(name, False, 1, error)
-                self._save_fusion_report_result(updated=False, success=False, text=text, error=error, message=error, returncode=1)
-                return False
             error = "融合通知未启用，禁止使用独立发送回退"
             self._save_task_result(name, False, 1, error)
             self._save_fusion_report_result(updated=False, success=False, text=text, error=error, message=error, returncode=1)
             return False
         except Exception as err:
-            if self._should_cancel(generation):
-                return False
-            self._save_task_result(name, False, -1, str(err))
-            self._save_fusion_report_result(updated=False, success=False, text="", error=str(err), message=str(err), returncode=-1)
+            with self._tg_console_card_lock, self._site_refresh_condition:
+                if cancelled():
+                    return False
+                self._save_task_result(name, False, -1, str(err))
+                self._save_fusion_report_result(updated=False, success=False, text="", error=str(err), message=str(err), returncode=-1)
             try:
                 from ..infrastructure.subscription_calendar import SubscriptionCalendarError
                 if isinstance(err, SubscriptionCalendarError):
@@ -158,7 +178,8 @@ class FusionReportMixin:
                     headline = "已触发站点用户数据刷新，未返回可用数据"
                 message = "\n".join([headline, *excluded_lines]) if excluded_lines else headline
                 refresh_success = not site_error
-                self._save_task_result("站点数据统计", refresh_success, 0 if refresh_success else 1, message)
+                if not refresh.get("pending"):
+                    self._save_task_result("站点数据统计", refresh_success, 0 if refresh_success else 1, message)
                 result.update({
                     "success": refresh_success,
                     "site_refresh": refresh,

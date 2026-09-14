@@ -1,5 +1,6 @@
 import re
 import os
+import threading
 from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -14,6 +15,114 @@ from ..domain.fusion_stream import apply_v7_realtime_update
 
 class TgConsoleFusionMixin:
     """Telegram fusion card column/category logic, media activity, site counts, update state"""
+
+    _tg_console_card_lock = threading.RLock()
+
+    @staticmethod
+    def _fusion_card_identity(state: Dict[str, Any]) -> tuple:
+        card = state.get("fusion_card") or {}
+        return (state.get("date"), str(state.get("chat_id")), state.get("message_id"),
+                *(card.get(key) for key in ("lifecycle", "card_id", "generation", "message_id")))
+
+    def _is_current_fusion_card(self, state: Dict[str, Any]) -> bool:
+        """Recheck the request's target after collection, rendering and delivery."""
+        latest = self.get_data("tg_console_state") or {}
+        if not isinstance(latest, dict) or not state.get("message_id"):
+            return False
+        return (state.get("date") == self._today_prefix()
+                and (state.get("fusion_card") or {}).get("lifecycle") == "active"
+                and self._fusion_card_identity(state) == self._fusion_card_identity(latest))
+
+    @staticmethod
+    def _remember_fusion_site_refresh(state: Dict[str, Any], refresh: Any, task_name: str) -> None:
+        if not isinstance(refresh, dict):
+            return
+        if (refresh.get("pending") or refresh.get("status") == "timeout") and refresh.get("operation_id") and state.get("message_id"):
+            card = state.get("fusion_card") or {}
+            state["site_refresh_pending"] = {
+                "operation_id": refresh["operation_id"], "date": refresh.get("data_date"),
+                "message_id": state["message_id"], "card_id": card.get("card_id"),
+                "card_generation": card.get("generation"), "task_name": task_name,
+            }
+        else:
+            state.pop("site_refresh_pending", None)
+
+    def _settle_fusion_site_refresh(self, result: Dict[str, Any], *, generation: Optional[int] = None) -> Optional[bool]:
+        """Return the settled outcome, or None when this result cannot be applied."""
+        generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
+        if (not isinstance(result, dict) or result.get("status") in {"running", "cancelled"}
+                or not result.get("operation_id") or self._should_cancel(generation)
+                or not getattr(self, "_fusion_notify_enabled", False)
+                or not getattr(self, "_site_stat_enabled", False)):
+            return None
+        with self._tg_console_card_lock:
+            raw = self.get_data("tg_console_state") or {}
+            if not isinstance(raw, dict):
+                return None
+            pending = raw.get("site_refresh_pending")
+            card = raw.get("fusion_card") or {}
+            if (not isinstance(pending, dict) or pending.get("operation_id") != result["operation_id"]
+                    or pending.get("date") != self._today_prefix() or result.get("data_date") != pending.get("date")
+                    or not raw.get("message_id") or raw.get("message_id") != pending.get("message_id")
+                    or card.get("card_id") != pending.get("card_id")
+                    or card.get("generation") != pending.get("card_generation")
+                    or card.get("lifecycle") != "active" or self._should_cancel(generation)):
+                return None
+            if result.get("status") == "timeout" and pending.get("timeout_reported"):
+                return None
+
+            def still_current():
+                latest = self.get_data("tg_console_state") or {}
+                current_card = latest.get("fusion_card") or {}
+                return (pending.get("date") == self._today_prefix()
+                        and latest.get("message_id") == pending["message_id"]
+                        and current_card.get("card_id") == pending.get("card_id")
+                        and current_card.get("generation") == pending.get("card_generation")
+                        and current_card.get("lifecycle") == "active"
+                        and (latest.get("site_refresh_pending") or {}).get("operation_id") == result["operation_id"])
+
+            token, chat_id, _ = self._resolve_fusion_telegram_config()
+            if not token or str(raw.get("chat_id")) != str(chat_id):
+                return None
+            scope = getattr(self, "_subscription_calendar_read_scope", nullcontext)
+            with scope():
+                state = self._tg_console_state(chat_id=chat_id)
+                state.pop("site_refresh_pending", None)
+                if result.get("status") == "timeout":
+                    # A host call cannot be killed safely. Report its deadline,
+                    # but still accept its eventual result for this same card.
+                    state["site_refresh_pending"] = {**pending, "timeout_reported": True}
+                state["site_refresh"] = result
+                self._compose_tg_console_v7_model(state)
+                if self._should_cancel(generation) or not still_current():
+                    return None
+                sent = bool(self._tg_console_upsert_card(token, chat_id, state, generation=generation))
+                if self._should_cancel(generation) or not still_current():
+                    return None
+                site_error = self._site_refresh_failure_message(result)
+                site_message = site_error or f"已刷新 {result.get('ok_count', 0)}/{result.get('active_count', 0)} 个站点数据"
+                error = site_error
+                if str(state.get("subscription_calendar_status") or "") in {"partial", "failed", "invalid"}:
+                    error = error or "订阅日历读取未完成"
+                if not sent:
+                    error = self._tg_console_last_error or "站点采集完成，但原卡更新失败"
+                ok = sent and not error
+                message = error or f"{site_message}，原卡已更新"
+                if error:
+                    state["last_error"] = error
+                # Stop/reload changes the generation under this same lock.
+                # Keep the final state and task results in that commit boundary.
+                with self._site_refresh_condition:
+                    if self._should_cancel(generation) or not still_current():
+                        return None
+                    self._tg_console_last_error = error
+                    self._save_tg_console_state(state)
+                    task_name = pending.get("task_name") if pending.get("task_name") in {"融合通知卡", "融合卡刷新"} else "融合卡刷新"
+                    self._save_task_result(task_name, ok, 0 if ok else 1, message)
+                    self._save_task_result("站点数据统计", not bool(site_error), 1 if site_error else 0, site_message)
+                    self._save_fusion_report_result(updated=sent, success=ok, error=error, message=message,
+                                                    returncode=0 if ok else 1)
+                return ok
 
     def _sync_v7_stream_owner(self, state: Dict[str, Any], owner: str, module: Optional[Dict[str, Any]] = None, *, active: bool = True) -> None:
         """Mutate only one realtime owner before the persistent card edit."""
@@ -293,28 +402,37 @@ class TgConsoleFusionMixin:
     def _emit_console_report(self, section_key: str, title: str, text: str = "", level: str = "info") -> bool:
         return self._emit_fusion_notice(section_key, title, text, level=level)
 
-    def _refresh_fusion_card(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None, *, generation: Optional[int] = None) -> bool:
+    def _refresh_fusion_card(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None, *, generation: Optional[int] = None, expected_card: Optional[Dict[str, Any]] = None) -> bool:
         generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
         scope_factory = getattr(self, "_subscription_calendar_read_scope", None)
         with (scope_factory() if callable(scope_factory) else nullcontext()):
-            return self._refresh_fusion_card_scoped(fusion_text=fusion_text, live_result=live_result, generation=generation)
+            return self._refresh_fusion_card_scoped(fusion_text=fusion_text, live_result=live_result, generation=generation,
+                                                    expected_card=expected_card)
 
-    def _refresh_fusion_card_scoped(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None, *, generation: Optional[int] = None) -> bool:
+    def _refresh_fusion_card_scoped(self, fusion_text: str = "", live_result: Optional[Dict[str, Any]] = None, *, generation: Optional[int] = None, expected_card: Optional[Dict[str, Any]] = None) -> bool:
         generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
         if not self._fusion_notify_enabled or self._should_cancel(generation):
             return False
         token, chat_id, _source = self._resolve_fusion_telegram_config()
-        if not token or not chat_id:
-            self._tg_console_last_error = "Telegram 融合通知 Bot Token/Chat ID 未配置"
+        with self._tg_console_card_lock, self._site_refresh_condition:
+            if self._should_cancel(generation):
+                return False
+            if expected_card is not None and expected_card.get("message_id") and not self._is_current_fusion_card(expected_card):
+                return False
             state = self._tg_console_state(chat_id=chat_id)
-            state["last_error"] = self._tg_console_last_error
-            self._save_tg_console_state(state)
-            return False
-        state = self._tg_console_state(chat_id=chat_id)
-        if not state.get("message_id"):
-            state["last_error"] = "融合通知当前没有可刷新的 active card"
-            self._save_tg_console_state(state)
-            return False
+            if expected_card is not None and self._fusion_card_identity(state) != self._fusion_card_identity(expected_card):
+                return False
+            # Configuration lookup may outlive the target card or runtime.
+            # Persist failure only while the original request still owns it.
+            if not token or not chat_id:
+                self._tg_console_last_error = "Telegram 融合通知 Bot Token/Chat ID 未配置"
+                state["last_error"] = self._tg_console_last_error
+                self._save_tg_console_state(state)
+                return False
+            if not state.get("message_id"):
+                state["last_error"] = "融合通知当前没有可刷新的 active card"
+                self._save_tg_console_state(state)
+                return False
         refresh = (live_result or {}).get("site_refresh") if getattr(self, "_site_stat_enabled", False) else None
         site_error = self._site_refresh_failure_message(refresh)
         live_failed = isinstance(live_result, dict) and live_result.get("success") is False
@@ -332,6 +450,7 @@ class TgConsoleFusionMixin:
                 return False
             if columns_ok:
                 self._compose_tg_console_v7_model(state)
+                self._remember_fusion_site_refresh(state, refresh, "融合卡刷新")
             else:
                 site_error = "；".join(filter(None, (site_error, "融合卡栏目采集失败，请稍后刷新重试")))
                 self._prepare_tg_console_v7_failure(state, site_error)
@@ -349,38 +468,48 @@ class TgConsoleFusionMixin:
                     pass
             else:
                 self._fusion_refresh_context = previous_context
-        if self._should_cancel(generation):
-            return False
-        try:
-            sent = bool(self._tg_console_upsert_card(token, chat_id, state, generation=generation))
-            ok = sent and bool(columns_ok) and not site_error
-        except Exception as err:
-            if self._should_cancel(generation):
+        with self._tg_console_card_lock:
+            if self._should_cancel(generation) or not self._is_current_fusion_card(state):
                 return False
-            sent = False
-            ok = False
-            self._tg_console_last_error = f"Telegram 融合通知全量刷新异常：{self._telegram_safe_error(err, limit=500)}"
-            state["last_error"] = self._tg_console_last_error
-            logger.warning(f"Signal {self._tg_console_last_error}")
-        with self._site_refresh_condition:
-            if self._should_cancel(generation):
-                return False
-            calendar_status = str(state.get("subscription_calendar_status") or "").strip()
-            if calendar_status in {"partial", "failed", "invalid"}:
+            try:
+                sent = bool(self._tg_console_upsert_card(token, chat_id, state, generation=generation))
+                ok = sent and bool(columns_ok) and not site_error
+            except Exception as err:
+                if self._should_cancel(generation) or not self._is_current_fusion_card(state):
+                    return False
+                sent = False
                 ok = False
-                state["last_error"] = (
-                    f"订阅日历状态：{calendar_status}"
-                    + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
-                )
-            if ok:
-                self._tg_console_last_error = ""
-                state["last_error"] = ""
-            if site_error:
-                transport_error = "" if sent else self._telegram_safe_error(self._tg_console_last_error or state.get("last_error") or "发送失败", limit=500)
-                self._tg_console_last_error = "；".join(part for part in (site_error, transport_error) if part)
+                self._tg_console_last_error = f"Telegram 融合通知全量刷新异常：{self._telegram_safe_error(err, limit=500)}"
                 state["last_error"] = self._tg_console_last_error
-            self._save_tg_console_state(state)
-            return ok
+                logger.warning(f"Signal {self._tg_console_last_error}")
+            with self._site_refresh_condition:
+                if self._should_cancel(generation) or not self._is_current_fusion_card(state):
+                    return False
+                calendar_status = str(state.get("subscription_calendar_status") or "").strip()
+                if calendar_status in {"partial", "failed", "invalid"}:
+                    ok = False
+                    state["last_error"] = (
+                        f"订阅日历状态：{calendar_status}"
+                        + (f"；{state.get('subscription_calendar_errors', [''])[:1][0]}" if state.get("subscription_calendar_errors") else "")
+                    )
+                if ok:
+                    self._tg_console_last_error = ""
+                    state["last_error"] = ""
+                if site_error:
+                    transport_error = "" if sent else self._telegram_safe_error(self._tg_console_last_error or state.get("last_error") or "发送失败", limit=500)
+                    self._tg_console_last_error = "；".join(part for part in (site_error, transport_error) if part)
+                    state["last_error"] = self._tg_console_last_error
+                self._save_tg_console_state(state)
+            # Completion can race with the initial edit, including a deadline
+            # report. Reconcile before releasing the card to the callback.
+            if state.get("site_refresh_pending"):
+                completed = self._site_refresh_result_for_operation(refresh.get("operation_id"))
+                settled = self._settle_fusion_site_refresh(completed, generation=generation)
+                if settled is not None:
+                    ok = settled
+                    if isinstance(live_result, dict):
+                        live_result.update(success=settled, site_refresh=completed)
+        return ok
 
     def _refresh_fusion_columns(self, state: Dict[str, Any], *, generation: Optional[int] = None) -> bool:
         valid_columns = {x["key"] for x in self._fusion_column_registry()}

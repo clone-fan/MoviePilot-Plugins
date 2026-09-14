@@ -124,6 +124,9 @@ class SiteStatsMixin:
     @staticmethod
     def _site_error_details(value: Any) -> Tuple[str, str]:
         text = str(value or "").lower()
+        # MoviePilot also appends this suggestion after transport/parser
+        # failures; it is not evidence that authentication actually failed.
+        text = re.sub(r"请检查\s*cookie\s*是否有效", "", text)
         for words, code, reason in (
             (("登录", "未登录", "login", "401", "403", "cookie"), "fetch_login", "登录失效或未授权"),
             (("超时", "timeout", "timed out"), "fetch_timeout", "请求超时"),
@@ -705,7 +708,7 @@ class SiteStatsMixin:
             if (inflight.get("running") is True and inflight.get("date") == snapshot["date"]
                     and live_scope == domains and self._site_timestamp(inflight.get("started_at"))
                     and not state.get("updated_today") and state["status"] not in {"fault", "checker_error"}):
-                expired = float(inflight.get("elapsed_seconds") or 0) >= 60.0
+                expired = float(inflight.get("elapsed_seconds") or 0) >= getattr(self, "_site_refresh_completion_timeout_seconds", 600.0)
                 code = "refresh_timeout" if expired or state.get("reason_code") == "refresh_timeout" else "refresh_running"
                 state.update(status="unavailable", reason_code=code, reason=self.SITE_STAT_REASONS[code],
                              refresh_status="timeout" if code == "refresh_timeout" else "running", upload=None, download=None)
@@ -714,6 +717,8 @@ class SiteStatsMixin:
     @staticmethod
     def _site_refresh_failure_message(refresh: Any) -> str:
         if not isinstance(refresh, dict) or not refresh:
+            return ""
+        if refresh.get("status") == "running" and refresh.get("pending"):
             return ""
         if refresh.get("success") is False:
             return {"timeout": "站点更新等待超时", "active_sites_error": "读取启用站点失败",

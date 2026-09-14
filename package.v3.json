@@ -3,7 +3,7 @@
     "name": "媒体融合 Signal",
     "description": "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。",
     "labels": "MoviePilot,媒体融合,Signal,通知汇报,数据监控,下载管理,系统维护,插件卸载,每日汇报,TG融合汇报卡,订阅追新,站点统计,健康巡查,日志清理,自动备份,更新检查,自动删种,媒体通知",
-    "version": "3.0.3",
+    "version": "3.0.4",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=3.0.0",
     "release": true,
     "history": {
+      "v3.0.4": "修复站点采集超过等待时间后结果不回填原卡的问题，补齐重载恢复与旧请求隔离，并纠正采集失败被误判为登录失效。",
       "v3.0.3": "修复仪表盘任务状态误报、V3 存储读取和融合卡采集终态；站点刷新超时保留已完成结果，慢站点继续采集并正确更新原卡。",
       "v3.0.2": "修复站点数据统计与融合卡展示：使用可信的昨日基准计算今日流量，区分已更新与可统计站点，零增量站点不再展开；统一建卡与站点刷新协调，改善跨日、部分失败及超时状态显示。",
       "v3.0.1": "移除 MoviePilot 主界面侧栏入口：Signal 不再向左侧导航插入条目，配置入口仍在插件管理的配置页；同时修正 V3 融合卡与 Telegram 控制台残留的 1.0.25 兜底版本号。",

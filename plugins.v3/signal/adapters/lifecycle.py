@@ -5,11 +5,15 @@ V3 migration note:
   throws. The old `if removed is False:` check was dead code — removed.
 """
 import re
+import sys
 import threading
 import time
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime
+from types import ModuleType
 from typing import Any, Dict, List, Mapping, Optional
+from uuid import uuid4
 
 from app.sdk.logging import logger
 
@@ -20,36 +24,55 @@ from ..domain import site_helpers
 # Source cleanup is only enabled after an explicit user path is configured.
 DEFAULT_LOCAL_PLUGIN_REPO = ""
 
+
+def _site_refresh_process_runtime():
+    # MoviePilot evicts the plugin module tree on reload while native host
+    # requests can still be running. Keep coordination data outside that tree.
+    # This module retains no plugin classes or callbacks, only the current
+    # operation, its lock, caller-local results, and the short result cache.
+    name = "_signal_site_refresh_runtime_v1"
+    runtime = ModuleType(name)
+    runtime._site_refresh_condition = threading.Condition(threading.RLock())
+    runtime._site_refresh_running = False
+    runtime._site_refresh_started_at = 0.0
+    runtime._site_refresh_running_key = None
+    runtime._site_refresh_running_started_at = ""
+    runtime._site_refresh_partial_result = None
+    runtime._site_refresh_run_context = None
+    runtime._site_refresh_completion_local = threading.local()
+    runtime._site_refresh_last_result = None
+    runtime._site_refresh_last_finished_at = 0.0
+    runtime._site_refresh_last_key = None
+    return sys.modules.setdefault(name, runtime)
+
+
+SITE_REFRESH_RUNTIME = _site_refresh_process_runtime()
+
+
 class LifecycleMixin:
     _local_plugin_repo = DEFAULT_LOCAL_PLUGIN_REPO
     _site_refresh_state_key = "site_stat_refresh_state_v1"
-    _site_refresh_condition = threading.Condition(threading.RLock())
-    _site_refresh_running = False
-    _site_refresh_started_at = 0.0
-    _site_refresh_running_key = None
-    _site_refresh_running_started_at = ""
-    _site_refresh_partial_result = None
-    _site_refresh_last_result = None
-    _site_refresh_last_finished_at = 0.0
-    _site_refresh_last_key = None
+    _site_refresh_condition = SITE_REFRESH_RUNTIME._site_refresh_condition
     _site_refresh_cache_ttl_seconds = 5.0
     _fusion_site_refresh_timeout_seconds = 30.0
+    _site_refresh_completion_timeout_seconds = 600.0
     SITE_REFRESH_SOURCES = {"site_stat_manual", "site_stat_scheduled", "fusion_create_manual", "fusion_create_scheduled", "fusion_refresh"}
 
-    @classmethod
-    def _clear_site_refresh_cache(cls):
+    @staticmethod
+    def _clear_site_refresh_cache():
+        cls = SITE_REFRESH_RUNTIME
         with cls._site_refresh_condition:
             cls._site_refresh_last_result = None
             cls._site_refresh_last_finished_at = 0.0
             cls._site_refresh_last_key = None
 
     def _save_site_refresh_state(self, result: Mapping[str, Any]) -> None:
-        """Keep one bounded, safe completed result; never persist raw host errors."""
+        """Checkpoint the actual collection independently of a caller's wait."""
         saver = getattr(self, "save_data", None)
         if not callable(saver):
             return
         status = str(result.get("status") or "error")
-        if status not in {"ok", "partial", "empty", "active_sites_error", "timeout", "error"}:
+        if status not in {"running", "ok", "partial", "empty", "active_sites_error", "timeout", "error"}:
             status = "error"
         sites = []
         for item in result.get("sites") or []:
@@ -71,6 +94,8 @@ class LifecycleMixin:
                           "finished_at": self._site_timestamp(item.get("finished_at"))})
         payload = {
             "success": bool(result.get("success")), "status": status,
+            "pending": status == "running",
+            "operation_id": str(result.get("operation_id") or "")[:64],
             "message": {"active_sites_error": "读取启用站点失败", "timeout": "等待站点刷新超时", "error": "站点刷新检查失败"}.get(status, ""),
             "active_count": int(result.get("active_count") or 0),
             "active_scope_known": result.get("active_scope_known") is True,
@@ -83,6 +108,10 @@ class LifecycleMixin:
             "sites": sites,
             "errors": [f"{item['name']}：{item['reason']}" for item in sites if item["status"] != "ok"],
         }
+        # Coordinator callers hold the condition through checkpoint persistence.
+        context = SITE_REFRESH_RUNTIME._site_refresh_run_context
+        if context and context.get("operation_id") == payload["operation_id"]:
+            context["result"] = deepcopy(payload)
         try:
             saver(self._site_refresh_state_key, payload)
         except Exception:
@@ -99,9 +128,44 @@ class LifecycleMixin:
             return {}
         return dict(raw) if isinstance(raw, dict) else {}
 
+    @contextmanager
+    def _site_refresh_completion_scope(self):
+        """Retain this caller's operations until its card registration finishes."""
+        local = SITE_REFRESH_RUNTIME._site_refresh_completion_local
+        previous = getattr(local, "contexts", None)
+        local.contexts = {}
+        try:
+            yield
+        finally:
+            if previous is None:
+                del local.contexts
+            else:
+                local.contexts = previous
+
+    def _retain_site_refresh_completion(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        # Called under the coordinator lock before returning a waiting result.
+        # The caller and worker hold the same context; no global result archive
+        # or retention timeout is needed, and later collections cannot erase it.
+        contexts = getattr(SITE_REFRESH_RUNTIME._site_refresh_completion_local, "contexts", None)
+        context = SITE_REFRESH_RUNTIME._site_refresh_run_context
+        if contexts is not None and context and result.get("operation_id") == context.get("operation_id"):
+            contexts[result["operation_id"]] = context
+        return result
+
+    def _site_refresh_result_for_operation(self, operation_id: str) -> Dict[str, Any]:
+        if not operation_id:
+            return {}
+        with SITE_REFRESH_RUNTIME._site_refresh_condition:
+            contexts = getattr(SITE_REFRESH_RUNTIME._site_refresh_completion_local, "contexts", {})
+            context = contexts.get(operation_id)
+            if context is not None:
+                return deepcopy(context.get("result") or {})
+            latest = self._load_site_refresh_state()
+            return latest if latest.get("operation_id") == operation_id else {}
+
     @staticmethod
     def _site_refresh_inflight_snapshot() -> Dict[str, Any]:
-        cls = LifecycleMixin
+        cls = SITE_REFRESH_RUNTIME
         with cls._site_refresh_condition:
             key = cls._site_refresh_running_key
             running = bool(cls._site_refresh_running and key and cls._site_refresh_running_started_at)
@@ -116,8 +180,10 @@ class LifecycleMixin:
         data_date = started_at[:10]
         active_sites = []
         active_domains = set()
-        cls = LifecycleMixin
+        cls = SITE_REFRESH_RUNTIME
         runtime_generation = getattr(self, "_runtime_generation", 0) if generation is None else generation
+        operation_id = ""
+        deadline_timer = None
 
         def cancelled():
             return self._should_cancel(runtime_generation)
@@ -131,22 +197,48 @@ class LifecycleMixin:
             result.setdefault("sites", [])
             result.setdefault("errors", [])
             result.update(started_at=started_at, finished_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                          data_date=data_date, source=source)
+                          data_date=data_date, source=source, operation_id=operation_id)
             return result
 
         def stopped_result():
             return finish({"success": False, "status": "cancelled", "message": "站点刷新已停止"})
 
-        def timeout_result():
-            # Called under the coordinator lock. Keep completed sites, while
-            # leaving only unfinished sites subject to the batch timeout.
+        def wait_result(*, expired=False):
+            # A response deadline does not stop MoviePilot's serial collection.
+            # Only the independent collection deadline is a terminal timeout.
             key = (data_date, len(active_sites), frozenset(active_domains))
-            partial = cls._site_refresh_partial_result if cls._site_refresh_running_key == key else None
+            same_scope = cls._site_refresh_running_key == key
+            partial = cls._site_refresh_partial_result if same_scope else None
             partial = deepcopy(partial) if partial else {}
             sites = partial.get("sites") or []
-            return finish({"success": False, "status": "timeout", "message": "等待站点刷新超时",
-                           "sites": sites, "count": len(partial.get("returned_domains") or []),
-                           "ok_count": sum(item["status"] == "ok" for item in sites)})
+            elapsed = max(0.0, time.monotonic() - cls._site_refresh_started_at)
+            pending = same_scope and not expired and elapsed < self._site_refresh_completion_timeout_seconds
+            result = finish({"success": pending, "status": "running" if pending else "timeout",
+                             "pending": pending, "message": "站点正在后台更新" if pending else "等待站点刷新超时",
+                             "sites": sites, "count": len(partial.get("returned_domains") or []),
+                             "ok_count": sum(item["status"] == "ok" for item in sites)})
+            if same_scope:
+                result.update({key: value for key, value in (cls._site_refresh_run_context or {}).items()
+                               if key in {"operation_id", "started_at", "data_date", "source"}})
+            if pending:
+                result["finished_at"] = ""
+            return result
+
+        def complete_card(result):
+            callback = getattr(self, "_settle_fusion_site_refresh", None)
+            if callable(callback) and not cancelled():
+                try:
+                    callback(result, generation=runtime_generation)
+                except Exception:
+                    logger.warning("Signal 站点采集结果回填原卡失败")
+
+        def deadline_expired():
+            with cls._site_refresh_condition:
+                if cancelled() or (cls._site_refresh_run_context or {}).get("operation_id") != operation_id:
+                    return
+                result = wait_result(expired=True)
+                self._save_site_refresh_state(result)
+            complete_card(result)
 
         if cancelled():
             return stopped_result()
@@ -181,7 +273,7 @@ class LifecycleMixin:
                 age = time.monotonic() - cls._site_refresh_last_finished_at
                 if (cls._site_refresh_last_result is not None and cls._site_refresh_last_key == key
                         and cls._site_refresh_last_result.get("data_date") == key[0]
-                        and 0 <= age <= cls._site_refresh_cache_ttl_seconds):
+                        and 0 <= age <= self._site_refresh_cache_ttl_seconds):
                     return deepcopy(cls._site_refresh_last_result)
                 return None
 
@@ -195,20 +287,24 @@ class LifecycleMixin:
                     return stopped_result()
                 if not completed:
                     data_date = datetime.now().strftime("%Y-%m-%d")
-                    result = timeout_result()
+                    result = wait_result()
                     self._save_site_refresh_state(result)
-                    return result
+                    return self._retain_site_refresh_completion(result)
                 cached = cached_result()
                 if cached is not None:
                     return cached
             started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             data_date = started_at[:10]
             cache_key = (data_date, len(active_sites), frozenset(active_domains))
+            operation_id = uuid4().hex
             cls._site_refresh_started_at = time.monotonic()
             cls._site_refresh_running_key = cache_key
             cls._site_refresh_running_started_at = started_at
             cls._site_refresh_partial_result = None
             cls._site_refresh_running = True
+            cls._site_refresh_run_context = {"operation_id": operation_id, "started_at": started_at,
+                                             "data_date": data_date, "source": source}
+            self._save_site_refresh_state(wait_result())
 
         results = []
 
@@ -270,6 +366,7 @@ class LifecycleMixin:
                         if not cancelled():
                             cls._site_refresh_partial_result = {
                                 "sites": deepcopy(sites), "returned_domains": sorted(returned_domains)}
+                            self._save_site_refresh_state(wait_result())
                 ok_count = sum(item["status"] == "ok" for item in sites)
                 result = {"success": True, "status": "ok" if ok_count == len(active_sites) else ("partial" if ok_count else "empty"),
                           "count": len(returned_domains), "ok_count": ok_count, "sites": sites,
@@ -282,6 +379,9 @@ class LifecycleMixin:
             except Exception:
                 result = {"success": False, "status": "error", "message": "站点刷新检查失败"}
             finally:
+                if deadline_timer is not None:
+                    deadline_timer.cancel()
+                    self._untrack_runtime_timer(deadline_timer)
                 result = finish(result)
                 with cls._site_refresh_condition:
                     if cancelled():
@@ -296,10 +396,16 @@ class LifecycleMixin:
                     cls._site_refresh_running_key = None
                     cls._site_refresh_running_started_at = ""
                     cls._site_refresh_partial_result = None
+                    cls._site_refresh_run_context = None
                     cls._site_refresh_running = False
                     cls._site_refresh_condition.notify_all()
+                complete_card(result)
             return result
 
+        deadline_timer = self._track_runtime_timer(threading.Timer(
+            self._site_refresh_completion_timeout_seconds, deadline_expired))
+        deadline_timer.daemon = True
+        deadline_timer.start()
         if not source.startswith("fusion_"):
             return collect()
 
@@ -309,11 +415,14 @@ class LifecycleMixin:
         try:
             worker.start()
         except Exception:
+            deadline_timer.cancel()
+            self._untrack_runtime_timer(deadline_timer)
             with cls._site_refresh_condition:
                 cls._site_refresh_running = False
                 cls._site_refresh_started_at = 0.0
                 cls._site_refresh_running_key = None
                 cls._site_refresh_running_started_at = ""
+                cls._site_refresh_run_context = None
                 cls._site_refresh_condition.notify_all()
                 if cancelled():
                     return stopped_result()
@@ -328,9 +437,54 @@ class LifecycleMixin:
             if results:
                 return deepcopy(results[0])
             # Persist under the same lock as completion so a late result wins.
-            result = timeout_result()
+            result = wait_result()
             self._save_site_refresh_state(result)
-            return result
+            return self._retain_site_refresh_completion(result)
+
+    def _schedule_site_refresh_recovery(self) -> None:
+        """Resume one interrupted current-day collection after host startup."""
+        if (getattr(self, "_site_refresh_recovery_scheduled", False) or self._should_cancel()
+                or not getattr(self, "_site_stat_enabled", False)):
+            return
+        previous = self._load_site_refresh_state()
+        if (previous.get("status") not in {"running", "timeout"}
+                or previous.get("data_date") != datetime.now().strftime("%Y-%m-%d")
+                or previous.get("active_scope_known") is not True):
+            return
+        self._site_refresh_recovery_scheduled = True
+        generation = getattr(self, "_runtime_generation", 0)
+
+        def still_interrupted():
+            if self._should_cancel(generation) or not getattr(self, "_site_stat_enabled", False):
+                return False
+            latest = self._load_site_refresh_state()
+            return (latest.get("status") in {"running", "timeout"}
+                    and latest.get("data_date") == self._today_prefix()
+                    and latest.get("active_scope_known") is True
+                    and latest.get("operation_id") == previous.get("operation_id")
+                    and latest.get("started_at") == previous.get("started_at"))
+
+        def recover():
+            self._untrack_runtime_timer(timer)
+            cls = SITE_REFRESH_RUNTIME
+            with cls._site_refresh_condition:
+                if not still_interrupted():
+                    return
+                # Reload can leave an old host call alive. Wait for its exit
+                # instead of joining an operation whose generation is cancelled.
+                cls._site_refresh_condition.wait_for(
+                    lambda: self._should_cancel(generation) or not cls._site_refresh_running
+                    or (cls._site_refresh_run_context or {}).get("operation_id") != previous.get("operation_id"))
+                if not still_interrupted():
+                    return
+            if getattr(self, "_fusion_notify_enabled", False):
+                self.run_fusion_card_refresh()
+            else:
+                self.api_run_site_stat(trigger="scheduled")
+
+        timer = self._track_runtime_timer(threading.Timer(5.0, recover))
+        timer.daemon = True
+        timer.start()
 
 
     def _load_plugin_config(self, config: Dict[str, Any]):
@@ -340,11 +494,12 @@ class LifecycleMixin:
         self._load_download_media_config(config)
 
     def _reset_runtime_state(self):
-        with LifecycleMixin._site_refresh_condition:
+        with SITE_REFRESH_RUNTIME._site_refresh_condition:
             self._runtime_generation = int(getattr(self, "_runtime_generation", 0) or 0) + 1
             self._runtime_cancel_event = threading.Event()
             self._runtime_active = bool(getattr(self, "_enabled", False))
         self._runtime_timers = set()
+        self._site_refresh_recovery_scheduled = False
         self._msg_seen = {}
         self._backup_selection_cache = {}
         self._backup_operation_current = None
@@ -364,7 +519,7 @@ class LifecycleMixin:
         # uninstall workflow, never as an implicit startup side effect.
 
     def _stop_runtime_state(self) -> bool:
-        cls = LifecycleMixin
+        cls = SITE_REFRESH_RUNTIME
         with cls._site_refresh_condition:
             self._runtime_active = False
             cls._site_refresh_partial_result = None
@@ -374,7 +529,7 @@ class LifecycleMixin:
                 cancel_event = threading.Event()
                 self._runtime_cancel_event = cancel_event
             cancel_event.set()
-            cls._clear_site_refresh_cache()
+            self._clear_site_refresh_cache()
             cls._site_refresh_condition.notify_all()
         errors = []
         for timer in list(getattr(self, "_runtime_timers", set()) or set()):
