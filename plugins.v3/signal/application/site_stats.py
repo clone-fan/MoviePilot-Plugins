@@ -249,11 +249,20 @@ class SiteStatsMixin:
         return state
 
     @classmethod
+    def _site_failure_at(cls, item: Dict[str, Any]) -> str:
+        if item.get("refresh_status") in {"fault", "checker_error", "timeout", "error"}:
+            return cls._site_timestamp(item.get("refresh_at"))
+        return ""
+
+    @classmethod
     def _site_state_detail(cls, item: Dict[str, Any]) -> str:
         reason = cls.SITE_STAT_REASONS.get(str(item.get("reason_code") or ""), "站点统计检查失败")
         at = str(item.get("snapshot_at") or "")
         day = str(item.get("snapshot_day") or "")
         collected = f"采集 {at}" if at else (f"采集 {day}，时间未知" if day else "采集时间未知")
+        failed_at = cls._site_failure_at(item)
+        if failed_at:
+            collected = f"本次失败 {failed_at}"
         parts = [reason, collected]
         if item.get("last_success_at"):
             parts.append(f"最后成功 {item['last_success_at']}")
@@ -710,8 +719,11 @@ class SiteStatsMixin:
                     and not state.get("updated_today") and state["status"] not in {"fault", "checker_error"}):
                 expired = float(inflight.get("elapsed_seconds") or 0) >= getattr(self, "_site_refresh_completion_timeout_seconds", 600.0)
                 code = "refresh_timeout" if expired or state.get("reason_code") == "refresh_timeout" else "refresh_running"
+                # This live run has no finished_at; the previous run's time
+                # must not become the timestamp of its running/timeout state.
                 state.update(status="unavailable", reason_code=code, reason=self.SITE_STAT_REASONS[code],
-                             refresh_status="timeout" if code == "refresh_timeout" else "running", upload=None, download=None)
+                             refresh_status="timeout" if code == "refresh_timeout" else "running",
+                             refresh_at="", upload=None, download=None)
         return self._publish_site_snapshot(snapshot)
 
     @staticmethod

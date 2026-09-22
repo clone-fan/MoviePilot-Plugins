@@ -355,13 +355,18 @@ class FusionMixin:
             state["last_error"] = "融合通知当前没有可更新的 active card"
             self._save_tg_console_state(state)
             return False
+        body = str(text or "").strip()
+        if len(body) > 20000:
+            omitted = "\n…（正文超过保存容量，部分内容已省略）"
+            body = body[:20000 - len(omitted)] + omitted
+        observed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         item = {
             "title": str(title or key).strip()[:120],
-            "text": str(text or "").strip()[:20000],
+            "text": body,
             "level": str(level or "info"),
             "payload": payload or {},
-            "time": datetime.now().strftime("%H:%M:%S"),
-            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "time": observed_at[11:],
+            "updated_at": observed_at,
         }
         report_key = raw_key or key
         if report_key == "health" and "健康巡查" in str(title or ""):
@@ -404,9 +409,10 @@ class FusionMixin:
                     "count": "1 项",
                     "primary": item["title"],
                     "context": f"需要关注 · {item['title']}",
-                    "meta": f"最近 {item['time'][:5]}",
+                    "meta": f"最近 {observed_at[5:16]}",
+                    "observed_at": observed_at,
                     "affected_owners": affected_owners,
-                    "details_rows": [[item["text"][:80] or item["title"], item["time"][:5]]],
+                    "details_rows": [[item["text"] or item["title"], observed_at[5:16]]],
                 }
                 self._record_v7_anomaly(state, component_key or (affected_owners[0] if affected_owners else item["title"]), anomaly)
             elif raw_key == "today-completion":

@@ -10,9 +10,74 @@ from .fusion_composition import _site_count_label
 from .fusion_card_model import validate_v7_card_model
 
 
+RICH_TEXT_LIMIT = 32768
+RICH_BLOCK_LIMIT = 500
+_BLOCK_TYPES = {"paragraph", "heading", "pre", "footer", "divider", "list", "blockquote", "table", "details"}
+
+
 def render_v7_rich_message(model: Dict[str, Any]) -> Dict[str, Any]:
     """Render a validated V7 model to one explicit InputRichMessage payload."""
     card = validate_v7_card_model(model)
+    blocks = _render_card_blocks(card)
+    anomaly = next((item for item in card.get("modules") or [] if item.get("owner") == "current-anomalies"), None)
+    if anomaly is None or _within_rich_limits(blocks):
+        return {"blocks": blocks}
+
+    # Keep the stored report intact. Only the final Telegram view has a budget,
+    # shared with every other module, and any omission must be visible.
+    rows = _rows(anomaly.get("details_rows"))
+    notice = ["异常详情超出 Telegram 消息容量，部分内容已省略。", ""]
+
+    def render_rows(kept: List[List[str]]) -> List[Dict[str, Any]]:
+        anomaly["details_rows"] = kept + [notice]
+        return _render_card_blocks(card)
+
+    blocks = render_rows([])
+    if not _within_rich_limits(blocks):
+        raise ValueError("融合卡其他内容已超出 Telegram 消息容量，无法容纳异常摘要")
+    low, high = 0, len(rows)
+    while low < high:
+        middle = (low + high + 1) // 2
+        candidate = render_rows(rows[:middle])
+        if _within_rich_limits(candidate):
+            low, blocks = middle, candidate
+        else:
+            high = middle - 1
+    kept = rows[:low]
+    if low < len(rows):
+        left, right = _pair(rows[low])
+        low, high = 0, len(left)
+        while low < high:
+            middle = (low + high + 1) // 2
+            candidate = render_rows(kept + [[left[:middle] + "…", right]])
+            if _within_rich_limits(candidate):
+                low, blocks = middle, candidate
+            else:
+                high = middle - 1
+    return {"blocks": blocks}
+
+
+def _within_rich_limits(value: Any) -> bool:
+    characters, blocks = _rich_usage(value)
+    return characters <= RICH_TEXT_LIMIT and blocks <= RICH_BLOCK_LIMIT
+
+
+def _rich_usage(value: Any) -> tuple[int, int]:
+    """Count the rendered RichText plus blocks, table rows and list items."""
+    if isinstance(value, str):
+        return len(value), 0
+    if isinstance(value, list):
+        usage = [_rich_usage(item) for item in value]
+        return sum(item[0] for item in usage), sum(item[1] for item in usage)
+    if not isinstance(value, dict):
+        return 0, 0
+    characters, blocks = _rich_usage([value[key] for key in ("text", "summary", "blocks", "cells", "items") if key in value])
+    blocks += int(value.get("type") in _BLOCK_TYPES)
+    blocks += len(value.get("cells") or []) + len(value.get("items") or [])
+    return characters, blocks
+
+
+def _render_card_blocks(card: Dict[str, Any]) -> List[Dict[str, Any]]:
     identity = card["identity"]
     blocks: List[Dict[str, Any]] = _identity_blocks(identity, card["state"])
     modules = list(card.get("modules") or [])
@@ -21,7 +86,7 @@ def render_v7_rich_message(model: Dict[str, Any]) -> Dict[str, Any]:
         if loading:
             blocks.append(_loading_block(loading))
         blocks.append(_identity_footer())
-        return {"blocks": blocks}
+        return blocks
 
     for index, module in enumerate(modules):
         previous = modules[index - 1] if index else None
@@ -29,7 +94,7 @@ def render_v7_rich_message(model: Dict[str, Any]) -> Dict[str, Any]:
             blocks.append({"type": "divider"})
         blocks.extend(_module_blocks(module, card["state"]))
     blocks.append(_identity_footer())
-    return {"blocks": blocks}
+    return blocks
 
 
 def _identity_blocks(identity: Dict[str, Any], state: str) -> List[Dict[str, Any]]:

@@ -1,20 +1,50 @@
 import os
 import re
 import subprocess
+from contextlib import contextmanager
 from datetime import datetime
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+from urllib.parse import unquote, urlsplit
 
 from app.sdk.config import settings
 from app.sdk.logging import logger
 from app.sdk.network import RequestUtils
 
 
+class _WikiRepositoryLinks(HTMLParser):
+    """Read repository anchors without treating documentation URLs as markets."""
+
+    def __init__(self):
+        super().__init__()
+        self.urls: List[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "a":
+            return
+        try:
+            url = urlsplit(dict(attrs).get("href") or "")
+        except ValueError:
+            return
+        host = url.netloc.lower()
+        if url.scheme not in {"http", "https"} or host not in {"github.com", "gitee.com", "gitlab.com"}:
+            return
+        parts = url.path.strip("/").split("/")
+        if (url.query or url.fragment or len(parts) < 2
+                or (host != "gitlab.com" and len(parts) != 2)
+                or any(part in {".", "..", "-"} or not re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in parts)):
+            return
+        parts[-1] = parts[-1].removesuffix(".git")
+        if parts[-1]:
+            self.urls.append(f"{url.scheme}://{host}/{'/'.join(parts)}/")
+
+
 class UpdateGovernanceMixin:
     """MoviePilot version checks, plugin market updates, and auto-update logic."""
 
     def _build_update_status(self) -> Dict[str, Any]:
-        result = {"safe_mode": True, "note": "检查到 MoviePilot 后端或前端有更新时，只触发一次整体升级。", "moviepilot": {}}
+        result = {"safe_mode": True, "note": "遵循宿主更新通道：正式版检查后由 MoviePilot 确认安装；开发版只触发一次整体升级。", "moviepilot": {}}
         local = self._get_local_versions()
         result["moviepilot"].update(local)
         checks = []
@@ -45,6 +75,12 @@ class UpdateGovernanceMixin:
         Signal 只做检查与通知，把安装动作交还给宿主界面。
         """
         mp = data.setdefault("moviepilot", {})
+        if str(getattr(settings, "MOVIEPILOT_AUTO_UPDATE", "") or "").strip().lower() != "dev":
+            # upgrade_dev() can switch even a Release host to Dev. A stable
+            # release check must never opt the user into that channel.
+            mp["upgrade_channel"] = "release"
+            mp["upgrade_manual_required"] = True
+            return
         try:
             from app.sdk.services import SystemHelper
 
@@ -93,25 +129,88 @@ class UpdateGovernanceMixin:
             pass
         return 3
 
+    @staticmethod
+    def _update_error_detail(error: Any) -> str:
+        """Keep the failure detail while removing configured request credentials."""
+        detail = str(error or "")
+        headers = settings.GITHUB_HEADERS
+        proxies = settings.PROXY
+        secrets = []
+        if isinstance(headers, dict):
+            for key, value in headers.items():
+                if str(key).lower() in {"authorization", "cookie", "x-api-key"} and value:
+                    secrets.extend([str(value), str(value).split(" ", 1)[-1]])
+        if isinstance(proxies, dict):
+            for value in proxies.values():
+                try:
+                    endpoint = urlsplit(str(value or ""))
+                    secrets.extend(part for part in (endpoint.username, endpoint.password) if part)
+                except ValueError:
+                    continue
+        for secret in sorted(set(secrets), key=len, reverse=True):
+            detail = detail.replace(secret, "[已隐藏]").replace(unquote(secret), "[已隐藏]")
+        detail = re.sub(r"(https?://)[^\s/@]+@", r"\1[已隐藏]@", detail)
+        detail = re.sub(r"(?i)([?&](?:access_token|api_key|token|password|secret)=)[^&\s'\")]+", r"\1[已隐藏]", detail)
+        return detail
+
+    @staticmethod
+    @contextmanager
+    def _update_response(url: str, *, headers: Optional[Dict[str, Any]] = None):
+        # Current V3 RequestUtils retries an idempotent GET once on a broken
+        # connection only when it owns a session. Keep the configured egress;
+        # use the host release check's 60-second timeout and retain exceptions.
+        request = RequestUtils(proxies=settings.PROXY, headers=headers, timeout=60, use_session=True)
+        response = None
+        try:
+            try:
+                response = request.get_res(url=url, raise_exception=True)
+            except Exception as err:
+                detail = UpdateGovernanceMixin._update_error_detail(err)
+                raise RuntimeError(f"请求失败：{type(err).__name__}：{detail}") from err
+            if response is None:
+                raise RuntimeError("未获取到响应（宿主未提供底层原因）")
+            if response.status_code != 200:
+                status = response.status_code
+                reason = {
+                    401: "认证失败", 403: "访问被拒绝", 404: "资源不存在或无权访问",
+                    429: "请求过于频繁", 500: "服务端错误", 502: "网关错误",
+                    503: "服务暂不可用", 504: "网关超时",
+                }.get(status, "请求未成功")
+                if status == 403 and response.headers.get("X-RateLimit-Remaining") == "0":
+                    reason = "GitHub API 请求额度已用尽"
+                raise RuntimeError(f"HTTP {status}：{reason}")
+            yield response
+        finally:
+            try:
+                if response is not None:
+                    response.close()
+            finally:
+                request.close()
+
     def _check_one_release(self, label: str, url: str, local_version: Any) -> Dict[str, Any]:
         item = {"type": label, "local_version": str(local_version or "未知"), "latest_version": "", "has_update": False, "error": ""}
         major = self._host_major_version()
         try:
-            response = RequestUtils(proxies=settings.PROXY, headers=settings.GITHUB_HEADERS).get_res(url)
-            if not response:
-                item["error"] = "未获取到 release 响应"
+            with self._update_response(url, headers=settings.GITHUB_HEADERS) as response:
+                try:
+                    releases = response.json()
+                except ValueError:
+                    item["error"] = "release 响应不是有效的 JSON"
+                    return item
+            if not isinstance(releases, list) or any(not isinstance(release, dict) for release in releases):
+                item["error"] = "release 响应结构错误：应为版本列表"
                 return item
-            releases = response.json() or []
             same_generation = [
                 r for r in releases
-                if re.match(rf"^v{major}\.", str(r.get("tag_name", "")))
+                if not r.get("draft") and not r.get("prerelease")
+                and re.fullmatch(rf"v{major}\.\d+\.\d+", str(r.get("tag_name", "")))
             ]
             if not same_generation:
-                item["error"] = f"未找到 v{major} release"
+                item["error"] = f"未找到 v{major} 稳定 release"
                 return item
             latest = sorted(same_generation, key=lambda r: self._version_nums(r.get("tag_name")))[-1]
             latest_version = str(latest.get("tag_name") or "")
-            item.update({"latest_version": latest_version, "published_at": latest.get("published_at"), "body": (latest.get("body") or "")[:1000]})
+            item.update({"latest_version": latest_version, "published_at": latest.get("published_at"), "body": str(latest.get("body") or "")[:1000]})
             if self._version_nums(latest_version) > self._version_nums(local_version):
                 item["has_update"] = True
         except Exception as err:
@@ -122,6 +221,8 @@ class UpdateGovernanceMixin:
     def _format_update_status_text(data: Dict[str, Any]) -> str:
         mp = data.get("moviepilot") or {}
         lines = ["🔄 系统更新检查", f"⦁ 后端本地：{mp.get('backend_version', '未知')}", f"⦁ 前端本地：{mp.get('frontend_version', '未知')}"]
+        if mp.get("version_error"):
+            lines.append(f"⦁ 本地版本读取失败：{mp['version_error']}")
         for item in mp.get("checks") or []:
             status = "有更新" if item.get("has_update") else "无更新"
             if item.get("error"):
@@ -129,6 +230,8 @@ class UpdateGovernanceMixin:
             lines.append(f"⦁ {item.get('type')}：{status}｜最新 {item.get('latest_version') or '未知'}")
         if mp.get("upgrade_dispatched"):
             lines.append(f"⦁ 更新执行：已触发 MoviePilot 升级重启{('｜' + str(mp.get('upgrade_message'))) if mp.get('upgrade_message') else ''}")
+        elif mp.get("upgrade_manual_required"):
+            lines.append("⦁ 正式版更新：请在 MoviePilot 系统更新页面确认安装")
         elif mp.get("upgrade_error"):
             lines.append(f"⦁ 更新执行：失败｜{mp.get('upgrade_error')}")
         elif mp.get("restart_dispatched"):
@@ -210,13 +313,17 @@ class UpdateGovernanceMixin:
 
     def _fetch_wiki_markets(self) -> List[str]:
         url = "https://wiki.movie-pilot.org/zh/plugin"
-        response = RequestUtils(proxies=settings.PROXY, timeout=15).get_res(url=url)
-        if not response or response.status_code != 200:
-            raise RuntimeError(f"插件库记录页面获取失败：{getattr(response, 'status_code', 'no_response')}")
-        text = response.text or ""
-        urls = re.findall(r"https?://[^\s\"'<>]+", text)
-        markets = [u for u in urls if ("github" in u.lower() or "gitee" in u.lower() or "gitlab" in u.lower() or u.endswith("/"))]
-        return self._valid_markets_list(self._dedupe(markets))
+        try:
+            with self._update_response(url) as response:
+                text = response.text or ""
+        except RuntimeError as err:
+            raise RuntimeError(f"插件库记录页面获取失败：{err}") from err
+        links = _WikiRepositoryLinks()
+        links.feed(text)
+        markets = self._dedupe(links.urls)
+        if not markets:
+            raise RuntimeError("插件库记录页面未包含有效的仓库地址，未修改现有插件库")
+        return markets
 
     @staticmethod
     def _valid_markets_list(value: Any) -> List[str]:
@@ -313,6 +420,8 @@ class UpdateGovernanceMixin:
         if success:
             if mp.get("upgrade_dispatched"):
                 return "已触发 MoviePilot 升级并重启"
+            if mp.get("upgrade_manual_required"):
+                return "发现正式版更新，请在 MoviePilot 中确认安装"
             if mp.get("has_update"):
                 return "检测到更新，但未触发 MoviePilot 整体升级"
             return "检查完成，MoviePilot 已是最新版本"
@@ -331,7 +440,7 @@ class UpdateGovernanceMixin:
             from app.db.oper.systemconfig import SystemConfigOper
             from app.schemas.types import SystemConfigKey
         except Exception as err:
-            out["error"] = f"加载插件管理器失败：{str(err)[:120]}"
+            out["error"] = f"加载插件管理器失败：{self._update_error_detail(err)}"
             return out
         try:
             installed_ids = SystemConfigOper().get(SystemConfigKey.UserInstalledPlugins) or []
@@ -392,7 +501,7 @@ class UpdateGovernanceMixin:
                 except Exception as err:
                     state, msg = False, str(err)
                 if not state:
-                    out["failed"].append({**info, "msg": str(msg)[:120]})
+                    out["failed"].append({**info, "msg": self._update_error_detail(msg)})
                     continue
                 try:
                     PluginManager().reload_plugin(p.id)
@@ -402,7 +511,7 @@ class UpdateGovernanceMixin:
                     from app.application.plugin.routes import register_plugin
                     register_plugin(p.id)
                 except Exception as err:
-                    message = str(err)[:160]
+                    message = self._update_error_detail(err)
                     out["failed"].append({**info, "msg": f"重载后重新注册失败：{message}"})
                     logger.warning(f"Signal 重载插件 {pid} 失败：{message}")
                     continue
@@ -417,7 +526,7 @@ class UpdateGovernanceMixin:
                 out["updated"].append({**info, "history": hist})
             return out
         except Exception as err:
-            out["error"] = f"插件自动更新异常：{str(err)[:160]}"
+            out["error"] = f"插件自动更新异常：{self._update_error_detail(err)}"
             return out
     def run_update_preview(self) -> bool:
         ok, _ = self._guard_task("系统更新检查", "mp_update")
@@ -425,8 +534,11 @@ class UpdateGovernanceMixin:
             return False
         data = self._build_update_status()
         text = self._format_update_status_text(data)
-        self._save_task_result("更新状态预览", True, 0, text)
-        return True
+        mp = data.get("moviepilot") or {}
+        checks = mp.get("checks") or []
+        success = bool(checks) and not mp.get("version_error") and not any(item.get("error") for item in checks)
+        self._save_task_result("更新状态预览", success, 0 if success else 1, text)
+        return success
 
     def run_mp_update_scheduled(self) -> bool:
         return self.run_mp_update_check(scheduled=True)
@@ -470,7 +582,7 @@ class UpdateGovernanceMixin:
         if not errors and mp.get("has_update"):
             self._dispatch_moviepilot_upgrade(data)
             text = self._format_update_status_text(data)
-        execution_failed = bool(mp.get("has_update") and not mp.get("upgrade_dispatched"))
+        execution_failed = bool(mp.get("has_update") and not mp.get("upgrade_dispatched") and not mp.get("upgrade_manual_required"))
         success = bool(checks) and not errors and not execution_failed
         if (scheduled or notify) and self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
             title = "系统更新" if success else "系统更新异常"
@@ -585,7 +697,7 @@ class UpdateGovernanceMixin:
             for item in updated[:8]:
                 extra = f"｜{item['history']}" if item.get("history") else ""
                 lines.append(f"  ✓ {item['name']}：v{item['old']} → v{item['new']}{extra}")
-            for item in failed[:5]:
+            for item in failed:
                 lines.append(f"  ✗ {item['name']}：{item.get('msg')}")
             for item in skipped[:5]:
                 lines.append(f"  – {item['name']}：跳过（{item.get('reason')}）")

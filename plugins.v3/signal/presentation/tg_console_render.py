@@ -83,6 +83,7 @@ class TgConsoleRenderMixin:
             subscription_lines = list(calendar_snapshot.items)
             if calendar_snapshot.is_partial:
                 warning = calendar_snapshot.failure_message()
+                observed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 subscription_lines.append(f"⚠️ {warning}")
                 self._record_v7_anomaly(state, "subscribe_reminder", {
                     "owner": "current-anomalies",
@@ -90,28 +91,31 @@ class TgConsoleRenderMixin:
                     "count": "1 项",
                     "primary": "订阅日历部分读取失败",
                     "context": "需要关注 · 订阅追新",
-                    "meta": f"最近 {datetime.now().strftime('%H:%M')}",
+                    "meta": f"最近 {observed_at[5:16]}",
+                    "observed_at": observed_at,
                     "affected_owners": ["persistent-subscriptions"],
-                    "details_rows": [[warning[:80], datetime.now().strftime("%H:%M")]],
+                    "details_rows": [[warning, observed_at[5:16]]],
                 })
             else:
                 self._clear_v7_anomaly(state, "subscribe_reminder")
         except Exception as err:
             snapshot = self._subscription_calendar_snapshot_for_scope()
             status = str(getattr(snapshot, "status", "failed") or "failed")
-            error = getattr(snapshot, "failure_message", lambda: f"订阅日历读取失败：{str(err)[:160]}")()
+            error = getattr(snapshot, "failure_message", lambda: f"订阅日历读取失败：{err}")()
             state["subscription_calendar_status"] = status
             state["subscription_calendar_errors"] = list(getattr(snapshot, "errors", ()) or ()) or [error]
             subscription_lines = [f"⚠️ {error}"]
+            observed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self._record_v7_anomaly(state, "subscribe_reminder", {
                 "owner": "current-anomalies",
                 "kicker": "当前异常",
                 "count": "1 项",
                 "primary": "订阅日历读取失败",
                 "context": "需要关注 · 订阅追新",
-                "meta": f"最近 {datetime.now().strftime('%H:%M')}",
+                "meta": f"最近 {observed_at[5:16]}",
+                "observed_at": observed_at,
                 "affected_owners": ["persistent-subscriptions"],
-                "details_rows": [[error[:80], datetime.now().strftime("%H:%M")]],
+                "details_rows": [[error, observed_at[5:16]]],
             })
         subscription_rows = parse_subscription_rows(subscription_lines)
         completion_rows = event_ledger_rows(state.get("v7_event_ledger"), str(state.get("date") or self._today_prefix()))
@@ -144,6 +148,7 @@ class TgConsoleRenderMixin:
 
     def _prepare_tg_console_v7_failure(self, state: Dict[str, Any], message: str) -> None:
         """Build a terminal card without calling the collector that just failed."""
+        observed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         snapshot = {
             "identity": self._v7_identity(),
             "anomalies": [{
@@ -152,7 +157,9 @@ class TgConsoleRenderMixin:
                 "count": "1 项",
                 "primary": "融合卡采集未完成",
                 "context": message,
-                "details_rows": [["稍后使用刷新重试", datetime.now().strftime("%H:%M")]],
+                "meta": f"最近 {observed_at[5:16]}",
+                "observed_at": observed_at,
+                "details_rows": [["稍后使用刷新重试", observed_at[5:16]]],
                 "affected_owners": [],
             }],
         }
@@ -164,7 +171,7 @@ class TgConsoleRenderMixin:
     def _site_notice_detail(cls, item: Dict[str, Any], statistics_day: Any) -> str:
         # Do not repeat the same collection time as the last successful time.
         evidence = dict(item)
-        if evidence.get("last_success_at") == evidence.get("snapshot_at"):
+        if not cls._site_failure_at(item) and evidence.get("last_success_at") == evidence.get("snapshot_at"):
             evidence["last_success_at"] = ""
         detail = cls._site_state_detail(evidence)
         code = str(item.get("reason_code") or "")
@@ -226,7 +233,19 @@ class TgConsoleRenderMixin:
         items.extend(dict(item) for item in collector_anomalies or [] if isinstance(item, dict))
         if not items:
             return []
+        # Compare complete event timestamps, never the shortened display labels.
+        # Older stored events without a timestamp remain unknown.
+        for item in items:
+            stamp = str(item.get("observed_at") or "")
+            try:
+                item["observed_at"] = datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                item["observed_at"] = ""
+        items.sort(key=lambda item: item["observed_at"], reverse=True)
+        latest = items[0]["observed_at"]
+        meta = f"最近 {latest[5:16]}" if latest else "异常时间未知"
         if len(items) == 1:
+            items[0]["meta"] = meta if latest else str(items[0].get("meta") or meta)
             return items
         affected = []
         details = []
@@ -247,13 +266,14 @@ class TgConsoleRenderMixin:
             "count": f"{len(items)} 项",
             "primary": "、".join(primary[:3]) or "需要关注",
             "context": "需要关注 · 多个组件",
-            "meta": next((str(item.get("meta") or "") for item in items if item.get("meta")), ""),
+            "meta": meta,
+            "observed_at": latest,
             "affected_owners": affected,
-            "details_rows": details[:8],
+            "details_rows": details,
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "3.0.4") or "3.0.4")
+        version = str(getattr(self, "plugin_version", "3.0.5") or "3.0.5")
         return {"version": version if version.startswith("v") else f"v{version}", "refreshed_at": datetime.now().strftime("%H:%M")}
 
     @staticmethod
@@ -268,6 +288,7 @@ class TgConsoleRenderMixin:
     def _current_v7_anomalies(cls, site_snapshot: Dict[str, Any], storage_lines: List[str]) -> List[Dict[str, Any]]:
         anomalies = []
         site_rows = []
+        site_times = []
         ignored = {"ok", "baseline_missing", "baseline_invalid", "baseline_discontinuous", "counter_reset", "refresh_running"}
         for item in site_snapshot.get("site_states") or []:
             code = item.get("reason_code")
@@ -277,22 +298,27 @@ class TgConsoleRenderMixin:
             detail = f"{item.get('name') or item.get('domain') or '站点'}：{reason}"
             if item.get("last_success_at"):
                 detail += f"；最后成功 {item['last_success_at']}"
-            stamp = cls._site_timestamp(item.get("snapshot_at"))
-            site_rows.append([detail, f"实际采集 {stamp[5:16]}" if stamp else "采集时间未知"])
+            failed_at = cls._site_failure_at(item)
+            stamp = failed_at or cls._site_timestamp(item.get("snapshot_at"))
+            site_times.append(stamp)
+            time_label = "本次失败" if failed_at else "实际采集"
+            site_rows.append([detail, f"{time_label} {stamp[5:16]}" if stamp else "采集时间未知"])
         if site_snapshot.get("error") and not site_rows:
-            site_rows.append(["站点统计检查失败", "采集时间未知"])
+            site_rows.append([f"站点统计检查失败：{site_snapshot['error']}", "采集时间未知"])
         if site_rows:
-            latest = cls._site_timestamp(site_snapshot.get("latest_updated_at"))
+            latest = max(site_times, default="")
             anomalies.append({"owner": "current-anomalies", "kicker": "当前异常", "count": f"{len(site_rows)} 项",
                               "primary": "站点数据", "context": "需要关注 · 站点数据",
-                              "meta": f"数据时间 {latest[5:16]}" if latest else "数据时间未知",
+                              "meta": f"最近 {latest[5:16]}" if latest else "异常时间未知",
+                              "observed_at": latest,
                               # Keep valid totals and site explanations visible alongside anomalies.
                               "affected_owners": [], "details_rows": site_rows})
         rows = []
+        observed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for line in storage_lines or []:
             text = str(line or "")
             if "空间偏紧" in text or "检查异常" in text:
-                rows.append([re.sub(r"^[\s⦁•]+", "", text), datetime.now().strftime("%H:%M")])
+                rows.append([re.sub(r"^[\s⦁•]+", "", text), observed_at[5:16]])
         if rows:
             anomalies.append({
             "owner": "current-anomalies",
@@ -300,7 +326,8 @@ class TgConsoleRenderMixin:
             "count": f"{len(rows)} 项",
             "primary": "存储空间",
             "context": "需要关注 · 健康巡查",
-            "meta": f"最近 {rows[0][1]}",
+            "meta": f"最近 {observed_at[5:16]}",
+            "observed_at": observed_at,
             "affected_owners": ["persistent-storage"],
             "details_rows": rows,
             })
