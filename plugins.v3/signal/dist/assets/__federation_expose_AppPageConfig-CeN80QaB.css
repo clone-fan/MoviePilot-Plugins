@@ -2768,8 +2768,6 @@ body[data-theme="transparent"] .aoa-root,
   font-weight: 600;
   cursor: pointer;
   transition: background 0.18s ease, transform 0.18s ease;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 .aoa-design-section-title .aoa-mdi-icon--section {
   line-height: 15px;
@@ -2883,8 +2881,6 @@ body[data-theme="transparent"] .aoa-root,
   font-size: var(--aoa-type-micro-font-size);
   line-height: var(--aoa-type-micro-line-height);
   font-weight: var(--aoa-type-micro-font-weight);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 .aoa-config-status-badge--on {
   border-color: var(--aoa-feedback-success-border);
