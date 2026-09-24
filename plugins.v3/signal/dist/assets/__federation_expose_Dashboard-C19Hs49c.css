@@ -113,7 +113,7 @@
   --aoa-radius-pill: 999px;
   --aoa-config-radius-card: var(--app-surface-radius, 18px);
   --aoa-config-radius-section: var(--app-surface-radius, 18px);
-  --aoa-config-radius-hero: var(--app-surface-radius-lg, 22px);
+  --aoa-config-radius-hero: var(--app-overlay-radius, var(--app-surface-radius, 22px));
   --aoa-config-radius-emblem: var(--app-control-radius, 17px);
   --aoa-config-radius-table: var(--app-surface-radius, 16px);
   --aoa-config-radius-mobile-card: var(--app-surface-radius, 14px);
@@ -134,7 +134,7 @@
   --aoa-surface-card-background: var(--aoa-inner-surface);
   --aoa-surface-card-background-muted: var(--aoa-inner-surface-muted);
   --aoa-surface-card-shadow: var(--aoa-inner-shadow);
-  --aoa-surface-card-backdrop: saturate(1.12) blur(var(--aoa-inner-blur));
+  --aoa-surface-card-backdrop: none;
   --aoa-motion-fast: 160ms;
   --aoa-motion-short: 150ms;
   --aoa-motion-standard: 180ms;
@@ -164,22 +164,18 @@
   --aoa-theme-inner-lowlight-alpha: 0.021;
   --aoa-theme-donut-core-line-alpha: 0.04;
   --aoa-theme-donut-core-panel-alpha: 0.85;
-  --aoa-shell-accent-primary-rgb: var(--aoa-color-info-rgb);
+  --aoa-shell-accent-primary-rgb: var(--aoa-color-primary-rgb);
   --aoa-shell-accent-secondary-rgb: var(--aoa-color-primary-rgb);
   --aoa-shell-lift-rgb: var(--aoa-color-ink-rgb);
   --aoa-shell-depth-rgb: var(--aoa-color-stage-rgb);
-  --aoa-shell-accent-primary-alpha: 0.065;
-  --aoa-shell-accent-secondary-alpha: 0.045;
-  --aoa-shell-lift-alpha: 0.032;
-  --aoa-shell-depth-alpha: 0.055;
-  --aoa-host-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-host-opacity: 1;
   --aoa-host-opacity-light: var(--transparent-opacity-light, var(--aoa-host-opacity));
   --aoa-host-opacity-heavy: var(--transparent-opacity-heavy, var(--aoa-host-opacity));
   --aoa-host-shell-blur: var(--transparent-blur, 12px);
   --aoa-host-glass-blur: 18px;
 
   /* Canonical full-page host surface. */
-  --aoa-plugin-shell-radius: var(--app-surface-radius, var(--v-card-border-radius, var(--aoa-space-3)));
+  --aoa-plugin-shell-radius: var(--app-surface-radius, var(--aoa-space-3));
   --aoa-plugin-shell-border: var(--app-surface-border, 1px solid rgba(var(--aoa-color-border-rgb), var(--v-border-opacity, 0.12)));
   --aoa-theme-shadow: 0 18px 48px var(--aoa-theme-shadow-color);
   --aoa-plugin-shell-shadow: var(--app-surface-shadow, var(--aoa-theme-shadow));
@@ -188,11 +184,20 @@
    * host color, opacity, blur or border recipe. */
   --aoa-plugin-shell-background-color: rgba(var(--aoa-color-panel-rgb), var(--aoa-host-opacity));
   --aoa-plugin-shell-background-image:
-    radial-gradient(ellipse at 8% -10%, rgba(var(--aoa-shell-accent-primary-rgb), var(--aoa-shell-accent-primary-alpha)) 0%, transparent 44%),
-    radial-gradient(ellipse at 96% 108%, rgba(var(--aoa-shell-accent-secondary-rgb), var(--aoa-shell-accent-secondary-alpha)) 0%, transparent 42%),
-    linear-gradient(145deg, rgba(var(--aoa-shell-lift-rgb), var(--aoa-shell-lift-alpha)) 0%, transparent 46%, rgba(var(--aoa-shell-depth-rgb), var(--aoa-shell-depth-alpha)) 100%);
-  --aoa-plugin-shell-backdrop: blur(var(--aoa-host-shell-blur));
+    none;
+  --aoa-plugin-shell-backdrop: var(--glass-surface-backdrop-filter, blur(var(--aoa-host-shell-blur)));
   --aoa-plugin-shell-padding: var(--aoa-space-5);
+
+  /* 模块底板：保留可见底色维持层级，底色取宿主玻璃档位，不做自绘模糊。 */
+  --aoa-glass-panel-surface: var(--glass-surface-raised, rgba(var(--aoa-color-panel-rgb), 0.08));
+  --aoa-glass-panel-border: var(--glass-border, var(--aoa-inner-border));
+
+  /* D10.2: 模块层次——inset 高光/暗线（量级对齐宿主 --glass-control-shadow），
+   * 层次靠边缘材质而非加深底色。 */
+  --aoa-module-edge-shadow:
+    inset 0 1px 0 rgba(var(--aoa-color-ink-rgb), 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  --aoa-module-outline: 1px solid rgba(var(--aoa-color-border-rgb), 0.16);
 
   /* 内框：液态玻璃（iOS 透白渐变 + 主题色叠加） */
   --aoa-liquid-panel:
@@ -228,7 +233,7 @@
   --aoa-surface-cell-shadow: var(--aoa-inner-shadow);
   --aoa-surface-cell-edge-shadow: var(--aoa-inner-edge-shadow);
   --aoa-surface-cell-hover-shadow: var(--app-surface-hover-shadow, var(--aoa-surface-cell-shadow));
-  --aoa-surface-cell-backdrop: saturate(1.24) blur(var(--aoa-inner-blur));
+  --aoa-surface-cell-backdrop: none;
 
   /* Shared interaction primitives. Feature CSS owns composition only; button,
    * icon, status and feedback states resolve through these semantic tokens. */
@@ -236,6 +241,10 @@
   --aoa-control-height-md: var(--aoa-space-10);
   --aoa-control-height-lg: var(--aoa-space-12);
   --aoa-control-radius: var(--aoa-radius-pill);
+  /* 输入控件填充：默认沿用模块单元格底色；玻璃主题在 themes.css 覆盖为宿主 --glass-control。 */
+  --aoa-control-fill: var(--aoa-surface-cell-background);
+  --aoa-control-outline-opacity: 0;
+
   --aoa-control-gap: var(--aoa-space-2);
   --aoa-control-padding-inline: var(--aoa-space-4);
   --aoa-icon-button-size: var(--aoa-control-height-md);
@@ -347,7 +356,7 @@
   --aoa-color-warning-rgb: var(--v-theme-warning, 218, 179, 93);
   --aoa-color-error-rgb: var(--v-theme-error, 232, 104, 124);
   --aoa-color-accent-rgb: var(--v-theme-primary, 162, 151, 211);
-  --aoa-host-opacity: var(--transparent-opacity, var(--v-card-opacity, 1));
+  --aoa-host-opacity: 1;
   --aoa-host-opacity-light: var(--transparent-opacity-light, var(--aoa-host-opacity));
   --aoa-host-opacity-heavy: var(--transparent-opacity-heavy, var(--aoa-host-opacity));
   --aoa-host-shell-blur: var(--transparent-blur, 12px);
@@ -358,18 +367,14 @@ html[data-theme="transparent"] .aoa-root,
 body[data-theme="transparent"] .aoa-root,
 [data-theme="transparent"] .aoa-root,
 .aoa-root.agentops-theme--transparent {
-  --aoa-host-opacity: calc(var(--transparent-opacity, 0.42) * 0.8);
-  --aoa-host-opacity-light: calc(var(--transparent-opacity-light, 0.28) * 0.8);
-  --aoa-host-opacity-heavy: calc(var(--transparent-opacity-heavy, 0.55) * 0.8);
+  --aoa-host-opacity: var(--transparent-opacity, 0.42);
+  --aoa-host-opacity-light: var(--transparent-opacity-light, 0.28);
+  --aoa-host-opacity-heavy: var(--transparent-opacity-heavy, 0.55);
   --aoa-host-glass-blur: var(--transparent-blur, 12px);
   --aoa-theme-inner-border-alpha: 0.13;
   --aoa-theme-donut-core-line-alpha: 0.03;
   --aoa-theme-donut-core-panel-alpha: var(--aoa-host-opacity-heavy);
   --aoa-theme-shadow-color: rgba(0, 0, 0, 0.22);
-  --aoa-shell-accent-primary-alpha: 0.10;
-  --aoa-shell-accent-secondary-alpha: 0.07;
-  --aoa-shell-lift-alpha: 0.045;
-  --aoa-shell-depth-alpha: 0.035;
 }
 
 /* Light mode raises contrast through semantic paint, not alternate geometry. */
@@ -379,42 +384,40 @@ body[data-theme="transparent"] .aoa-root,
   --aoa-theme-inner-border-alpha: 0.22;
   --aoa-theme-inner-highlight-alpha: 0.06;
   --aoa-theme-inner-lowlight-alpha: 0.025;
-  --aoa-shell-accent-primary-alpha: 0.075;
-  --aoa-shell-accent-secondary-alpha: 0.055;
   --aoa-shell-lift-rgb: 255, 255, 255;
-  --aoa-shell-lift-alpha: 0.72;
   --aoa-shell-depth-rgb: 44, 62, 92;
-  --aoa-shell-depth-alpha: 0.045;
 }
 
 .aoa-root.agentops-theme--dark {
   --aoa-theme-shadow-color: rgba(0, 0, 0, 0.22);
-  --aoa-shell-accent-primary-alpha: 0.085;
-  --aoa-shell-accent-secondary-alpha: 0.06;
-  --aoa-shell-lift-alpha: 0.045;
   --aoa-shell-depth-rgb: 0, 0, 0;
-  --aoa-shell-depth-alpha: 0.16;
 }
 
 .aoa-root.agentops-theme--purple {
   --aoa-theme-shadow-color: rgba(0, 0, 0, 0.22);
-  --aoa-shell-accent-primary-rgb: var(--aoa-color-info-rgb);
+  --aoa-shell-accent-primary-rgb: var(--aoa-color-primary-rgb);
   --aoa-shell-accent-secondary-rgb: var(--aoa-color-ink-rgb);
-  --aoa-shell-accent-primary-alpha: 0.09;
-  --aoa-shell-accent-secondary-alpha: 0.045;
-  --aoa-shell-lift-alpha: 0.045;
-  --aoa-shell-depth-alpha: 0.10;
 }
 
 .aoa-root.agentops-theme--glass {
-  --aoa-host-glass-blur: var(--transparent-blur, 18px);
-  --aoa-host-shell-blur: var(--transparent-blur, 18px);
+  /* D3: 玻璃主题取宿主玻璃表面，不引用透明主题的 --transparent-opacity。 */
+  --aoa-host-opacity: 0.62;
+  --aoa-host-opacity-light: 0.42;
+  --aoa-host-opacity-heavy: 0.82;
+  --aoa-surface-card-background: var(--aoa-glass-panel-surface);
+  --aoa-surface-card-background-muted: var(--aoa-glass-panel-surface);
+  --aoa-surface-card-border: var(--aoa-glass-panel-border);
+  --aoa-surface-cell-background: var(--aoa-glass-panel-surface);
+  --aoa-surface-cell-background-muted: var(--aoa-glass-panel-surface);
+  /* D10.1: 底板不再直接用 --v-theme-surface(#182235 深蓝)，改用宿主玻璃表面。 */
+  --aoa-plugin-shell-background-color: var(--glass-surface, rgba(var(--aoa-color-panel-rgb), var(--aoa-host-opacity)));
+  /* D12：玻璃主题输入框改用宿主玻璃控件填充与原生描边，避免与模块底板同色导致框不可辨。 */
+  --aoa-control-fill: var(--glass-control, var(--aoa-glass-panel-surface));
+  --aoa-control-outline-opacity: 1;
+  --aoa-host-glass-blur: var(--glass-blur-surface, 18px);
+  --aoa-host-shell-blur: var(--glass-blur-raised, 18px);
   --aoa-theme-shadow-color: rgba(3, 7, 18, 0.18);
   --aoa-theme-inner-border-alpha: 0.16;
-  --aoa-shell-accent-primary-alpha: 0.12;
-  --aoa-shell-accent-secondary-alpha: 0.08;
-  --aoa-shell-lift-alpha: 0.075;
-  --aoa-shell-depth-alpha: 0.045;
 }
 /* signal 共享面板原语 — 跨组件复用的 panel/cell 基线
  * 全局 CSS（非 scoped），用 .aoa-root 作为 scope。
@@ -466,12 +469,10 @@ body[data-theme="transparent"] .aoa-root,
   min-inline-size: 0;
   max-inline-size: 100%;
   overflow: hidden;
-  border: var(--aoa-surface-card-border);
+  border: var(--aoa-module-outline);
   border-radius: var(--aoa-surface-card-radius);
   background: var(--aoa-surface-card-background);
-  box-shadow: var(--aoa-surface-card-shadow);
-  backdrop-filter: var(--aoa-surface-card-backdrop);
-  -webkit-backdrop-filter: var(--aoa-surface-card-backdrop);
+  box-shadow: var(--aoa-module-edge-shadow), var(--aoa-surface-card-shadow);
 }
 
 .aoa-root .aoa-surface-card--muted {
@@ -486,16 +487,6 @@ body[data-theme="transparent"] .aoa-root,
   gap: var(--aoa-layout-section-gap);
   padding: var(--aoa-surface-card-padding);
   border-radius: var(--aoa-surface-section-radius);
-}
-
-.aoa-root .panel::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(var(--aoa-color-line-rgb), 0.28), transparent);
-  opacity: 0.50;
-  pointer-events: none;
 }
 
 .aoa-root .panel-head {
@@ -558,12 +549,10 @@ body[data-theme="transparent"] .aoa-root,
 .aoa-root .cmd-btn,
 .aoa-root .downloader-card,
 .aoa-root .module {
-  border: var(--aoa-surface-cell-border);
+  border: var(--aoa-module-outline);
   border-radius: var(--aoa-surface-cell-radius);
   background: var(--aoa-surface-cell-background);
-  box-shadow: var(--aoa-surface-cell-shadow);
-  backdrop-filter: var(--aoa-surface-cell-backdrop);
-  -webkit-backdrop-filter: var(--aoa-surface-cell-backdrop);
+  box-shadow: var(--aoa-module-edge-shadow), var(--aoa-surface-cell-shadow);
 }
 
 /* ---- Cell hover ---- */
@@ -582,12 +571,10 @@ body[data-theme="transparent"] .aoa-root,
 .aoa-root .donut-zone,
 .aoa-root .command-quick-btn,
 .aoa-root .cmd-icon {
-  border: var(--aoa-surface-cell-border);
+  border: var(--aoa-module-outline);
   border-radius: var(--aoa-surface-cell-radius);
   background: var(--aoa-surface-cell-background-muted);
-  box-shadow: var(--aoa-surface-cell-shadow);
-  backdrop-filter: var(--aoa-surface-cell-backdrop);
-  -webkit-backdrop-filter: var(--aoa-surface-cell-backdrop);
+  box-shadow: var(--aoa-module-edge-shadow), var(--aoa-surface-cell-shadow);
 }
 
 /* ---- Shared interaction / status / feedback primitives ---- */
@@ -1345,7 +1332,7 @@ body[data-theme="transparent"] .aoa-root,
   column-gap: var(--aoa-space-4);
   row-gap: var(--aoa-space-2-5);
   border-radius: var(--aoa-surface-card-radius);
-  background: var(--v31-module-surface-dim);
+  background: var(--aoa-surface-card-background);
   border-color: var(--v31-module-surface-dim-border);
   box-shadow: var(--aoa-surface-card-shadow);
 }
@@ -1363,7 +1350,7 @@ body[data-theme="transparent"] .aoa-root,
 
 .v31-fusion-mini__icon {
   grid-column: 1;
-  box-shadow: 0 var(--aoa-space-3) var(--aoa-space-6) rgba(var(--aoa-color-primary-rgb), 0.22);
+  box-shadow: var(--aoa-module-edge-shadow);
 }
 
 .v31-fusion-mini__identity {
@@ -1725,7 +1712,8 @@ body[data-theme="transparent"] .aoa-root,
 }
 
 .v31-dashboard-shell .v31-fusion-mini__icon {
-  box-shadow: 0 var(--aoa-space-3) var(--aoa-space-6) rgba(var(--v31-primary-rgb), 0.22);
+  /* D10.3: 与基础规则一致——融合卡图标不再用主色光晕，改用 inset 边缘阴影。 */
+  box-shadow: var(--aoa-module-edge-shadow);
 }
 
 .v31-dashboard-shell .v31-pill-button--compact {
@@ -2169,15 +2157,21 @@ body[data-theme="transparent"] .aoa-root,
 }
 }
 
-.v31-quick-actions[data-v-6dd2e804],
-.v31-quick-actions[data-v-6dd2e804] * {
+.v31-quick-actions[data-v-efe7d8aa],
+.v31-quick-actions[data-v-efe7d8aa] * {
   box-sizing: border-box;
 }
-.v31-quick-actions[data-v-6dd2e804] {
+.v31-quick-actions[data-v-efe7d8aa] {
   --v31-quick-action-entry-width: clamp(52px, 18cqi, 56px);
-  --v31-quick-action-touch-target: clamp(54px, 22cqi, 64px);
-  --v31-quick-action-icon-size: clamp(30px, 12.5cqi, 36px);
-  --v31-quick-action-grid-gap: clamp(var(--aoa-space-1), 2cqi, var(--aoa-space-2));
+  --v31-quick-action-touch-target: clamp(44px, 16cqi, 52px);
+  --v31-quick-action-icon-size: clamp(22px, 8.5cqi, 26px);
+  --v31-quick-action-grid-gap: var(--aoa-space-1);
+  /* D9: 复刻 MP 的受控间距——副列间距固定，格子宽度设上限，宽宿主下不再拉伸。 */
+  --v31-quick-action-cell-max: 96px;
+  /* 复刻 MP：MP 自身 .dashboard-quick-action 的 border-radius 写死 10px（圆角矩形），
+   * 悬停时只叠加一层主题色 tint。Signal 若把按钮设成 999px 胶囊，悬停描边就变成
+   * 椭圆——这正是用户看到的那种圆形边框。图标保持 Signal 的圆形个性化。 */
+  --v31-quick-action-frame-radius: 10px;
   position: relative;
   flex: 1 1 auto;
   inline-size: 100%;
@@ -2193,7 +2187,7 @@ body[data-theme="transparent"] .aoa-root,
   container-type: inline-size;
   overflow: visible;
 }
-.v31-quick-actions[data-action-size="max"][data-v-6dd2e804] {
+.v31-quick-actions[data-action-size="max"][data-v-efe7d8aa] {
   --v31-quick-action-entry-width: 72px;
   --v31-quick-action-touch-target: 72px;
   --v31-quick-action-icon-size: 44px;
@@ -2202,13 +2196,13 @@ body[data-theme="transparent"] .aoa-root,
 
 /* Keep the six fixed actions in one compact row at the normal MP card width.
  * The container breakpoints below are the deliberate mobile fallback. */
-.v31-quick-actions[data-action-count="6"][data-v-6dd2e804] {
-  --v31-quick-action-touch-target: clamp(56px, 18cqi, 64px);
-  --v31-quick-action-icon-size: clamp(28px, 9.5cqi, 36px);
-  --v31-quick-action-grid-gap: clamp(2px, 1cqi, 4px);
+.v31-quick-actions[data-action-count="6"][data-v-efe7d8aa] {
+  --v31-quick-action-touch-target: clamp(44px, 15cqi, 52px);
+  --v31-quick-action-icon-size: clamp(22px, 8cqi, 26px);
+  --v31-quick-action-grid-gap: var(--aoa-space-1);
   padding-inline: clamp(var(--aoa-space-1), 2cqi, var(--aoa-space-2));
 }
-.v31-quick-actions__header[data-v-6dd2e804] {
+.v31-quick-actions__header[data-v-efe7d8aa] {
   flex: 0 0 auto;
   min-block-size: var(--aoa-icon-badge-size);
   display: flex;
@@ -2216,14 +2210,14 @@ body[data-theme="transparent"] .aoa-root,
   flex-wrap: wrap;
   gap: var(--aoa-space-3);
 }
-.v31-quick-actions__header-actions[data-v-6dd2e804] {
+.v31-quick-actions__header-actions[data-v-efe7d8aa] {
   flex: 0 1 auto;
   min-inline-size: 0;
   display: inline-flex;
   align-items: center;
   gap: var(--aoa-space-1);
 }
-.v31-quick-actions__title[data-v-6dd2e804] {
+.v31-quick-actions__title[data-v-efe7d8aa] {
   flex: 0 0 auto;
   margin: 0;
   font-size: var(--aoa-type-body-font-size);
@@ -2231,7 +2225,7 @@ body[data-theme="transparent"] .aoa-root,
   font-weight: var(--aoa-font-weight-bold);
   color: rgba(var(--aoa-color-ink-rgb), 0.94);
 }
-.v31-action-feedback[data-v-6dd2e804] {
+.v31-action-feedback[data-v-efe7d8aa] {
   position: static;
   margin-inline-start: auto;
   flex: 0 1 auto;
@@ -2250,17 +2244,22 @@ body[data-theme="transparent"] .aoa-root,
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.v31-action-feedback--bad[data-v-6dd2e804] {
+.v31-action-feedback--bad[data-v-efe7d8aa] {
   border-color: var(--aoa-feedback-error-border);
   background: var(--aoa-feedback-error-surface);
   color: var(--aoa-feedback-error-color);
 }
-.v31-quick-actions__grid[data-v-6dd2e804] {
+.v31-quick-actions__grid[data-v-efe7d8aa] {
   flex: 0 0 auto;
   min-block-size: 0;
   display: grid;
   /* 列数跟随实际动作数量，删除动作后不能留下空列或挤压出横向溢出。 */
   grid-template-columns: repeat(var(--v31-quick-action-columns, 5), minmax(0, 1fr));
+  /* D9: 复刻 MP 的受控间距——整行铺满可用宽度（列数固定），
+   * 但当每格超过上限时整行收敛并居中，避免宽宿主把按钮拉宽。 */
+  inline-size: 100%;
+  max-inline-size: calc(var(--v31-quick-action-columns, 5) * var(--v31-quick-action-cell-max) + (var(--v31-quick-action-columns, 5) - 1) * var(--v31-quick-action-grid-gap));
+  margin-inline: auto;
   column-gap: var(--v31-quick-action-grid-gap);
   row-gap: var(--v31-quick-action-grid-gap);
   justify-content: stretch;
@@ -2268,14 +2267,22 @@ body[data-theme="transparent"] .aoa-root,
   align-items: stretch;
   overflow: visible;
 }
-.v31-quick-action[data-v-6dd2e804] {
+
+/* 选择器明确限定在快捷操作容器内，特异性高于共享壳层的通用
+ * .aoa-root .aoa-button / .aoa-root .aoa-icon-badge。Vue scoped 追加 [data-v-*] 后
+ * 双方原本同为 0,2,0，胜负由联邦 CSS 分块的加载顺序决定，会让同一按钮的
+ * 圆角、图标尺寸、行高在不同进入路径下互相打架。此处固定由组件契约决定。 */
+.v31-quick-actions .v31-quick-action[data-v-efe7d8aa] {
   --v31-quick-action-tone-rgb: var(--aoa-color-info-rgb);
   appearance: none;
   inline-size: 100%;
   min-inline-size: 0;
   min-block-size: var(--v31-quick-action-touch-target);
   border: 1px solid transparent;
-  border-radius: var(--aoa-surface-compact-radius);
+  /* 按钮外框用 MP 的 10px 圆角矩形，悬停描边因此是圆角矩形而非椭圆。
+   * 选择器已限定在 .v31-quick-actions 内且高于通用 .aoa-button，
+   * 避免联邦 CSS 分块加载顺序再把圆角顶成 999px 胶囊。 */
+  border-radius: var(--v31-quick-action-frame-radius);
   padding: var(--aoa-space-1) 0;
   display: inline-flex;
   flex-direction: column;
@@ -2290,57 +2297,58 @@ body[data-theme="transparent"] .aoa-root,
   cursor: pointer;
   transition: var(--aoa-interaction-transition);
 }
-.v31-quick-action[data-tone="violet"][data-v-6dd2e804] {
+.v31-quick-action[data-tone="violet"][data-v-efe7d8aa] {
   --v31-quick-action-tone-rgb: var(--aoa-color-accent-rgb);
 }
-.v31-quick-action[data-tone="green"][data-v-6dd2e804] {
+.v31-quick-action[data-tone="green"][data-v-efe7d8aa] {
   --v31-quick-action-tone-rgb: var(--aoa-color-success-rgb);
 }
-.v31-quick-action[data-tone="amber"][data-v-6dd2e804] {
+.v31-quick-action[data-tone="amber"][data-v-efe7d8aa] {
   --v31-quick-action-tone-rgb: var(--aoa-color-warning-rgb);
 }
-.v31-quick-action[data-tone="red"][data-v-6dd2e804] {
+.v31-quick-action[data-tone="red"][data-v-efe7d8aa] {
   --v31-quick-action-tone-rgb: var(--aoa-color-error-rgb);
 }
-.v31-quick-action[data-v-6dd2e804]:not(:disabled):hover,
-.v31-quick-action.v31-quick-action--hover-probe[data-v-6dd2e804] {
+.v31-quick-action[data-v-efe7d8aa]:not(:disabled):hover,
+.v31-quick-action.v31-quick-action--hover-probe[data-v-efe7d8aa] {
   background: rgba(var(--v31-quick-action-tone-rgb), 0.08);
   border-color: rgba(var(--v31-quick-action-tone-rgb), 0.18);
   color: rgba(var(--aoa-color-ink-rgb), 0.96);
   box-shadow: var(--aoa-surface-cell-hover-shadow);
   transform: var(--aoa-interaction-hover-transform);
 }
-.v31-quick-action.v31-quick-action--hover-probe[data-v-6dd2e804] {
+.v31-quick-action.v31-quick-action--hover-probe[data-v-efe7d8aa] {
   transition: none;
 }
-.v31-quick-action[data-v-6dd2e804]:focus-visible {
+.v31-quick-action[data-v-efe7d8aa]:focus-visible {
   outline: var(--aoa-interaction-focus-outline);
   outline-offset: var(--aoa-interaction-focus-offset);
 }
-.v31-quick-action[data-v-6dd2e804]:not(:disabled):active {
+.v31-quick-action[data-v-efe7d8aa]:not(:disabled):active {
   transform: var(--aoa-interaction-pressed-transform);
 }
-.v31-quick-action[data-v-6dd2e804]:disabled:not([aria-busy="true"]) {
+.v31-quick-action[data-v-efe7d8aa]:disabled:not([aria-busy="true"]) {
   cursor: not-allowed;
   opacity: var(--aoa-interaction-disabled-opacity);
   transform: none;
 }
-.v31-quick-action[aria-busy="true"][data-v-6dd2e804] {
+.v31-quick-action[aria-busy="true"][data-v-efe7d8aa] {
   cursor: progress;
   opacity: var(--aoa-interaction-loading-opacity);
   transform: none;
 }
-.v31-quick-action--running[data-v-6dd2e804] {
+.v31-quick-action--running[data-v-efe7d8aa] {
   --v31-quick-action-tone-rgb: var(--aoa-color-success-rgb);
   background: rgba(var(--aoa-color-success-rgb), 0.08);
   border-color: rgba(var(--aoa-color-success-rgb), 0.18);
   color: rgba(var(--aoa-color-ink-rgb), 0.96);
 }
-.v31-quick-action__icon[data-v-6dd2e804] {
+.v31-quick-actions .v31-quick-action__icon[data-v-efe7d8aa] {
   flex: 0 0 var(--v31-quick-action-icon-size);
   inline-size: var(--v31-quick-action-icon-size);
   block-size: var(--v31-quick-action-icon-size);
-  border-radius: var(--aoa-surface-compact-radius);
+  /* 同上：与 .aoa-root .aoa-icon-badge 取同一胶囊圆角，消除顺序依赖。 */
+  border-radius: var(--aoa-control-radius);
   border: 1px solid rgba(var(--v31-quick-action-tone-rgb), 0.16);
   display: grid;
   place-items: center;
@@ -2350,17 +2358,17 @@ body[data-theme="transparent"] .aoa-root,
   box-shadow: inset 0 1px 0 rgba(var(--aoa-color-ink-rgb), 0.08);
   transition: var(--aoa-interaction-transition);
 }
-.v31-quick-action:not(:disabled):hover .v31-quick-action__icon[data-v-6dd2e804],
-.v31-quick-action.v31-quick-action--hover-probe .v31-quick-action__icon[data-v-6dd2e804] {
+.v31-quick-action:not(:disabled):hover .v31-quick-action__icon[data-v-efe7d8aa],
+.v31-quick-action.v31-quick-action--hover-probe .v31-quick-action__icon[data-v-efe7d8aa] {
   border-color: rgba(var(--v31-quick-action-tone-rgb), 0.26);
   background: rgba(var(--v31-quick-action-tone-rgb), 0.24);
 }
-.v31-quick-action--running .v31-quick-action__icon[data-v-6dd2e804] {
+.v31-quick-action--running .v31-quick-action__icon[data-v-efe7d8aa] {
   border-color: var(--aoa-feedback-success-border);
   background: var(--aoa-feedback-success-surface);
   color: var(--aoa-feedback-success-color);
 }
-.v31-quick-action__label[data-v-6dd2e804] {
+.v31-quick-action__label[data-v-efe7d8aa] {
   flex: 0 0 auto;
   min-inline-size: 0;
   max-inline-size: 100%;
@@ -2371,44 +2379,44 @@ body[data-theme="transparent"] .aoa-root,
   word-break: normal;
   text-align: center;
 }
-.v31-quick-actions[data-action-count="5"] .v31-quick-action__label[data-v-6dd2e804],
-.v31-quick-actions[data-action-count="6"] .v31-quick-action__label[data-v-6dd2e804] {
-  font-size: clamp(11px, 3.5cqi, 13px);
+.v31-quick-actions[data-action-count="5"] .v31-quick-action__label[data-v-efe7d8aa],
+.v31-quick-actions[data-action-count="6"] .v31-quick-action__label[data-v-efe7d8aa] {
+  font-size: clamp(10px, 3cqi, 12px);
   letter-spacing: 0;
 }
 @container aoa-quick-actions (max-width: 280px) {
-.v31-quick-actions__grid[data-v-6dd2e804] {
+.v31-quick-actions__grid[data-v-efe7d8aa] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 }
 @container aoa-quick-actions (max-width: 176px) {
-.v31-quick-actions__grid[data-v-6dd2e804] {
+.v31-quick-actions__grid[data-v-efe7d8aa] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 }
 @container aoa-quick-actions (max-width: 96px) {
-.v31-quick-actions__grid[data-v-6dd2e804] {
+.v31-quick-actions__grid[data-v-efe7d8aa] {
     --v31-quick-action-entry-width: 52px;
     --v31-quick-action-touch-target: 44px;
-    --v31-quick-action-icon-size: 26px;
+    --v31-quick-action-icon-size: 20px;
     --v31-quick-action-grid-gap: var(--aoa-space-1);
 }
-.v31-quick-actions__header[data-v-6dd2e804] {
+.v31-quick-actions__header[data-v-efe7d8aa] {
     min-block-size: var(--aoa-space-4-5);
     gap: var(--aoa-space-1);
 }
-.v31-quick-actions__title[data-v-6dd2e804] {
+.v31-quick-actions__title[data-v-efe7d8aa] {
     min-inline-size: 0;
     font-size: var(--aoa-type-caption-font-size);
     white-space: nowrap;
 }
-.v31-quick-action[data-v-6dd2e804] {
+.v31-quick-actions .v31-quick-action[data-v-efe7d8aa] {
     gap: 0;
     padding: 0;
 }
 }
 @media (prefers-reduced-motion: reduce) {
-.v31-quick-action[data-v-6dd2e804] {
+.v31-quick-actions .v31-quick-action[data-v-efe7d8aa] {
     transition-duration: 0.01ms;
 }
 }

@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-CxJtUVr6.js","assets/__federation_fn_import-JrT3xvdd.js","assets/BackupRestoreOperationContent-BYWDHpjj.js","assets/mdi-DveizHBi.js","assets/BackupRestoreOperationContent-DBmPFkvg.css","assets/__federation_expose_Dashboard-BkSzwsCf.css","assets/__federation_expose_Config-CM8PV3Fp.js","assets/__federation_expose_AppPageConfig-DQbsi8PO.js","assets/save-payload-DMiuzSrX.js","assets/__federation_expose_AppPageConfig-CDSoHnNt.css"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-CbVoi1om.js","assets/__federation_fn_import-JrT3xvdd.js","assets/BackupRestoreOperationContent-BYWDHpjj.js","assets/mdi-DveizHBi.js","assets/BackupRestoreOperationContent-DBmPFkvg.css","assets/__federation_expose_Dashboard-C19Hs49c.css","assets/__federation_expose_Config-CKbWM2QJ.js","assets/__federation_expose_AppPageConfig-BkvQ1auR.js","assets/save-payload-DMiuzSrX.js","assets/__federation_expose_AppPageConfig-R95gNv2l.css"])))=>i.map(i=>d[i]);
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { i as includes, a as isOn, e as eventName, p as propsFactory, g as getCurrentInstance$1, m as mergeDeep, t as toKebabCase, c as consoleWarn, b as pick, d as getObjectValueByPath, f as consoleError, h as padStart, j as createRange, I as IN_BROWSER, S as SUPPORTS_TOUCH, k as getCurrentInstanceName, l as clamp, r as refElement, n as templateRef, o as convertToUnit, q as findChildrenWithProvide, s as getUid, u as createTheme, T as ThemeSymbol, v as provideTheme, w as makeThemeProps, x as destructComputed, y as isCssColor, z as isParsableColor, A as parseColor, B as getForeground, C as SUPPORTS_INTERSECTION, D as deepEqual, E as wrapInArray, F as flattenFragments, G as hasEvent, H as isObject, J as keyCodes, K as EventProp, L as filterInputAttrs, M as matchesSelector, N as omit, O as only, P as focusableChildren, Q as deprecate, R as getPropertyFromItem, U as focusChild, V as defer, W as isClickInsideElement, X as getNextElement, Y as callEvent, Z as debounce, _ as ensureValidVNode, $ as checkPrintable, a0 as noop, a1 as useTheme, a2 as pickWithRest, a3 as keys, a4 as getEventCoordinates, a5 as HexToHSV, a6 as HSVtoHex, a7 as HSLtoHSV, a8 as HSVtoHSL, a9 as RGBtoHSV, aa as HSVtoRGB, ab as has, ac as getDecimals, ad as keyValues, ae as SUPPORTS_EYE_DROPPER, af as HSVtoCSS, ag as RGBtoCSS, ah as getContrast, ai as isComposingIgnoreKey, aj as isEmpty, ak as humanReadableFileSize, al as CircularBuffer, am as _export_sfc, an as chunkArray, ao as mdiWeight, ap as mdiWeb, aq as mdiViewGridOutline, ar as mdiViewDashboardOutline, as as mdiUpdate, at as mdiTuneVariant, au as mdiTimerOutline, av as mdiTimerCogOutline, aw as mdiTelevisionPlay, ax as mdiTelevision, ay as mdiTagPlusOutline, az as mdiTagOutline, aA as mdiTagMultipleOutline, aB as mdiSync, aC as mdiSignal, aD as mdiShieldSyncOutline, aE as mdiShieldOutline, aF as mdiShieldHalfFull, aG as mdiShieldCheckOutline, aH as mdiShieldAlertOutline, aI as mdiServerNetwork, aJ as mdiServer, aK as mdiSendOutline, aL as mdiScaleBalance, aM as mdiSatelliteUplink, aN as mdiRssBox, aO as mdiRocketLaunchOutline, aP as mdiRefresh, aQ as mdiPuzzleRemoveOutline, aR as mdiPuzzlePlusOutline, aS as mdiPuzzleOutline, aT as mdiPuzzleCheckOutline, aU as mdiPuzzle, aV as mdiPowerStandby, aW as mdiPlusCircleOutline, aX as mdiPlay, aY as mdiPercent, aZ as mdiPencilOutline, a_ as mdiNewspaperVariantOutline, a$ as mdiMovieOpenOutline, b0 as mdiMovieOpenCogOutline, b1 as mdiMessageBadgeOutline, b2 as mdiLockOutline, b3 as mdiLockCheckOutline, b4 as mdiLinkVariant, b5 as mdiLightningBoltOutline, b6 as mdiLayersTripleOutline, b7 as mdiLayersOutline, b8 as mdiInformationOutline, b9 as mdiHistory, ba as mdiHeartPulse, bb as mdiHarddisk, bc as mdiGauge, bd as mdiFormatListNumbered, be as mdiFormatListChecks, bf as mdiFormatListBulleted, bg as mdiFormTextbox, bh as mdiFolderOutline, bi as mdiFolderKeyOutline, bj as mdiFolderCheckOutline, bk as mdiFolderArrowUpOutline, bl as mdiFilterOutline, bm as mdiFileEyeOutline, bn as mdiFileDocumentRemoveOutline, bo as mdiEmailOutline, bp as mdiDownloadOutline, bq as mdiDownloadNetworkOutline, br as mdiDownloadCircleOutline, bs as mdiDownload, bt as mdiDeleteSweepOutline, bu as mdiDeleteOutline, bv as mdiDatabaseOutline, bw as mdiDatabaseCheckOutline, bx as mdiDatabaseArrowUpOutline, by as mdiCubeOutline, bz as mdiContentSaveOutline, bA as mdiContentCopy, bB as mdiCogOutline, bC as mdiCodeTags, bD as mdiCloudUploadOutline, bE as mdiCloudSyncOutline, bF as mdiCloudSearchOutline, bG as mdiCloudRefreshOutline, bH as mdiCloudOutline, bI as mdiClose, bJ as mdiChevronRight, bK as mdiCheckDecagramOutline, bL as mdiCheckCircleOutline, bM as mdiCheck, bN as mdiChartPie, bO as mdiChartLineVariant, bP as mdiChartLine, bQ as mdiChartBar, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, bT as mdiCalendarClock, bU as mdiBroom, bV as mdiBlockHelper, bW as mdiBellRingOutline, bX as mdiBellOutline, bY as mdiBellCogOutline, bZ as mdiBellBadgeOutline, b_ as mdiBell, b$ as mdiBackupRestore, c0 as mdiAutoFix, c1 as mdiArchiveSearchOutline, c2 as mdiArchiveArrowUpOutline, c3 as mdiAlphaMBoxOutline, c4 as mdiAlertOutline, c5 as mdiAlertCircleOutline, c6 as mdiAccountOutline } from './mdi-DveizHBi.js';
 import { s as serializeConfigSavePayload, r as reloadConfigSavePayload } from './save-payload-DMiuzSrX.js';
@@ -27220,13 +27220,13 @@ computed$h(() => {
 
 const DashboardComponent = defineAsyncComponent(() => (
   loaderMode.value === 'source'
-    ? __vitePreload(() => import('./__federation_expose_Dashboard-CxJtUVr6.js'),true?__vite__mapDeps([0,1,2,3,4,5]):void 0).then(module => module.default)
+    ? __vitePreload(() => import('./__federation_expose_Dashboard-CbVoi1om.js'),true?__vite__mapDeps([0,1,2,3,4,5]):void 0).then(module => module.default)
     : loadAgentOpsRemoteComponent('./Dashboard', remoteEntryUrl)
 ));
 
 const ConfigComponent = defineAsyncComponent(() => (
   loaderMode.value === 'source'
-    ? __vitePreload(() => import('./__federation_expose_Config-CM8PV3Fp.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
+    ? __vitePreload(() => import('./__federation_expose_Config-CKbWM2QJ.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
     : loadAgentOpsRemoteComponent('./Config', remoteEntryUrl)
 ));
 const modeTitle = computed$h(() => {
@@ -27377,19 +27377,49 @@ function applyMoviePilotThemeChrome(name, preference = themePreference.value) {
     level: localStorage.getItem('transparency-level') || 'medium',
   };
   applyTransparencySettings(stored);
+  // 预览必须复刻宿主的真实契约：只写宿主确实存在的令牌与属性，
+  // 不再伪造 --app-surface-radius-lg / --app-surface-radius-md /
+  // --v-card-border-radius / --v-card-opacity（宿主全仓库均无定义）。
+  applyMoviePilotHostAppearance(normalized);
+}
+
+// 宿主圆角档位 -> 四个真实令牌。数值取自 MoviePilot-Frontend 的
+// common.scss 与 glass 主题的档位定义。
+const HOST_RADIUS_TIERS = {
+  default: { surface: '20px', field: '16px', control: '14px', overlay: '22px' }};
+
+function applyMoviePilotHostAppearance(themeName) {
   const root = document.documentElement;
-  root.style.setProperty('--app-surface-radius', '18px');
-  root.style.setProperty('--app-surface-radius-lg', '24px');
-  root.style.setProperty('--app-surface-radius-md', '18px');
-  root.style.setProperty('--app-control-radius', '12px');
-  root.style.setProperty('--app-field-radius', '12px');
-  root.style.setProperty('--app-surface-border', '1px solid rgba(var(--v-border-color), var(--v-border-opacity, 0.12))');
-  root.style.setProperty('--app-surface-shadow', ['transparent', 'glass'].includes(normalized)
-    ? '0 18px 48px rgba(0, 0, 0, 0.18)'
-    : '0 12px 36px rgba(0, 0, 0, 0.14)');
-  root.style.setProperty('--app-surface-hover-shadow', '0 16px 42px rgba(0, 0, 0, 0.18)');
-  root.style.setProperty('--v-card-border-radius', '18px');
-  root.style.setProperty('--v-card-opacity', ['transparent', 'glass'].includes(normalized) ? stored.opacity.toString() : '1');
+  const tier = HOST_RADIUS_TIERS.default;
+
+  // 宿主真实存在的圆角令牌（common.scss:79-81）。
+  root.style.setProperty('--app-theme-surface-radius', tier.surface);
+  root.style.setProperty('--app-surface-radius', tier.surface);
+  root.style.setProperty('--app-field-radius', tier.field);
+  root.style.setProperty('--app-control-radius', tier.control);
+  root.style.setProperty('--app-overlay-radius', tier.overlay);
+
+  // 宿主真实的表面契约。
+  root.style.setProperty('--app-surface-border', '1px solid rgba(var(--v-theme-on-surface), 0.06)');
+  root.style.setProperty('--app-surface-shadow', 'none');
+  root.style.setProperty('--app-surface-hover-shadow', 'none');
+
+  // 宿主挂在 <html> 上的外观属性，供属性选择器消费。
+  root.setAttribute('data-theme-radius', 'default');
+  root.setAttribute('data-theme-skin', 'default');
+  root.setAttribute('data-theme-shadow', '0');
+  const glassLike = ['transparent', 'glass'].includes(themeName);
+  root.setAttribute('data-glass-appearance', glassLike ? 'clear' : 'clear');
+  root.setAttribute('data-glass-quality', 'balanced');
+
+  // 宿主玻璃主题的真实令牌回退值（glass.scss），使预览不必依赖
+  // 透明主题参数来表达玻璃材质。
+  root.style.setProperty('--glass-surface-backdrop-filter', 'none');
+  root.style.setProperty('--glass-blur-surface', '16px');
+  root.style.setProperty('--glass-blur-raised', '32px');
+  root.style.setProperty('--glass-surface', 'rgba(11, 19, 34, 0.62)');
+  root.style.setProperty('--glass-surface-raised', 'rgba(var(--aoa-color-panel-rgb), 0.08)');
+  root.style.setProperty('--glass-border', '1px solid rgba(var(--v-theme-on-surface), 0.10)');
 }
 
 function handleSystemThemeChange(event) {
@@ -27588,7 +27618,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const PreviewApp = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-63a0892a"]]);
+const PreviewApp = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-0165c2c5"]]);
 
 const {renderSlot:_renderSlot,resolveComponent:_resolveComponent$1,createVNode:_createVNode$m,withCtx:_withCtx$1,normalizeClass:_normalizeClass$1,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1} = await importShared('vue');
 

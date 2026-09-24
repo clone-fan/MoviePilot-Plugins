@@ -1765,7 +1765,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const QuickActionsBand = /*#__PURE__*/_export_sfc(_sfc_main$7, [['__scopeId',"data-v-6dd2e804"]]);
+const QuickActionsBand = /*#__PURE__*/_export_sfc(_sfc_main$7, [['__scopeId',"data-v-efe7d8aa"]]);
 
 const {createVNode:_createVNode$4,normalizeClass:_normalizeClass$3,openBlock:_openBlock$6,createElementBlock:_createElementBlock$2} = await importShared('vue');
 
