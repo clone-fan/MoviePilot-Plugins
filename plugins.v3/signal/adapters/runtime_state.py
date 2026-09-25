@@ -34,7 +34,7 @@ class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "3.0.8"
+    plugin_version = "3.0.9"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -170,6 +170,9 @@ class RuntimeStateMixin:
     _plugin_update_reminder_scheduled_notify = False
     _plugin_update_reminder_notify_type = "Plugin"
     _plugin_auto_install_enabled = False
+    _plugin_update_execution_mode = "manual"
+    _mp_update_execution_mode = "manual"
+    _market_update_execution_mode = "manual"
     _plugin_auto_install_schedule_enabled = False
     _plugin_auto_install_cron = "0 9 * * *"
     _plugin_auto_install_scheduled_notify = False
@@ -408,10 +411,12 @@ class RuntimeStateMixin:
             "backup_webdav_password": "",
             "backup_webdav_max_count": 5,
             "mp_update_enabled": False,
+            "mp_update_execution_mode": "manual",
             "mp_update_schedule_enabled": False,
             "mp_update_cron": "0 9 * * *",
             "mp_update_types": ["后端", "前端"],
             "market_update_enabled": False,
+            "market_update_execution_mode": "manual",
             "market_update_schedule_enabled": False,
             "market_update_cron": "0 9 * * *",
             "market_update_strategy": "check",
@@ -427,7 +432,7 @@ class RuntimeStateMixin:
             "market_update_notify_type": "Plugin",
             "plugin_update_reminder_scheduled_notify": False,
             "plugin_update_reminder_notify_type": "Plugin",
-            "plugin_auto_install_enabled": False,
+            "plugin_update_execution_mode": "manual",
             "plugin_auto_install_schedule_enabled": False,
             "plugin_auto_install_cron": "0 9 * * *",
             "plugin_auto_install_scheduled_notify": False,

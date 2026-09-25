@@ -58,6 +58,8 @@ def render_notice(record, *, native_update=False, host_url=""):
             text += "\n当前宿主不支持通知内更新，请从 MoviePilot 页面处理。"
     elif kind == "site_stat":
         rows.append([button("刷新数据", "refresh")])
+    elif kind == "market_update" and status == "ready":
+        rows.append([button("立即同步插件库", "sync")])
     rows.append([button("查看更新说明" if kind == "plugin_update" else "查看明细", "details")])
     parts = split_text(text)
     if len(parts) > 1:

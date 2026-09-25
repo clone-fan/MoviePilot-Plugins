@@ -884,7 +884,7 @@ class LifecycleMixin:
         has_current_plugin_update_config = any(
             key in config for key in (
                 "plugin_update_reminder_enabled",
-                "plugin_auto_install_enabled",
+                "plugin_update_execution_mode",
                 "plugin_auto_install_scope_mode",
             )
         )
@@ -904,6 +904,10 @@ class LifecycleMixin:
         self._market_update_install_ids = self._parse_csv(config.get("market_update_install_ids"))
         self._market_update_exclude_ids = self._parse_csv(config.get("market_update_exclude_ids"))
         self._market_update_blacklist = self._parse_csv(config.get("market_update_blacklist"))
+        market_mode = str(config.get("market_update_execution_mode") or "manual").strip().lower()
+        self._market_update_execution_mode = market_mode if market_mode in {"auto", "manual"} else "manual"
+        mp_mode = str(config.get("mp_update_execution_mode") or "manual").strip().lower()
+        self._mp_update_execution_mode = mp_mode if mp_mode in {"auto", "manual"} else "manual"
         reminder_enabled = self._config_bool(
             config,
             "plugin_update_reminder_enabled",
@@ -914,10 +918,11 @@ class LifecycleMixin:
         self._plugin_update_reminder_cron = self._normalize_optional_cron(
             config.get("plugin_update_reminder_cron") or legacy_market_cron
         ) or "0 9 * * *"
-        auto_install_enabled = self._config_bool(
-            config, "plugin_auto_install_enabled", self._market_update_strategy == "install"
-        )
-        self._plugin_auto_install_enabled = bool(auto_install_enabled)
+        plugin_mode = str(config.get("plugin_update_execution_mode") or "").strip().lower()
+        if plugin_mode not in {"auto", "manual"}:
+            plugin_mode = "auto" if self._market_update_strategy == "install" else "manual"
+        self._plugin_update_execution_mode = plugin_mode
+        self._plugin_auto_install_enabled = plugin_mode == "auto"
         self._plugin_auto_install_schedule_enabled = self._plugin_auto_install_enabled
         self._plugin_auto_install_cron = self._normalize_optional_cron(
             config.get("plugin_auto_install_cron") or legacy_market_cron

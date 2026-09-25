@@ -1,6 +1,6 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, am as _export_sfc, c4 as mdiAlertOutline, bu as mdiDeleteOutline, aX as mdiPlay, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
-import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginAutoInstallScopeItems, t as marketUpdateStrategies, u as mpUpdateTypes, v as messageTypeItems, w as marketNotifyItems, x as healthStorageTargets, y as healthDirectoryTargets, z as healthDatabaseTargets, A as healthCheckItems, B as keepCountPresets } from './save-payload-DMiuzSrX.js';
+import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginUpdateModeItems, t as pluginAutoInstallScopeItems, u as marketUpdateStrategies, v as mpUpdateTypes, w as mpUpdateModeItems, x as messageTypeItems, y as marketUpdateModeItems, z as marketNotifyItems, A as healthStorageTargets, B as healthDirectoryTargets, C as healthDatabaseTargets, E as healthCheckItems, F as keepCountPresets } from './save-payload-SsSiaubo.js';
 import { g as getPluginApi, D as DEFAULT_PLUGIN_API_TIMEOUT_MS, r as resolvePluginApi, w as withTimeout, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-BYWDHpjj.js';
 
 const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$k,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$a} = await importShared('vue');
@@ -3467,14 +3467,14 @@ function hydrateConfigForm(rawConfig = {}) {
     ? configBool(source.market_update_schedule_enabled)
     : legacyMarketEnabled;
   const legacyMarketEffective = legacyMarketEnabled && legacyMarketScheduleEnabled;
-  const hasCurrentPluginUpdateConfig = ['plugin_update_reminder_enabled', 'plugin_auto_install_enabled', 'plugin_auto_install_scope_mode']
+  const hasCurrentPluginUpdateConfig = ['plugin_update_reminder_enabled', 'plugin_update_execution_mode', 'plugin_auto_install_scope_mode']
     .some(key => own(source, key));
   const legacyStrategy = String(source.market_update_strategy || '').trim().toLowerCase();
   if (own(source, 'market_update_enabled') && !hasCurrentPluginUpdateConfig) form.market_update_enabled = legacyMarketEffective;
   if (!own(source, 'plugin_update_reminder_enabled')) form.plugin_update_reminder_enabled = legacyMarketEffective;
   if (!own(source, 'plugin_update_reminder_schedule_enabled')) form.plugin_update_reminder_schedule_enabled = legacyMarketScheduleEnabled;
   if (!own(source, 'plugin_update_reminder_cron') && own(source, 'market_update_cron')) form.plugin_update_reminder_cron = form.market_update_cron;
-  if (!own(source, 'plugin_auto_install_enabled')) form.plugin_auto_install_enabled = legacyStrategy === 'install';
+  if (!own(source, 'plugin_update_execution_mode')) form.plugin_update_execution_mode = legacyStrategy === 'install' ? 'auto' : 'manual';
   if (!own(source, 'plugin_auto_install_schedule_enabled')) form.plugin_auto_install_schedule_enabled = legacyStrategy === 'install' && legacyMarketScheduleEnabled;
   if (!own(source, 'plugin_auto_install_cron') && own(source, 'market_update_cron')) form.plugin_auto_install_cron = form.market_update_cron;
   if (!own(source, 'plugin_auto_install_install_ids') && own(source, 'market_update_install_ids')) form.plugin_auto_install_install_ids = source.market_update_install_ids;
@@ -4440,12 +4440,15 @@ const replicaItemSources = computed(() => ({
   healthStorageTargets,
   installedPlugins: installedPlugins.value,
   marketNotifyItems,
+  marketUpdateModeItems,
   mediaserverOptions: mediaserverOptions.value,
   messageTypeItems,
+  mpUpdateModeItems,
   mpUpdateTypes,
   marketUpdateStrategies,
   pluginMarkets: pluginMarkets.value,
   pluginAutoInstallScopeItems,
+  pluginUpdateModeItems,
   msgGroupItems,
   notificationTypeItems,
   seedActionsItems,
@@ -4791,27 +4794,29 @@ const replicaCards = computed(() => {
       { type: 'update-selector', module: 'mp_update', masterKey: 'mp_update_enabled', icon: 'mdi-update', title: 'MoviePilot' },
       { type: 'update-selector', module: 'plugin_update_reminder', masterKey: 'plugin_update_reminder_enabled', icon: 'mdi-puzzle-outline', title: '插件' },
       { type: 'update-selector', module: 'market_update', masterKey: 'market_update_enabled', icon: 'mdi-database-sync-outline', title: '插件库' },
-      { type: 'update-detail', module: 'mp_update', icon: 'mdi-update', title: 'MoviePilot 更新', grid: 'grid-2', fields: [
+      { type: 'update-detail', module: 'mp_update', icon: 'mdi-update', title: 'MoviePilot 更新', note: '更新方式由 MoviePilot 系统设置决定。检测到新版本时，通知里会出现「查看并处理更新」，要不要下载、要不要重启，都由你在那条通知里确认。', grid: 'grid-2', fields: [
         { key: 'mp_update_cron', icon: 'mdi-calendar-clock', label: '检查时间', value: cronVal(form.mp_update_cron), retainInCard: true },
         { key: 'mp_update_types', icon: 'mdi-cube-outline', label: '检查范围', value: arrNames(form.mp_update_types) },
         { key: 'mp_update_scheduled_notify', icon: 'mdi-bell-outline', label: '更新结果通知', value: onOff(form.mp_update_scheduled_notify) },
         { key: 'mp_update_notify_type', icon: 'mdi-email-outline', label: '通知渠道', value: valOr(form.mp_update_notify_type, 'Plugin'), disabled: Boolean(form.fusion_notify_enabled) },
+        { key: 'mp_update_execution_mode', icon: 'mdi-cog-transfer-outline', label: '执行方式', value: valOr(form.mp_update_execution_mode, 'manual') },
       ], actions: getActionsForSurface(['run_mp_update'], 'config') },
-      { type: 'update-detail', module: 'plugin_update_reminder', icon: 'mdi-puzzle-outline', title: '插件更新', grid: 'grid-2', fields: [
+      { type: 'update-detail', module: 'plugin_update_reminder', icon: 'mdi-puzzle-outline', title: '插件更新', note: '打开「自动安装」＝发现新版自动装好，你不用管；关闭＝只发通知，通知里给每个插件一个更新按钮，你点哪个装哪个。', grid: 'grid-2', fields: [
         { key: 'plugin_update_reminder_cron', icon: 'mdi-calendar-clock', label: '检查时间', value: cronVal(form.plugin_update_reminder_cron), retainInCard: true, layoutGroup: 'plugin-update-check' },
         { key: 'plugin_update_reminder_scheduled_notify', icon: 'mdi-bell-outline', label: '更新结果通知', value: onOff(form.plugin_update_reminder_scheduled_notify), layoutGroup: 'plugin-update-check' },
         { key: 'plugin_update_reminder_notify_type', icon: 'mdi-email-outline', label: '通知渠道', value: valOr(form.plugin_update_reminder_notify_type, 'Plugin'), disabled: Boolean(form.fusion_notify_enabled), layoutGroup: 'plugin-update-check' },
-        { key: 'plugin_auto_install_enabled', icon: 'mdi-package-down', label: '自动安装', value: onOff(form.plugin_auto_install_enabled), layoutGroupStart: true, layoutGroup: 'plugin-auto-install' },
+        { key: 'plugin_update_execution_mode', icon: 'mdi-package-down', label: '执行方式', value: valOr(form.plugin_update_execution_mode, 'manual'), layoutGroupStart: true, layoutGroup: 'plugin-auto-install' },
         { key: 'plugin_auto_install_scheduled_notify', icon: 'mdi-bell-outline', label: '安装后通知', value: onOff(form.plugin_auto_install_scheduled_notify), layoutGroup: 'plugin-auto-install' },
         { key: 'plugin_auto_install_notify_type', icon: 'mdi-email-check-outline', label: '安装通知渠道', value: valOr(form.plugin_auto_install_notify_type, 'Plugin'), disabled: Boolean(form.fusion_notify_enabled), layoutGroup: 'plugin-auto-install' },
         { key: 'plugin_auto_install_scope_mode', icon: 'mdi-format-list-bulleted', label: '安装范围', value: form.plugin_auto_install_scope_mode || 'all', layoutGroup: 'plugin-auto-install' },
         { key: 'plugin_auto_install_install_ids', icon: 'mdi-puzzle-outline', label: '指定插件', value: arrNames(form.plugin_auto_install_install_ids), layoutGroup: 'plugin-auto-install' },
         { key: 'plugin_auto_install_exclude_ids', icon: 'mdi-shield-outline', label: '排除插件', value: arrNames(form.plugin_auto_install_exclude_ids), layoutGroup: 'plugin-auto-install' },
       ], actions: getActionsForSurface(['run_plugin_update_reminder'], 'config') },
-      { type: 'update-detail', module: 'market_update', icon: 'mdi-database-sync-outline', title: '插件库同步', grid: 'grid-2', fields: [
+      { type: 'update-detail', module: 'market_update', icon: 'mdi-database-sync-outline', title: '插件库同步', note: '只同步插件库清单，不会安装插件。', grid: 'grid-2', fields: [
         { key: 'market_update_cron', icon: 'mdi-calendar-clock', label: '同步时间', value: cronVal(form.market_update_cron), retainInCard: true, layoutGroup: 'market-sync' },
         { key: 'market_update_scheduled_notify', icon: 'mdi-bell-outline', label: '同步结果通知', value: onOff(form.market_update_scheduled_notify), layoutGroup: 'market-sync' },
         { key: 'market_update_notify_type', icon: 'mdi-email-outline', label: '通知渠道', value: valOr(form.market_update_notify_type, 'Plugin'), disabled: Boolean(form.fusion_notify_enabled), layoutGroup: 'market-sync' },
+        { key: 'market_update_execution_mode', icon: 'mdi-cog-transfer-outline', label: '执行方式', value: valOr(form.market_update_execution_mode, 'manual'), layoutGroup: 'market-sync' },
         { key: 'market_update_blacklist', icon: 'mdi-playlist-remove', label: '排除地址', value: arrNames(form.market_update_blacklist), layoutGroup: 'market-sync' },
       ], actions: getActionsForSurface(['run_market_update'], 'config') },
     ],
@@ -4868,10 +4873,14 @@ const downloaderHelperFields = computed(() => uniqueCardFields(
 )
   .filter(field => !hiddenDownloaderHelperCompatibilityFieldKeys.includes(field.key)));
 const logCleanFields = computed(() => currentSinglePageFields.value);
+const singlePageNotes = Object.freeze({
+  sites: '按设定时间自动采集站点数据；想立刻刷新，点通知里的「刷新数据」，结果会回到那条消息。',
+});
 const singlePageCard = computed(() => ({
   type: 'section',
   icon: currentSub.value?.icon || 'mdi-tune-variant',
   title: '配置项',
+  note: singlePageNotes[activeSub.value] || '',
   grid: 'grid-2',
 }));
 const actionCards = computed(() => currentReplicaCards.value.filter(card => card.type === 'actions'));

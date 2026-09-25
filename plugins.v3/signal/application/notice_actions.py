@@ -188,10 +188,12 @@ class NoticeActionsMixin:
                 if not record:
                     return False
                 allowed = {"plugin_update": {"details", "back", "page", "install", "remind", "ignore"},
-                           "mp_update": {"details", "back", "mp"}, "site_stat": {"details", "back", "page", "refresh"}}
+                           "mp_update": {"details", "back", "mp"},
+                           "market_update": {"details", "back", "sync"},
+                           "site_stat": {"details", "back", "page", "refresh"}}
                 if action not in allowed[record["kind"]] or record["status"] in ACTIVE | {"handed_off"}:
                     return False
-                if action in {"install", "mp", "remind", "ignore"} and record["status"] != "ready":
+                if action in {"install", "mp", "sync", "remind", "ignore"} and record["status"] != "ready":
                     return False
                 if action in {"install", "remind", "ignore"} and getattr(self, "_plugin_auto_install_enabled", False):
                     return False
@@ -225,12 +227,12 @@ class NoticeActionsMixin:
                                 return False
                     record.update(status="running", selected=selected, actor_id=str(info["userid"]),
                                   claim_id=secrets.token_hex(8), claim_generation=getattr(self, "_runtime_generation", 0),
-                                  view="summary", text={"install": "正在更新所选插件…", "mp": "正在读取 MoviePilot 更新状态…", "refresh": "正在采集站点数据，完成后更新本条通知。"}[action])
+                                  view="summary", text={"install": "正在更新所选插件…", "mp": "正在读取 MoviePilot 更新状态…", "sync": "正在同步插件库…", "refresh": "正在采集站点数据，完成后更新本条通知。"}[action])
                 self._notice_save(state)
                 worker_context = {**info, "_notice_claim_id": record.get("claim_id"),
                                   "_notice_generation": record.get("claim_generation")}
             self._notice_publish(nonce)
-            if action in {"install", "mp", "refresh"}:
+            if action in {"install", "mp", "sync", "refresh"}:
                 self._notice_start_worker(nonce, action, worker_context)
             elif action == "remind":
                 self._notice_schedule_wakeup()
@@ -271,7 +273,7 @@ class NoticeActionsMixin:
             if self._should_cancel(generation):
                 return
             runner = getattr(self, {"install": "_notice_run_install", "mp": "_notice_run_mp",
-                                    "refresh": "_notice_run_site"}[action])
+                                    "sync": "_notice_run_market", "refresh": "_notice_run_site"}[action])
             runner(nonce, context, generation)
         except Exception:
             changed = False
@@ -400,6 +402,34 @@ class NoticeActionsMixin:
             record.update(status="ready" if remaining else "done", text=text, detail=str(detail), result=result)
             record.pop("selected", None)
             self._notice_save(state)
+        self._notice_publish(nonce)
+
+    def _notice_run_market(self, nonce, context, generation):
+        """Apply the plugin-library sync requested from a notification button."""
+        with self._notice_lock:
+            record = self._notice_load()["records"].get(nonce)
+            target = self._notice_target(record) if record else None
+            if (not target or str(context.get("userid")) not in target["admins"]
+                    or not self._notice_allowed("market_update") or self._should_cancel(generation)):
+                raise RuntimeError("同步条件已改变")
+            if not self._notice_claim_valid(record, context, generation):
+                raise RuntimeError("同步条件已改变")
+        ok = False
+        try:
+            ok = bool(self.run_market_update(scheduled=False, notify=False))
+            data = dict(getattr(self, "_last_market_update_result", {}) or {})
+            message = self._market_update_outcome(data, ok)
+        except Exception:
+            message = "插件库同步失败，请稍后重试。"
+        if self._should_cancel(generation):
+            return
+        with self._notice_lock:
+            state = self._notice_load()
+            record = state["records"].get(nonce)
+            if self._notice_claim_valid(record, context, generation):
+                record.update(status="done" if ok else "failed",
+                              text=("✅ " if ok else "⚠️ ") + message)
+                self._notice_save(state)
         self._notice_publish(nonce)
 
     def _notice_run_site(self, nonce, context, generation):

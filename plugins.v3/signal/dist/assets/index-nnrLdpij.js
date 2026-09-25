@@ -1,7 +1,7 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-BwXk-EF0.js","assets/__federation_fn_import-JrT3xvdd.js","assets/BackupRestoreOperationContent-BYWDHpjj.js","assets/mdi-DveizHBi.js","assets/BackupRestoreOperationContent-DBmPFkvg.css","assets/__federation_expose_Dashboard-Cwo6uF_M.css","assets/__federation_expose_Config-C4XAut-k.js","assets/__federation_expose_AppPageConfig-ygmZWusN.js","assets/save-payload-DMiuzSrX.js","assets/__federation_expose_AppPageConfig-CeN80QaB.css"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-BwXk-EF0.js","assets/__federation_fn_import-JrT3xvdd.js","assets/BackupRestoreOperationContent-BYWDHpjj.js","assets/mdi-DveizHBi.js","assets/BackupRestoreOperationContent-DBmPFkvg.css","assets/__federation_expose_Dashboard-Cwo6uF_M.css","assets/__federation_expose_Config-9hIoEEjA.js","assets/__federation_expose_AppPageConfig-DFEjr2g-.js","assets/save-payload-SsSiaubo.js","assets/__federation_expose_AppPageConfig-CeN80QaB.css"])))=>i.map(i=>d[i]);
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { i as includes, a as isOn, e as eventName, p as propsFactory, g as getCurrentInstance$1, m as mergeDeep, t as toKebabCase, c as consoleWarn, b as pick, d as getObjectValueByPath, f as consoleError, h as padStart, j as createRange, I as IN_BROWSER, S as SUPPORTS_TOUCH, k as getCurrentInstanceName, l as clamp, r as refElement, n as templateRef, o as convertToUnit, q as findChildrenWithProvide, s as getUid, u as createTheme, T as ThemeSymbol, v as provideTheme, w as makeThemeProps, x as destructComputed, y as isCssColor, z as isParsableColor, A as parseColor, B as getForeground, C as SUPPORTS_INTERSECTION, D as deepEqual, E as wrapInArray, F as flattenFragments, G as hasEvent, H as isObject, J as keyCodes, K as EventProp, L as filterInputAttrs, M as matchesSelector, N as omit, O as only, P as focusableChildren, Q as deprecate, R as getPropertyFromItem, U as focusChild, V as defer, W as isClickInsideElement, X as getNextElement, Y as callEvent, Z as debounce, _ as ensureValidVNode, $ as checkPrintable, a0 as noop, a1 as useTheme, a2 as pickWithRest, a3 as keys, a4 as getEventCoordinates, a5 as HexToHSV, a6 as HSVtoHex, a7 as HSLtoHSV, a8 as HSVtoHSL, a9 as RGBtoHSV, aa as HSVtoRGB, ab as has, ac as getDecimals, ad as keyValues, ae as SUPPORTS_EYE_DROPPER, af as HSVtoCSS, ag as RGBtoCSS, ah as getContrast, ai as isComposingIgnoreKey, aj as isEmpty, ak as humanReadableFileSize, al as CircularBuffer, am as _export_sfc, an as chunkArray, ao as mdiWeight, ap as mdiWeb, aq as mdiViewGridOutline, ar as mdiViewDashboardOutline, as as mdiUpdate, at as mdiTuneVariant, au as mdiTimerOutline, av as mdiTimerCogOutline, aw as mdiTelevisionPlay, ax as mdiTelevision, ay as mdiTagPlusOutline, az as mdiTagOutline, aA as mdiTagMultipleOutline, aB as mdiSync, aC as mdiSignal, aD as mdiShieldSyncOutline, aE as mdiShieldOutline, aF as mdiShieldHalfFull, aG as mdiShieldCheckOutline, aH as mdiShieldAlertOutline, aI as mdiServerNetwork, aJ as mdiServer, aK as mdiSendOutline, aL as mdiScaleBalance, aM as mdiSatelliteUplink, aN as mdiRssBox, aO as mdiRocketLaunchOutline, aP as mdiRefresh, aQ as mdiPuzzleRemoveOutline, aR as mdiPuzzlePlusOutline, aS as mdiPuzzleOutline, aT as mdiPuzzleCheckOutline, aU as mdiPuzzle, aV as mdiPowerStandby, aW as mdiPlusCircleOutline, aX as mdiPlay, aY as mdiPercent, aZ as mdiPencilOutline, a_ as mdiNewspaperVariantOutline, a$ as mdiMovieOpenOutline, b0 as mdiMovieOpenCogOutline, b1 as mdiMessageBadgeOutline, b2 as mdiLockOutline, b3 as mdiLockCheckOutline, b4 as mdiLinkVariant, b5 as mdiLightningBoltOutline, b6 as mdiLayersTripleOutline, b7 as mdiLayersOutline, b8 as mdiInformationOutline, b9 as mdiHistory, ba as mdiHeartPulse, bb as mdiHarddisk, bc as mdiGauge, bd as mdiFormatListNumbered, be as mdiFormatListChecks, bf as mdiFormatListBulleted, bg as mdiFormTextbox, bh as mdiFolderOutline, bi as mdiFolderKeyOutline, bj as mdiFolderCheckOutline, bk as mdiFolderArrowUpOutline, bl as mdiFilterOutline, bm as mdiFileEyeOutline, bn as mdiFileDocumentRemoveOutline, bo as mdiEmailOutline, bp as mdiDownloadOutline, bq as mdiDownloadNetworkOutline, br as mdiDownloadCircleOutline, bs as mdiDownload, bt as mdiDeleteSweepOutline, bu as mdiDeleteOutline, bv as mdiDatabaseOutline, bw as mdiDatabaseCheckOutline, bx as mdiDatabaseArrowUpOutline, by as mdiCubeOutline, bz as mdiContentSaveOutline, bA as mdiContentCopy, bB as mdiCogOutline, bC as mdiCodeTags, bD as mdiCloudUploadOutline, bE as mdiCloudSyncOutline, bF as mdiCloudSearchOutline, bG as mdiCloudRefreshOutline, bH as mdiCloudOutline, bI as mdiClose, bJ as mdiChevronRight, bK as mdiCheckDecagramOutline, bL as mdiCheckCircleOutline, bM as mdiCheck, bN as mdiChartPie, bO as mdiChartLineVariant, bP as mdiChartLine, bQ as mdiChartBar, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, bT as mdiCalendarClock, bU as mdiBroom, bV as mdiBlockHelper, bW as mdiBellRingOutline, bX as mdiBellOutline, bY as mdiBellCogOutline, bZ as mdiBellBadgeOutline, b_ as mdiBell, b$ as mdiBackupRestore, c0 as mdiAutoFix, c1 as mdiArchiveSearchOutline, c2 as mdiArchiveArrowUpOutline, c3 as mdiAlphaMBoxOutline, c4 as mdiAlertOutline, c5 as mdiAlertCircleOutline, c6 as mdiAccountOutline } from './mdi-DveizHBi.js';
-import { s as serializeConfigSavePayload, r as reloadConfigSavePayload } from './save-payload-DMiuzSrX.js';
+import { s as serializeConfigSavePayload, r as reloadConfigSavePayload } from './save-payload-SsSiaubo.js';
 
 true&&(function polyfill() {
   const relList = document.createElement("link").relList;
@@ -27043,7 +27043,9 @@ const previewConfig = {
   market_update_notify_type: 'Plugin',
   plugin_update_reminder_scheduled_notify: false,
   plugin_update_reminder_notify_type: 'Plugin',
-  plugin_auto_install_enabled: false,
+  plugin_update_execution_mode: 'manual',
+  mp_update_execution_mode: 'manual',
+  market_update_execution_mode: 'manual',
   plugin_auto_install_schedule_enabled: false,
   plugin_auto_install_cron: '0 9 * * *',
   plugin_auto_install_scheduled_notify: false,
@@ -27160,7 +27162,7 @@ const _hoisted_13 = {
 };
 const _hoisted_14 = { class: "dashboard-plugin-vue-renderer" };
 const _hoisted_15 = ["role", "aria-label"];
-const _hoisted_16 = ["data-config-scenario", "data-config-record-state", "data-config-cron-value", "data-config-save-round-trip", "data-config-save-count", "data-config-put-count", "data-config-mp-update-enabled", "data-config-mp-update-schedule-enabled", "data-config-market-update-enabled", "data-config-market-update-schedule-enabled", "data-config-plugin-update-reminder-enabled", "data-config-plugin-update-reminder-schedule-enabled", "data-config-plugin-auto-install-enabled", "data-config-plugin-auto-install-schedule-enabled"];
+const _hoisted_16 = ["data-config-scenario", "data-config-record-state", "data-config-cron-value", "data-config-save-round-trip", "data-config-save-count", "data-config-put-count", "data-config-mp-update-enabled", "data-config-mp-update-schedule-enabled", "data-config-market-update-enabled", "data-config-market-update-schedule-enabled", "data-config-plugin-update-reminder-enabled", "data-config-plugin-update-reminder-schedule-enabled", "data-config-plugin-update-mode", "data-config-plugin-auto-install-schedule-enabled"];
 
 const {computed: computed$h,defineAsyncComponent,nextTick: nextTick$2,onBeforeUnmount: onBeforeUnmount$1,onMounted: onMounted$4,ref: ref$a,watch: watch$5} = await importShared('vue');
 
@@ -27226,7 +27228,7 @@ const DashboardComponent = defineAsyncComponent(() => (
 
 const ConfigComponent = defineAsyncComponent(() => (
   loaderMode.value === 'source'
-    ? __vitePreload(() => import('./__federation_expose_Config-C4XAut-k.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
+    ? __vitePreload(() => import('./__federation_expose_Config-9hIoEEjA.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
     : loadAgentOpsRemoteComponent('./Config', remoteEntryUrl)
 ));
 const modeTitle = computed$h(() => {
@@ -27578,7 +27580,7 @@ return (_ctx, _cache) => {
                           "data-config-market-update-schedule-enabled": String(!!previewConfigState.value.market_update_schedule_enabled),
                           "data-config-plugin-update-reminder-enabled": String(!!previewConfigState.value.plugin_update_reminder_enabled),
                           "data-config-plugin-update-reminder-schedule-enabled": String(!!previewConfigState.value.plugin_update_reminder_schedule_enabled),
-                          "data-config-plugin-auto-install-enabled": String(!!previewConfigState.value.plugin_auto_install_enabled),
+                          "data-config-plugin-update-mode": String(previewConfigState.value.plugin_update_execution_mode || 'manual'),
                           "data-config-plugin-auto-install-schedule-enabled": String(!!previewConfigState.value.plugin_auto_install_schedule_enabled),
                           onInputCapture: handleConfigHostInput
                         }, [
@@ -27618,7 +27620,7 @@ return (_ctx, _cache) => {
 }
 
 };
-const PreviewApp = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-0165c2c5"]]);
+const PreviewApp = /*#__PURE__*/_export_sfc(_sfc_main$2, [['__scopeId',"data-v-889dda2b"]]);
 
 const {renderSlot:_renderSlot,resolveComponent:_resolveComponent$1,createVNode:_createVNode$m,withCtx:_withCtx$1,normalizeClass:_normalizeClass$1,openBlock:_openBlock$1,createElementBlock:_createElementBlock$1} = await importShared('vue');
 

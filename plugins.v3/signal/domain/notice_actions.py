@@ -8,8 +8,9 @@ STATE_KEY = "notice_actions_v1"
 TTL_SECONDS = 7 * 86400
 PAGE_SIZE = 6
 MAX_RECORDS = 200
-COMPONENTS = {"plugin_update": "plugin_update_reminder", "mp_update": "mp_update", "site_stat": "site_stat"}
-ACTIONS = {"details", "back", "page", "install", "remind", "ignore", "mp", "refresh"}
+COMPONENTS = {"plugin_update": "plugin_update_reminder", "mp_update": "mp_update",
+              "site_stat": "site_stat", "market_update": "market_update"}
+ACTIONS = {"details", "back", "page", "install", "remind", "ignore", "mp", "refresh", "sync"}
 ACTIVE = {"running", "pending", "uncertain"}
 
 

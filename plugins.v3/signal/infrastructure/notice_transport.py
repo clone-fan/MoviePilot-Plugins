@@ -154,6 +154,50 @@ def start_moviepilot_update(context):
         original_message_id=context["original_message_id"], original_chat_id=context["original_chat_id"])
 
 
+def moviepilot_auto_anchor(owner):
+    """Pick the Telegram admin used to anchor the host update interaction."""
+    mtype = owner._notification_type(getattr(owner, "_mp_update_notify_type", "Plugin"))
+    for target in notification_targets(mtype):
+        if target.get("type") != "telegram":
+            continue
+        admins = sorted(str(item) for item in (target.get("admins") or []) if str(item).strip())
+        if admins and target.get("chat_id"):
+            return target, admins[0]
+    return None, ""
+
+
+def start_moviepilot_release_download(owner):
+    """Start the host's official release download.
+
+    Installation and restart stay user-confirmed: the host exposes progress only
+    inside its own interaction session, so Signal cannot safely confirm readiness.
+    Returns (started, message); any failure degrades to the manual flow.
+    """
+    if not moviepilot_update_available():
+        return False, "当前宿主未提供插件可用的更新交互入口，已改为通知后手动更新"
+    target, userid = moviepilot_auto_anchor(owner)
+    if not target or not userid:
+        return False, "未找到可用的 Telegram 管理员，无法自动开始下载"
+    try:
+        from app.application.messaging.update import update_interaction_manager
+        from app.chain.system import SystemChain
+        from app.schemas.types import NotificationChannel
+        channel = NotificationChannel.Telegram
+        request = update_interaction_manager.create_or_replace(
+            user_id=userid, command="/update", channel=channel,
+            source=target["source"], username=None)
+        chain = SystemChain()
+        payload = {"channel": channel, "source": target["source"], "userid": userid,
+                   "username": None, "original_message_id": None, "original_chat_id": None}
+        chain.handle_update_callback_interaction(
+            callback_data=f"update:{request.request_id}:refresh", **payload)
+        chain.handle_update_callback_interaction(
+            callback_data=f"update:{request.request_id}:download", **payload)
+        return True, "已自动开始下载更新包，下载完成后请在通知里确认重启"
+    except Exception:
+        return False, "当前宿主自动更新入口不可用，已改为通知后手动更新"
+
+
 def moviepilot_url():
     try:
         from app.sdk.config import settings

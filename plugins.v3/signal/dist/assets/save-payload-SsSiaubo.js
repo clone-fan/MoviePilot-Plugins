@@ -363,19 +363,19 @@ const CONFIG_FIELD_VISIBILITY_RULES = Object.freeze({
   market_update_blacklist: visibilityConditions({ key: 'market_update_enabled', value: true }),
   plugin_update_reminder_notify_type: visibilityConditions({ key: 'plugin_update_reminder_scheduled_notify', value: true }),
   plugin_auto_install_notify_type: visibilityConditions(
-    { key: 'plugin_auto_install_enabled', value: true },
+    { key: 'plugin_update_execution_mode', value: 'auto' },
     { key: 'plugin_auto_install_scheduled_notify', value: true },
   ),
-  plugin_auto_install_scheduled_notify: visibilityConditions({ key: 'plugin_auto_install_enabled', value: true }),
-  plugin_auto_install_scope_mode: visibilityConditions({ key: 'plugin_auto_install_enabled', value: true }),
+  plugin_auto_install_scheduled_notify: visibilityConditions({ key: 'plugin_update_execution_mode', value: 'auto' }),
+  plugin_auto_install_scope_mode: visibilityConditions({ key: 'plugin_update_execution_mode', value: 'auto' }),
   dltag_notify_type: visibilityConditions({ key: 'dltag_scheduled_notify', value: true }),
   dltag_source_delete_strategy: visibilityConditions({ key: 'dltag_listen_source_file', value: true }),
   plugin_auto_install_install_ids: visibilityConditions(
-    { key: 'plugin_auto_install_enabled', value: true },
+    { key: 'plugin_update_execution_mode', value: 'auto' },
     { key: 'plugin_auto_install_scope_mode', value: 'include' },
   ),
   plugin_auto_install_exclude_ids: visibilityConditions(
-    { key: 'plugin_auto_install_enabled', value: true },
+    { key: 'plugin_update_execution_mode', value: 'auto' },
     { key: 'plugin_auto_install_scope_mode', value: 'exclude' },
   ),
 });
@@ -446,10 +446,12 @@ const defaults = defineConfigDefaults({
   backup_webdav_password: '',
   backup_webdav_max_count: 5,
   mp_update_enabled: false,
+  mp_update_execution_mode: 'manual',
   mp_update_schedule_enabled: false,
   mp_update_cron: '0 9 * * *',
   mp_update_types: ['后端', '前端'],
   market_update_enabled: false,
+  market_update_execution_mode: 'manual',
   market_update_schedule_enabled: false,
   market_update_cron: '0 9 * * *',
   market_update_install_ids: [],
@@ -464,7 +466,7 @@ const defaults = defineConfigDefaults({
   market_update_notify_type: 'Plugin',
   plugin_update_reminder_scheduled_notify: false,
   plugin_update_reminder_notify_type: 'Plugin',
-  plugin_auto_install_enabled: false,
+  plugin_update_execution_mode: 'manual',
   plugin_auto_install_schedule_enabled: false,
   plugin_auto_install_cron: '0 9 * * *',
   plugin_auto_install_scheduled_notify: false,
@@ -890,7 +892,7 @@ const siteStatCoreSchemaFieldDescriptors = Object.freeze([
     "cardType": "cron",
     "module": "site_stat",
     "subtab": "sites",
-    "label": "??????",
+    "label": "启用定时任务",
     "control": "switch",
     "sourceProfile": "local-declared"
   },
@@ -901,7 +903,7 @@ const siteStatCoreSchemaFieldDescriptors = Object.freeze([
     "module": "site_stat",
     "subtab": "sites",
     "label": "统计时间",
-    "help": "???????????????????? 08:00?",
+    "help": "按标准五段 Cron 定时统计站点数据，默认每天 08:00。",
     "control": "cron",
     "sourceProfile": "local-form"
   },
@@ -1002,6 +1004,7 @@ const subscriptionFillNotificationSchemaFieldDescriptors = Object.freeze([
 
 const marketUpdateCoreSchemaFieldDescriptors = Object.freeze([
   { "key": "market_update_enabled", "type": "boolean", "cardType": "feature", "module": "market_update", "subtab": "updates", "label": "启用开关", "control": "switch", "sourceProfile": "remote-form" },
+  { "key": "market_update_execution_mode", "type": "string", "cardType": "feature", "module": "market_update", "subtab": "updates", "label": "执行方式", "help": "自动同步：到点直接同步插件库；通知后手动同步：到点只通知，你点按钮再同步。", "control": "select", "itemSource": "marketUpdateModeItems", "sourceProfile": "remote-form" },
   { "key": "market_update_exclude_ids", "type": "array", "cardType": "feature", "module": "market_update", "subtab": "updates", "label": "忽略插件", "control": "select", "itemSource": "installedPlugins", "isDisplayed": false, "sourceProfile": "remote-form" },
   { "key": "market_update_install_ids", "type": "array", "cardType": "feature", "module": "market_update", "subtab": "updates", "label": "自动安装插件", "control": "select", "itemSource": "installedPlugins", "isDisplayed": false, "sourceProfile": "remote-form" },
   { "key": "market_update_blacklist", "type": "array", "cardType": "feature", "module": "market_update", "subtab": "updates", "label": "排除地址", "help": "名单中的插件库不会写入 MoviePilot 插件市场；已配置的会在同步时移除。", "control": "select", "itemSource": "pluginMarkets", "sourceProfile": "remote-form" },
@@ -1011,6 +1014,7 @@ const marketUpdateCoreSchemaFieldDescriptors = Object.freeze([
 const moviePilotUpdateCoreSchemaFieldDescriptors = Object.freeze([
   { "key": "mp_update_cron", "type": "string", "cardType": "cron", "module": "mp_update", "subtab": "updates", "label": "系统检查时间", "control": "cron", "sourceProfile": "remote-read" },
   { "key": "mp_update_enabled", "type": "boolean", "cardType": "feature", "module": "mp_update", "subtab": "updates", "label": "启用开关", "control": "switch", "sourceProfile": "remote-form" },
+  { "key": "mp_update_execution_mode", "type": "string", "cardType": "feature", "module": "mp_update", "subtab": "updates", "label": "执行方式", "help": "自动检查并下载：发现新版本就自动开始下载，重启前仍要你确认；通知后手动更新：只发通知，点按钮再进入更新流程。", "control": "select", "itemSource": "mpUpdateModeItems", "sourceProfile": "remote-form" },
   { "key": "mp_update_schedule_enabled", "type": "boolean", "cardType": "cron", "module": "mp_update", "subtab": "updates", "label": "启用定时任务", "control": "switch", "isDisplayed": false, "sourceProfile": "remote-persisted" },
   { "key": "mp_update_types", "type": "array", "cardType": "feature", "module": "mp_update", "subtab": "updates", "label": "检查范围", "control": "select", "itemSource": "mpUpdateTypes", "sourceProfile": "remote-form" },
 ]);
@@ -1028,7 +1032,7 @@ const updateGovernanceDetailSchemaFieldDescriptors = Object.freeze([
   { "key": "market_update_notify_type", "type": "string", "cardType": "notify", "module": "market_update", "subtab": "updates", "label": "通知渠道", "help": "插件库同步结果使用的通知渠道。", "control": "select", "itemSource": "notificationTypeItems" },
   { "key": "plugin_update_reminder_scheduled_notify", "type": "boolean", "cardType": "notify", "module": "plugin_update_reminder", "subtab": "updates", "label": "定时执行后通知", "help": "只通知 Cron 执行结果，手动执行不发送。", "control": "switch" },
   { "key": "plugin_update_reminder_notify_type", "type": "string", "cardType": "notify", "module": "plugin_update_reminder", "subtab": "updates", "label": "通知渠道", "help": "插件更新结果使用的通知渠道。", "control": "select", "itemSource": "notificationTypeItems" },
-  { "key": "plugin_auto_install_enabled", "type": "boolean", "cardType": "feature", "module": "plugin_auto_install", "subtab": "updates", "label": "启用自动安装", "help": "独立控制插件更新安装；默认关闭。", "control": "switch" },
+  { "key": "plugin_update_execution_mode", "type": "string", "cardType": "feature", "module": "plugin_update_reminder", "subtab": "updates", "label": "执行方式", "help": "自动安装：发现新版自动装好，你不用管；通知后手动安装：只发通知，通知里逐个插件给更新按钮。", "control": "select", "itemSource": "pluginUpdateModeItems" },
   { "key": "plugin_auto_install_scheduled_notify", "type": "boolean", "cardType": "notify", "module": "plugin_auto_install", "subtab": "updates", "label": "安装后通知", "help": "插件更新检查实际安装插件后发送结果。", "control": "switch" },
   { "key": "plugin_auto_install_scope_mode", "type": "string", "cardType": "feature", "module": "plugin_auto_install", "subtab": "updates", "label": "安装范围", "help": "三选一；切换只改变当前生效范围，保留各名单中的已选值。", "control": "select", "itemSource": "pluginAutoInstallScopeItems" },
   { "key": "plugin_auto_install_install_ids", "type": "array", "cardType": "feature", "module": "plugin_auto_install", "subtab": "updates", "label": "指定插件", "help": "仅安装这份名单中的插件；空名单表示不安装任何插件。", "control": "select", "itemSource": "installedPlugins" },
@@ -1114,6 +1118,22 @@ const pluginAutoInstallScopeItems = [
   { title: '排除指定插件', value: 'exclude' },
 ];
 const pluginAutoInstallScopeValues = configOptionValues(pluginAutoInstallScopeItems);
+// 执行方式：用户自己决定到点是自动做完，还是先通知、由他点按钮再执行。
+const pluginUpdateModeItems = [
+  { title: '自动安装', value: 'auto' },
+  { title: '通知后手动安装', value: 'manual' },
+];
+const pluginUpdateModeValues = configOptionValues(pluginUpdateModeItems);
+const mpUpdateModeItems = [
+  { title: '自动检查并下载', value: 'auto' },
+  { title: '通知后手动更新', value: 'manual' },
+];
+const mpUpdateModeValues = configOptionValues(mpUpdateModeItems);
+const marketUpdateModeItems = [
+  { title: '自动同步', value: 'auto' },
+  { title: '通知后手动同步', value: 'manual' },
+];
+const marketUpdateModeValues = configOptionValues(marketUpdateModeItems);
 const marketUpdateStrategies = [
   { title: '仅检查', value: 'check' },
   { title: '同步插件库', value: 'sync' },
@@ -1210,6 +1230,15 @@ function normalizeCurrentConfig(config = {}) {
   if (Object.hasOwn(normalized, 'site_stat_cron')) {
     normalized.site_stat_cron = normalizeCron(normalized.site_stat_cron, defaults.site_stat_cron);
   }
+  for (const [key, allowed] of [
+    ['plugin_update_execution_mode', pluginUpdateModeValues],
+    ['mp_update_execution_mode', mpUpdateModeValues],
+    ['market_update_execution_mode', marketUpdateModeValues],
+  ]) {
+    if (Object.hasOwn(normalized, key)) {
+      normalized[key] = normalizeConfigOption(normalized[key], allowed, defaults[key]);
+    }
+  }
   if (Object.hasOwn(normalized, 'site_stat_dashboard_type')) {
     normalized.site_stat_dashboard_type = 'today';
   }
@@ -1295,4 +1324,4 @@ function reloadConfigSavePayload(serializedPayload = '{}') {
   return reloaded
 }
 
-export { healthCheckItems as A, keepCountPresets as B, DEFAULT_DLTAG_CRON as D, normalizeCurrentConfig as a, buildConfigSavePayload as b, configSchemaFields as c, defaults as d, emitConfigSaved as e, resolveBackupDatabaseEnabled as f, dltagDeleteStrategyItems as g, dltagTaskItems as h, isConfigFieldVisible as i, subfillDetailItems as j, siteStatRangeItems as k, seedActionsItems as l, notificationTypeItems as m, normalizeConfigOption as n, msgGroupItems as o, pluginAutoInstallScopeValues as p, pluginAutoInstallScopeItems as q, reloadConfigSavePayload as r, serializeConfigSavePayload as s, marketUpdateStrategies as t, mpUpdateTypes as u, messageTypeItems as v, marketNotifyItems as w, healthStorageTargets as x, healthDirectoryTargets as y, healthDatabaseTargets as z };
+export { healthStorageTargets as A, healthDirectoryTargets as B, healthDatabaseTargets as C, DEFAULT_DLTAG_CRON as D, healthCheckItems as E, keepCountPresets as F, normalizeCurrentConfig as a, buildConfigSavePayload as b, configSchemaFields as c, defaults as d, emitConfigSaved as e, resolveBackupDatabaseEnabled as f, dltagDeleteStrategyItems as g, dltagTaskItems as h, isConfigFieldVisible as i, subfillDetailItems as j, siteStatRangeItems as k, seedActionsItems as l, notificationTypeItems as m, normalizeConfigOption as n, msgGroupItems as o, pluginAutoInstallScopeValues as p, pluginUpdateModeItems as q, reloadConfigSavePayload as r, serializeConfigSavePayload as s, pluginAutoInstallScopeItems as t, marketUpdateStrategies as u, mpUpdateTypes as v, mpUpdateModeItems as w, messageTypeItems as x, marketUpdateModeItems as y, marketNotifyItems as z };

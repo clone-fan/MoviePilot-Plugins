@@ -66,20 +66,29 @@ class UpdateGovernanceMixin:
         except Exception as err:
             mp["restart_error"] = str(err)
 
-    @staticmethod
-    def _dispatch_moviepilot_upgrade(data: Dict[str, Any]) -> None:
-        """触发 MoviePilot 自更新。
+    def _dispatch_moviepilot_upgrade(self, data: Dict[str, Any]) -> None:
+        """按用户选择的执行方式处理 MoviePilot 更新。
 
-        V3 把 `SystemHelper.upgrade(mode="release")` 移除了：Release 更新改由宿主的
-        后台下载与确认安装流程负责，插件只保留 Dev 通道的直接触发。Release 通道下
-        Signal 只做检查与通知，把安装动作交还给宿主界面。
+        Dev 宿主维持原有的直接触发。Release 宿主分流：
+        「自动检查并下载」用宿主官方更新交互接口开始下载（安装重启仍要用户确认），
+        「通知后手动更新」只标记待人工处理，由通知按钮进入宿主更新流程。
+        upgrade_dev() 会让 Release 宿主切到 Dev，任何情况下都不能调用。
         """
+        from ..infrastructure import notice_transport
         mp = data.setdefault("moviepilot", {})
         if str(getattr(settings, "MOVIEPILOT_AUTO_UPDATE", "") or "").strip().lower() != "dev":
-            # upgrade_dev() can switch even a Release host to Dev. A stable
-            # release check must never opt the user into that channel.
             mp["upgrade_channel"] = "release"
+            if str(getattr(self, "_mp_update_execution_mode", "manual") or "manual").lower() != "auto":
+                mp["upgrade_manual_required"] = True
+                return
+            started, message = notice_transport.start_moviepilot_release_download(self)
             mp["upgrade_manual_required"] = True
+            if started:
+                mp["upgrade_download_started"] = True
+                if message:
+                    mp["upgrade_message"] = message
+            elif message:
+                mp["upgrade_error"] = message
             return
         try:
             from app.sdk.services import SystemHelper
@@ -420,6 +429,8 @@ class UpdateGovernanceMixin:
         if success:
             if mp.get("upgrade_dispatched"):
                 return "已触发 MoviePilot 升级并重启"
+            if mp.get("upgrade_download_started"):
+                return "已自动开始下载更新包，下载完成后请在通知里确认重启"
             if mp.get("upgrade_manual_required"):
                 return "发现正式版更新，请在 MoviePilot 中确认安装"
             if mp.get("has_update"):
@@ -685,7 +696,9 @@ class UpdateGovernanceMixin:
         if not ok:
             return False
         try:
-            data = self._build_market_update_status(apply=True)
+            market_mode = str(getattr(self, "_market_update_execution_mode", "manual") or "manual").lower()
+            manual_notice = bool(scheduled) and market_mode != "auto"
+            data = self._build_market_update_status(apply=not manual_notice)
             self._last_market_update_result = dict(data)
             text = self._format_market_update_text(data)
             success = bool(data.get("success"))
@@ -705,6 +718,9 @@ class UpdateGovernanceMixin:
                     notification_target="market_sync",
                     notification_cooldown=notification_status == "error",
                     notification_manual=notify,
+                    notice_action=(dict(kind="market_update",
+                                        payload={"markets": [str(item) for item in (data.get("new_markets") or [])]},
+                                        detail=text) if manual_notice and success else None),
                 )
             self._save_task_result("插件库同步", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
