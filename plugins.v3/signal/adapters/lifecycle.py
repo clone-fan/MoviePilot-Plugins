@@ -55,8 +55,9 @@ class LifecycleMixin:
     _site_refresh_condition = SITE_REFRESH_RUNTIME._site_refresh_condition
     _site_refresh_cache_ttl_seconds = 5.0
     _fusion_site_refresh_timeout_seconds = 30.0
+    _notice_site_refresh_timeout_seconds = 1.0
     _site_refresh_completion_timeout_seconds = 600.0
-    SITE_REFRESH_SOURCES = {"site_stat_manual", "site_stat_scheduled", "fusion_create_manual", "fusion_create_scheduled", "fusion_refresh"}
+    SITE_REFRESH_SOURCES = {"site_stat_manual", "site_stat_scheduled", "fusion_create_manual", "fusion_create_scheduled", "fusion_refresh", "notice_site"}
 
     @staticmethod
     def _clear_site_refresh_cache():
@@ -170,12 +171,14 @@ class LifecycleMixin:
             key = cls._site_refresh_running_key
             running = bool(cls._site_refresh_running and key and cls._site_refresh_running_started_at)
             return {"running": running, "scope": sorted(key[2]) if running else [],
+                    "operation_id": str((cls._site_refresh_run_context or {}).get("operation_id") or ""),
                     "date": key[0] if running else "", "started_at": cls._site_refresh_running_started_at if running else "",
                     "elapsed_seconds": max(0.0, time.monotonic() - cls._site_refresh_started_at) if running else 0.0}
 
     def _refresh_site_userdata_coordinated(self, *, source: str = "site_stat_manual", generation: Optional[int] = None) -> Dict[str, Any]:
         source = source if source in self.SITE_REFRESH_SOURCES else "unknown"
-        wait_seconds = self._fusion_site_refresh_timeout_seconds if source.startswith("fusion_") else 60.0
+        wait_seconds = (self._notice_site_refresh_timeout_seconds if source == "notice_site" else
+                        self._fusion_site_refresh_timeout_seconds if source.startswith("fusion_") else 60.0)
         started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         data_date = started_at[:10]
         active_sites = []
@@ -231,6 +234,12 @@ class LifecycleMixin:
                     callback(result, generation=runtime_generation)
                 except Exception:
                     logger.warning("Signal 站点采集结果回填原卡失败")
+            notice_callback = getattr(self, "_notice_settle_site_refresh", None)
+            if callable(notice_callback) and not cancelled():
+                try:
+                    notice_callback(result, generation=runtime_generation)
+                except Exception:
+                    logger.warning("Signal 站点采集结果回填普通通知失败")
 
         def deadline_expired():
             with cls._site_refresh_condition:
@@ -406,11 +415,11 @@ class LifecycleMixin:
             self._site_refresh_completion_timeout_seconds, deadline_expired))
         deadline_timer.daemon = True
         deadline_timer.start()
-        if not source.startswith("fusion_"):
+        if not (source.startswith("fusion_") or source == "notice_site"):
             return collect()
 
         # A slow host parser keeps the one shared collection running, but must not
-        # leave a newly sent Fusion card in its loading state indefinitely.
+        # leave an interactive notification in its loading state indefinitely.
         worker = threading.Thread(target=collect, name="Signal-site-refresh", daemon=True)
         try:
             worker.start()
@@ -447,6 +456,10 @@ class LifecycleMixin:
                 or not getattr(self, "_site_stat_enabled", False)):
             return
         previous = self._load_site_refresh_state()
+        if previous.get("source") == "notice_site":
+            # A user's notification refresh is recovered by its own read-only
+            # result path. It must not turn into a scheduled broadcast.
+            return
         if (previous.get("status") not in {"running", "timeout"}
                 or previous.get("data_date") != datetime.now().strftime("%Y-%m-%d")
                 or previous.get("active_scope_known") is not True):
@@ -517,6 +530,9 @@ class LifecycleMixin:
         # Plugin initialization must not perform destructive filesystem work.
         # Uninstall isolation is handled only by the explicitly confirmed
         # uninstall workflow, never as an implicit startup side effect.
+        resume_notices = getattr(self, "_notice_resume", None)
+        if callable(resume_notices):
+            resume_notices()
 
     def _stop_runtime_state(self) -> bool:
         cls = SITE_REFRESH_RUNTIME

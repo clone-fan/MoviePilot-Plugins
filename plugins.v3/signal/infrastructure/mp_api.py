@@ -780,6 +780,7 @@ class MpApiMixin:
                         affected_owner="persistent-sites",
                         notification_status="error",
                         notification_target="daily_increment",
+                        notice_action={"kind": "site_stat", "payload": {}},
                         notification_fingerprint=self._notification_error_fingerprint(msg),
                         notification_cooldown=False,
                         notification_manual=notify,
@@ -803,6 +804,7 @@ class MpApiMixin:
                         affected_owner="persistent-sites",
                         notification_status="error",
                         notification_target="daily_increment",
+                        notice_action={"kind": "site_stat", "payload": {}},
                         notification_fingerprint=self._notification_error_fingerprint(msg),
                         notification_cooldown=False,
                         notification_manual=notify,
@@ -835,6 +837,7 @@ class MpApiMixin:
                         affected_owner="persistent-sites",
                         notification_status="error",
                         notification_target="daily_increment",
+                        notice_action={"kind": "site_stat", "payload": {}},
                         notification_fingerprint=self._notification_error_fingerprint(snapshot_error),
                         notification_cooldown=False,
                         notification_manual=notify,
@@ -859,6 +862,7 @@ class MpApiMixin:
                         affected_owner="persistent-sites",
                         notification_status="error",
                         notification_target="daily_increment",
+                        notice_action={"kind": "site_stat", "payload": {}},
                         notification_fingerprint=self._notification_outcome_fingerprint({
                             "excluded": self._site_state_fingerprint_items(states),
                         }),
@@ -896,6 +900,7 @@ class MpApiMixin:
                     affected_owner="persistent-sites",
                     notification_status="changed" if has_increment else "noop",
                     notification_target="daily_increment",
+                        notice_action={"kind": "site_stat", "payload": {}},
                     notification_fingerprint=(
                         self._notification_outcome_fingerprint({
                             "date": str(payload.get("date") or ""),
@@ -926,6 +931,7 @@ class MpApiMixin:
                     affected_owner="persistent-sites",
                     notification_status="error",
                     notification_target="daily_increment",
+                        notice_action={"kind": "site_stat", "payload": {}},
                     notification_fingerprint=self._notification_error_fingerprint(err),
                     notification_cooldown=False,
                     notification_manual=notify,

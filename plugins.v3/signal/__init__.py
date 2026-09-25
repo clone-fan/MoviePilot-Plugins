@@ -12,6 +12,8 @@ from .adapters import downloader_tag_events as _downloader_tag_events
 from .adapters import lifecycle as _lifecycle
 from .adapters import moviepilot_contract as _moviepilot_contract
 from .adapters import runtime_state as _runtime_state
+from .application import notice_actions as _notice_actions
+from .presentation import notice_render as _notice_render
 from .application import backup as _backup
 from .application import fusion_report as _fusion_report
 from .application import downloader_helper as _downloader_helper
@@ -32,12 +34,12 @@ from .presentation import tg_console as _tg_console
 from .presentation import tg_report_html as _tg_report_html
 
 
-class Signal(_runtime_state.RuntimeStateMixin, _lifecycle.LifecycleMixin, _formatters.FormattersMixin, _dashboard_schema.DashboardSchemaMixin, _fusion.FusionMixin, _plugin_uninstall.PluginUninstallMixin, _backup.BackupMixin, _fusion_report.FusionReportMixin, _tg_report_html.TgReportHtmlMixin, _events.EventsMixin, _downloader_tag_events.DownloaderTagEventsMixin, _tg_console.TgConsoleMixin, _mp_api.MpApiMixin, _moviepilot_contract.PluginContractMixin, _update_governance.UpdateGovernanceMixin, _site_stats.SiteStatsMixin, _downloader_helper.DownloaderHelperMixin, _seed_clean.SeedCleanMixin, _log_ops.LogOpsMixin, _plugin_ops.PluginOpsMixin, _legacy_agentopsassistant.LegacyAgentOpsAssistantPurgeMixin, _subscribe_reminder.SubscribeReminderMixin, _identity_migration.IdentityMigrationMixin, _PluginBase):
+class Signal(_notice_actions.NoticeActionsMixin, _notice_render.NoticeRenderMixin, _runtime_state.RuntimeStateMixin, _lifecycle.LifecycleMixin, _formatters.FormattersMixin, _dashboard_schema.DashboardSchemaMixin, _fusion.FusionMixin, _plugin_uninstall.PluginUninstallMixin, _backup.BackupMixin, _fusion_report.FusionReportMixin, _tg_report_html.TgReportHtmlMixin, _events.EventsMixin, _downloader_tag_events.DownloaderTagEventsMixin, _tg_console.TgConsoleMixin, _mp_api.MpApiMixin, _moviepilot_contract.PluginContractMixin, _update_governance.UpdateGovernanceMixin, _site_stats.SiteStatsMixin, _downloader_helper.DownloaderHelperMixin, _seed_clean.SeedCleanMixin, _log_ops.LogOpsMixin, _plugin_ops.PluginOpsMixin, _legacy_agentopsassistant.LegacyAgentOpsAssistantPurgeMixin, _subscribe_reminder.SubscribeReminderMixin, _identity_migration.IdentityMigrationMixin, _PluginBase):
     """MoviePilot plugin host adapter composed from owned backend layers."""
 
     # The official market gate reads this literal from the class body of
     # __init__.py, so it cannot live only on RuntimeStateMixin.
-    plugin_version = "3.0.7"
+    plugin_version = "3.0.8"
 
     @eventmanager.register(EventType.PluginAction)
     def handle_command(self, event: Event = None):

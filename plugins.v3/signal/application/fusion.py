@@ -29,6 +29,7 @@ class FusionMixin:
 
     def _notify_or_console(self, mtype: Any = None, title: str = "", text: str = "", image: Any = None, **kwargs) -> bool:
         component = kwargs.pop("component", None)
+        notice_action = kwargs.pop("notice_action", None)
         if self._fusion_notify_enabled:
             payload = dict(kwargs)
             if image:
@@ -47,11 +48,11 @@ class FusionMixin:
         if image:
             payload["image"] = image
         payload.update(kwargs)
-        if not self._post_moviepilot_notification(payload, component=component, title=title):
+        if not self._post_moviepilot_notification(payload, component=component, title=title, notice_action=notice_action):
             return False
         return True
 
-    def _post_moviepilot_notification(self, payload: Dict[str, Any], component: Optional[str] = None, title: str = "") -> bool:
+    def _post_moviepilot_notification(self, payload: Dict[str, Any], component: Optional[str] = None, title: str = "", notice_action: Optional[Dict[str, Any]] = None) -> bool:
         if self._fusion_notify_enabled:
             data = dict(payload or {})
             event = FusionEvent.create(
@@ -68,6 +69,11 @@ class FusionMixin:
         ok, _ = self._runtime_gate("notification", component=component_key, name=title or "MoviePilot notification")
         if not ok:
             return False
+        notice_delivery = getattr(self, "_notice_deliver", None)
+        if notice_action and callable(notice_delivery):
+            delivered = notice_delivery(payload, notice_action)
+            if delivered is not None:
+                return bool(delivered)
         self.post_message(**(payload or {}))
         return True
 
@@ -101,7 +107,9 @@ class FusionMixin:
         notification_status: str = "", notification_target: str = "",
         notification_fingerprint: str = "", notification_cooldown: bool = False,
         notification_notify_noop: bool = False, notification_manual: bool = False,
+        notice_action: Optional[Dict[str, Any]] = None,
     ) -> bool:
+        notice_kwargs = {"notice_action": notice_action} if notice_action else {}
         concrete_outcome = str(outcome or "").strip()
         if not concrete_outcome:
             raise ValueError("Fusion task outcome requires concrete humanized copy")
@@ -123,9 +131,9 @@ class FusionMixin:
         if notification_manual:
             # 手动执行（配置页按钮或手动 API）是用户显式发起的一次性动作：
             # 结果通知必须真实发出，不参与 24 小时冷却，也不被"无变化"抑制。
-            return self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+            return self._notify_or_console(mtype=mtype, title=title, text=text, component=component, **notice_kwargs)
         if not status:
-            return self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+            return self._notify_or_console(mtype=mtype, title=title, text=text, component=component, **notice_kwargs)
         if status not in {"noop", "changed", "error", "recovered"}:
             raise ValueError(f"Unsupported notification outcome status: {status}")
         if notification_cooldown and status in {"changed", "error"} and not notification_fingerprint:
@@ -145,7 +153,7 @@ class FusionMixin:
                         return False
                 if not notification_notify_noop:
                     return True
-                return self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+                return self._notify_or_console(mtype=mtype, title=title, text=text, component=component, **notice_kwargs)
 
             if status == "recovered":
                 had_error = isinstance(previous, dict) and previous.get("status") == "error"
@@ -155,7 +163,7 @@ class FusionMixin:
                         if not self._save_notification_outcome_state(state):
                             return False
                     return True
-                delivered = self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+                delivered = self._notify_or_console(mtype=mtype, title=title, text=text, component=component, **notice_kwargs)
                 if delivered and previous is not None:
                     entries.pop(entry_key, None)
                     if not self._save_notification_outcome_state(state):
@@ -166,7 +174,7 @@ class FusionMixin:
             if notification_cooldown and self._notification_outcome_is_cooled(previous, status, fingerprint):
                 return True
 
-            delivered = self._notify_or_console(mtype=mtype, title=title, text=text, component=component)
+            delivered = self._notify_or_console(mtype=mtype, title=title, text=text, component=component, **notice_kwargs)
             if not delivered:
                 return False
             if notification_cooldown:

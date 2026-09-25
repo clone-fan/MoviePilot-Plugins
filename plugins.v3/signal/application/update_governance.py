@@ -428,15 +428,22 @@ class UpdateGovernanceMixin:
         detail = str(mp.get("upgrade_error") or mp.get("restart_error") or "更新请求未被接受")[:120]
         return f"MoviePilot 更新触发失败：{detail}"
 
-    def _auto_update_installed_plugins(self, apply: bool = True) -> Dict[str, Any]:
+    def _auto_update_installed_plugins(self, apply: bool = True, manual_targets: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """检查已安装插件是否有新版（移植自 thsrite/PluginAutoUpdate，适配本插件）。
         开启“自动安装”且 apply 时下载安装新版并重载；否则仅汇总可更新清单供通知。
         全程 try/except，任何失败只反映在结果里，不抛出。"""
-        auto_install = bool(self._plugin_auto_install_enabled)
+        manual = manual_targets is not None
+        auto_install = bool(self._plugin_auto_install_enabled) or manual
         out: Dict[str, Any] = {"auto_install": auto_install,
                                "updatable": [], "updated": [], "failed": [], "skipped": []}
+        requested = {str(item.get("id") or ""): item for item in (manual_targets or []) if isinstance(item, dict)}
+        if manual and (not requested or len(requested) != len(manual_targets) or any(
+                not all(str(item.get(key) or "") for key in ("id", "old", "new", "repo_url")) for item in requested.values())):
+            return {**out, "error": "手动更新目标不完整，请重新检查更新"}
+        handled = set()
         try:
-            from app.sdk.plugins import PluginManager
+            from ..infrastructure.notice_transport import plugin_manager_class
+            PluginManager = plugin_manager_class()
             from app.db.oper.systemconfig import SystemConfigOper
             from app.schemas.types import SystemConfigKey
         except Exception as err:
@@ -474,26 +481,53 @@ class UpdateGovernanceMixin:
             include = set(self._plugin_auto_install_install_ids or []) if scope_mode == "include" else set()
             for p in online:
                 pid = str(p.id)
+                if manual:
+                    if pid not in requested or pid in handled:
+                        continue
+                    if str(getattr(p, "repo_url", "") or "") != str(requested[pid]["repo_url"]):
+                        continue
                 if pid not in installed_ids:
+                    continue
+                expected = requested.get(pid) or {}
+                if manual and str(local_ver.get(p.id)) == str(expected.get("new")):
+                    out["skipped"].append({**expected, "reason": "已是目标版本", "already_current": True})
+                    handled.add(pid)
                     continue
                 if not (getattr(p, "has_update", False) or not getattr(p, "installed", True)):
                     continue
                 oldv = local_ver.get(p.id)
                 if not oldv or str(oldv) == "None":
                     continue
-                info = {"id": pid, "name": getattr(p, "plugin_name", pid), "old": str(oldv), "new": str(p.plugin_version)}
+                info = {"id": pid, "name": getattr(p, "plugin_name", pid), "old": str(oldv), "new": str(p.plugin_version),
+                        "repo_url": str(getattr(p, "repo_url", "") or "")}
+                hist = next((str(note) for ver, note in (getattr(p, "history", None) or {}).items()
+                             if str(ver).removeprefix("v") == str(p.plugin_version).removeprefix("v")), "")
+                info["history"] = hist
+                if pid.lower() in {"signal", "moviepilot", "agentopsassistant"}:
+                    info["blocked"] = "请在 MoviePilot 插件管理中更新本体"
+                elif any(pid == job or str(job).startswith(pid + ".") for job in running):
+                    info["blocked"] = "插件任务正在运行"
                 out["updatable"].append(info)
+                if manual:
+                    handled.add(pid)
+                    if any(str(info[key]) != str(expected.get(key) or "") for key in ("old", "new", "repo_url")):
+                        out["failed"].append({**info, "msg": "版本或仓库已变化，请重新检查更新"})
+                        continue
                 if not (apply and auto_install):
                     continue
                 # 安全：永不自动更新本插件自身；尊重排除/仅选名单；运行中不动
-                if pid.lower() in {"signal", "moviepilot", "agentopsassistant"} or pid in exclude:
+                if info.get("blocked") or (not manual and pid in exclude):
                     out["skipped"].append({**info, "reason": "排除/本体"})
                     continue
-                if scope_mode == "include" and pid not in include:
+                if not manual and scope_mode == "include" and pid not in include:
                     out["skipped"].append({**info, "reason": "不在自动更新列表"})
                     continue
                 if pid in running or p.id in running:
                     out["skipped"].append({**info, "reason": "正在运行"})
+                    continue
+                busy = getattr(self, "_notice_busy_plugin_ids", None)
+                if not manual and callable(busy) and pid in busy():
+                    out["skipped"].append({**info, "reason": "通知更新正在执行或等待核实"})
                     continue
                 try:
                     from app.adapters.external.market import PluginHelper
@@ -504,12 +538,25 @@ class UpdateGovernanceMixin:
                     out["failed"].append({**info, "msg": self._update_error_detail(msg)})
                     continue
                 try:
-                    PluginManager().reload_plugin(p.id)
-                    # MoviePilot v3 reloads the instance only. The official
-                    # registration entrypoint is required to restore commands,
-                    # scheduler services, and dynamic plugin API routes.
-                    from app.application.plugin.routes import register_plugin
-                    register_plugin(p.id)
+                    # The host install already swapped and reloaded the plugin.
+                    # Older hosts expose neither hook or only the reload hook, so
+                    # both follow-ups stay best effort; the installed version is
+                    # the authority for whether the update actually landed.
+                    reload_hook = getattr(PluginManager(), "reload_plugin", None)
+                    if callable(reload_hook):
+                        reload_hook(p.id)
+                    register_hook = None
+                    try:
+                        from app.application.plugin.routes import register_plugin as register_hook
+                    except (ImportError, AttributeError):
+                        register_hook = None
+                    if callable(register_hook):
+                        register_hook(p.id)
+                    if manual:
+                        actual = next((str(item.plugin_version) for item in (PluginManager().get_local_plugins() or [])
+                                       if str(item.id) == pid), "")
+                        if actual != info["new"]:
+                            raise RuntimeError(f"安装后版本复核不一致：目标 {info['new']}，实际 {actual or '未知'}")
                 except Exception as err:
                     message = self._update_error_detail(err)
                     out["failed"].append({**info, "msg": f"重载后重新注册失败：{message}"})
@@ -524,6 +571,9 @@ class UpdateGovernanceMixin:
                 except Exception:
                     pass
                 out["updated"].append({**info, "history": hist})
+            if manual:
+                for pid in requested.keys() - handled:
+                    out["failed"].append({**requested[pid], "msg": "目标不再可更新或无法核实，请重新检查更新"})
             return out
         except Exception as err:
             out["error"] = f"插件自动更新异常：{self._update_error_detail(err)}"
@@ -618,6 +668,8 @@ class UpdateGovernanceMixin:
                 ),
                 notification_cooldown=notification_status == "error",
                 notification_manual=notify,
+                notice_action=({"kind": "mp_update", "payload": {"checks": checks}}
+                               if success and mp.get("upgrade_manual_required") else None),
             )
         self._save_task_result(result_name, success, 0 if success else 1, text)
         return success
@@ -781,6 +833,13 @@ class UpdateGovernanceMixin:
                 notification_fingerprint=check_fingerprint,
                 notification_cooldown=check_status in {"changed", "error"},
                 notification_manual=notify,
+                notice_action=(
+                    {"kind": "plugin_update", "payload": {"plugins": updatable},
+                     "detail": self._format_plugin_update_text(check_data) + "\n\n" + "\n\n".join(
+                         f"{item.get('name') or item.get('id')}：{item.get('history') or '未提供更新说明'}"
+                         + (f"\n{item['blocked']}" if item.get('blocked') else "") for item in updatable)}
+                    if check_success and updatable and not auto_install_enabled else None
+                ),
             )
         if (scheduled or notify) and notify_install:
             install_success = not bool(data.get("error") or data.get("failed"))

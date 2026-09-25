@@ -129,6 +129,14 @@ class EventsMixin:
         """接收 MoviePilot 通知渠道转发的 `[PLUGIN]Signal|...` 按钮回调。"""
         if self._event_should_noop_after_stop():
             return
+        notice_info = getattr(event, "event_data", None) if event else None
+        if (isinstance(notice_info, dict)
+                and str(notice_info.get("plugin_id") or "").lower() == "signal"
+                and str(notice_info.get("text") or "").startswith("sn1:")):
+            handler = getattr(self, "_notice_handle_action", None)
+            if callable(handler):
+                handler(notice_info)
+            return
         ok, _ = self._runtime_gate("event", component="fusion_notify", name="MessageAction")
         if not ok:
             return
