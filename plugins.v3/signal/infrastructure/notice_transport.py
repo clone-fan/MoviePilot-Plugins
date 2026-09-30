@@ -131,6 +131,100 @@ def installed_plugin_versions():
     return {str(item.id): str(item.plugin_version) for item in plugin_manager_class()().get_local_plugins() or []}
 
 
+def moviepilot_update_status():
+    """Read the same release snapshot shown by the host; never start an update."""
+    try:
+        from app.adapters.system.update import system_update_manager
+        return system_update_manager.get_status().model_dump()
+    except (ImportError, AttributeError):
+        return {}
+
+
+def moviepilot_release_ports():
+    """当前 V3 宿主移除了通知会话，但保留正式更新状态机与受管重启。"""
+    try:
+        from app.adapters.system.update import system_update_manager
+        from app.sdk.services import SystemHelper
+        if all(callable(getattr(system_update_manager, name, None)) for name in
+               ("get_status", "check", "start_download", "request_install", "cancel_install")) and all(
+                   callable(getattr(SystemHelper, name, None)) for name in ("can_restart", "restart")):
+            return system_update_manager, SystemHelper
+    except (ImportError, AttributeError):
+        pass
+    return None
+
+
+def moviepilot_actor_allowed(context):
+    """更新确认要求当前 Telegram 通道的管理员和目标会话都匹配。"""
+    if str(context.get("channel") or "").lower() != "telegram":
+        return False
+    for conf in notification_configs():
+        if str(field(conf, "name", "")) != str(context.get("source") or ""):
+            continue
+        if str(field(conf, "type", "")).lower() != "telegram" or not enabled(field(conf, "enabled", False)):
+            continue
+        config = field(conf, "config", {}) or {}
+        chat = str(field(config, "TELEGRAM_CHAT_ID", "") or "").strip()
+        admins = {v.strip() for v in str(field(config, "TELEGRAM_ADMINS", "") or "").split(",") if v.strip()}
+        if chat.isdigit() and int(chat) > 0:
+            admins.add(chat)
+        return str(context.get("userid") or "") in admins and str(context.get("original_chat_id")) == chat
+    return False
+
+
+def moviepilot_release_action(step="open", version=""):
+    """调用宿主正式状态机；首次打开只检查，安装必须匹配已确认版本。
+
+    沿用宿主 SystemService 的环境校验、包校验和重启失败撤销流程。
+    返回状态供卡内交互使用，不发送或替换另一条通知。
+    """
+    ports = moviepilot_release_ports()
+    if not ports:
+        raise RuntimeError("当前宿主更新接口不可用")
+    manager, control = ports
+    with manager._lock:
+        status = manager.get_status().model_dump()
+        if step in {"open", "check"}:
+            if status.get("state") not in {"downloading", "ready", "installing"}:
+                status = manager.check().model_dump()
+        elif step == "status":
+            pass
+        elif step in {"download", "install"}:
+            if not version or status.get("version") != version:
+                return False, "目标版本已变化，请重新查看更新后确认。", status
+            if not control.can_restart():
+                return False, "当前运行环境不支持宿主受管更新。", status
+            if step == "download":
+                if status.get("state") != "available" or not status.get("can_update"):
+                    return False, "更新状态已变化，请重新检查后确认下载。", status
+                status = manager.start_download().model_dump()
+            else:
+                if status.get("state") != "ready" or not status.get("can_install"):
+                    return False, "更新包尚未就绪，请刷新下载状态。", status
+                prepared, message = manager.request_install()
+                if not prepared:
+                    return False, message, manager.get_status().model_dump()
+                try:
+                    ok, message = control.restart()
+                except Exception:
+                    manager.cancel_install("重启请求失败，已撤销安装")
+                    raise
+                if not ok:
+                    manager.cancel_install(message or "重启请求失败")
+                return bool(ok), message or "已确认重启安装 MoviePilot。", manager.get_status().model_dump()
+        else:
+            raise ValueError("未知更新操作")
+    phase = status.get("state")
+    messages = {"available": "发现 MoviePilot 更新，请确认是否下载。",
+                "downloading": "更新包下载中，可刷新进度。",
+                "ready": "更新包已校验，确认重启后安装。",
+                "installing": "正在重启安装 MoviePilot。",
+                "idle": "MoviePilot 已是最新版。"}
+    if status.get("error") or phase == "failed":
+        return False, str(status.get("error") or "更新操作失败，请重试检查。"), status
+    return True, messages.get(phase, "已读取 MoviePilot 更新状态。"), status
+
+
 def moviepilot_update_available():
     try:
         from app.application.messaging.update import update_interaction_manager

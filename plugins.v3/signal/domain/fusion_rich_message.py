@@ -2,22 +2,58 @@
 
 import re
 from copy import deepcopy
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from .fusion_completion import normalize_completion_tasks
-from .fusion_composition import _site_count_label
+from .fusion_composition import _site_count_label, update_change_count
 
 from .fusion_card_model import validate_v7_card_model
 
 
 RICH_TEXT_LIMIT = 32768
 RICH_BLOCK_LIMIT = 500
-_BLOCK_TYPES = {"paragraph", "heading", "pre", "footer", "divider", "list", "blockquote", "table", "details"}
+_BLOCK_TYPES = {"paragraph", "heading", "pre", "footer", "divider", "list", "blockquote", "table", "details", "buttons"}
+
+VALID_TABS = ("overview", "content", "system")
+_TAB_OWNERS = {
+    "content": (
+        "persistent-sites", "persistent-subscriptions", "persistent-transfer",
+        "persistent-media",
+    ),
+    "system": (
+        "persistent-health", "persistent-storage", "persistent-maintenance", "persistent-update",
+    ),
+}
+_SECTION_META = {
+    "current-anomalies": ("⚠️", "需要注意"),
+    "persistent-sites": ("📡", "站点状态"),
+    "persistent-subscriptions": ("📺", "订阅追新"),
+    "persistent-transfer": ("📥", "下载入库"),
+    "realtime-media": ("🎬", "媒体动态"),
+    "persistent-media": ("🎬", "媒体动态"),
+    "persistent-health": ("❤️", "健康巡查"),
+    "persistent-storage": ("💾", "存储空间"),
+    "persistent-maintenance": ("🔧", "维护任务"),
+    "persistent-update": ("⬆️", "更新管理"),
+}
+_TAB_FOOTER = "Signal 插件 · 每小时自动刷新"
 
 
-def render_v7_rich_message(model: Dict[str, Any]) -> Dict[str, Any]:
-    """Render a validated V7 model to one explicit InputRichMessage payload."""
+def render_v7_rich_message(model: Dict[str, Any], *, active_tab: Optional[str] = None,
+                           buttons: Optional[Sequence[Dict[str, Any]]] = None,
+                           action_buttons: Optional[Sequence[Dict[str, Any]]] = None,
+                           status_blocks: Optional[Sequence[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Render a validated V7 model to one explicit InputRichMessage payload.
+
+    ``active_tab`` selects the tabbed card view (overview / content / system).
+    ``buttons`` renders the tab row as an in-card ``buttons`` block (matching the
+    approved template) instead of relying on Telegram's message keyboard.
+    Without ``active_tab`` the legacy whole-card view is rendered.
+    """
     card = validate_v7_card_model(model)
+    if active_tab is not None:
+        blocks = _tab_blocks_within_limits(card, str(active_tab), buttons, action_buttons, status_blocks)
+        return {"blocks": blocks}
     blocks = _render_card_blocks(card)
     anomaly = next((item for item in card.get("modules") or [] if item.get("owner") == "current-anomalies"), None)
     if anomaly is None or _within_rich_limits(blocks):
@@ -57,6 +93,28 @@ def render_v7_rich_message(model: Dict[str, Any]) -> Dict[str, Any]:
     return {"blocks": blocks}
 
 
+def action_status_blocks(items: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """无边框、无条纹的居中提示；表格仅提供段落没有的对齐能力。"""
+    blocks: List[Dict[str, Any]] = []
+    icons = {"running": "⏳", "success": "✅", "error": "⚠️"}
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label") or "更新操作").strip()
+        message = str(item.get("message") or "").strip()
+        lines = [line.strip() for line in (message or label).splitlines() if line.strip()]
+        headline = lines[0] if lines else label
+        icon = icons.get(str(item.get("status") or ""), "ℹ️")
+        inline: List[Any] = [{"type": "bold", "text": f"{icon} {headline}"}]
+        timestamp = str(item.get("time") or "").strip()
+        if timestamp:
+            inline.append(_a_text(f"{_separator()}{timestamp}"))
+        blocks.append(_table([_cell(inline, "center")]))
+        if len(lines) > 1:
+            blocks.append(_table([_cell(_a_text("\n".join(lines[1:])), "center")]))
+    return blocks
+
+
 def _within_rich_limits(value: Any) -> bool:
     characters, blocks = _rich_usage(value)
     return characters <= RICH_TEXT_LIMIT and blocks <= RICH_BLOCK_LIMIT
@@ -71,7 +129,7 @@ def _rich_usage(value: Any) -> tuple[int, int]:
         return sum(item[0] for item in usage), sum(item[1] for item in usage)
     if not isinstance(value, dict):
         return 0, 0
-    characters, blocks = _rich_usage([value[key] for key in ("text", "summary", "blocks", "cells", "items") if key in value])
+    characters, blocks = _rich_usage([value[key] for key in ("text", "summary", "blocks", "cells", "items", "buttons") if key in value])
     blocks += int(value.get("type") in _BLOCK_TYPES)
     blocks += len(value.get("cells") or []) + len(value.get("items") or [])
     return characters, blocks
@@ -99,8 +157,9 @@ def _render_card_blocks(card: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def _identity_blocks(identity: Dict[str, Any], state: str) -> List[Dict[str, Any]]:
     refreshed = str(identity.get("refreshed_at") or "").strip()
+    stamp = refreshed[5:16] if len(refreshed) >= 16 else refreshed
     return [_table([
-        _cell([{"type": "bold", "text": "融合通知"}, "\n", _a_text(f"更新 {refreshed}")], "center"),
+        _cell([{"type": "bold", "text": "🛰 融合通知"}, "\n", _a_text(f"更新 {stamp}")], "center"),
     ]), {"type": "divider"}]
 
 
@@ -220,19 +279,29 @@ def _persistent_blocks(module: Dict[str, Any], state: str) -> List[Dict[str, Any
     if owner == "persistent-sites":
         site_rows: List[List[Dict[str, Any]]] = []
         aggregate = str(module.get("context") or "").strip()
+        metric_rows = module.get("metric_rows") or []
         if aggregate:
             site_rows.append([
                 _cell({"type": "bold", "text": "今日流量"}, "left"),
                 _cell({"type": "bold", "text": aggregate}, "right"),
             ])
-        for row in rows:
-            left, right = _pair(row)
+        for item in metric_rows:
+            values = [str(value) for value in list(item)]
+            values += [""] * (3 - len(values))
+            name, upload, download = values[:3]
             site_rows.append([
-                _cell(left, "left"),
-                _cell({"type": "subscript", "text": right}, "right"),
+                _cell(name, "left"),
+                _cell(_a_text(f"⬆ {upload} · ⬇ {download}"), "right"),
             ])
+        if not metric_rows:
+            for row in rows:
+                left, right = _pair(row)
+                site_rows.append([
+                    _cell(left, "left"),
+                    _cell({"type": "subscript", "text": right}, "right"),
+                ])
         if site_rows:
-            blocks.append(_multirow_table(site_rows))
+            blocks.append(_multirow_table(site_rows, bordered=False, striped=True))
         notices = _details_block("未计入今日流量", _row_blocks(module.get("notice_rows"), secondary_a=True), False)
         if notices:
             blocks.append(notices)
@@ -388,11 +457,17 @@ def _module_title_table(
     return _table(cells)
 
 
-def _multirow_table(rows: List[List[Dict[str, Any]]], bordered: bool = False) -> Dict[str, Any]:
-    return {"type": "table", "cells": rows, "is_bordered": bordered, "is_striped": False}
+def _multirow_table(rows: List[List[Dict[str, Any]]], bordered: bool = False, striped: bool = False,
+                    compact: bool = True) -> Dict[str, Any]:
+    """显式声明表格样式；compact 控制留白，striped 控制正文行交替。"""
+    return {"type": "table", "cells": rows, "is_compact": compact,
+            "is_bordered": bordered, "is_striped": striped}
 
 
 def _cell(text: Any, align: str, valign: str = "middle", colspan: int = 1) -> Dict[str, Any]:
+    # 统一 RichText 结构；数组包装本身不控制底色或行高。
+    if isinstance(text, dict):
+        text = [text]
     result = {"text": text, "align": align, "valign": valign}
     if colspan > 1:
         result["colspan"] = colspan
@@ -516,3 +591,246 @@ def _compact_summary_count(value: Any) -> str:
         if compact and not compact.startswith("最近"):
             parts.append(compact)
     return "  ".join(parts)
+
+def _tab_blocks_within_limits(card: Dict[str, Any], active_tab: str,
+                              buttons: Optional[Sequence[Dict[str, Any]]] = None,
+                              action_buttons: Optional[Sequence[Dict[str, Any]]] = None,
+                              status_blocks: Optional[Sequence[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """按完整栏目分组裁剪，保护卡头/按钮并明确告知省略。"""
+    tab = active_tab if active_tab in VALID_TABS else "overview"
+    modules = {str(item.get("owner") or ""): item for item in card.get("modules") or []}
+    prefix = list(_identity_blocks(card["identity"], card["state"]))
+    groups: List[List[Dict[str, Any]]] = []
+    if card["state"] == "loading":
+        loading = next((item for item in modules.values() if item.get("kind") == "loading"), {})
+        groups.append([{"type": "paragraph", "text": "⏳ 正在采集，尚未完成检查"}, _loading_block(loading)])
+    elif tab == "overview":
+        groups.append(_overview_blocks(card, modules))
+    else:
+        for owner in _TAB_OWNERS.get(tab, ()):
+            module = modules.get(owner)
+            if owner == "persistent-media" and modules.get("realtime-media"):
+                module = dict(module or {"owner": owner})
+                module["realtime"] = modules["realtime-media"]
+                module["tab_count"] = str(modules["realtime-media"].get("count") or "1 个会话")
+            if module:
+                groups.append(_tab_section_blocks(module))
+        # 总览中的异常也须在当前页可见，不能因页签切换而丢失失败说明。
+        anomaly = modules.get("current-anomalies")
+        if anomaly:
+            groups.append([{"type": "paragraph", "text": [
+                {"type": "bold", "text": "⚠️ 需要注意"},
+                _a_text("；".join(_row_as_footer(row) for row in _rows(anomaly.get("details_rows")))),
+            ]}])
+    for block in status_blocks or []:
+        if isinstance(block, dict):
+            groups.append([dict(block)])
+    tail = [{"type": "divider"}, _tab_footer_block()]
+    tail_buttons: List[Dict[str, Any]] = []
+    if buttons:
+        tail_buttons.append({"type": "buttons", "align": "center",
+                             "buttons": [dict(item) for item in buttons]})
+    if action_buttons:
+        tail_buttons.append({"type": "buttons", "align": "center",
+                             "buttons": [dict(item) for item in action_buttons]})
+    tail.extend(tail_buttons)
+    def assemble(omitted: bool = False) -> List[Dict[str, Any]]:
+        notice = [{"type": "paragraph", "text": "部分栏目或状态详情超出 Telegram 消息容量，已省略。"}] if omitted else []
+        return prefix + [block for group in groups for block in group] + notice + tail
+
+    blocks = assemble()
+    while not _within_rich_limits(blocks) and groups:
+        groups.pop()
+        blocks = assemble(omitted=True)
+    if not _within_rich_limits(blocks):
+        raise ValueError("融合卡页签内容已超出 Telegram 消息容量")
+    return blocks
+
+
+def _tab_footer_block() -> Dict[str, Any]:
+    return _table([_cell(_a_text(_TAB_FOOTER), "center")])
+
+
+def _overview_blocks(card: Dict[str, Any], modules: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """总览页：需要注意块 + 八宫格 + 数据时间行，结构与定稿模板一致。"""
+    blocks: List[Dict[str, Any]] = []
+    rows, hint, counts = _overview_attention(modules)
+    if rows:
+        inner: List[Dict[str, Any]] = [
+            _table([_cell({"type": "bold", "text": "需要注意"}, "left"),
+                    _cell(_a_text(_attention_count_text(counts)), "right")]),
+            {"type": "heading", "text": "⚠️ 需要注意", "size": 3},
+            _multirow_table([[_cell(left, "left"), _cell(_a_text(right), "right")] for left, right in rows]),
+        ]
+        if hint:
+            inner.append({"type": "paragraph", "text": _a_text(hint)})
+        blocks.append({"type": "blockquote", "blocks": inner})
+    else:
+        # 没有需要注意项时这个区块直接不出现：没异常不需要专门声明，
+        # 更不该占着「异常」的位置。只有「还没跑过巡查」保留一行，因为那是待办。
+        health = modules.get("persistent-health") or {}
+        checked = bool(health) and not health.get("is_empty", True)
+        if not checked:
+            blocks.append({"type": "heading", "text": "ℹ️ 尚无巡查结果", "size": 3})
+    overview = modules.get("card-overview")
+    if overview:
+        grid = _overview_grid(overview)
+        if grid:
+            blocks.append(grid)
+    refreshed = str((card.get("identity") or {}).get("refreshed_at") or "").strip()
+    if refreshed:
+        blocks.append(_table([_cell(_a_text(f"数据时间：更新 {refreshed}"), "center")]))
+    return blocks
+
+
+def _attention_count_text(counts: Any) -> str:
+    """异常与更新分开计数：有可用更新不是故障，混在一起会让人误判。"""
+    values = counts if isinstance(counts, dict) else {}
+    anomaly = int(values.get("anomaly") or 0)
+    update = int(values.get("update") or 0)
+    parts = []
+    if anomaly:
+        parts.append(f"{anomaly} 个异常")
+    if update:
+        parts.append(f"{update} 条更新")
+    return " · ".join(parts) or "无"
+
+
+def _overview_attention(modules: Dict[str, Any]) -> tuple:
+    """需要注意清单：按「异常」与「更新」分类，附处理提示。"""
+    rows: List[tuple] = []
+    counts = {"anomaly": 0, "update": 0}
+
+    def add(left: str, right: str, category: str) -> None:
+        entry = (left, right)
+        if entry in rows:
+            return
+        rows.append(entry)
+        counts[category] += 1
+
+    anomaly = modules.get("current-anomalies")
+    if anomaly:
+        for left, right in (_pair(row) for row in _rows(anomaly.get("details_rows"))):
+            if left or right:
+                add(left, right, "anomaly")
+    overview = modules.get("card-overview") or {}
+    detailed = _rows(overview.get("attention_rows"))
+    for left, right in (_pair(row) for row in detailed):
+        if left or right:
+            add(left, right, "update")
+    updates = modules.get("persistent-update") or {}
+    update_rows = _rows(updates.get("preview_rows")) + _rows(updates.get("details_rows"))
+    for left, right in (_pair(row) for row in update_rows):
+        # 逐项更新与检查失败独立合并，普通无更新/同步成功结果不算告警。
+        parts = [part.strip() for part in right.split(" · ")]
+        errors = [part for part in parts if any(word in part for word in ("异常", "失败"))]
+        if errors:
+            add(left, " · ".join(errors), "anomaly")
+        changed = update_change_count(right) > 0
+        if not detailed and changed and not errors:
+            add(left, right, "update")
+        elif not detailed and changed and errors:
+            changes = [part for part in parts if part not in errors and ("→" in part or "有更新" in part)]
+            if changes:
+                add(left, " · ".join(changes), "update")
+    hint = "可通过卡片下方更新按钮查看并确认操作" if counts["update"] else ""
+    return rows, hint, counts
+
+
+def _overview_grid(module: Dict[str, Any]) -> Dict[str, Any]:
+    rows = _rows(module.get("preview_rows")) + _rows(module.get("details_rows"))
+    pairs = [_pair(row) for row in rows]
+    pairs = [(left, right) for left, right in pairs if left or right]
+    if not pairs:
+        return {}
+    grid: List[List[Dict[str, Any]]] = []
+    for index in range(0, len(pairs), 2):
+        line: List[Dict[str, Any]] = []
+        for offset in (0, 1):
+            if index + offset < len(pairs):
+                label, value = pairs[index + offset]
+                line.append(_cell([{"type": "bold", "text": label}, "\n", _a_text(value)], "left"))
+            else:
+                line.append(_cell("", "left"))
+        grid.append(line)
+    # 与定稿模板一致：总览八宫格带边框、不紧凑、不加斑马纹
+    return {"type": "table", "cells": grid, "is_compact": False, "is_bordered": True, "is_striped": False}
+
+
+def _tab_section_blocks(module: Dict[str, Any]) -> List[Dict[str, Any]]:
+    owner = str(module.get("owner") or "")
+    icon, label = _SECTION_META.get(owner, ("", str(module.get("kicker") or "")))
+    title = f"{icon} {label}".strip()
+    count = str(module.get("count") or "").strip()
+    count = str(module.get("tab_count") or "").strip() or count
+    # 标题是独立对齐行；每个正文表自行交替，标题不占正文行号。
+    header = [_cell({"type": "bold", "text": title}, "left"),
+              _cell({"type": "bold", "text": count}, "right") if count else _cell("", "right")]
+    rows_table = _tab_rows_table(module, owner)
+    blocks: List[Dict[str, Any]] = [_table(header)]
+    if rows_table:
+        blocks.append(rows_table)
+    for left, right in (_pair(row) for row in _rows(module.get("notice_rows"))):
+        if not left and not right:
+            continue
+        inline: List[Any] = [{"type": "bold", "text": left}] if left else []
+        if right:
+            inline.append(_a_text(f"{_separator()}{right}" if inline else right))
+        blocks.append({"type": "paragraph", "text": inline})
+    return blocks
+
+
+def _tab_rows_table(module: Dict[str, Any], owner: str) -> Dict[str, Any]:
+    if owner == "persistent-sites":
+        cells = _site_section_cells(module)
+        if cells:
+            return _multirow_table(cells, bordered=False, striped=True)
+    realtime = module.get("realtime") if owner == "persistent-media" else None
+    cells: List[List[Dict[str, Any]]] = _media_session_cells(realtime) if realtime else []
+    rows = _rows(module.get("preview_rows")) + _rows(module.get("details_rows"))
+    if realtime and module.get("is_empty"):
+        rows = []
+    for row in rows:
+        left, right = _pair(row)
+        if not left and not right:
+            continue
+        cells.append([_cell(left, "left"), _cell(_a_text(right), "right")])
+    return _multirow_table(cells, bordered=False, striped=True) if cells else {}
+
+
+def _media_session_cells(module: Dict[str, Any]) -> List[List[Dict[str, Any]]]:
+    """把实时播放的完整信息并入唯一媒体正文表。"""
+    rows = [[module.get("primary") or "媒体活动", module.get("status") or ""],
+            [module.get("context") or "", module.get("meta") or ""],
+            [module.get("progress") or "", ""]]
+    if module.get("session_ip"):
+        rows.append(["IP", module["session_ip"]])
+    cells = [[_cell(left, "left"), _cell(_a_text(right), "right")] for left, right in rows if left or right]
+    if module.get("playback_url"):
+        cells.append([_cell("播放地址", "left"), _cell({"type": "url", "text": "打开", "url": module["playback_url"]}, "right")])
+    return cells
+
+
+def _site_section_cells(module: Dict[str, Any]) -> List[List[Dict[str, Any]]]:
+    """一行一站：站名、上传、下载各占一列，指标跨站点纵向对齐。"""
+    if module.get("no_traffic_change"):
+        label = "可统计站点暂无流量变化" if module.get("notice_rows") else "今日暂无流量变化"
+        return [[_cell(label, "left"), _cell("", "right"), _cell("", "right")]]
+    metric_rows = module.get("metric_rows") or []
+    site_rows: List[List[Dict[str, Any]]] = []
+    for item in metric_rows:
+        values = [str(value) for value in list(item)]
+        values += [""] * (3 - len(values))
+        name, upload, download = values[:3]
+        site_rows.append([
+            _cell(name, "left"),
+            _cell(_a_text(f"⬆ {upload}"), "right"),
+            _cell(_a_text(f"⬇ {download}"), "right"),
+        ])
+    if not metric_rows:
+        for row in _rows(module.get("preview_rows")) + _rows(module.get("details_rows")):
+            left, right = _pair(row)
+            if not left and not right:
+                continue
+            site_rows.append([_cell(left, "left"), _cell(_a_text(right), "right")])
+    return site_rows

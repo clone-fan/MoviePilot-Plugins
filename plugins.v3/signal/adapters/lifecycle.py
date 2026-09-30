@@ -554,6 +554,12 @@ class LifecycleMixin:
             except Exception as err:
                 errors.append(f"{type(timer).__name__}: {err}")
         self._runtime_timers = set()
+        try:
+            # 插件停用时收尾 Telegram 连接保活线程，避免后台残留。
+            from ..application.fusion_report import _telegram_keepalive_stop
+            _telegram_keepalive_stop()
+        except Exception:
+            pass
         if errors:
             logger.error(f"Signal 运行时停止未完成：定时器取消失败：{'；'.join(errors[:3])}")
             return False

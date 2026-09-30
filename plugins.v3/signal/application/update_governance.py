@@ -1,6 +1,8 @@
 import os
+import json
 import re
 import subprocess
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from html.parser import HTMLParser
@@ -11,6 +13,22 @@ from urllib.parse import unquote, urlsplit
 from app.sdk.config import settings
 from app.sdk.logging import logger
 from app.sdk.network import RequestUtils
+
+
+def _capture_fusion_update_action_if_possible(owner: Any, kind: str, payload: Dict[str, Any], *,
+                                              title: str = "", text: str = "") -> None:
+    """Best-effort capture that also supports unbound mixin test harnesses."""
+    handler = getattr(owner, "_capture_fusion_update_action_if_possible", None)
+    if callable(handler):
+        handler(kind, payload, title=title, text=text)
+        return
+    capture = getattr(owner, "_tg_console_capture_fusion_update_action", None)
+    if not callable(capture):
+        return
+    try:
+        capture({"kind": kind, "payload": dict(payload or {})}, title=title, text=text)
+    except Exception as err:
+        logger.debug(f"Signal 更新候选写入卡片状态失败：{err}")
 
 
 class _WikiRepositoryLinks(HTMLParser):
@@ -43,6 +61,40 @@ class _WikiRepositoryLinks(HTMLParser):
 class UpdateGovernanceMixin:
     """MoviePilot version checks, plugin market updates, and auto-update logic."""
 
+    def _update_center_configured_markets(self) -> List[str]:
+        try:
+            return self._valid_markets_list(getattr(settings, "PLUGIN_MARKET", ""))
+        except Exception:
+            return []
+
+    def _set_update_center_job(self, kind: str, patch: Dict[str, Any], *, state: Optional[Dict[str, Any]] = None,
+                               persist: bool = True, render: bool = True) -> Dict[str, Any]:
+        """Write one normalized update job without importing presentation code."""
+        from ..domain.update_jobs import set_update_job
+
+        getter = getattr(self, "get_data", None)
+        target = state if isinstance(state, dict) else (getter("tg_console_state") if callable(getter) else {})
+        if not isinstance(target, dict):
+            target = {}
+        jobs = set_update_job(target.get("update_jobs"), kind, patch)
+        target["update_jobs"] = jobs
+        job = dict(jobs.get(kind) or {})
+        if persist and state is None:
+            saver = getattr(self, "_save_tg_console_state", None)
+            if callable(saver):
+                saver(target)
+            else:
+                save = getattr(self, "save_data", None)
+                if callable(save):
+                    save("tg_console_state", target)
+        hook = getattr(self, "_update_center_job_changed", None)
+        if render and callable(hook) and job:
+            try:
+                hook(kind, job, target)
+            except Exception as err:
+                logger.debug(f"Signal 更新中心卡片同步失败：{err}")
+        return job
+
     def _build_update_status(self) -> Dict[str, Any]:
         result = {"safe_mode": True, "note": "遵循宿主更新通道：正式版检查后由 MoviePilot 确认安装；开发版只触发一次整体升级。", "moviepilot": {}}
         local = self._get_local_versions()
@@ -53,7 +105,14 @@ class UpdateGovernanceMixin:
         if "前端" in self._mp_update_types:
             checks.append(self._check_one_release("前端", "https://api.github.com/repos/jxxghp/MoviePilot-Frontend/releases", local.get("frontend_version")))
         result["moviepilot"]["checks"] = checks
-        result["moviepilot"]["has_update"] = any(x.get("has_update") for x in checks)
+        # MoviePilot 的更新是整体镜像升级，以后端为主版本、前端版本号跟着后端发布。
+        # 前端仓库可能先行发布 vX.Y.0 而后端尚未跟上，那种情况不是可执行的更新。
+        backend_checks = [x for x in checks if x.get("type") == "后端"]
+        if backend_checks:
+            has_update = any(x.get("has_update") for x in backend_checks)
+        else:
+            has_update = any(x.get("has_update") for x in checks)
+        result["moviepilot"]["has_update"] = has_update
         return result
 
     @staticmethod
@@ -78,17 +137,10 @@ class UpdateGovernanceMixin:
         mp = data.setdefault("moviepilot", {})
         if str(getattr(settings, "MOVIEPILOT_AUTO_UPDATE", "") or "").strip().lower() != "dev":
             mp["upgrade_channel"] = "release"
-            if str(getattr(self, "_mp_update_execution_mode", "manual") or "manual").lower() != "auto":
-                mp["upgrade_manual_required"] = True
-                return
-            started, message = notice_transport.start_moviepilot_release_download(self)
             mp["upgrade_manual_required"] = True
-            if started:
-                mp["upgrade_download_started"] = True
-                if message:
-                    mp["upgrade_message"] = message
-            elif message:
-                mp["upgrade_error"] = message
+            # Release updates are card-confirmed. The old host `/update` interaction
+            # created a second message and an expiring session; FC8's card action
+            # calls the host update manager directly when the user confirms.
             return
         try:
             from app.sdk.services import SystemHelper
@@ -108,6 +160,28 @@ class UpdateGovernanceMixin:
             mp["upgrade_error"] = str(err)
 
     @staticmethod
+    def _read_frontend_package_version() -> str:
+        """读取实际运行前端包的版本；缺失时回退到宿主 version.py。"""
+        candidates = []
+        for key in ("MOVIEPILOT_FRONTEND_PACKAGE", "SIGNAL_FRONTEND_PACKAGE"):
+            value = str(os.environ.get(key) or "").strip()
+            if value:
+                candidates.append(Path(value))
+        candidates.extend((
+            Path.cwd().parent / "MoviePilot-Frontend" / "package.json",
+            Path.cwd() / "MoviePilot-Frontend" / "package.json",
+        ))
+        for path in candidates:
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            version = str(payload.get("version") or "").strip()
+            if version:
+                return version if version.startswith("v") else f"v{version}"
+        return ""
+
+    @staticmethod
     def _get_local_versions() -> Dict[str, Any]:
         data = {}
         try:
@@ -115,6 +189,9 @@ class UpdateGovernanceMixin:
             data.update({"backend_version": str(APP_VERSION), "frontend_version": str(FRONTEND_VERSION)})
         except Exception as err:
             data["version_error"] = str(err)
+        actual_frontend = UpdateGovernanceMixin._read_frontend_package_version()
+        if actual_frontend:
+            data["frontend_version"] = actual_frontend
         return data
 
     @staticmethod
@@ -237,6 +314,8 @@ class UpdateGovernanceMixin:
             if item.get("error"):
                 status = f"异常：{item.get('error')}"
             lines.append(f"⦁ {item.get('type')}：{status}｜最新 {item.get('latest_version') or '未知'}")
+        if mp.get("check_warning"):
+            lines.append(f"⦁ 更新检查：{mp['check_warning']}")
         if mp.get("upgrade_dispatched"):
             lines.append(f"⦁ 更新执行：已触发 MoviePilot 升级重启{('｜' + str(mp.get('upgrade_message'))) if mp.get('upgrade_message') else ''}")
         elif mp.get("upgrade_manual_required"):
@@ -439,7 +518,8 @@ class UpdateGovernanceMixin:
         detail = str(mp.get("upgrade_error") or mp.get("restart_error") or "更新请求未被接受")[:120]
         return f"MoviePilot 更新触发失败：{detail}"
 
-    def _auto_update_installed_plugins(self, apply: bool = True, manual_targets: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    def _auto_update_installed_plugins(self, apply: bool = True, manual_targets: Optional[List[Dict[str, Any]]] = None,
+                                       progress: Optional[Any] = None) -> Dict[str, Any]:
         """检查已安装插件是否有新版（移植自 thsrite/PluginAutoUpdate，适配本插件）。
         开启“自动安装”且 apply 时下载安装新版并重载；否则仅汇总可更新清单供通知。
         全程 try/except，任何失败只反映在结果里，不抛出。"""
@@ -452,6 +532,8 @@ class UpdateGovernanceMixin:
                 not all(str(item.get(key) or "") for key in ("id", "old", "new", "repo_url")) for item in requested.values())):
             return {**out, "error": "手动更新目标不完整，请重新检查更新"}
         handled = set()
+        if not self._update_center_configured_markets():
+            return {**out, "error": "尚未配置插件市场", "error_code": "market_unconfigured"}
         try:
             from ..infrastructure.notice_transport import plugin_manager_class
             PluginManager = plugin_manager_class()
@@ -464,7 +546,8 @@ class UpdateGovernanceMixin:
             installed_ids = SystemConfigOper().get(SystemConfigKey.UserInstalledPlugins) or []
             online = PluginManager().get_online_plugins() or []
             if not online:
-                out["error"] = "未获取到在线插件列表"
+                out["error"] = "插件市场未返回在线插件列表"
+                out["error_code"] = "market_empty"
                 return out
             # 每个插件 id 取最大版本
             maxver: Dict[str, Any] = {}
@@ -519,6 +602,8 @@ class UpdateGovernanceMixin:
                 elif any(pid == job or str(job).startswith(pid + ".") for job in running):
                     info["blocked"] = "插件任务正在运行"
                 out["updatable"].append(info)
+                if callable(progress):
+                    progress({"phase": "updating", "message": f"正在更新插件 {info['name']}…", "items": out["updatable"]})
                 if manual:
                     handled.add(pid)
                     if any(str(info[key]) != str(expected.get(key) or "") for key in ("old", "new", "repo_url")):
@@ -582,13 +667,75 @@ class UpdateGovernanceMixin:
                 except Exception:
                     pass
                 out["updated"].append({**info, "history": hist})
+                if callable(progress):
+                    progress({"phase": "updating", "message": f"已更新插件 {info['name']}", "items": out["updatable"]})
             if manual:
                 for pid in requested.keys() - handled:
                     out["failed"].append({**requested[pid], "msg": "目标不再可更新或无法核实，请重新检查更新"})
             return out
         except Exception as err:
             out["error"] = f"插件自动更新异常：{self._update_error_detail(err)}"
+            out["error_code"] = "plugin_update_exception"
             return out
+    def _build_fusion_update_status(self) -> Dict[str, Any]:
+        """A confirmed host release remains actionable if a later check fails.
+
+        The button opens the host confirmation flow, which checks again. Never
+        infer a frontend release from the host's backend version.
+        """
+        from ..infrastructure import notice_transport
+
+        try:
+            snapshot = notice_transport.moviepilot_update_status()
+        except Exception:
+            snapshot = {}
+        local = self._get_local_versions()
+        checks = []
+        for label, current_key, target_key in (("后端", "backend_version", "version"),
+                                                ("前端", "frontend_version", "frontend_version")):
+            current = str(local.get(current_key) or "")
+            target = str(snapshot.get(target_key) or "")
+            if (label in self._mp_update_types and re.fullmatch(r"v3\.\d+\.\d+", current)
+                    and re.fullmatch(r"v3\.\d+\.\d+", target)
+                    and self._version_nums(target) > self._version_nums(current)):
+                checks.append({"type": label, "local_version": current, "latest_version": target,
+                               "has_update": True, "error": "", "source": "moviepilot"})
+        # 同上：宿主整体升级以后端为准；只有前端超前发布时不构成可执行更新。
+        backend_checks = [item for item in checks if item.get("type") == "后端"]
+        if backend_checks:
+            checks = backend_checks
+        elif "后端" in self._mp_update_types:
+            checks = []
+        if not checks:
+            return self._build_update_status()
+        warning = "本次检查失败；保留宿主上次发现的新版，点击更新后重新确认" if snapshot.get("error") else ""
+        return {"moviepilot": {**local, "checks": checks, "has_update": True, "check_warning": warning}}
+
+    def _refresh_fusion_moviepilot_update(self, state: Dict[str, Any]) -> None:
+        """Full card refresh checks availability only; it never dispatches an upgrade."""
+        if not getattr(self, "_mp_update_enabled", False):
+            state.setdefault("fusion_update_actions", {}).pop("mp_update", None)
+            return
+        checks = []
+        success = False
+        try:
+            data = self._build_fusion_update_status()
+            text = self._format_update_status_text(data)
+            mp = data.get("moviepilot") or {}
+            raw = mp.get("checks") or []
+            success = bool(raw) and not mp.get("version_error") and not mp.get("check_warning") and not any(item.get("error") for item in raw)
+            checks = [dict(item) for item in raw if item.get("has_update") and not item.get("error")]
+            UpdateGovernanceMixin._publish_mp_update_job(self, data, state=state, persist=False)
+        except Exception as err:
+            text = f"系统更新检查失败：{self._update_error_detail(err)}"
+            UpdateGovernanceMixin._set_update_center_job(self, "mp_update",
+                {"phase": "failed", "message": text, "error": text}, state=state, persist=False)
+        self._save_task_result("更新状态预览", success, 0 if success else 1, text)
+        # Mutate the card being refreshed. A separate persisted snapshot would be
+        # overwritten when the caller saves its completed card after collection.
+        self._tg_console_capture_fusion_update_action(
+            {"kind": "mp_update", "payload": {"checks": checks}}, title="系统更新", text=text, state=state)
+
     def run_update_preview(self) -> bool:
         ok, _ = self._guard_task("系统更新检查", "mp_update")
         if not ok:
@@ -598,6 +745,11 @@ class UpdateGovernanceMixin:
         mp = data.get("moviepilot") or {}
         checks = mp.get("checks") or []
         success = bool(checks) and not mp.get("version_error") and not any(item.get("error") for item in checks)
+        manual_checks = [dict(item) for item in checks
+                         if isinstance(item, dict) and item.get("has_update") and not item.get("error")]
+        _capture_fusion_update_action_if_possible(self, "mp_update", {"checks": manual_checks},
+                                                       title="系统更新", text=text)
+        UpdateGovernanceMixin._publish_mp_update_job(self, data, persist=True)
         self._save_task_result("更新状态预览", success, 0 if success else 1, text)
         return success
 
@@ -608,12 +760,17 @@ class UpdateGovernanceMixin:
         ok, _ = self._guard_task("系统更新检查", "mp_update")
         if not ok:
             return False
+        UpdateGovernanceMixin._set_update_center_job(self, "mp_update", {
+            "phase": "checking", "message": "正在检查 MoviePilot 更新…", "error": "",
+        }, persist=True)
         try:
             data = self._build_update_status()
         except Exception as err:
             if not (notify or (scheduled and not getattr(self, "_fusion_notify_enabled", False))):
                 raise
             text = f"系统更新检查失败：{err}"
+            UpdateGovernanceMixin._set_update_center_job(self, "mp_update",
+                {"phase": "failed", "message": text, "error": text}, persist=True)
             if self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
                 self._notify_fusion_task_outcome(
                     mtype=self._notification_type(self._mp_update_notify_type),
@@ -643,10 +800,12 @@ class UpdateGovernanceMixin:
         if not errors and mp.get("has_update"):
             self._dispatch_moviepilot_upgrade(data)
             text = self._format_update_status_text(data)
+        UpdateGovernanceMixin._publish_mp_update_job(
+            self, data, persist=True, explicit_error=errors[0] if errors else "")
         execution_failed = bool(mp.get("has_update") and not mp.get("upgrade_dispatched") and not mp.get("upgrade_manual_required"))
         success = bool(checks) and not errors and not execution_failed
+        title = "系统更新" if success else "系统更新异常"
         if (scheduled or notify) and self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
-            title = "系统更新" if success else "系统更新异常"
             outcome = errors[0][:120] if errors else self._moviepilot_update_outcome(data, success)
             notification_status = "error" if not success else ("changed" if mp.get("has_update") else "noop")
             error_payload = {
@@ -682,6 +841,10 @@ class UpdateGovernanceMixin:
                 notice_action=({"kind": "mp_update", "payload": {"checks": checks}}
                                if success and mp.get("upgrade_manual_required") else None),
             )
+        manual_checks = [dict(item) for item in checks
+                         if isinstance(item, dict) and item.get("has_update") and not item.get("error")]
+        _capture_fusion_update_action_if_possible(self, "mp_update", {"checks": manual_checks},
+                                                       title=title, text=text)
         self._save_task_result(result_name, success, 0 if success else 1, text)
         return success
 
@@ -695,6 +858,9 @@ class UpdateGovernanceMixin:
         ok, _ = self._guard_task("插件库同步", "market_update")
         if not ok:
             return False
+        UpdateGovernanceMixin._set_update_center_job(self, "market_update", {
+            "phase": "syncing", "message": "正在同步插件库…", "error": "",
+        }, persist=True)
         try:
             market_mode = str(getattr(self, "_market_update_execution_mode", "manual") or "manual").lower()
             manual_notice = bool(scheduled) and market_mode != "auto"
@@ -722,6 +888,10 @@ class UpdateGovernanceMixin:
                                         payload={"markets": [str(item) for item in (data.get("new_markets") or [])]},
                                         detail=text) if manual_notice and success else None),
                 )
+            markets = [str(item) for item in (data.get("new_markets") or [])] if success else []
+            _capture_fusion_update_action_if_possible(self, "market_update", {"markets": markets},
+                                                           title="插件库同步", text=text)
+            UpdateGovernanceMixin._publish_market_update_job(self, data, persist=True)
             self._save_task_result("插件库同步", bool(data.get("success")), 0 if data.get("success") else 1, text)
             return bool(data.get("success"))
         except Exception as err:
@@ -731,6 +901,9 @@ class UpdateGovernanceMixin:
                 "settings_written": False,
                 "env_written": False,
             }
+            UpdateGovernanceMixin._set_update_center_job(self, "market_update", {
+                "phase": "failed", "message": f"插件库同步失败：{str(err)[:160]}", "error": str(err),
+            }, persist=True)
             self._save_task_result("插件库同步", False, -1, str(err))
             if (scheduled or notify) and self._task_outcome_notification_enabled(self._market_update_scheduled_notify):
                 self._notify_fusion_task_outcome(
@@ -755,6 +928,8 @@ class UpdateGovernanceMixin:
     def _format_plugin_update_text(data: Dict[str, Any], title: str = "🔔 插件更新") -> str:
         lines = [title]
         if data.get("error"):
+            if data.get("error_code") == "market_unconfigured":
+                return "\n".join(lines + ["⦁ 尚未配置插件市场", "⦁ 请先执行插件库同步或配置 PLUGIN_MARKET"])
             return "\n".join(lines + [f"⦁ 检查失败：{data['error']}"])
         updatable = data.get("updatable") or []
         updated = data.get("updated") or []
@@ -780,10 +955,127 @@ class UpdateGovernanceMixin:
     @staticmethod
     def _plugin_update_outcome(data: Dict[str, Any]) -> str:
         if data.get("error"):
+            if data.get("error_code") == "market_unconfigured":
+                return "插件市场尚未配置"
             return f"插件更新检查失败：{str(data['error'])[:120]}"
         if data.get("auto_install"):
             return f"自动安装完成：成功 {len(data.get('updated') or [])} 个，失败 {len(data.get('failed') or [])} 个"
         return f"发现 {len(data.get('updatable') or [])} 个可更新插件"
+
+    def _publish_plugin_update_job(self, data: Dict[str, Any], *, state: Optional[Dict[str, Any]] = None,
+                                   persist: bool = True) -> Dict[str, Any]:
+        error_code = str(data.get("error_code") or "")
+        if error_code == "market_unconfigured":
+            phase, message = "unconfigured", "尚未配置插件市场"
+        elif data.get("error"):
+            phase, message = "failed", str(data.get("error") or "插件更新检查失败")
+        elif data.get("failed"):
+            phase, message = "partial", f"{len(data.get('failed') or [])} 个插件更新失败"
+        elif data.get("updatable"):
+            phase, message = "available", f"发现 {len(data.get('updatable') or [])} 个可更新插件"
+        else:
+            phase, message = "up_to_date", "插件均已是最新版本"
+        return UpdateGovernanceMixin._set_update_center_job(self, "plugin_update", {
+            "phase": phase, "message": message, "error": str(data.get("error") or ""),
+            "items": list(data.get("updatable") or []), "updated_at": datetime.now().timestamp(),
+        }, state=state, persist=persist)
+
+    def _publish_market_update_job(self, data: Dict[str, Any], *, state: Optional[Dict[str, Any]] = None,
+                                   persist: bool = True) -> Dict[str, Any]:
+        if data.get("error"):
+            phase, message = "failed", str(data.get("error") or "插件库同步失败")
+        elif data.get("new_markets") or data.get("has_update"):
+            phase, message = ("syncing" if not data.get("dry_run", True) else "available"), "发现插件库更新"
+        else:
+            phase, message = "up_to_date", "插件库已是最新"
+        return UpdateGovernanceMixin._set_update_center_job(self, "market_update", {
+            "phase": phase, "message": message, "error": str(data.get("error") or ""),
+            "items": list(data.get("new_markets") or []), "updated_at": datetime.now().timestamp(),
+        }, state=state, persist=persist)
+
+    def _publish_mp_update_job(self, data: Dict[str, Any], *, state: Optional[Dict[str, Any]] = None,
+                               persist: bool = True, explicit_error: str = "") -> Dict[str, Any]:
+        mp = data.get("moviepilot") if isinstance(data, dict) else {}
+        mp = mp if isinstance(mp, dict) else {}
+        checks = [item for item in (mp.get("checks") or []) if isinstance(item, dict)]
+        errors = [str(item.get("error") or "") for item in checks if item.get("error")]
+        if mp.get("version_error"):
+            errors.append(str(mp.get("version_error")))
+        if mp.get("upgrade_error") or mp.get("restart_error"):
+            errors.append(str(mp.get("upgrade_error") or mp.get("restart_error")))
+        if explicit_error:
+            errors.append(str(explicit_error))
+        # 宿主整体升级以后端为准：_build_* 已经算好 has_update，不能再用 any(checks)
+        # 把「前端先行发布」重新算成一次可执行更新。
+        if "has_update" in mp:
+            has_update = bool(mp.get("has_update"))
+        else:
+            backend_checks = [item for item in checks if item.get("type") == "后端"]
+            has_update = any(item.get("has_update") for item in (backend_checks or checks))
+        # 后端与前端各自发版，版本号可能不同步；把「哪个组件有更新」一起记下来，
+        # 卡片上必须写清楚，否则用户看到前端版本会以为在说自己。
+        changed_check = next((item for item in checks if item.get("has_update")), {})
+        target = str(changed_check.get("latest_version") or changed_check.get("latest") or "")
+        target_component = str(changed_check.get("type") or "")
+        backend = str(mp.get("backend_version") or "")
+        frontend = str(mp.get("frontend_version") or "")
+        version_mismatch = bool(backend and frontend and self._version_nums(backend) != self._version_nums(frontend))
+        mismatch_message = f"MoviePilot 前后端版本不一致：后端 {backend}，前端 {frontend}"
+        if errors:
+            phase, message, error = "failed", errors[0], errors[0]
+        elif version_mismatch and has_update:
+            phase, message, error = "available", f"发现 MoviePilot 更新；{mismatch_message}", ""
+        elif has_update:
+            phase, message, error = "available", "发现 MoviePilot 更新", ""
+        elif version_mismatch:
+            phase, message, error = "partial", mismatch_message, mismatch_message
+        else:
+            phase, message, error = "up_to_date", "MoviePilot 已是最新版", ""
+        return UpdateGovernanceMixin._set_update_center_job(self, "mp_update", {
+            "phase": phase, "message": message, "error": error,
+            "target_version": target, "target_component": target_component,
+            "backend_version": backend,
+            "frontend_version": frontend,
+            "items": checks, "updated_at": datetime.now().timestamp(),
+        }, state=state, persist=persist)
+
+    def _schedule_update_center_recovery(self) -> None:
+        """Verify an interrupted MoviePilot install after startup."""
+        state = self.get_data("tg_console_state") or {}
+        job = ((state.get("update_jobs") or {}).get("mp_update") or {}) if isinstance(state, dict) else {}
+        if str(job.get("phase") or "") != "installing":
+            return
+        generation = getattr(self, "_runtime_generation", 0)
+        target = str(job.get("target_version") or "")
+
+        def verify() -> None:
+            if self._should_cancel(generation):
+                return
+            local = self._get_local_versions()
+            backend = str(local.get("backend_version") or "")
+            frontend = str(local.get("frontend_version") or "")
+            target_nums = self._version_nums(target)
+            backend_ok = bool(target_nums and self._version_nums(backend) == target_nums)
+            frontend_ok = bool(target_nums and self._version_nums(frontend) == target_nums)
+            if backend_ok and frontend_ok:
+                phase, message = "success", "MoviePilot 更新完成"
+            elif backend_ok or frontend_ok:
+                phase = "partial"
+                message = f"MoviePilot 部分更新完成：后端 {backend or '未知'}，前端 {frontend or '未知'}"
+            else:
+                phase, message = "failed", f"MoviePilot 更新未生效：后端 {backend or '未知'}，前端 {frontend or '未知'}"
+            UpdateGovernanceMixin._set_update_center_job(self, "mp_update", {
+                "phase": phase, "message": message, "error": "" if phase == "success" else message,
+                "backend_version": backend, "frontend_version": frontend, "target_version": target,
+            }, persist=True)
+
+        try:
+            timer = self._track_runtime_timer(threading.Timer(5.0, verify))
+            timer.daemon = True
+            timer.name = "Signal-update-center-recovery"
+            timer.start()
+        except Exception as err:
+            logger.warning(f"Signal 更新恢复校验定时器未能启动：{err}")
 
     def run_plugin_update_reminder_scheduled(self) -> bool:
         return self.run_plugin_update_reminder(scheduled=True)
@@ -792,9 +1084,16 @@ class UpdateGovernanceMixin:
         ok, _ = self._guard_task("插件更新", "plugin_update_reminder")
         if not ok:
             return False
+        UpdateGovernanceMixin._set_update_center_job(self, "plugin_update", {
+            "phase": "checking", "message": "正在检查插件更新…", "error": "",
+        }, persist=True)
         auto_install_enabled = bool(getattr(self, "_plugin_auto_install_enabled", False))
         try:
-            data = self._auto_update_installed_plugins(apply=auto_install_enabled)
+            data = self._auto_update_installed_plugins(
+                apply=auto_install_enabled,
+                progress=lambda patch: UpdateGovernanceMixin._set_update_center_job(
+                    self, "plugin_update", patch, persist=True),
+            )
         except Exception as err:
             if not (notify or (scheduled and not getattr(self, "_fusion_notify_enabled", False))):
                 raise
@@ -809,7 +1108,10 @@ class UpdateGovernanceMixin:
             logger.error(f"Signal 插件更新检查失败：{err}")
         data["auto_install"] = auto_install_enabled
         text = self._format_plugin_update_text(data)
-        success = not bool(data.get("error") or data.get("failed"))
+        unconfigured = data.get("error_code") == "market_unconfigured"
+        success = not bool(data.get("error") or data.get("failed")) or unconfigured
+        check_success = not bool(data.get("error")) or unconfigured
+        updatable = list(data.get("updatable") or [])
         install_attempted = bool(data.get("updated") or data.get("failed"))
         notify_check = self._task_outcome_notification_enabled(self._plugin_update_reminder_scheduled_notify)
         notify_install = bool(
@@ -818,9 +1120,7 @@ class UpdateGovernanceMixin:
             and self._task_outcome_notification_enabled(self._plugin_auto_install_scheduled_notify)
         )
         if (scheduled or notify) and notify_check:
-            check_success = not bool(data.get("error"))
             check_data = {**data, "auto_install": False}
-            updatable = list(check_data.get("updatable") or [])
             check_status = "error" if not check_success else ("changed" if updatable else "noop")
             check_fingerprint = ""
             if check_status == "error":
@@ -873,6 +1173,10 @@ class UpdateGovernanceMixin:
                 notification_cooldown=False,
                 notification_manual=notify,
             )
+        plugins = updatable if (check_success and updatable and not auto_install_enabled) else []
+        _capture_fusion_update_action_if_possible(self, "plugin_update", {"plugins": plugins},
+                                                       title="插件更新检查", text=text)
+        UpdateGovernanceMixin._publish_plugin_update_job(self, data, persist=True)
         self._save_task_result("插件更新", success, 0 if success else 1, text)
         return success
 
@@ -917,6 +1221,22 @@ class UpdateGovernanceMixin:
             return {"returncode": result.returncode, "output": output[-4000:]}
         except Exception as err:
             return {"returncode": -1, "output": str(err)}
+
+    def _capture_fusion_update_action_if_possible(self, kind: str, payload: Dict[str, Any], *,
+                                                  title: str = "", text: str = "") -> None:
+        """Best-effort: persist inline update candidates even when no notice is sent.
+
+        The fusion card and the persisted task output must stay consistent: a
+        successful update check that produced a real candidate should offer the
+        button immediately, while an empty payload removes the stale candidate.
+        """
+        capture = getattr(self, "_tg_console_capture_fusion_update_action", None)
+        if not callable(capture):
+            return
+        try:
+            capture({"kind": kind, "payload": dict(payload or {})}, title=title, text=text)
+        except Exception as err:
+            logger.debug(f"Signal 更新候选写入卡片状态失败：{err}")
 
     def _save_task_result(self, name: str, success: bool, returncode: int, output: str):
         slug = self._slug(name)

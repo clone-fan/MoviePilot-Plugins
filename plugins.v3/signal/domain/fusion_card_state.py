@@ -16,6 +16,12 @@ FUSION_OWNER_ORDER = {
     "persistent-sites": 30,
     "persistent-subscriptions": 31,
     "persistent-storage": 32,
+    "persistent-health": 33,
+    "persistent-maintenance": 34,
+    "persistent-update": 35,
+    "persistent-transfer": 36,
+    "persistent-media": 37,
+    "card-overview": 38,
     "today-completion": 40,
     "card-footer": 50,
 }
@@ -38,6 +44,10 @@ LEGACY_TEMPLATE_PERSISTED_KEYS = {
     "telegram_html",
     "template",
 }
+# 纯渲染缓存：只服务当前进程内的一次编辑。落盘只会制造「源头已清理、缓存仍残留」这类
+# 不一致（媒体动态、更新按钮、异常列表都栽在这上面）。每次加载都从 reports / columns /
+# update_jobs / v7_anomalies 重建即可。
+EPHEMERAL_PERSISTED_KEYS = {"v7_model", "v7_snapshot"}
 
 
 def _timestamp(now: Optional[datetime] = None) -> str:
@@ -79,7 +89,9 @@ def sanitize_fusion_persisted_state(raw: Any) -> Dict[str, Any]:
             result = {}
             for key, item in value.items():
                 normalized = str(key or "").strip().lower()
-                if normalized in SENSITIVE_PERSISTED_KEYS or normalized in LEGACY_TEMPLATE_PERSISTED_KEYS:
+                if (normalized in SENSITIVE_PERSISTED_KEYS
+                        or normalized in LEGACY_TEMPLATE_PERSISTED_KEYS
+                        or normalized in EPHEMERAL_PERSISTED_KEYS):
                     continue
                 result[key] = clean(item)
             return result

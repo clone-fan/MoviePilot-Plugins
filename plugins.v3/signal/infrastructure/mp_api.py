@@ -496,7 +496,11 @@ class MpApiMixin:
             data = self._auto_update_installed_plugins(apply=False)
             data["auto_install"] = False
             text = self._format_plugin_update_text(data)
-            success = not bool(data.get("error"))
+            unconfigured = data.get("error_code") == "market_unconfigured"
+            success = not bool(data.get("error")) or unconfigured
+            publisher = getattr(self, "_publish_plugin_update_job", None)
+            if callable(publisher):
+                publisher(data, persist=True)
             return {"code": 0 if success else 1, "msg": "插件更新预览完成，未安装插件。" if success else "插件更新预览失败。", "data": data, "text": text}
         except Exception as err:
             return {"code": 1, "msg": f"插件更新预览失败：{err}", "data": {}, "text": ""}
@@ -511,7 +515,11 @@ class MpApiMixin:
         try:
             data = self._auto_update_installed_plugins(apply=False)
             text = self._format_plugin_update_text(data, "📦 插件自动安装预览")
-            success = not bool(data.get("error"))
+            unconfigured = data.get("error_code") == "market_unconfigured"
+            success = not bool(data.get("error")) or unconfigured
+            publisher = getattr(self, "_publish_plugin_update_job", None)
+            if callable(publisher):
+                publisher(data, persist=True)
             return {"code": 0 if success else 1, "msg": "插件自动安装预览完成，未安装插件。" if success else "插件自动安装预览失败。", "data": data, "text": text}
         except Exception as err:
             return {"code": 1, "msg": f"插件自动安装预览失败：{err}", "data": {}, "text": ""}

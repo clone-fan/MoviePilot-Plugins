@@ -32,11 +32,13 @@ def build_v7_card_model(snapshot: Optional[Dict[str, Any]] = None, *, state: str
 
     realtime = _realtime_modules(source.get("realtime")) if state_key in {"active", "alert"} else []
     suppressed = set(source.get("suppressed_owners") or [])
-    suppressed.update(anomaly_owners)
+    # 异常可替代实时任务，但不能隐藏常驻栏目里仍有效的采集结果。
+    suppressed.update(owner for owner in anomaly_owners if not owner.startswith("persistent-"))
     modules.extend(item for item in realtime if item["owner"] not in suppressed)
 
     persistent = source.get("persistent") if isinstance(source.get("persistent"), dict) else {}
-    for key in ("sites", "subscriptions", "storage"):
+    for key in ("sites", "subscriptions", "storage", "health", "maintenance",
+                "updates", "transfer", "media", "overview"):
         module = _persistent_module(key, persistent.get(key))
         if module and module["owner"] not in suppressed:
             modules.append(module)
@@ -103,7 +105,9 @@ def validate_v7_card_model(model: Dict[str, Any]) -> Dict[str, Any]:
         if item.get("tier") not in FUSION_TIER_ORDER:
             raise ValueError(f"unsupported V7 module tier: {item.get('tier')}")
         site_content = item.get("owner") == "persistent-sites" and (item.get("context") or item.get("notice_rows"))
-        if item.get("always_visible_preview") and not item.get("preview_rows") and not site_content:
+        # 「下载入库」在无下载时可只保留标题行（与定稿模板一致），允许没有预览行。
+        empty_tolerant = item.get("owner") == "persistent-transfer" or item.get("availability") in {"partial", "failed"}
+        if item.get("always_visible_preview") and not item.get("preview_rows") and not site_content and not empty_tolerant:
             raise ValueError(f"visible V7 module has no preview rows: {item.get('owner')}")
         if item.get("details_rows") is not None and not isinstance(item.get("details_rows"), list):
             raise ValueError(f"Details rows must be a list: {item.get('owner')}")
@@ -142,7 +146,7 @@ def _identity(value: Any) -> Dict[str, Any]:
         "owner": "card",
         "tier": "identity",
         "title": str(data.get("title") or "运维助手 · 融合通知"),
-        "version": str(data.get("version") or "v3.0.9"),
+        "version": str(data.get("version") or "v3.1.0"),
         "refreshed_at": str(data.get("refreshed_at") or ""),
     }
 
@@ -183,6 +187,12 @@ def _persistent_module(key: str, value: Any) -> Optional[Dict[str, Any]]:
         "sites": ("persistent-sites", "站点数据"),
         "storage": ("persistent-storage", "存储空间"),
         "subscriptions": ("persistent-subscriptions", "订阅追新"),
+        "health": ("persistent-health", "健康巡查"),
+        "maintenance": ("persistent-maintenance", "维护任务"),
+        "updates": ("persistent-update", "更新管理"),
+        "transfer": ("persistent-transfer", "下载入库"),
+        "media": ("persistent-media", "媒体动态"),
+        "overview": ("card-overview", "今日总览"),
     }
     owner_tier = mapping.get(key)
     if not owner_tier or not data:
@@ -229,6 +239,8 @@ def _module(owner: str, tier: str, data: Dict[str, Any], *, always_visible: bool
         "playback_url": str(data.get("playback_url") or ""),
         "preview_rows": deepcopy(data.get("preview_rows") or []),
         "details_rows": deepcopy(data.get("details_rows") or []),
+        "is_empty": bool(data.get("is_empty", False)),
+        "availability": str(data.get("availability") or ""),
         "tasks": deepcopy(data.get("tasks") or []),
         "always_visible_preview": bool(always_visible),
         "streaming": bool(data.get("streaming") or tier == "realtime"),
@@ -237,4 +249,6 @@ def _module(owner: str, tier: str, data: Dict[str, Any], *, always_visible: bool
     }
     if owner == "persistent-sites":
         module["notice_rows"] = deepcopy(data.get("notice_rows") or [])
+    if owner == "card-overview":
+        module["attention_rows"] = deepcopy(data.get("attention_rows") or [])
     return module

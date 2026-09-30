@@ -9,7 +9,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from .fusion_completion import normalize_completion_task, normalize_completion_tasks
 
 
-PERSISTENT_KEYS = ("sites", "storage", "subscriptions")
+PERSISTENT_KEYS = ("sites", "storage", "subscriptions", "health", "maintenance", "updates", "transfer", "media", "overview")
 
 
 def media_session_ip(info: Any) -> str:
@@ -81,6 +81,13 @@ def compose_v7_snapshot(
     site_notice_rows: Optional[Iterable[Any]] = None,
     storage_rows: Optional[Iterable[Any]] = None,
     subscription_rows: Optional[Iterable[Any]] = None,
+    health_rows: Optional[Iterable[Any]] = None,
+    maintenance_rows: Optional[Iterable[Any]] = None,
+    update_rows: Optional[Iterable[Any]] = None,
+    transfer_rows: Optional[Iterable[Any]] = None,
+    media_rows: Optional[Iterable[Any]] = None,
+    overview_rows: Optional[Iterable[Any]] = None,
+    update_attention_rows: Optional[Iterable[Any]] = None,
     completion_rows: Optional[Iterable[Any]] = None,
     realtime: Optional[Iterable[Dict[str, Any]]] = None,
     anomalies: Optional[Iterable[Dict[str, Any]]] = None,
@@ -100,7 +107,40 @@ def compose_v7_snapshot(
             # An explicit snapshot summary can be valid even with no nonzero details.
             site_module["preview_rows"], site_module["details_rows"] = split_preview_details(sites)
     _persistent_module(persistent, "storage", storage, f"{len(storage)}个容器" if storage else "", enabled)
-    _persistent_module(persistent, "subscriptions", subscriptions, f"{len(subscriptions)}个" if subscriptions else "", enabled)
+    _persistent_module(persistent, "subscriptions", subscriptions,
+                       f"{len(subscriptions)}个" if subscriptions else "无更新", enabled,
+                       empty_row=["今日暂无订阅追新", ""])
+    health = _normalized_rows(health_rows)
+    maintenance = _normalized_rows(maintenance_rows)
+    updates = _normalized_rows(update_rows)
+    _persistent_module(persistent, "health", health, _health_count_label(health) or "无", enabled,
+                       empty_row=["暂无巡查记录", ""])
+    _persistent_module(persistent, "maintenance", maintenance, _maintenance_count_label(maintenance) or "暂无记录",
+                       enabled, empty_row=["暂无记录", ""])
+    _persistent_module(persistent, "updates", updates, _update_count_label(updates), enabled,
+                       empty_row=["暂无记录", ""])
+    transfer = normalize_transfer_rows(transfer_rows)
+    media = _normalized_rows(media_rows)
+    overview = _normalized_rows(overview_rows)
+    _persistent_module(persistent, "transfer", transfer, _transfer_count_label(transfer),
+                       enabled, empty_row=[])
+    media_available = bool(media) and not all("未取到" in " ".join(row) for row in media)
+    # 这一栏装的可能是「播放活动」，也可能是「媒体库统计」。两者不能共用
+    # 「媒体动态 / N 条动态」的说法，否则统计数字会被读成动态条数。
+    media_is_activity = media_available and any(
+        any(marker in str(cell) for marker in ("播放", "入库", "暂停", "停止"))
+        for row in media for cell in row)
+    media_count = (f"{len(media)} 条动态" if media_is_activity
+                   else ("统计" if media_available else "无"))
+    _persistent_module(persistent, "media", media, media_count, enabled,
+                       empty_row=["未取到（媒体服务器未配置）", ""])
+    if "media" in persistent:
+        persistent["media"]["is_empty"] = not media_available
+        persistent["media"]["kicker"] = "媒体动态" if media_is_activity else "媒体库"
+    _persistent_module(persistent, "overview", overview, _overview_count_label(overview), enabled,
+                       empty_row=["暂无数据", ""])
+    if persistent.get("overview"):
+        persistent["overview"]["attention_rows"] = _normalized_rows(update_attention_rows)
 
     snapshot: Dict[str, Any] = {
         "identity": deepcopy(identity or {}),
@@ -190,12 +230,79 @@ def split_preview_details(rows: Sequence[Sequence[Any]], preview_limit: int = 2)
     return normalized[:preview_limit], normalized[preview_limit:]
 
 
-def _persistent_module(target: Dict[str, Any], key: str, rows: List[List[str]], count: str, enabled: set) -> None:
+def normalize_transfer_rows(rows: Optional[Iterable[Any]]) -> List[List[str]]:
+    """旧栏目把空态存成“无”；只去掉明确空态，保留实际任务和失败信息。"""
+    empty_values = {"", "无", "暂无", "暂无记录", "今日暂无下载", "今日暂无下载入库"}
+    return [row for row in _normalized_rows(rows) if any(value.strip() not in empty_values for value in row)]
+
+
+def _transfer_count_label(rows: Sequence[Sequence[Any]]) -> str:
+    """下载入库：内容实为「无」时不报条数，避免标题写 1 项、正文写无。"""
+    if not rows:
+        return "无"
+    empty_markers = ("无", "暂无", "未取到", "")
+    values = [str(item or "").strip() for row in rows for item in row]
+    meaningful = [item for item in values if item and item not in empty_markers]
+    return f"{len(rows)} 项" if meaningful else "无"
+
+
+def _overview_count_label(rows: Sequence[Sequence[Any]]) -> str:
+    return f"{len(rows)} 项" if rows else "无"
+
+
+def _update_count_label(rows: Sequence[Sequence[Any]]) -> str:
+    """更新管理：全部无记录时结论为「无」，否则给出条数。"""
+    if not rows:
+        return "无"
+    merged = [" ".join(str(item or "") for item in row) for row in rows]
+    return "无" if all("暂无记录" in text for text in merged) else f"{len(rows)} 项"
+
+
+def update_change_count(value: str) -> int:
+    """旧文本输入的明确更新数；否定词和零个候选不能当成更新。"""
+    if "→" in value:
+        return value.count("→")
+    value = re.sub(r"(?:没有|暂无|无|未发现)(?:可更新插件|可更新|更新)", "", value)
+    count = re.search(r"可更新插件\s*[:：]\s*(\d+)", value)
+    if count:
+        return int(count.group(1))
+    count = re.search(r"(\d+)\s*个?\s*可更新插件", value)
+    if count:
+        return int(count.group(1))
+    return value.count("有更新") or value.count("可更新")
+
+
+def _persistent_module(target: Dict[str, Any], key: str, rows: List[List[str]], count: str, enabled: set,
+                       *, empty_row: Optional[Sequence[Any]] = None) -> None:
     if key not in enabled:
         return
-    visible = rows or [["等待首次采集", "已启用"]]
+    if rows:
+        visible = rows
+    elif empty_row is None:
+        visible = [["等待首次采集", "已启用"]]
+    else:
+        # 空列表表示该栏目允许真正无行（模板里「下载入库」无内容时只留标题行）
+        visible = [list(empty_row)] if len(empty_row) else []
     preview, details = split_preview_details(visible)
-    target[key] = {"count": count or "等待首次采集", "preview_rows": preview, "details_rows": details}
+    target[key] = {"count": count or ("等待首次采集" if visible else ""), "is_empty": not bool(rows),
+                   "preview_rows": preview, "details_rows": details}
+
+
+def _health_count_label(rows: Sequence[Sequence[Any]]) -> str:
+    """从健康巡查原文里取出「通过/总数」，取不到就不显示结论值。"""
+    joined = " ".join(" ".join(str(item or "") for item in row) for row in rows)
+    match = re.search(r"共\s*(\d+)\s*项[，,]\s*通过\s*(\d+)\s*项", joined)
+    return f"{match.group(2)}/{match.group(1)} 通过" if match else ""
+
+
+def _maintenance_count_label(rows: Sequence[Sequence[Any]]) -> str:
+    """维护任务全部无记录时收敛为「今日无任务」，否则给出条数。"""
+    if not rows:
+        return ""
+    merged = [" ".join(str(item or "") for item in row) for row in rows]
+    if all("暂无记录" in text for text in merged):
+        return "今日无任务"
+    return f"{len(rows)} 项"
 
 
 def _normalized_rows(rows: Optional[Iterable[Any]]) -> List[List[str]]:

@@ -157,6 +157,10 @@ class EventsMixin:
             "from": {"id": str(info.get("userid") or "")},
             "message": {"chat": {"id": chat_id}},
             "data": data,
+            "channel": str(getattr(info.get("channel"), "value", info.get("channel")) or "Telegram"),
+            "source": str(info.get("source") or _source or ""),
+            "original_message_id": info.get("original_message_id") or info.get("message_id") or 0,
+            "original_chat_id": info.get("original_chat_id") or chat_id,
         }
         self._handle_tg_console_callback(callback)
 

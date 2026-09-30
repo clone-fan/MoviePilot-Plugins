@@ -10,7 +10,12 @@ from app.schemas.types import MessageType
 
 from ..domain.fusion_composition import media_playback_url, media_session_ip
 from ..domain.fusion_stream import apply_v7_realtime_update
+from .tg_console_callback import _FUSION_INTERACTIVE_REFRESH
 
+
+
+# 页签切换时复用采集结果的时限（秒）；显式「更新」不受此限制。
+FUSION_TAB_FRESH_SECONDS = 300
 
 
 class TgConsoleFusionMixin:
@@ -472,7 +477,12 @@ class TgConsoleFusionMixin:
             if self._should_cancel(generation) or not self._is_current_fusion_card(state):
                 return False
             try:
-                sent = bool(self._tg_console_upsert_card(token, chat_id, state, generation=generation))
+                if getattr(_FUSION_INTERACTIVE_REFRESH, "active", False):
+                    # 交互式「🔄 刷新」：本层不编辑消息，重绘由动作 worker
+                    # 统一负责（running → success/error），避免连续闪两次。
+                    sent = True
+                else:
+                    sent = bool(self._tg_console_upsert_card(token, chat_id, state, generation=generation))
                 ok = sent and bool(columns_ok) and not site_error
             except Exception as err:
                 if self._should_cancel(generation) or not self._is_current_fusion_card(state):
@@ -512,6 +522,11 @@ class TgConsoleFusionMixin:
         return ok
 
     def _refresh_fusion_columns(self, state: Dict[str, Any], *, generation: Optional[int] = None) -> bool:
+        if generation is not None and self._should_cancel(generation):
+            return False
+        refresh_updates = getattr(self, "_refresh_fusion_moviepilot_update", None)
+        if callable(refresh_updates):
+            refresh_updates(state)
         valid_columns = {x["key"] for x in self._fusion_column_registry()}
         enabled = set(self._fusion_notify_columns or valid_columns) & valid_columns
         ok = True
@@ -560,7 +575,28 @@ class TgConsoleFusionMixin:
         reports[self._fusion_report_key(column_key)] = dict(item)
         return True
 
-    def _refresh_fusion_category(self, key: str, state: Dict[str, Any]) -> bool:
+    def _fusion_column_is_fresh(self, key: str, state: Dict[str, Any]) -> bool:
+        """该栏目最近一次采集是否仍在 TTL 内。
+
+        页签切换不该每次重跑整趟采集（站点一轮要几十秒），TTL 内直接复用已有数据，
+        切换保持瞬时；显式点「更新」或 TTL 过期才真正重新采集。
+        """
+        column_key = self._normalize_fusion_column(key)
+        column = (state.get("columns") or {}).get(column_key) or {}
+        raw = str(column.get("updated_at") or "").strip()
+        if not raw:
+            return False
+        try:
+            when = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
+        except (TypeError, ValueError):
+            return False
+        try:
+            ttl = int(getattr(self, "_fusion_tab_refresh_ttl_seconds", FUSION_TAB_FRESH_SECONDS) or 0)
+        except (TypeError, ValueError):
+            ttl = FUSION_TAB_FRESH_SECONDS
+        return (datetime.now() - when).total_seconds() < ttl
+
+    def _refresh_fusion_category(self, key: str, state: Dict[str, Any], *, force: bool = False) -> bool:
         valid_columns = {x["key"] for x in self._fusion_column_registry()}
         enabled = set(self._fusion_notify_columns or valid_columns) & valid_columns
         children = [child for child in self._fusion_category_children(key) if child in enabled]
@@ -568,6 +604,8 @@ class TgConsoleFusionMixin:
             return False
         ok = True
         for child in children:
+            if not force and self._fusion_column_is_fresh(child, state):
+                continue
             ok = bool(self._refresh_fusion_column(child, state)) and ok
         return ok
 
@@ -625,10 +663,9 @@ class TgConsoleFusionMixin:
     @staticmethod
     def _fusion_category_registry() -> List[Dict[str, Any]]:
         return [
-            {"key": "subscribe_site", "label": "订阅与站点", "icon": "📊", "children": ["site_stats", "subscribe"]},
-            {"key": "download_media", "label": "下载与媒体", "icon": "📥", "children": ["download_transfer", "media"]},
-            {"key": "system_health", "label": "健康巡查", "icon": "🩺", "children": ["health"]},
-            {"key": "system_maintenance", "label": "系统维护", "icon": "🧰", "children": ["storage", "maintenance"]},
+            {"key": "overview", "label": "总览", "icon": "📊", "children": []},
+            {"key": "content", "label": "内容", "icon": "📦", "children": ["site_stats", "subscribe", "download_transfer", "media"]},
+            {"key": "system", "label": "系统", "icon": "⚙️", "children": ["health", "storage", "maintenance"]},
         ]
 
     @classmethod
@@ -642,10 +679,28 @@ class TgConsoleFusionMixin:
     @classmethod
     def _normalize_fusion_tab(cls, key: str) -> str:
         raw = str(key or "").strip()
+        legacy = {
+            "subscribe_site": "content",
+            "download_media": "content",
+            "system_health": "system",
+            "system_maintenance": "system",
+            "health": "system",
+            "storage": "system",
+            "maintenance": "system",
+            "updates": "system",
+            "site_stats": "content",
+            "subscribe": "content",
+            "download_transfer": "content",
+            "media": "content",
+        }
+        raw = legacy.get(raw, raw)
         category_keys = {x["key"] for x in cls._fusion_category_registry()}
         if raw in category_keys:
             return raw
-        return cls._fusion_category_for_column(raw) or "subscribe_site"
+        column_keys = {x["key"] for x in cls._fusion_column_registry()}
+        if raw in column_keys:
+            return cls._fusion_category_for_column(raw) or "overview"
+        return "overview"
 
     @classmethod
     def _fusion_category_children(cls, key: str) -> List[str]:
@@ -906,7 +961,10 @@ class TgConsoleFusionMixin:
             return False
         token, chat_id, _source = self._resolve_fusion_telegram_config()
         state = self._tg_console_state(chat_id=chat_id)
-        if not self._prune_fusion_media_activity_state(state):
+        pruned = self._prune_fusion_media_activity_state(state)
+        # 上一次编辑被网络打断时状态已经落地，这里按「待补发」标记重试，
+        # 否则清理过的内容会永远停在卡片上。
+        if not pruned and not state.get("card_pending_edit"):
             return False
         self._save_tg_console_state(state)
         if not token or not chat_id or not state.get("message_id"):
@@ -955,11 +1013,17 @@ class TgConsoleFusionMixin:
         return changed
 
     @classmethod
-    def _prune_fusion_media_activity_state(cls, state: Dict[str, Any], ttl_seconds: int = 300) -> bool:
+    def _prune_fusion_media_activity_state(cls, state: Dict[str, Any], ttl_seconds: int = 60) -> bool:
         if not isinstance(state, dict):
             return False
         media = cls._fusion_media_activity_report(state)
-        if not media or not cls._fusion_media_activity_expired(media, ttl_seconds=ttl_seconds):
+        expired = bool(media) and cls._fusion_media_activity_expired(media, ttl_seconds=ttl_seconds)
+        model = state.get("v7_model")
+        model_has_media = isinstance(model, dict) and any(
+            isinstance(item, dict) and item.get("owner") == "realtime-media"
+            for item in model.get("modules") or [])
+        # 正常有未过期活动时不动；reports 已被清、缓存模型却还留着模块时按孤儿处理。
+        if not expired and not (model_has_media and not media):
             return False
         reports = state.get("reports") or {}
         if isinstance(reports, dict):
@@ -974,10 +1038,18 @@ class TgConsoleFusionMixin:
                     columns.pop("media", None)
             else:
                 columns.pop("media", None)
+        # 卡片渲染优先使用缓存 v7_model；只清 reports/columns 会让过期会话继续留在卡面。
+        model = state.get("v7_model")
+        if isinstance(model, dict):
+            try:
+                state["v7_model"] = apply_v7_realtime_update(model, "realtime-media", None, active=False)
+                state["v7_state"] = "active" if state["v7_model"].get("modules") else "normal"
+            except Exception:
+                state.pop("v7_model", None)
         return True
 
     @classmethod
-    def _fusion_media_activity_expired(cls, media: Dict[str, Any], ttl_seconds: int = 300) -> bool:
+    def _fusion_media_activity_expired(cls, media: Dict[str, Any], ttl_seconds: int = 60) -> bool:
         raw = (media or {}).get("updated_at") or (media or {}).get("created_at")
         if raw in (None, ""):
             return False

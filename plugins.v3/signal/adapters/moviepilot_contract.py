@@ -125,7 +125,7 @@ class PluginContractMixin:
         if can_register("dltag", bool(self._dltag_cron)):
             self._append_cron_service(services, "Signal.DownloaderHelper", "Signal - 下载器助手", self._dltag_cron, self.run_downloader_helper_scheduled)
         if fusion_notify_on:
-            services.append({"id": "Signal.FusionMediaActivityPrune", "name": "Signal - 媒体动态过期清理", "trigger": IntervalTrigger(seconds=60), "func": self.prune_fusion_media_activity, "kwargs": {}, "schedule": self._format_interval_schedule(60)})
+            services.append({"id": "Signal.FusionMediaActivityPrune", "name": "Signal - 媒体动态过期清理", "trigger": IntervalTrigger(seconds=30), "func": self.prune_fusion_media_activity, "kwargs": {}, "schedule": self._format_interval_schedule(30)})
         return services
 
     @staticmethod

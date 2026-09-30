@@ -114,6 +114,9 @@ class FusionMixin:
         if not concrete_outcome:
             raise ValueError("Fusion task outcome requires concrete humanized copy")
         if self._fusion_notify_enabled:
+            capture = getattr(self, "_tg_console_capture_fusion_update_action", None)
+            if notice_action and callable(capture):
+                capture(notice_action, title=title, text=text)
             resolved_task_key = str(task_key or component or "").strip()
             resolved_task_group = str(task_group or self._fusion_task_group(component) or "").strip()
             event_payload = {

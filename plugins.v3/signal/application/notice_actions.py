@@ -163,6 +163,84 @@ class NoticeActionsMixin:
                 self._notice_schedule_wakeup()
                 return False
 
+    def _notice_execute_install_target(self, selected):
+        """Execute one explicitly selected plugin update and report its verified result."""
+        result = self._auto_update_installed_plugins(apply=True, manual_targets=[selected])
+        updated = result.get("updated") or []
+        current = [item for item in result.get("skipped", []) if item.get("already_current")]
+        success = bool(updated or current) and not result.get("error") and not result.get("failed")
+        name = selected.get("name") or selected.get("id") or "插件"
+        if success:
+            text = f"{name} 已更新至 {selected.get('new')}，版本已核实。"
+        else:
+            text = f"{name} 更新未完成，请查看详情后重新检查更新。"
+        return success, text, result
+
+    def _notice_execute_moviepilot_action(self, context):
+        """Hand the manual MoviePilot update request to the host's native flow."""
+        try:
+            if not notice_transport.moviepilot_update_available():
+                return False, "当前宿主没有通知更新入口，请从 MoviePilot 设置页处理。"
+            handled = notice_transport.start_moviepilot_update(context)
+            if not handled:
+                return False, "宿主未处理更新会话，请从 MoviePilot 设置页处理。"
+            return True, "已进入 MoviePilot 原生更新流程。"
+        except Exception:
+            return False, "当前无法打开宿主更新流程，请从 MoviePilot 设置页处理。"
+
+    @staticmethod
+    def _notice_moviepilot_actor_allowed(context):
+        return notice_transport.moviepilot_actor_allowed(context)
+
+    def _notice_execute_moviepilot_fusion_action(self, context, payload):
+        """融合卡承接新版宿主的检查、确认与进度；旧宿主仍用原生通知会话。"""
+        if not notice_transport.moviepilot_release_ports():
+            return self._notice_execute_moviepilot_action(context)
+        ok, message, status = notice_transport.moviepilot_release_action(
+            str(payload.get("step") or "open"), str(payload.get("version") or ""))
+        message = self._telegram_safe_error(message, limit=400)
+        if payload.get("expired_confirmation"):
+            message = "原确认已失效，已刷新当前状态；请重新确认操作。\n" + message
+        phase = status.get("state")
+        steps = ["status", "check"]
+        if phase == "available" and status.get("can_update") and not status.get("error"):
+            steps.insert(0, "download")
+        elif phase == "ready" and status.get("can_install"):
+            steps.insert(0, "install")
+        existing_panel = context.get("moviepilot_update_panel") if isinstance(context.get("moviepilot_update_panel"), dict) else {}
+        session = str(existing_panel.get("session") or secrets.token_hex(5))
+        actor_id = str(existing_panel.get("actor_id") or context["userid"])
+        now = time.time()
+        # 「有更新 / 待安装」不设确认截止时间：按钮长期可见，就不该过一会儿就按不动。
+        # 真正的门阀是管理员身份、发起会话、session 与宿主当前状态复核。
+        panel_expires = 0 if phase in {"available", "ready"} else now + 900
+        context["moviepilot_update_panel"] = {
+            "session": session, "actor_id": actor_id,
+            "expires_at": panel_expires, "steps": steps,
+            "current_version": str(status.get("current_version") or "未知"),
+            "version": str(status.get("version") or ""), "phase": phase,
+            "progress": status.get("progress", 0), "message": message, "error": not ok,
+        }
+        job_phase = "up_to_date" if phase == "idle" else str(phase or "failed")
+        context["update_job_patch"] = {"kind": "mp_update", "patch": {
+            "phase": job_phase, "message": message, "error": "" if ok else message,
+            "progress": status.get("progress", 0), "target_version": str(status.get("version") or ""),
+            "backend_version": str(status.get("current_version") or ""),
+            "session": session, "actor_id": actor_id, "steps": steps,
+            "expires_at": panel_expires if job_phase in {"available", "ready"} else 0,
+            "updated_at": now,
+        }}
+        return ok, message
+
+    def _notice_execute_market_action(self):
+        """Apply the plugin-library sync requested by an explicit user action."""
+        try:
+            ok = bool(self.run_market_update(scheduled=False, notify=False))
+            data = dict(getattr(self, "_last_market_update_result", {}) or {})
+            return ok, self._market_update_outcome(data, ok)
+        except Exception:
+            return False, "插件库同步失败，请稍后重试。"
+
     def _notice_handle_action(self, info):
         parsed = parse_callback(info.get("text"))
         if not parsed:
@@ -338,19 +416,14 @@ class NoticeActionsMixin:
             if (not self._notice_claim_valid(record, context, generation) or not target or str(context["userid"]) not in target["admins"]
                     or not self._notice_allowed("mp_update") or self._should_cancel(generation)):
                 raise RuntimeError("更新条件已改变")
-        try:
-            if not notice_transport.moviepilot_update_available():
-                raise RuntimeError("当前宿主没有通知更新入口")
-            handled = notice_transport.start_moviepilot_update(context)
-            if not handled:
-                raise RuntimeError("宿主未处理更新会话")
-        except Exception:
+        ok, message = self._notice_execute_moviepilot_action(context)
+        if not ok:
             changed = False
             with self._notice_lock:
                 state = self._notice_load()
                 record = state["records"].get(nonce)
                 if self._notice_claim_valid(record, context, generation):
-                    record.update(status="failed", text="当前无法打开宿主更新流程，请从 MoviePilot 设置页处理。")
+                    record.update(status="failed", text=message)
                     self._notice_save(state)
                     changed = True
             if changed and not self._should_cancel(generation):
@@ -361,7 +434,7 @@ class NoticeActionsMixin:
                 state = self._notice_load()
                 record = state["records"].get(nonce)
                 if self._notice_claim_valid(record, context, generation):
-                    record.update(status="handed_off", text="已进入 MoviePilot 原生更新流程。")
+                    record.update(status="handed_off", text=message)
                     for key in ("delivery_error", "delivery_retry_at", "delivery_attempts"):
                         record.pop(key, None)
                     self._notice_save(state)
@@ -378,16 +451,9 @@ class NoticeActionsMixin:
                     or getattr(self, "_plugin_auto_install_enabled", False)):
                 raise RuntimeError("更新条件已改变")
             selected = deepcopy(record["selected"])
-        result = self._auto_update_installed_plugins(apply=True, manual_targets=[selected])
+        success, text, result = self._notice_execute_install_target(selected)
         if self._should_cancel(generation):
             return
-        updated = result.get("updated") or []
-        current = [item for item in result.get("skipped", []) if item.get("already_current")]
-        success = bool(updated or current) and not result.get("error") and not result.get("failed")
-        if success:
-            text = f"{selected.get('name') or selected['id']} 已更新至 {selected['new']}，版本已核实。"
-        else:
-            text = f"{selected.get('name') or selected['id']} 更新未完成，请查看详情后重新检查更新。"
         formatter = getattr(self, "_format_plugin_update_text", None)
         detail = formatter(result) if callable(formatter) else text
         with self._notice_lock:
@@ -414,13 +480,7 @@ class NoticeActionsMixin:
                 raise RuntimeError("同步条件已改变")
             if not self._notice_claim_valid(record, context, generation):
                 raise RuntimeError("同步条件已改变")
-        ok = False
-        try:
-            ok = bool(self.run_market_update(scheduled=False, notify=False))
-            data = dict(getattr(self, "_last_market_update_result", {}) or {})
-            message = self._market_update_outcome(data, ok)
-        except Exception:
-            message = "插件库同步失败，请稍后重试。"
+        ok, message = self._notice_execute_market_action()
         if self._should_cancel(generation):
             return
         with self._notice_lock:

@@ -1,5 +1,8 @@
+import hashlib
+import json
 import re
 import os
+from copy import deepcopy
 from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -18,6 +21,7 @@ from ..domain.fusion_card_state import (
     sanitize_fusion_persisted_state,
 )
 from ..domain.fusion_event_ledger import empty_event_ledger, normalize_event_ledger
+from ..domain.update_jobs import normalize_update_center_state
 from ..domain import site_helpers
 
 
@@ -74,12 +78,18 @@ class TgConsoleStateMixin:
         if not isinstance(state, dict):
             state = {}
         state = sanitize_fusion_persisted_state(state)
+        normalized_update_state = normalize_update_center_state(state)
+        update_state_changed = normalized_update_state.get("update_jobs") != state.get("update_jobs")
+        state = normalized_update_state
         previous_message_id = self._safe_int(state.get("message_id"), 0, 0)
         previous_card = state.get("fusion_card")
         state_chat_id = str(state.get("chat_id") or "")
         target_chat_id = str(chat_id or state_chat_id)
+        update_actions = state.get("fusion_update_actions")
+        if not isinstance(update_actions, dict) or state_chat_id != target_chat_id:
+            update_actions = {}
         diagnostic = self._normalize_site_diagnostic(state.get("site_diagnostic")) if state_chat_id and target_chat_id and state_chat_id == target_chat_id else []
-        changed = state.get("site_diagnostic") != diagnostic or "site_refresh" in state
+        changed = update_state_changed or state.get("site_diagnostic") != diagnostic or "site_refresh" in state
         state.pop("site_refresh", None)
         if state.get("date") != today or (chat_id and state_chat_id and state_chat_id != str(chat_id)):
             state = {
@@ -95,6 +105,8 @@ class TgConsoleStateMixin:
                 "tab_touched": False,
                 "running_actions": {},
                 "pending_actions": {},
+                "fusion_update_actions": update_actions,
+                "update_jobs": deepcopy(state.get("update_jobs") or {}),
                 "last_error": "",
                 "fusion_card": previous_card,
                 "v7_event_ledger": empty_event_ledger(today),
@@ -109,7 +121,7 @@ class TgConsoleStateMixin:
             state.setdefault("notices", [])
             state.setdefault("reports", {})
             state.setdefault("columns", {})
-            state["active_tab"] = self._normalize_fusion_tab(state.get("active_tab") or "subscribe_site")
+            state["active_tab"] = self._normalize_fusion_tab(state.get("active_tab") or "overview")
             state.setdefault("tab_touched", False)
             state.setdefault("running_actions", {})
             state.setdefault("pending_actions", {})
@@ -162,6 +174,8 @@ class TgConsoleStateMixin:
             "tab_touched": False,
             "running_actions": {},
             "pending_actions": {},
+            "fusion_update_actions": deepcopy(previous.get("fusion_update_actions") or {}),
+            "update_jobs": deepcopy(previous.get("update_jobs") or {}),
             "last_error": "",
             "fusion_card": fusion_card,
             "v7_event_ledger": normalize_event_ledger(previous.get("v7_event_ledger"), today),
@@ -169,6 +183,9 @@ class TgConsoleStateMixin:
         }
 
     def _save_tg_console_state(self, state: Dict[str, Any]) -> None:
+        normalized = normalize_update_center_state(state)
+        state.clear()
+        state.update(normalized)
         sanitized = sanitize_fusion_persisted_state(state)
         sanitized["site_diagnostic"] = self._normalize_site_diagnostic(sanitized.get("site_diagnostic"))
         sanitized.pop("site_refresh", None)
@@ -260,6 +277,71 @@ class TgConsoleStateMixin:
             "label": label,
             "destructive": bool(destructive),
             "created_at": datetime.now().timestamp(),
+        }
+        return nonce
+
+    def _tg_console_capture_fusion_update_action(self, action: Dict[str, Any], *, title: str = "", text: str = "",
+                                                state: Optional[Dict[str, Any]] = None) -> bool:
+        """Persist only real, manual update candidates so the fusion card can offer inline actions."""
+        if not isinstance(action, dict):
+            return False
+        kind = str(action.get("kind") or "").strip()
+        if kind not in {"plugin_update", "mp_update", "market_update"}:
+            return False
+        payload = dict(action.get("payload") or {})
+        if kind == "plugin_update":
+            plugins = [dict(item) for item in (payload.get("plugins") or [])
+                       if isinstance(item, dict) and not item.get("completed") and not item.get("blocked")
+                       and all(str(item.get(key) or "") for key in ("id", "old", "new", "repo_url"))]
+            payload = {"plugins": plugins}
+            keep = bool(plugins)
+        elif kind == "market_update":
+            markets = [str(item).strip() for item in (payload.get("markets") or []) if str(item).strip()]
+            payload = {"markets": markets}
+            keep = bool(markets)
+        else:
+            checks = [dict(item) for item in (payload.get("checks") or []) if isinstance(item, dict)]
+            payload = {"checks": checks}
+            # 没有真实可执行检查项时不能留下空壳按钮；空 payload 会移除旧候选。
+            keep = bool(checks)
+        persist = state is None
+        if persist:
+            state = self._tg_console_state()
+        candidates = state.setdefault("fusion_update_actions", {})
+        if keep:
+            candidates[kind] = {
+                "kind": kind,
+                "payload": payload,
+                "title": str(title or "").strip()[:200],
+                "text": str(text or "").strip()[:500],
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        else:
+            candidates.pop(kind, None)
+        if persist:
+            self._save_tg_console_state(state)
+        return True
+
+    def _tg_console_ensure_fusion_action(self, state: Dict[str, Any], kind: str, payload: Dict[str, Any],
+                                         label: str) -> str:
+        """Return a stable nonce for one fusion-card update action payload."""
+        raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+        action_key = f"fusion-update:{kind}:{hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]}"
+        actions = state.setdefault("pending_actions", {})
+        for nonce, item in actions.items():
+            if item.get("action_key") == action_key and not item.get("done"):
+                return str(nonce)
+        nonce = self._tg_console_new_nonce(actions)
+        now = datetime.now().timestamp()
+        actions[nonce] = {
+            "action": "fusion_update_action",
+            "action_key": action_key,
+            "fusion_update": True,
+            "kind": kind,
+            "payload": dict(payload),
+            "label": str(label or "").strip()[:80],
+            "created_at": now,
+            "expires_at": now + 7 * 86400,
         }
         return nonce
 
