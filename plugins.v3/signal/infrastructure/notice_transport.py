@@ -154,22 +154,32 @@ def moviepilot_release_ports():
     return None
 
 
-def moviepilot_actor_allowed(context):
-    """更新确认要求当前 Telegram 通道的管理员和目标会话都匹配。"""
+def moviepilot_actor_allowed(context, *, target_source=None):
+    """校验目标通道的管理员；融合卡允许同一 Bot 的另一通道转发回调。"""
     if str(context.get("channel") or "").lower() != "telegram":
         return False
-    for conf in notification_configs():
-        if str(field(conf, "name", "")) != str(context.get("source") or ""):
-            continue
-        if str(field(conf, "type", "")).lower() != "telegram" or not enabled(field(conf, "enabled", False)):
-            continue
-        config = field(conf, "config", {}) or {}
-        chat = str(field(config, "TELEGRAM_CHAT_ID", "") or "").strip()
-        admins = {v.strip() for v in str(field(config, "TELEGRAM_ADMINS", "") or "").split(",") if v.strip()}
-        if chat.isdigit() and int(chat) > 0:
-            admins.add(chat)
-        return str(context.get("userid") or "") in admins and str(context.get("original_chat_id")) == chat
-    return False
+    source = str(context.get("source") or "")
+    if not source or target_source == "":
+        return False
+    configs = [conf for conf in notification_configs()
+               if str(field(conf, "type", "")).lower() == "telegram" and enabled(field(conf, "enabled", False))]
+    incoming = next((conf for conf in configs if str(field(conf, "name", "")) == source), None)
+    target = next((conf for conf in configs if str(field(conf, "name", "")) == (target_source or source)), None)
+    if incoming is None or target is None:
+        return False
+    config = field(target, "config", {}) or {}
+    if source != (target_source or source):
+        # 宿主可由群组通道的轮询器收到同 Bot 私聊回调。通道名称可以不同，
+        # Bot 必须相同；权限仍只取卡片目标通道，不能借用来源通道管理员。
+        token = str(field(config, "TELEGRAM_TOKEN", "") or "").strip()
+        incoming_token = str(field(field(incoming, "config", {}) or {}, "TELEGRAM_TOKEN", "") or "").strip()
+        if not token or incoming_token != token:
+            return False
+    chat = str(field(config, "TELEGRAM_CHAT_ID", "") or "").strip()
+    admins = {v.strip() for v in str(field(config, "TELEGRAM_ADMINS", "") or "").split(",") if v.strip()}
+    if chat.isdigit() and int(chat) > 0:
+        admins.add(chat)
+    return str(context.get("userid") or "") in admins and str(context.get("original_chat_id")) == chat
 
 
 def moviepilot_release_action(step="open", version=""):

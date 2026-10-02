@@ -189,8 +189,8 @@ class NoticeActionsMixin:
             return False, "当前无法打开宿主更新流程，请从 MoviePilot 设置页处理。"
 
     @staticmethod
-    def _notice_moviepilot_actor_allowed(context):
-        return notice_transport.moviepilot_actor_allowed(context)
+    def _notice_moviepilot_actor_allowed(context, *, target_source=None):
+        return notice_transport.moviepilot_actor_allowed(context, target_source=target_source)
 
     def _notice_execute_moviepilot_fusion_action(self, context, payload):
         """融合卡承接新版宿主的检查、确认与进度；旧宿主仍用原生通知会话。"""

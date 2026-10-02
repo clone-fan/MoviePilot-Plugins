@@ -162,7 +162,8 @@ class TgConsoleCallbackMixin:
             identity = {"userid": user_id, "source": callback.get("source"),
                         "channel": callback.get("channel"),
                         "original_chat_id": callback.get("original_chat_id") or (callback.get("message") or {}).get("chat", {}).get("id")}
-            if not self._notice_moviepilot_actor_allowed(identity):
+            _, _, source = self._find_moviepilot_telegram_config(getattr(self, "_fusion_notify_msgtype", "Plugin"))
+            if not self._notice_moviepilot_actor_allowed(identity, target_source=source):
                 self._tg_console_answer_callback(str(callback.get("id") or ""), "仅当前通知通道的管理员可操作")
                 return False
             panel = state.get("moviepilot_update_panel") or {}
@@ -174,13 +175,12 @@ class TgConsoleCallbackMixin:
             panel_expires = job.get("expires_at") or panel.get("expires_at") or 0
             panel_steps = list(job.get("steps") or panel.get("steps") or [])
             step = payload.get("step", "open")
-            # _resolve_fusion_telegram_config 的第三项是界面说明，不是宿主通道标识。
-            _, _, source = self._find_moviepilot_telegram_config(getattr(self, "_fusion_notify_msgtype", "Plugin"))
             callback_message = (callback.get("message") or {}).get("message_id") or callback.get("original_message_id")
-            if str(callback.get("source") or "") != str(source or "") or str(callback_message) != str(state.get("message_id")):
+            if str(callback_message) != str(state.get("message_id")):
                 return False
             if step not in {"open", "status", "check", "download", "install"}:
-                return False
+                return self._show_fusion_action_problem(state, callback, token, chat_id, user_id,
+                    "更新操作无效，已刷新卡片，请使用当前按钮。")
             if step in {"download", "install"}:
                 if panel_actor and str(panel_actor) != str(user_id):
                     return self._show_fusion_action_problem(state, callback, token, chat_id, user_id,
@@ -295,8 +295,8 @@ class TgConsoleCallbackMixin:
                     "original_chat_id": callback.get("original_chat_id") or (callback.get("message") or {}).get("chat", {}).get("id")}
         message_id = callback.get("original_message_id") or (callback.get("message") or {}).get("message_id")
         _, _, source = self._find_moviepilot_telegram_config(getattr(self, "_fusion_notify_msgtype", "Plugin"))
-        if (not self._notice_moviepilot_actor_allowed(identity) or str(message_id) != str(state.get("message_id"))
-                or str(callback.get("source") or "") != str(source or "")):
+        if (not self._notice_moviepilot_actor_allowed(identity, target_source=source)
+                or str(message_id) != str(state.get("message_id"))):
             return False
         with self._tg_console_card_lock:
             state = self._tg_console_state(chat_id=chat_id)

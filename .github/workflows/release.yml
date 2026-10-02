@@ -66,8 +66,8 @@ jobs:
               zip_name="${dir_lower}_v${version}.zip"
 
               if gh release view "$tag" >/dev/null 2>&1; then
-                echo "已存在 Release $tag，先删除旧的。"
-                gh release delete "$tag" --cleanup-tag --yes
+                echo "已存在 Release $tag，保持不变。"
+                continue
               fi
 
               echo "打包 $src -> $zip_name"
@@ -81,6 +81,5 @@ jobs:
             done <<< "$plugin_ids"
           }
 
-          # V2 与 V3 使用各自清单和目录，避免代际串线。
-          publish_generation package.v2.json plugins.v2
+          # V2 已冻结归档；自动发布只处理维护中的 V3。
           publish_generation package.v3.json plugins.v3

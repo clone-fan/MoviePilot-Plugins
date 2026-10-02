@@ -1034,6 +1034,8 @@ class UpdateGovernanceMixin:
         return UpdateGovernanceMixin._set_update_center_job(self, "mp_update", {
             "phase": phase, "message": message, "error": error,
             "target_version": target, "target_component": target_component,
+            # 发布本次检查的动作能力，不能继承上次只读/下载中状态的 steps。
+            "steps": ["download", "status", "check"] if phase == "available" else ["status", "check"],
             "backend_version": backend,
             "frontend_version": frontend,
             "items": checks, "updated_at": datetime.now().timestamp(),

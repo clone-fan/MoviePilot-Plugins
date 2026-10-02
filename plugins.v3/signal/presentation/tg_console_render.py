@@ -300,11 +300,14 @@ class TgConsoleRenderMixin:
                 phase = "failed"
             if component_on("mp_update") and phase in {"available", "ready"} and "mp_update" not in running_kinds:
                 step = "download" if phase == "available" else "install"
-                label = "📥 确认下载" if step == "download" else "⚠️ 确认重启安装"
+                # 旧缓存或宿主暂不允许执行时先读状态，不展示点了也不能执行的确认。
+                if step not in (mp.get("steps") or []):
+                    step = "status"
+                label = {"download": "📥 确认下载", "install": "⚠️ 确认重启安装", "status": "🔄 更新进度"}[step]
                 component = str(mp.get("target_component") or "").strip()
-                if component:
+                if component and step != "status":
                     label += f" {component}"
-                if mp.get("target_version"):
+                if mp.get("target_version") and step != "status":
                     label += f" {mp.get('target_version')}"
                 payload = {"step": step, "session": mp.get("session") or "", "version": mp.get("target_version") or ""}
                 add_action(label, "mp_update", payload)
@@ -1029,7 +1032,7 @@ class TgConsoleRenderMixin:
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "3.1.0") or "3.1.0")
+        version = str(getattr(self, "plugin_version", "3.1.1") or "3.1.1")
         # 与定稿模板一致：头部时间带日期（09-26 14:08），不是只有时分。
         return {"version": version if version.startswith("v") else f"v{version}",
                 "refreshed_at": datetime.now().strftime("%m-%d %H:%M")}
