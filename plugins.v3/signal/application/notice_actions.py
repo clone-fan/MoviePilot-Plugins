@@ -169,11 +169,18 @@ class NoticeActionsMixin:
         updated = result.get("updated") or []
         current = [item for item in result.get("skipped", []) if item.get("already_current")]
         success = bool(updated or current) and not result.get("error") and not result.get("failed")
+        result["no_update"] = bool(result.get("skipped")) and all(
+            item.get("stale") for item in result["skipped"]) and not (
+            updated or result.get("error") or result.get("failed"))
         name = selected.get("name") or selected.get("id") or "插件"
-        if success:
+        if updated and success:
             text = f"{name} 已更新至 {selected.get('new')}，版本已核实。"
+        elif current and success:
+            text = f"{name} 已是 {selected.get('new')}，无需更新。"
+        elif result["no_update"]:
+            text = "更新列表已刷新。" if result.get("updatable") else f"{name} 当前无可更新项。"
         else:
-            text = f"{name} 更新未完成，请查看详情后重新检查更新。"
+            text = f"{name} 更新未完成。"
         return success, text, result
 
     def _notice_execute_moviepilot_action(self, context):
@@ -455,17 +462,26 @@ class NoticeActionsMixin:
         if self._should_cancel(generation):
             return
         formatter = getattr(self, "_format_plugin_update_text", None)
-        detail = formatter(result) if callable(formatter) else text
+        detail = text if result.get("no_update") else formatter(result) if callable(formatter) else text
         with self._notice_lock:
             state = self._notice_load()
             record = state["records"].get(nonce)
             if not self._notice_claim_valid(record, context, generation):
                 return
+            plugins = []
             for item in record["payload"].get("plugins", []):
-                if target_identity(item) == target_identity(selected):
-                    item["completed"] = True
+                if item.get("id") != selected.get("id"):
+                    plugins.append(item)
+                else:
+                    plugins.append({**item, "completed": True})
+            # Keep consumed slots: an old callback index must never point at a
+            # different plugin. Fresh bound candidates receive fresh indices.
+            plugins.extend(item for item in result.get("updatable", [])
+                           if item.get("id") == selected.get("id"))
+            record["payload"]["plugins"] = plugins
             remaining = any(not item.get("completed") and not item.get("blocked") for item in record["payload"].get("plugins", []))
-            record.update(status="ready" if remaining else "done", text=text, detail=str(detail), result=result)
+            status = "ready" if remaining else "done" if success or result.get("no_update") else "failed"
+            record.update(status=status, text=text, detail=str(detail), result=result)
             record.pop("selected", None)
             self._notice_save(state)
         self._notice_publish(nonce)

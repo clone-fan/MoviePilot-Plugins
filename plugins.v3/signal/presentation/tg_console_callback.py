@@ -242,6 +242,8 @@ class TgConsoleCallbackMixin:
             ok, message = self._execute_fusion_update_action(kind, payload, context)
         except Exception as err:
             ok, message = False, f"更新操作异常：{self._telegram_safe_error(err, limit=180)}"
+        plugin_result = context.get("plugin_update_result") if kind == "plugin_update" else None
+        settled = ok or bool(isinstance(plugin_result, dict) and plugin_result.get("no_update"))
         if self._should_cancel(generation):
             return
         with self._tg_console_card_lock:
@@ -259,14 +261,26 @@ class TgConsoleCallbackMixin:
                                                        job_patch["patch"], now=time.time())
             elif kind in {"plugin_update", "market_update"}:
                 candidate_items = []
+                phase = "success" if ok else "failed"
                 if kind == "plugin_update":
                     entry = (state.get("fusion_update_actions") or {}).get(kind) or {}
                     candidate_items = list((entry.get("payload") or {}).get("plugins") or [])
+                    if isinstance(plugin_result, dict):
+                        candidate_items = [item for item in candidate_items if item.get("id") != payload.get("id")]
+                        candidate_items.extend(item for item in plugin_result.get("updatable", [])
+                                               if not item.get("blocked") and not item.get("completed"))
+                        self._tg_console_capture_fusion_update_action(
+                            {"kind": kind, "payload": {"plugins": candidate_items}}, text=message, state=state)
+                        for action in (state.get("pending_actions") or {}).values():
+                            if action.get("kind") == kind and (action.get("payload") or {}).get("id") == payload.get("id"):
+                                action["done"] = True
+                        phase = ("available" if candidate_items else "up_to_date" if plugin_result.get("no_update")
+                                 else "success") if settled else "failed"
                 terminal_jobs = set_update_job(state.get("update_jobs"), kind, {
-                    "phase": "success" if ok else "failed",
+                    "phase": phase,
                     "message": message,
-                    "error": "" if ok else message,
-                    "items": [] if ok else candidate_items,
+                    "error": "" if settled else message,
+                    "items": candidate_items if isinstance(plugin_result, dict) or not ok else [],
                     "updated_at": time.time(),
                 }, now=time.time())
                 state["update_jobs"] = terminal_jobs
@@ -274,9 +288,9 @@ class TgConsoleCallbackMixin:
                 expires_at = float(terminal_job.get("expires_at") or 0)
                 if expires_at > 0 and callable(getattr(self, "_schedule_update_center_expiry", None)):
                     self._schedule_update_center_expiry(kind, expires_at, token, chat_id)
-            self._fusion_action_feed_set(state, action_id, kind, label, "success" if ok else "error", message)
+            self._fusion_action_feed_set(state, action_id, kind, label, "success" if settled else "error", message)
             panel = context.get("moviepilot_update_panel") or {}
-            if ok and (not panel or panel.get("phase") in {"idle", "installing"}):
+            if ok and not isinstance(plugin_result, dict) and (not panel or panel.get("phase") in {"idle", "installing"}):
                 self._fusion_action_remove_candidate(state, kind, payload)
             self._save_tg_console_state(state)
             try:
@@ -284,7 +298,7 @@ class TgConsoleCallbackMixin:
             except Exception as err:
                 state["last_error"] = f"更新动作结果卡片更新异常：{self._telegram_safe_error(err, limit=300)}"
             self._save_tg_console_state(state)
-        if ok:
+        if settled:
             self._schedule_fusion_status_expiry(action_id, token, chat_id, generation)
         if (context.get("moviepilot_update_panel") or {}).get("phase") == "downloading":
             self._schedule_fusion_moviepilot_progress(context, generation, token, chat_id)
@@ -442,7 +456,8 @@ class TgConsoleCallbackMixin:
         if gate and callable(checker) and not checker(gate):
             return False, "该功能未在插件设置中启用，融合卡不会执行。"
         if kind == "plugin_update":
-            success, text, _result = self._notice_execute_install_target(payload)
+            success, text, result = self._notice_execute_install_target(payload)
+            context["plugin_update_result"] = result
             return bool(success), text
         if kind == "mp_update":
             return self._notice_execute_moviepilot_fusion_action(context, payload)

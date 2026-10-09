@@ -520,14 +520,15 @@ class UpdateGovernanceMixin:
 
     def _auto_update_installed_plugins(self, apply: bool = True, manual_targets: Optional[List[Dict[str, Any]]] = None,
                                        progress: Optional[Any] = None) -> Dict[str, Any]:
-        """检查已安装插件是否有新版（移植自 thsrite/PluginAutoUpdate，适配本插件）。
-        开启“自动安装”且 apply 时下载安装新版并重载；否则仅汇总可更新清单供通知。
-        全程 try/except，任何失败只反映在结果里，不抛出。"""
+        """检查、手动与自动更新共享宿主绑定来源，绝不跨库寻找更高版本。"""
+        from ..infrastructure import plugin_updates
+
         manual = manual_targets is not None
         auto_install = bool(self._plugin_auto_install_enabled) or manual
         out: Dict[str, Any] = {"auto_install": auto_install,
                                "updatable": [], "updated": [], "failed": [], "skipped": []}
-        requested = {str(item.get("id") or ""): item for item in (manual_targets or []) if isinstance(item, dict)}
+        requested = {str(item.get("id") or ""): {**item, "name": item.get("name") or item.get("id")}
+                     for item in (manual_targets or []) if isinstance(item, dict)}
         if manual and (not requested or len(requested) != len(manual_targets) or any(
                 not all(str(item.get(key) or "") for key in ("id", "old", "new", "repo_url")) for item in requested.values())):
             return {**out, "error": "手动更新目标不完整，请重新检查更新"}
@@ -543,22 +544,10 @@ class UpdateGovernanceMixin:
             out["error"] = f"加载插件管理器失败：{self._update_error_detail(err)}"
             return out
         try:
-            installed_ids = SystemConfigOper().get(SystemConfigKey.UserInstalledPlugins) or []
-            online = PluginManager().get_online_plugins() or []
-            if not online:
-                out["error"] = "插件市场未返回在线插件列表"
-                out["error_code"] = "market_empty"
-                return out
-            # 每个插件 id 取最大版本
-            maxver: Dict[str, Any] = {}
-            for p in online:
-                if p.id not in maxver or p.plugin_version > maxver[p.id]:
-                    maxver[p.id] = p.plugin_version
-            online = [p for p in online if p.plugin_version == maxver[p.id]]
-            # 已安装版本
-            local_ver: Dict[str, Any] = {}
-            for p in (PluginManager().get_local_plugins() or []):
-                local_ver[p.id] = p.plugin_version
+            installed_ids = list(dict.fromkeys(str(pid) for pid in (
+                SystemConfigOper().get(SystemConfigKey.UserInstalledPlugins) or [])))
+            local_ver = {str(p.id): str(p.plugin_version or "")
+                         for p in (PluginManager().get_local_plugins() or [])}
             # 正在运行的插件服务（可选跳过）
             running = set()
             try:
@@ -573,41 +562,37 @@ class UpdateGovernanceMixin:
                 scope_mode = "all"
             exclude = set(self._plugin_auto_install_exclude_ids or []) if scope_mode == "exclude" else set()
             include = set(self._plugin_auto_install_install_ids or []) if scope_mode == "include" else set()
-            for p in online:
-                pid = str(p.id)
-                if manual:
-                    if pid not in requested or pid in handled:
-                        continue
-                    if str(getattr(p, "repo_url", "") or "") != str(requested[pid]["repo_url"]):
-                        continue
-                if pid not in installed_ids:
+            for pid in installed_ids:
+                if manual and pid not in requested:
                     continue
                 expected = requested.get(pid) or {}
-                if manual and str(local_ver.get(p.id)) == str(expected.get("new")):
-                    out["skipped"].append({**expected, "reason": "已是目标版本", "already_current": True})
+                oldv = local_ver.get(pid, "")
+                try:
+                    info = plugin_updates.inspect_bound_candidate(pid, oldv)
+                    newer = bool(info and plugin_updates.version_is_newer(info["new"], oldv))
+                except Exception as err:
+                    message = self._update_error_detail(err)
+                    logger.warning(f"Signal 核实插件 {pid} 绑定更新失败：{message}")
+                    out["failed"].append({**expected, "id": pid, "name": expected.get("name") or pid,
+                                          "msg": message, "check_only": True})
+                    out["check_failed"] = True
                     handled.add(pid)
                     continue
-                if not (getattr(p, "has_update", False) or not getattr(p, "installed", True)):
+                if not newer:
+                    if manual:
+                        out["skipped"].append({**expected, "reason": "当前无可更新项", "stale": True,
+                                               "already_current": bool(info and oldv == expected.get("new"))})
+                        handled.add(pid)
                     continue
-                oldv = local_ver.get(p.id)
-                if not oldv or str(oldv) == "None":
-                    continue
-                info = {"id": pid, "name": getattr(p, "plugin_name", pid), "old": str(oldv), "new": str(p.plugin_version),
-                        "repo_url": str(getattr(p, "repo_url", "") or "")}
-                hist = next((str(note) for ver, note in (getattr(p, "history", None) or {}).items()
-                             if str(ver).removeprefix("v") == str(p.plugin_version).removeprefix("v")), "")
-                info["history"] = hist
                 if pid.lower() in {"signal", "moviepilot", "agentopsassistant"}:
                     info["blocked"] = "请在 MoviePilot 插件管理中更新本体"
                 elif any(pid == job or str(job).startswith(pid + ".") for job in running):
                     info["blocked"] = "插件任务正在运行"
                 out["updatable"].append(info)
-                if callable(progress):
-                    progress({"phase": "updating", "message": f"正在更新插件 {info['name']}…", "items": out["updatable"]})
                 if manual:
                     handled.add(pid)
-                    if any(str(info[key]) != str(expected.get(key) or "") for key in ("old", "new", "repo_url")):
-                        out["failed"].append({**info, "msg": "版本或仓库已变化，请重新检查更新"})
+                    if not plugin_updates.same_target(expected, info):
+                        out["skipped"].append({**expected, "reason": "更新列表已刷新", "stale": True})
                         continue
                 if not (apply and auto_install):
                     continue
@@ -618,60 +603,36 @@ class UpdateGovernanceMixin:
                 if not manual and scope_mode == "include" and pid not in include:
                     out["skipped"].append({**info, "reason": "不在自动更新列表"})
                     continue
-                if pid in running or p.id in running:
-                    out["skipped"].append({**info, "reason": "正在运行"})
-                    continue
                 busy = getattr(self, "_notice_busy_plugin_ids", None)
                 if not manual and callable(busy) and pid in busy():
                     out["skipped"].append({**info, "reason": "通知更新正在执行或等待核实"})
                     continue
                 try:
-                    from app.adapters.external.market import PluginHelper
-                    state, msg = PluginHelper().install(pid=p.id, repo_url=getattr(p, "repo_url", ""))
+                    if callable(progress):
+                        progress({"phase": "updating", "message": f"正在更新插件 {info['name']}…", "items": out["updatable"]})
+                    result = plugin_updates.install_bound_update(info)
                 except Exception as err:
-                    state, msg = False, str(err)
-                if not state:
-                    out["failed"].append({**info, "msg": self._update_error_detail(msg)})
+                    result = {"status": "failed", "message": self._update_error_detail(err)}
+                # Every attempt consumes the old snapshot. Only a freshly
+                # verified bound candidate may become another update button.
+                out["updatable"].remove(info)
+                if result.get("candidate"):
+                    out["updatable"].append(result["candidate"])
+                if result["status"] == "stale":
+                    out["skipped"].append({**info, "reason": "更新列表已刷新", "stale": True,
+                                           "already_current": bool(result.get("already_current"))})
                     continue
-                try:
-                    # The host install already swapped and reloaded the plugin.
-                    # Older hosts expose neither hook or only the reload hook, so
-                    # both follow-ups stay best effort; the installed version is
-                    # the authority for whether the update actually landed.
-                    reload_hook = getattr(PluginManager(), "reload_plugin", None)
-                    if callable(reload_hook):
-                        reload_hook(p.id)
-                    register_hook = None
-                    try:
-                        from app.application.plugin.routes import register_plugin as register_hook
-                    except (ImportError, AttributeError):
-                        register_hook = None
-                    if callable(register_hook):
-                        register_hook(p.id)
-                    if manual:
-                        actual = next((str(item.plugin_version) for item in (PluginManager().get_local_plugins() or [])
-                                       if str(item.id) == pid), "")
-                        if actual != info["new"]:
-                            raise RuntimeError(f"安装后版本复核不一致：目标 {info['new']}，实际 {actual or '未知'}")
-                except Exception as err:
-                    message = self._update_error_detail(err)
-                    out["failed"].append({**info, "msg": f"重载后重新注册失败：{message}"})
-                    logger.warning(f"Signal 重载插件 {pid} 失败：{message}")
+                if result["status"] != "updated":
+                    message = self._update_error_detail(result.get("message"))
+                    logger.warning(f"Signal 更新插件 {pid} 未完成：{message}")
+                    out["failed"].append({**info, "msg": message})
                     continue
-                hist = ""
-                try:
-                    for ver, note in (getattr(p, "history", None) or {}).items():
-                        if str(ver).replace("v", "") == str(p.plugin_version).replace("v", ""):
-                            hist = str(note)
-                            break
-                except Exception:
-                    pass
-                out["updated"].append({**info, "history": hist})
+                out["updated"].append(info)
                 if callable(progress):
                     progress({"phase": "updating", "message": f"已更新插件 {info['name']}", "items": out["updatable"]})
             if manual:
                 for pid in requested.keys() - handled:
-                    out["failed"].append({**requested[pid], "msg": "目标不再可更新或无法核实，请重新检查更新"})
+                    out["skipped"].append({**requested[pid], "reason": "当前无可更新项", "stale": True})
             return out
         except Exception as err:
             out["error"] = f"插件自动更新异常：{self._update_error_detail(err)}"
@@ -931,6 +892,8 @@ class UpdateGovernanceMixin:
             if data.get("error_code") == "market_unconfigured":
                 return "\n".join(lines + ["⦁ 尚未配置插件市场", "⦁ 请先执行插件库同步或配置 PLUGIN_MARKET"])
             return "\n".join(lines + [f"⦁ 检查失败：{data['error']}"])
+        if data.get("check_failed") and not data.get("updatable") and not data.get("updated"):
+            return "\n".join(lines + ["⦁ 插件更新检查暂未完成"])
         updatable = data.get("updatable") or []
         updated = data.get("updated") or []
         failed = data.get("failed") or []
@@ -969,12 +932,16 @@ class UpdateGovernanceMixin:
             phase, message = "unconfigured", "尚未配置插件市场"
         elif data.get("error"):
             phase, message = "failed", str(data.get("error") or "插件更新检查失败")
+        elif data.get("check_failed"):
+            phase, message = ("partial" if data.get("updatable") else "failed"), "插件更新检查暂未完成"
         elif data.get("failed"):
             phase, message = "partial", f"{len(data.get('failed') or [])} 个插件更新失败"
         elif data.get("updatable"):
             phase, message = "available", f"发现 {len(data.get('updatable') or [])} 个可更新插件"
+        elif data.get("updated"):
+            phase, message = "success", f"已更新 {len(data['updated'])} 个插件"
         else:
-            phase, message = "up_to_date", "插件均已是最新版本"
+            phase, message = "up_to_date", "当前无可更新项"
         return UpdateGovernanceMixin._set_update_center_job(self, "plugin_update", {
             "phase": phase, "message": message, "error": str(data.get("error") or ""),
             "items": list(data.get("updatable") or []), "updated_at": datetime.now().timestamp(),
@@ -1112,7 +1079,7 @@ class UpdateGovernanceMixin:
         text = self._format_plugin_update_text(data)
         unconfigured = data.get("error_code") == "market_unconfigured"
         success = not bool(data.get("error") or data.get("failed")) or unconfigured
-        check_success = not bool(data.get("error")) or unconfigured
+        check_success = not bool(data.get("error") or data.get("check_failed")) or unconfigured
         updatable = list(data.get("updatable") or [])
         install_attempted = bool(data.get("updated") or data.get("failed"))
         notify_check = self._task_outcome_notification_enabled(self._plugin_update_reminder_scheduled_notify)
