@@ -927,24 +927,41 @@ class UpdateGovernanceMixin:
 
     def _publish_plugin_update_job(self, data: Dict[str, Any], *, state: Optional[Dict[str, Any]] = None,
                                    persist: bool = True) -> Dict[str, Any]:
+        """自动模式下只发布执行结果，绝不留出可手动点击的插件候选。"""
+        auto = bool(data.get("auto_install"))
         error_code = str(data.get("error_code") or "")
+        updated = list(data.get("updated") or [])
+        failed = list(data.get("failed") or [])
+        updatable = list(data.get("updatable") or [])
+        # 候选里混着排除、名单外、运行中跳过与失败后重核的条目；自动模式下
+        # 它们都不是给用户点的手动入口，卡片只呈现本轮自动执行的结果。
+        items = [] if auto else updatable
         if error_code == "market_unconfigured":
             phase, message = "unconfigured", "尚未配置插件市场"
         elif data.get("error"):
-            phase, message = "failed", str(data.get("error") or "插件更新检查失败")
+            phase, message = "failed", ("插件更新未完成，稍后自动重试" if auto else str(data.get("error") or "插件更新检查失败"))
         elif data.get("check_failed"):
-            phase, message = ("partial" if data.get("updatable") else "failed"), "插件更新检查暂未完成"
-        elif data.get("failed"):
-            phase, message = "partial", f"{len(data.get('failed') or [])} 个插件更新失败"
-        elif data.get("updatable"):
-            phase, message = "available", f"发现 {len(data.get('updatable') or [])} 个可更新插件"
-        elif data.get("updated"):
-            phase, message = "success", f"已更新 {len(data['updated'])} 个插件"
+            if auto:
+                phase, message = ("partial" if updated else "failed"), "插件更新未完成，稍后自动重试"
+            else:
+                phase, message = ("partial" if updatable else "failed"), "插件更新检查暂未完成"
+        elif failed:
+            phase, message = ("partial" if updated else "failed"), (
+                "插件更新未完成，稍后自动重试" if auto else f"{len(failed)} 个插件更新失败")
+        elif updatable:
+            if auto:
+                # 全部是排除/名单外/运行中跳过的候选：本轮没有需要用户处理的事。
+                phase, message = "up_to_date", "插件更新检查完成"
+            else:
+                phase, message = "available", f"发现 {len(updatable)} 个可更新插件"
+        elif updated:
+            phase, message = "success", f"已更新 {len(updated)} 个插件"
         else:
             phase, message = "up_to_date", "当前无可更新项"
         return UpdateGovernanceMixin._set_update_center_job(self, "plugin_update", {
-            "phase": phase, "message": message, "error": str(data.get("error") or ""),
-            "items": list(data.get("updatable") or []), "updated_at": datetime.now().timestamp(),
+            "phase": phase, "message": message,
+            "error": "" if auto else str(data.get("error") or ""),
+            "items": items, "updated_at": datetime.now().timestamp(),
         }, state=state, persist=persist)
 
     def _publish_market_update_job(self, data: Dict[str, Any], *, state: Optional[Dict[str, Any]] = None,

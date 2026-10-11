@@ -257,6 +257,9 @@ class TgConsoleRenderMixin:
             return []
         running_kinds = {str(item.get("kind") or "") for item in _live_fusion_action_feed(state)
                          if str(item.get("status") or "") == "running"}
+        # 执行方式是按钮的最终开关：自动安装模式下，插件更新不向用户索要任何点击；
+        # 升级前遗留的 available+items 旧状态也在这道门之后不再出按钮。
+        plugin_auto = bool(getattr(self, "_plugin_auto_install_enabled", False))
         jobs = state.get("update_jobs")
         if isinstance(jobs, dict) and jobs:
             # 只渲染仍然可见的任务：失败/部分成功超过 10 分钟后与状态行一起收起。
@@ -282,7 +285,7 @@ class TgConsoleRenderMixin:
             plugin_phase = str(plugin.get("phase") or "")
             plugin_items = [item for item in plugin.get("items") or [] if isinstance(item, dict)]
             plugin_retry_buttons = False
-            if (component_on("plugin_update_reminder")
+            if (not plugin_auto and component_on("plugin_update_reminder")
                     and plugin_phase in {"available", "failed", "partial"}
                     and plugin_items and "plugin_update" not in running_kinds):
                 for item in plugin_items:
@@ -323,7 +326,7 @@ class TgConsoleRenderMixin:
                 recovery = ("🧩 同步插件库", "market_update", {"markets": []})
             elif phase in {"failed", "partial"}:
                 recovery = ("🔎 重新检查", "card_refresh", {})
-            elif plugin_phase in {"failed", "partial"} and not plugin_retry_buttons:
+            elif not plugin_auto and plugin_phase in {"failed", "partial"} and not plugin_retry_buttons:
                 recovery = ("🔎 重新检查", "card_refresh", {})
             elif component_on("market_update") and market_phase in {"unconfigured", "failed"}:
                 recovery = ("🧩 同步插件库", "market_update", {"markets": list(market.get("items") or [])})
@@ -332,7 +335,8 @@ class TgConsoleRenderMixin:
             return buttons
         buttons: List[Dict[str, Any]] = []
         plugin_entry = candidates.get("plugin_update") or {}
-        plugin_items = [] if "plugin_update" in running_kinds else ((plugin_entry.get("payload") or {}).get("plugins") or [])
+        plugin_items = [] if (plugin_auto or "plugin_update" in running_kinds) else (
+            (plugin_entry.get("payload") or {}).get("plugins") or [])
         for item in plugin_items:
             if not isinstance(item, dict):
                 continue
@@ -675,7 +679,10 @@ class TgConsoleRenderMixin:
                 if phase == "unconfigured":
                     plugin_value = "未配置插件市场"
                 elif phase == "available":
-                    plugin_value = f"可更新插件：{len(plugin.get('items') or [])}"
+                    # 自动模式不该再有这个阶段；旧状态落到这里只报「已接管」，
+                    # 不能显示成等用户点按钮的“可更新插件：N”。
+                    plugin_value = ("自动更新处理中" if getattr(self, "_plugin_auto_install_enabled", False)
+                                    else f"可更新插件：{len(plugin.get('items') or [])}")
                 elif phase in {"updating", "success"}:
                     plugin_value = str(plugin.get("message") or "正在更新")
                 else:
@@ -728,6 +735,7 @@ class TgConsoleRenderMixin:
 
         与系统页的「更新管理」不同：那里是合并成单行的摘要，这里是模板口径的逐项。
         """
+        plugin_auto = bool(getattr(self, "_plugin_auto_install_enabled", False))
         jobs = state.get("update_jobs") if isinstance(state, dict) else None
         if isinstance(jobs, dict) and jobs:
             jobs = {str(job.get("kind") or ""): job for job in visible_jobs(jobs)}
@@ -742,7 +750,7 @@ class TgConsoleRenderMixin:
             plugin = jobs.get("plugin_update") if isinstance(jobs.get("plugin_update"), dict) else {}
             if str(plugin.get("phase") or "") == "unconfigured":
                 rows.append(["插件更新", "未配置插件市场"])
-            elif str(plugin.get("phase") or "") == "available":
+            elif not plugin_auto and str(plugin.get("phase") or "") == "available":
                 for item in plugin.get("items") or []:
                     if isinstance(item, dict):
                         rows.append([f"插件·{item.get('name') or item.get('id') or '插件'}",
@@ -1032,7 +1040,7 @@ class TgConsoleRenderMixin:
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "3.1.2") or "3.1.2")
+        version = str(getattr(self, "plugin_version", "3.1.3") or "3.1.3")
         # 与定稿模板一致：头部时间带日期（09-26 14:08），不是只有时分。
         return {"version": version if version.startswith("v") else f"v{version}",
                 "refreshed_at": datetime.now().strftime("%m-%d %H:%M")}

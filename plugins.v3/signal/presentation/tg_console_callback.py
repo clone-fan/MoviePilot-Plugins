@@ -456,6 +456,10 @@ class TgConsoleCallbackMixin:
         if gate and callable(checker) and not checker(gate):
             return False, "该功能未在插件设置中启用，融合卡不会执行。"
         if kind == "plugin_update":
+            # 自动模式下卡片不再出插件按钮；旧消息里的残留按钮也不能再执行
+            # 手动单插件安装，与普通通知的自动拒绝门保持一致。
+            if bool(getattr(self, "_plugin_auto_install_enabled", False)):
+                return True, "插件更新已配置为自动模式，无需手动操作。"
             success, text, result = self._notice_execute_install_target(payload)
             context["plugin_update_result"] = result
             return bool(success), text

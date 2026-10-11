@@ -3,12 +3,16 @@ from ..domain.notice_actions import PAGE_SIZE, callback_data, split_text
 
 
 class NoticeRenderMixin:
-    @staticmethod
-    def _notice_render(record, **kwargs):
+    def _notice_render(self, record, **kwargs):
+        # 自动安装模式下，旧通知也不再渲染逐个插件的手动更新按钮；
+        # 执行端同样会拒绝这类点击，两层保持一致。
+        if (str(record.get("kind") or "") == "plugin_update"
+                and bool(getattr(self, "_plugin_auto_install_enabled", False))):
+            kwargs["manual_plugin_actions"] = False
         return render_notice(record, **kwargs)
 
 
-def render_notice(record, *, native_update=False, host_url=""):
+def render_notice(record, *, native_update=False, host_url="", manual_plugin_actions=True):
     nonce = record["nonce"]
     def button(text, action, index=None):
         return {"text": text, "callback_data": callback_data(nonce, action, index)}
@@ -32,7 +36,7 @@ def render_notice(record, *, native_update=False, host_url=""):
     kind = record["kind"]
     rows = []
     if kind == "plugin_update" and status == "ready":
-        items = record.get("payload", {}).get("plugins", [])
+        items = record.get("payload", {}).get("plugins", []) if manual_plugin_actions else []
         page = min(max(int(record.get("page", 0)), 0), max(0, (len(items) - 1) // PAGE_SIZE))
         for index in range(page * PAGE_SIZE, min(len(items), (page + 1) * PAGE_SIZE)):
             item = items[index]
