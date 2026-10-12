@@ -113,6 +113,23 @@ def inspect_bound_candidate(plugin_id, current_version):
     return _run_host(inspect)
 
 
+def inspect_loaded_source(plugin_id):
+    """Read the loaded version and its persisted binding; never installs or rebinds."""
+    async def inspect():
+        from app.application.plugin.gateway import get_plugin_install_service
+
+        inspection = await get_plugin_install_service().inspect_source(plugin_id=plugin_id, force=False)
+        identity = inspection.identity
+        binding = _binding(identity)
+        payload = ((_value(identity.payload_source_type), str(identity.payload_source_key or ""))
+                   if identity is not None else None)
+        return {"plugin_id": str(getattr(inspection, "plugin_id", "") or plugin_id),
+                "version": str(installed_plugin_versions().get(plugin_id, "")),
+                "binding": binding, "payload": payload}
+
+    return _run_host(inspect)
+
+
 def install_bound_update(target):
     """Recheck at execution, use the bound repository, and verify the loaded result."""
     async def install():

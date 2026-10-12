@@ -1,8 +1,10 @@
 import os
 import json
 import re
+import secrets
 import subprocess
 import threading
+import time
 from contextlib import contextmanager
 from datetime import datetime
 from html.parser import HTMLParser
@@ -13,6 +15,16 @@ from urllib.parse import unquote, urlsplit
 from app.sdk.config import settings
 from app.sdk.logging import logger
 from app.sdk.network import RequestUtils
+
+
+# 自更新会先停掉正在运行的实例，结果必须由重启后的新实例回填；这条执行
+# 记录是跨越那次重载的唯一凭据。
+SELF_UPDATE_STATE_KEY = "self_update_v1"
+SELF_UPDATE_TARGET_FIELDS = ("id", "name", "old", "new", "repo_url",
+                             "source_type", "source_key", "source_revision", "package_generation")
+SELF_UPDATE_IN_FLIGHT_SECONDS = 300
+SELF_UPDATE_VERIFY_DELAY_SECONDS = 5
+SELF_UPDATE_VERIFY_MAX_ATTEMPTS = 8
 
 
 def _capture_fusion_update_action_if_possible(owner: Any, kind: str, payload: Dict[str, Any], *,
@@ -60,6 +72,9 @@ class _WikiRepositoryLinks(HTMLParser):
 
 class UpdateGovernanceMixin:
     """MoviePilot version checks, plugin market updates, and auto-update logic."""
+
+    # 正式包名（插件 ID）与运行类名都会参与自更新识别。
+    SELF_UPDATE_PLUGIN_IDS = {"signal"}
 
     def _update_center_configured_markets(self) -> List[str]:
         try:
@@ -562,6 +577,10 @@ class UpdateGovernanceMixin:
                 scope_mode = "all"
             exclude = set(self._plugin_auto_install_exclude_ids or []) if scope_mode == "exclude" else set()
             include = set(self._plugin_auto_install_install_ids or []) if scope_mode == "include" else set()
+            # MoviePilot 以类名作为插件 ID；正式包名同时保留，避免类名变化后失效。
+            self_ids = {str(item).strip().lower() for item in getattr(self, "SELF_UPDATE_PLUGIN_IDS", ())
+                        if str(item).strip()}
+            self_ids.add(str(type(self).__name__ or "").strip().lower())
             for pid in installed_ids:
                 if manual and pid not in requested:
                     continue
@@ -584,7 +603,12 @@ class UpdateGovernanceMixin:
                                                "already_current": bool(info and oldv == expected.get("new"))})
                         handled.add(pid)
                     continue
-                if pid.lower() in {"signal", "moviepilot", "agentopsassistant"}:
+                self_target = bool(pid) and pid.strip().lower() in self_ids
+                if pid.lower() in {"moviepilot", "agentopsassistant"}:
+                    info["blocked"] = "请在 MoviePilot 插件管理中更新本体"
+                elif self_target and not manual:
+                    # 自动模式仍由用户在本插件中显式点击自更新；本轮不改变
+                    # 定时任务的自更新策略。
                     info["blocked"] = "请在 MoviePilot 插件管理中更新本体"
                 elif any(pid == job or str(job).startswith(pid + ".") for job in running):
                     info["blocked"] = "插件任务正在运行"
@@ -596,7 +620,7 @@ class UpdateGovernanceMixin:
                         continue
                 if not (apply and auto_install):
                     continue
-                # 安全：永不自动更新本插件自身；尊重排除/仅选名单；运行中不动
+                # 尊重排除/仅选名单；运行中不动；不可执行项不触发安装。
                 if info.get("blocked") or (not manual and pid in exclude):
                     out["skipped"].append({**info, "reason": "排除/本体"})
                     continue
@@ -607,12 +631,27 @@ class UpdateGovernanceMixin:
                 if not manual and callable(busy) and pid in busy():
                     out["skipped"].append({**info, "reason": "通知更新正在执行或等待核实"})
                     continue
+                self_record = None
+                if self_target:
+                    try:
+                        self_record = self._self_update_reserve(info)
+                    except Exception as err:
+                        out["failed"].append({**info, "msg": self._update_error_detail(err)})
+                        continue
+                    if self_record is None:
+                        # 上一次自更新可能仍在执行：不重复安装，也不谎报失败。
+                        out["updatable"].remove(info)
+                        out["skipped"].append({**info, "reason": "该更新正在执行", "stale": True})
+                        continue
                 try:
                     if callable(progress):
                         progress({"phase": "updating", "message": f"正在更新插件 {info['name']}…", "items": out["updatable"]})
                     result = plugin_updates.install_bound_update(info)
                 except Exception as err:
                     result = {"status": "failed", "message": self._update_error_detail(err)}
+                if self_record is not None:
+                    # 一旦宿主停掉本实例，结果只能由重启后的新实例回填。
+                    self._self_update_settle(self_record, result)
                 # Every attempt consumes the old snapshot. Only a freshly
                 # verified bound candidate may become another update button.
                 out["updatable"].remove(info)
@@ -638,6 +677,219 @@ class UpdateGovernanceMixin:
             out["error"] = f"插件自动更新异常：{self._update_error_detail(err)}"
             out["error_code"] = "plugin_update_exception"
             return out
+
+    def _self_update_record(self) -> Dict[str, Any]:
+        loader = getattr(self, "get_data", None)
+        try:
+            stored = loader(SELF_UPDATE_STATE_KEY) if callable(loader) else None
+        except Exception:
+            stored = None
+        return dict(stored) if isinstance(stored, dict) else {}
+
+    def _store_self_update_record(self, record: Dict[str, Any]) -> bool:
+        saver = getattr(self, "save_data", None)
+        if not callable(saver):
+            return False
+        try:
+            return saver(SELF_UPDATE_STATE_KEY, dict(record or {})) is not False
+        except Exception:
+            return False
+
+    def _self_update_reserve(self, target: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """自更新先落盘一次执行记录：宿主停掉本实例后，只有它能证明这次安装。"""
+        now = time.time()
+        previous = self._self_update_record()
+        if (str(previous.get("status") or "") == "installing"
+                and now - float(previous.get("started_at") or 0) < SELF_UPDATE_IN_FLIGHT_SECONDS):
+            # 同一次自更新还在执行：复用执行记录，不重复安装。
+            return None
+        record = {
+            "schema": 1, "status": "installing", "attempt": secrets.token_hex(6),
+            "plugin_id": str(target.get("id") or ""),
+            "target": {key: target.get(key) for key in SELF_UPDATE_TARGET_FIELDS},
+            "started_at": now, "updated_at": now, "verify_attempts": 0,
+        }
+        if not self._store_self_update_record(record):
+            raise RuntimeError("自更新执行记录保存失败")
+        return record
+
+    def _self_update_settle(self, record: Dict[str, Any], result: Dict[str, Any]) -> None:
+        """安装返回后本实例仍在运行，说明没有发生重载，由本实例收尾该记录。"""
+        canceller = getattr(self, "_should_cancel", None)
+        if callable(canceller) and canceller():
+            # 已经被宿主停掉：结果只能交给重启后的新实例回填。
+            return
+        current = self._self_update_record()
+        if str(current.get("attempt") or "") != str(record.get("attempt") or ""):
+            return
+        success = str(result.get("status") or "") == "updated"
+        record.update(status="done" if success else "failed",
+                      message="" if success else self._update_error_detail(result.get("message")),
+                      updated_at=time.time())
+        self._store_self_update_record(record)
+
+    def _schedule_self_update_recovery(self) -> None:
+        """新实例启动后核实上一次自更新并回填原消息。"""
+        record = self._self_update_record()
+        if str(record.get("status") or "") != "installing":
+            return
+        generation = getattr(self, "_runtime_generation", 0)
+        try:
+            timer = self._track_runtime_timer(threading.Timer(
+                SELF_UPDATE_VERIFY_DELAY_SECONDS, self._verify_self_update, args=(generation,)))
+            timer.daemon = True
+            timer.name = "Signal-self-update-recovery"
+            timer.start()
+        except Exception as err:
+            logger.warning(f"Signal 自更新结果恢复定时器未能启动：{err}")
+
+    def _verify_self_update(self, generation: int) -> None:
+        """只在版本、绑定来源与载荷来源三者都成立时才认为自更新成功。"""
+        from ..infrastructure import plugin_updates
+
+        record = self._self_update_record()
+        if str(record.get("status") or "") != "installing":
+            return
+        canceller = getattr(self, "_should_cancel", None)
+        if callable(canceller) and canceller(generation):
+            return
+        target = dict(record.get("target") or {})
+        plugin_id = str(record.get("plugin_id") or type(self).__name__)
+        expected = (str(target.get("source_type") or ""), str(target.get("source_key") or ""))
+        attempts = int(record.get("verify_attempts") or 0) + 1
+        version, bound = "", False
+        try:
+            loaded = plugin_updates.inspect_loaded_source(plugin_id)
+            version = str(loaded.get("version") or "")
+            binding = tuple(loaded.get("binding") or ())
+            payload = tuple(loaded.get("payload") or ())
+            bound = bool(expected[0] and expected[1]) and binding[:2] == expected and payload == expected
+        except Exception as err:
+            logger.warning(f"Signal 自更新结果核实暂未完成：{self._update_error_detail(err)}")
+        if version and bound and self._self_update_version_reached(version, target.get("new")):
+            self._finish_self_update(record, success=True, version=version)
+            return
+        if attempts < SELF_UPDATE_VERIFY_MAX_ATTEMPTS:
+            record.update(verify_attempts=attempts, updated_at=time.time())
+            self._store_self_update_record(record)
+            self._schedule_self_update_recovery()
+            return
+        self._finish_self_update(record, success=False, version=version)
+
+    @staticmethod
+    def _self_update_version_reached(version: Any, target: Any) -> bool:
+        from ..infrastructure.plugin_updates import version_is_newer
+
+        version, target = str(version or ""), str(target or "")
+        if not version or not target:
+            return False
+        return version == target or version_is_newer(version, target)
+
+    def _finish_self_update(self, record: Dict[str, Any], *, success: bool, version: str) -> None:
+        """把自更新结果写回原消息；旧按钮只在重新核实出真实候选后才会回来。"""
+        from ..infrastructure import plugin_updates
+
+        target = dict(record.get("target") or {})
+        plugin_id = str(record.get("plugin_id") or type(self).__name__)
+        target_version = str(target.get("new") or "")
+        candidate = None
+        if not success:
+            try:
+                candidate = plugin_updates.inspect_bound_candidate(plugin_id, version)
+            except Exception as err:
+                logger.warning(f"Signal 自更新失败后未取得可用候选：{self._update_error_detail(err)}")
+        message = (f"{target.get('name') or plugin_id} 已更新至 {version or target_version}，版本已核实。" if success
+                   else f"{target.get('name') or plugin_id} 更新未完成。")
+        for reporter in (self._self_update_report_fusion, self._self_update_report_notice):
+            try:
+                reporter(record, success=success, version=version, message=message, candidate=candidate)
+            except Exception as err:
+                logger.warning(f"Signal 自更新结果回填失败：{self._update_error_detail(err)}")
+        record.update(status="done" if success else "failed", message=message, version=version,
+                      finished_at=time.time(), updated_at=time.time())
+        self._store_self_update_record(record)
+
+    def _self_update_report_fusion(self, record: Dict[str, Any], *, success: bool, version: str,
+                                   message: str, candidate: Optional[Dict[str, Any]]) -> bool:
+        from ..domain.update_jobs import set_update_job
+
+        state_getter = getattr(self, "_tg_console_state", None)
+        saver = getattr(self, "_save_tg_console_state", None)
+        if not callable(state_getter) or not callable(saver) or not getattr(self, "_fusion_notify_enabled", False):
+            return False
+        plugin_id = str(record.get("plugin_id") or "")
+        with self._tg_console_card_lock:
+            state = state_getter()
+            if not isinstance(state, dict) or not state.get("message_id"):
+                return False
+            entry = (state.get("fusion_update_actions") or {}).get("plugin_update") or {}
+            plugins = [item for item in (entry.get("payload") or {}).get("plugins") or []
+                       if isinstance(item, dict) and str(item.get("id") or "") != plugin_id]
+            if candidate:
+                plugins.append(candidate)
+            capture = getattr(self, "_tg_console_capture_fusion_update_action", None)
+            if callable(capture):
+                capture({"kind": "plugin_update", "payload": {"plugins": plugins}}, text=message, state=state)
+            for action in (state.get("pending_actions") or {}).values():
+                if (action.get("kind") == "plugin_update"
+                        and str((action.get("payload") or {}).get("id") or "") == plugin_id):
+                    action["done"] = True
+            state["update_jobs"] = set_update_job(state.get("update_jobs"), "plugin_update", {
+                "phase": "success" if success else "available" if candidate else "failed",
+                "message": message, "error": "", "updated_at": time.time(),
+                "items": [candidate] if candidate else [],
+            })
+            feed_set = getattr(self, "_fusion_action_feed_set", None)
+            if callable(feed_set):
+                feed_set(state, f"self-update:{plugin_id}", "plugin_update",
+                         f"更新 {record.get('target', {}).get('name') or plugin_id}",
+                         "success" if success else "error", message)
+            saver(state)
+        resolution = getattr(self, "_resolve_fusion_telegram_config", None)
+        token = chat_id = ""
+        if callable(resolution):
+            try:
+                token, chat_id, _source = resolution()
+            except Exception:
+                token = chat_id = ""
+        upsert = getattr(self, "_tg_console_upsert_card", None)
+        if callable(upsert) and token and chat_id:
+            upsert(token, chat_id, state, generation=getattr(self, "_runtime_generation", 0))
+        return True
+
+    def _self_update_report_notice(self, record: Dict[str, Any], *, success: bool, version: str,
+                                   message: str, candidate: Optional[Dict[str, Any]]) -> bool:
+        loader = getattr(self, "_notice_load", None)
+        saver = getattr(self, "_notice_save", None)
+        if not callable(loader) or not callable(saver):
+            return False
+        plugin_id = str(record.get("plugin_id") or "")
+        changed = []
+        with self._notice_lock:
+            state = loader()
+            for nonce, item in state["records"].items():
+                selected = ((item.get("selected") or {}).get("id") if isinstance(item.get("selected"), dict) else "")
+                if str(selected or "") != plugin_id or str(item.get("status") or "") not in {"running", "uncertain"}:
+                    continue
+                plugins = []
+                for entry in item.get("payload", {}).get("plugins", []):
+                    plugins.append({**entry, "completed": True} if entry.get("id") == plugin_id else entry)
+                if candidate:
+                    plugins.append(candidate)
+                remaining = any(not entry.get("completed") and not entry.get("blocked") for entry in plugins)
+                item["payload"]["plugins"] = plugins
+                item.update(status="done" if success else ("ready" if remaining else "failed"),
+                            text=message, detail=message)
+                item.pop("selected", None)
+                changed.append(nonce)
+            if changed:
+                saver(state)
+        publisher = getattr(self, "_notice_publish", None)
+        for nonce in changed:
+            if callable(publisher):
+                publisher(nonce)
+        return bool(changed)
+
     def _build_fusion_update_status(self) -> Dict[str, Any]:
         """A confirmed host release remains actionable if a later check fails.
 

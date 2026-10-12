@@ -283,7 +283,10 @@ class TgConsoleRenderMixin:
 
             plugin = jobs.get("plugin_update") if isinstance(jobs.get("plugin_update"), dict) else {}
             plugin_phase = str(plugin.get("phase") or "")
-            plugin_items = [item for item in plugin.get("items") or [] if isinstance(item, dict)]
+            # 可执行候选：被标记 blocked 的本体/运行中插件不出现按钮，与普通通知
+            # 的过滤口径一致，避免「能点但没有安装」。
+            plugin_items = [item for item in plugin.get("items") or []
+                            if isinstance(item, dict) and not item.get("blocked") and not item.get("completed")]
             plugin_retry_buttons = False
             if (not plugin_auto and component_on("plugin_update_reminder")
                     and plugin_phase in {"available", "failed", "partial"}
@@ -1040,7 +1043,7 @@ class TgConsoleRenderMixin:
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "3.1.3") or "3.1.3")
+        version = str(getattr(self, "plugin_version", "3.1.4") or "3.1.4")
         # 与定稿模板一致：头部时间带日期（09-26 14:08），不是只有时分。
         return {"version": version if version.startswith("v") else f"v{version}",
                 "refreshed_at": datetime.now().strftime("%m-%d %H:%M")}
