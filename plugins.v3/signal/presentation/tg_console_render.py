@@ -1043,7 +1043,7 @@ class TgConsoleRenderMixin:
         }]
 
     def _v7_identity(self) -> Dict[str, str]:
-        version = str(getattr(self, "plugin_version", "3.1.4") or "3.1.4")
+        version = str(getattr(self, "plugin_version", "3.1.5") or "3.1.5")
         # 与定稿模板一致：头部时间带日期（09-26 14:08），不是只有时分。
         return {"version": version if version.startswith("v") else f"v{version}",
                 "refreshed_at": datetime.now().strftime("%m-%d %H:%M")}

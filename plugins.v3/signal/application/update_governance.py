@@ -535,7 +535,11 @@ class UpdateGovernanceMixin:
 
     def _auto_update_installed_plugins(self, apply: bool = True, manual_targets: Optional[List[Dict[str, Any]]] = None,
                                        progress: Optional[Any] = None) -> Dict[str, Any]:
-        """检查、手动与自动更新共享宿主绑定来源，绝不跨库寻找更高版本。"""
+        """检查、手动与自动更新共享宿主绑定来源，绝不跨库寻找更高版本。
+
+        自动模式与手动点击走同一条自更新通道：Signal 自身的新版本由本插件
+        发起宿主安装，重启后的新实例核实版本与来源后回填结果。
+        """
         from ..infrastructure import plugin_updates
 
         manual = manual_targets is not None
@@ -606,11 +610,10 @@ class UpdateGovernanceMixin:
                 self_target = bool(pid) and pid.strip().lower() in self_ids
                 if pid.lower() in {"moviepilot", "agentopsassistant"}:
                     info["blocked"] = "请在 MoviePilot 插件管理中更新本体"
-                elif self_target and not manual:
-                    # 自动模式仍由用户在本插件中显式点击自更新；本轮不改变
-                    # 定时任务的自更新策略。
-                    info["blocked"] = "请在 MoviePilot 插件管理中更新本体"
-                elif any(pid == job or str(job).startswith(pid + ".") for job in running):
+                elif not self_target and any(pid == job or str(job).startswith(pid + ".") for job in running):
+                    # 自更新必然停掉本插件：调用它的定时任务与同刻启动的兄弟
+                    # 任务都会命中「正在运行」。自更新不看自己的运行中任务，
+                    # 其它插件仍保留这道保护。
                     info["blocked"] = "插件任务正在运行"
                 out["updatable"].append(info)
                 if manual:
@@ -634,7 +637,7 @@ class UpdateGovernanceMixin:
                 self_record = None
                 if self_target:
                     try:
-                        self_record = self._self_update_reserve(info)
+                        self_record = self._self_update_reserve(info, source="manual" if manual else "auto")
                     except Exception as err:
                         out["failed"].append({**info, "msg": self._update_error_detail(err)})
                         continue
@@ -695,7 +698,7 @@ class UpdateGovernanceMixin:
         except Exception:
             return False
 
-    def _self_update_reserve(self, target: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _self_update_reserve(self, target: Dict[str, Any], *, source: str = "manual") -> Optional[Dict[str, Any]]:
         """自更新先落盘一次执行记录：宿主停掉本实例后，只有它能证明这次安装。"""
         now = time.time()
         previous = self._self_update_record()
@@ -707,6 +710,7 @@ class UpdateGovernanceMixin:
             "schema": 1, "status": "installing", "attempt": secrets.token_hex(6),
             "plugin_id": str(target.get("id") or ""),
             "target": {key: target.get(key) for key in SELF_UPDATE_TARGET_FIELDS},
+            "source": "auto" if str(source or "").strip().lower() == "auto" else "manual",
             "started_at": now, "updated_at": now, "verify_attempts": 0,
         }
         if not self._store_self_update_record(record):
@@ -805,9 +809,45 @@ class UpdateGovernanceMixin:
                 reporter(record, success=success, version=version, message=message, candidate=candidate)
             except Exception as err:
                 logger.warning(f"Signal 自更新结果回填失败：{self._update_error_detail(err)}")
+        try:
+            self._self_update_notify_auto_install(record, success=success, version=version)
+        except Exception as err:
+            logger.warning(f"Signal 自更新结果通知失败：{self._update_error_detail(err)}")
         record.update(status="done" if success else "failed", message=message, version=version,
                       finished_at=time.time(), updated_at=time.time())
         self._store_self_update_record(record)
+
+    def _self_update_notify_auto_install(self, record: Dict[str, Any], *, success: bool, version: str) -> bool:
+        """自动模式的自更新在重启后补发安装结果；手动点击由原消息回填承接。
+
+        融合通知模式下结果由卡片事件承接，这里只补普通通知渠道。
+        """
+        if str(record.get("source") or "") != "auto" or getattr(self, "_fusion_notify_enabled", False):
+            return False
+        if not self._task_outcome_notification_enabled(self._plugin_auto_install_scheduled_notify):
+            return False
+        target = dict(record.get("target") or {})
+        item = {**target, "name": str(target.get("name") or record.get("plugin_id") or "Signal")}
+        if success:
+            item["new"] = str(version or target.get("new") or "")
+            data = {"auto_install": True, "updatable": [], "updated": [item], "failed": [], "skipped": []}
+        else:
+            item["msg"] = "更新未完成"
+            data = {"auto_install": True, "updatable": [], "updated": [], "failed": [item], "skipped": []}
+        self._notify_fusion_task_outcome(
+            mtype=self._notification_type(self._plugin_auto_install_notify_type),
+            title="插件自动安装" if success else "插件自动安装异常",
+            text=self._format_plugin_update_text(data, title="📦 插件自动安装"),
+            outcome=self._plugin_update_outcome(data),
+            success=success,
+            component="plugin_update_reminder",
+            task_key="plugin_auto_install",
+            task_group="更新管理",
+            notification_status="changed" if success else "error",
+            notification_target="plugin_auto_install",
+            notification_cooldown=False,
+        )
+        return True
 
     def _self_update_report_fusion(self, record: Dict[str, Any], *, success: bool, version: str,
                                    message: str, candidate: Optional[Dict[str, Any]]) -> bool:
