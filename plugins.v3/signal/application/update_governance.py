@@ -834,6 +834,8 @@ class UpdateGovernanceMixin:
         else:
             item["msg"] = "更新未完成"
             data = {"auto_install": True, "updatable": [], "updated": [], "failed": [item], "skipped": []}
+        # 纯失败与普通自动安装走同一冷却键：同一目标、同一原因 24 小时只提醒一次。
+        failure_fingerprint = "" if success else self._plugin_install_failure_fingerprint(data)
         self._notify_fusion_task_outcome(
             mtype=self._notification_type(self._plugin_auto_install_notify_type),
             title="插件自动安装" if success else "插件自动安装异常",
@@ -845,7 +847,8 @@ class UpdateGovernanceMixin:
             task_group="更新管理",
             notification_status="changed" if success else "error",
             notification_target="plugin_auto_install",
-            notification_cooldown=False,
+            notification_cooldown=not success,
+            notification_fingerprint=failure_fingerprint,
         )
         return True
 
@@ -1217,6 +1220,25 @@ class UpdateGovernanceMixin:
             return f"自动安装完成：成功 {len(data.get('updated') or [])} 个，失败 {len(data.get('failed') or [])} 个"
         return f"发现 {len(data.get('updatable') or [])} 个可更新插件"
 
+    def _plugin_install_failure_fingerprint(self, data: Dict[str, Any]) -> str:
+        """同一插件、目标版本与失败原因的自动安装失败共用一个冷却指纹。
+
+        宿主拒绝安装（例如要求更高的 MoviePilot 版本）每轮都会重试；只有
+        失败集合变化、出现真实安装结果或超过冷却窗口时才再次提醒。
+        """
+        failed = [item for item in (data.get("failed") or []) if isinstance(item, dict)]
+        if not failed:
+            return self._notification_error_fingerprint(data.get("error") or "插件自动安装未完成")
+        entries = sorted(
+            ({
+                "id": str(item.get("id") or item.get("name") or ""),
+                "target_version": str(item.get("new") or item.get("version") or ""),
+                "message": self._normalize_notification_error_summary(item.get("msg")),
+            } for item in failed),
+            key=lambda item: (item["id"], item["target_version"], item["message"]),
+        )
+        return self._notification_outcome_fingerprint({"failed": entries})
+
     def _publish_plugin_update_job(self, data: Dict[str, Any], *, state: Optional[Dict[str, Any]] = None,
                                    persist: bool = True) -> Dict[str, Any]:
         """自动模式下只发布执行结果，绝不留出可手动点击的插件候选。"""
@@ -1437,6 +1459,9 @@ class UpdateGovernanceMixin:
             )
         if (scheduled or notify) and notify_install:
             install_success = not bool(data.get("error") or data.get("failed"))
+            # 本轮没有任何成功安装时，同一失败（同插件、同目标版本、同原因）
+            # 按 24 小时冷却只提醒一次；有成功结果或失败内容变化时照常通知。
+            install_failed_only = not install_success and not data.get("updated")
             self._notify_fusion_task_outcome(
                 mtype=self._notification_type(self._plugin_auto_install_notify_type),
                 title="插件自动安装" if install_success else "插件自动安装异常",
@@ -1448,7 +1473,9 @@ class UpdateGovernanceMixin:
                 task_group="更新管理",
                 notification_status="changed" if install_success else "error",
                 notification_target="plugin_auto_install",
-                notification_cooldown=False,
+                notification_cooldown=install_failed_only,
+                notification_fingerprint=(
+                    self._plugin_install_failure_fingerprint(data) if install_failed_only else ""),
                 notification_manual=notify,
             )
         plugins = updatable if (check_success and updatable and not auto_install_enabled) else []
