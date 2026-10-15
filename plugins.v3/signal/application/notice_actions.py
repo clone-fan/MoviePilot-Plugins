@@ -244,7 +244,7 @@ class NoticeActionsMixin:
         try:
             ok = bool(self.run_market_update(scheduled=False, notify=False))
             data = dict(getattr(self, "_last_market_update_result", {}) or {})
-            return ok, self._market_update_outcome(data, ok)
+            return ok, self._market_update_outcome(data)
         except Exception:
             return False, "插件库同步失败，请稍后重试。"
 

@@ -357,24 +357,37 @@ class UpdateGovernanceMixin:
         kept_settings_markets = [x for x in settings_markets if not self._market_address_blocked(x, blocked_addresses, blocked_hosts)]
         blocked_from_settings = [x for x in settings_markets if self._market_address_blocked(x, blocked_addresses, blocked_hosts)]
         blocked_markets = self._dedupe([x for x in discovered_markets if self._market_address_blocked(x, blocked_addresses, blocked_hosts)] + blocked_from_settings)
+        invalid_from_settings = [x for x in kept_settings_markets if not self._is_valid_market_address(x)]
+        kept_settings_markets = [x for x in kept_settings_markets if self._is_valid_market_address(x)]
         other_markets = [x for x in kept_settings_markets if x not in wiki_markets]
-        write_markets = self._dedupe(wiki_markets + other_markets)
         last = self.get_data("last_market_update") or {}
         last_wiki = self._valid_markets_list(last.get("wiki_markets") or [])
+        baseline_ready = bool(last_wiki)
         new_markets = [x for x in wiki_markets if x not in last_wiki and x not in settings_markets]
-        has_update = set(wiki_markets) != set(last_wiki) or bool(new_markets)
+        # 增量补充：保留用户维护的现有清单，只追加 Wiki 新出现的仓库；
+        # 首次运行只建立 Wiki 基线快照；配置为空时按 Wiki 全量做一次性
+        # 引导，保证控制台的“尚未配置插件市场”恢复入口有效。
+        if not settings_markets:
+            write_markets = self._dedupe(wiki_markets)
+            new_markets = list(write_markets)
+        elif not baseline_ready:
+            write_markets = list(kept_settings_markets)
+            new_markets = []
+        else:
+            write_markets = self._dedupe(kept_settings_markets + new_markets)
+        has_update = bool(new_markets)
         empty_write_blocked = not write_markets and bool(settings_markets)
-        result = {"success": not empty_write_blocked, "dry_run": not apply, "has_update": has_update, "strategy": "sync", "legacy_strategy": self._market_update_strategy, "wiki_markets": wiki_markets, "settings_markets": settings_markets, "other_markets": other_markets, "write_markets": write_markets, "new_markets": new_markets, "blacklist": blacklist, "blocked_markets": blocked_markets, "blocked_from_settings": blocked_from_settings, "settings_written": False, "env_written": False}
+        result = {"success": not empty_write_blocked, "dry_run": not apply, "has_update": has_update, "strategy": "sync", "legacy_strategy": self._market_update_strategy, "wiki_markets": wiki_markets, "settings_markets": settings_markets, "other_markets": other_markets, "write_markets": write_markets, "new_markets": new_markets, "blacklist": blacklist, "blocked_markets": blocked_markets, "blocked_from_settings": blocked_from_settings, "invalid_markets": invalid_from_settings, "baseline_recorded": bool(apply and not baseline_ready), "settings_written": False, "env_written": False}
         if empty_write_blocked:
-            result["error"] = "黑名单过滤后插件库目标为空，未写入：为避免清空 MoviePilot 插件市场已中止本次同步"
-            logger.error(f"插件库同步中止：黑名单过滤后目标为空，当前配置 {len(settings_markets)} 个库、拦截 {len(blocked_markets)} 个库")
+            result["error"] = "过滤后插件库目标为空，未写入：为避免清空 MoviePilot 插件市场已中止本次同步"
+            logger.error(f"插件库同步中止：过滤后目标为空，当前配置 {len(settings_markets)} 个库、拦截 {len(blocked_markets)} 个、无效 {len(invalid_from_settings)} 个")
             return result
         if apply:
             if write_markets != settings_markets:
                 settings.PLUGIN_MARKET = ",".join(write_markets)
                 result["settings_written"] = True
             result["env_written"] = self._write_app_env_key("PLUGIN_MARKET", ",".join(write_markets))
-            self.save_data("last_market_update", {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "wiki_markets": wiki_markets, "settings_markets": settings_markets, "new_markets": new_markets, "has_update": has_update, "blacklist": blacklist, "blocked_markets": blocked_markets})
+            self.save_data("last_market_update", {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "wiki_markets": wiki_markets, "settings_markets": settings_markets, "new_markets": new_markets, "has_update": has_update, "blacklist": blacklist, "blocked_markets": blocked_markets, "invalid_markets": invalid_from_settings})
         return result
 
     def _market_update_blacklist_list(self) -> List[str]:
@@ -427,6 +440,35 @@ class UpdateGovernanceMixin:
         if not markets:
             raise RuntimeError("插件库记录页面未包含有效的仓库地址，未修改现有插件库")
         return markets
+
+    @staticmethod
+    def _is_valid_market_address(address: Any) -> bool:
+        """插件库地址有效性：拒绝文档/文件链接与明显不完整的地址。"""
+        text = str(address or "").strip()
+        if not text:
+            return False
+        try:
+            url = urlsplit(text)
+        except ValueError:
+            return False
+        if url.scheme not in {"http", "https"} or not url.netloc:
+            return False
+        if url.query or url.fragment:
+            return False
+        parts = [part for part in url.path.strip("/").split("/") if part]
+        if len(parts) < 2:
+            return False
+        host = url.netloc.lower()
+        if host in {"github.com", "gitee.com"} and len(parts) != 2:
+            return False
+        if host == "gitlab.com" and "-" in parts:
+            return False
+        last = parts[-1].removesuffix(".git")
+        if not last or not re.fullmatch(r"[A-Za-z0-9_.-]+", last):
+            return False
+        if "." in last and re.search(r"\.(md|html?|txt|json|ya?ml|py|js|ts|css|png|jpe?g|gif|svg|pdf|zip)$", last, re.I):
+            return False
+        return True
 
     @staticmethod
     def _valid_markets_list(value: Any) -> List[str]:
@@ -492,6 +534,7 @@ class UpdateGovernanceMixin:
             f"⦁ 第三方保留：{len(data.get('other_markets') or [])} 个",
             f"⦁ 新发现：{len(data.get('new_markets') or [])} 个",
             f"⦁ 黑名单拦截：{len(data.get('blocked_markets') or [])} 个",
+            f"⦁ 无效剔除：{len(data.get('invalid_markets') or [])} 个",
             f"⦁ 写入当前配置：{'已执行' if data.get('settings_written') else '未执行'}",
             f"⦁ 写入 app.env：{'已执行' if data.get('env_written') else '未执行'}",
         ]
@@ -499,6 +542,8 @@ class UpdateGovernanceMixin:
             lines.append(f"⦁ 新库：{url}")
         for url in (data.get('blocked_markets') or [])[:5]:
             lines.append(f"⦁ 拦截库：{url}")
+        for url in (data.get('invalid_markets') or [])[:5]:
+            lines.append(f"⦁ 无效地址：{url}")
         if not data.get("success"):
             lines.append(f"⦁ 同步失败：{data.get('error') or '插件库同步未完成'}")
         return "\n".join(lines)
@@ -507,12 +552,15 @@ class UpdateGovernanceMixin:
     def _market_update_outcome(data: Dict[str, Any]) -> str:
         writes = int(bool(data.get("settings_written"))) + int(bool(data.get("env_written")))
         blocked = len(data.get("blocked_markets") or [])
+        invalid = len(data.get("invalid_markets") or [])
         if data.get("success"):
             parts = []
             if writes:
                 parts.append(f"同步 {writes} 处插件库配置")
             if blocked:
                 parts.append(f"拦截 {blocked} 个插件库")
+            if invalid:
+                parts.append(f"剔除 {invalid} 个无效地址")
             return "已" + "，".join(parts) if parts else "插件库检查完成，未执行变更"
         detail = str(data.get("error") or "").strip() or "插件库同步未完成"
         return f"插件库同步失败：{detail}"
