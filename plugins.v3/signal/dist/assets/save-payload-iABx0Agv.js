@@ -1014,7 +1014,7 @@ const marketUpdateCoreSchemaFieldDescriptors = Object.freeze([
 const moviePilotUpdateCoreSchemaFieldDescriptors = Object.freeze([
   { "key": "mp_update_cron", "type": "string", "cardType": "cron", "module": "mp_update", "subtab": "updates", "label": "系统检查时间", "control": "cron", "sourceProfile": "remote-read" },
   { "key": "mp_update_enabled", "type": "boolean", "cardType": "feature", "module": "mp_update", "subtab": "updates", "label": "启用开关", "control": "switch", "sourceProfile": "remote-form" },
-  { "key": "mp_update_execution_mode", "type": "string", "cardType": "feature", "module": "mp_update", "subtab": "updates", "label": "执行方式", "help": "自动检查并下载：发现新版本就自动开始下载，重启前仍要你确认；通知后手动更新：只发通知，点按钮再进入更新流程。", "control": "select", "itemSource": "mpUpdateModeItems", "sourceProfile": "remote-form" },
+  { "key": "mp_update_execution_mode", "type": "string", "cardType": "feature", "module": "mp_update", "subtab": "updates", "label": "执行方式", "help": "全自动更新：发现新版本就自动下载，下载完成后自动重启安装（期间 MoviePilot 会短暂中断）；通知后手动更新：只发通知，点按钮再进入更新流程。", "control": "select", "itemSource": "mpUpdateModeItems", "sourceProfile": "remote-form" },
   { "key": "mp_update_schedule_enabled", "type": "boolean", "cardType": "cron", "module": "mp_update", "subtab": "updates", "label": "启用定时任务", "control": "switch", "isDisplayed": false, "sourceProfile": "remote-persisted" },
   { "key": "mp_update_types", "type": "array", "cardType": "feature", "module": "mp_update", "subtab": "updates", "label": "检查范围", "control": "select", "itemSource": "mpUpdateTypes", "sourceProfile": "remote-form" },
 ]);
@@ -1125,7 +1125,7 @@ const pluginUpdateModeItems = [
 ];
 const pluginUpdateModeValues = configOptionValues(pluginUpdateModeItems);
 const mpUpdateModeItems = [
-  { title: '自动检查并下载', value: 'auto' },
+  { title: '全自动更新', value: 'auto' },
   { title: '通知后手动更新', value: 'manual' },
 ];
 const mpUpdateModeValues = configOptionValues(mpUpdateModeItems);

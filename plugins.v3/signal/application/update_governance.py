@@ -43,9 +43,14 @@ def _capture_fusion_update_action_if_possible(owner: Any, kind: str, payload: Di
         logger.debug(f"Signal 更新候选写入卡片状态失败：{err}")
 
 
+def _moviepilot_install_guard(owner: Any) -> bool:
+    """安装重启窗口守卫；与候选捕获一样兼容未实现该方法的窄替身。"""
+    guard = getattr(owner, "_moviepilot_install_in_progress", None)
+    return bool(guard()) if callable(guard) else False
+
+
 class _WikiRepositoryLinks(HTMLParser):
     """Read repository anchors without treating documentation URLs as markets."""
-
     def __init__(self):
         super().__init__()
         self.urls: List[str] = []
@@ -144,18 +149,21 @@ class UpdateGovernanceMixin:
         """按用户选择的执行方式处理 MoviePilot 更新。
 
         Dev 宿主维持原有的直接触发。Release 宿主分流：
-        「自动检查并下载」用宿主官方更新交互接口开始下载（安装重启仍要用户确认），
-        「通知后手动更新」只标记待人工处理，由通知按钮进入宿主更新流程。
-        upgrade_dev() 会让 Release 宿主切到 Dev，任何情况下都不能调用。
+        「全自动更新」直接用宿主受管更新状态机开始下载，下载就绪后由推进器
+        自动安装并重启；任何一步不可用或失败都退回「通知后手动更新」，让更新
+        停在用户看得见、能接手的位置。upgrade_dev() 会让 Release 宿主切到 Dev，
+        任何情况下都不能调用。
         """
         from ..infrastructure import notice_transport
         mp = data.setdefault("moviepilot", {})
         if str(getattr(settings, "MOVIEPILOT_AUTO_UPDATE", "") or "").strip().lower() != "dev":
             mp["upgrade_channel"] = "release"
             mp["upgrade_manual_required"] = True
-            # Release updates are card-confirmed. The old host `/update` interaction
-            # created a second message and an expiring session; FC8's card action
-            # calls the host update manager directly when the user confirms.
+            # Release 更新走宿主状态机：旧宿主 `/update` 交互会另开一条消息并带过期
+            # 会话，因此保持不用。手动模式等卡片确认；全自动模式立刻开始下载同一套
+            # 宿主受管更新，随后由推进器接管安装与重启。
+            if self._mp_update_mode() == "auto":
+                self._start_moviepilot_auto_update(mp)
             return
         try:
             from app.sdk.services import SystemHelper
@@ -173,6 +181,187 @@ class UpdateGovernanceMixin:
                 mp["upgrade_error"] = str(message or "MoviePilot 升级请求失败")
         except Exception as err:
             mp["upgrade_error"] = str(err)
+
+    # 全自动更新的推进节奏：宿主下完包就接力按下安装重启，最多等 30 分钟。
+    _AUTO_INSTALL_POLL_SECONDS = 20
+    _AUTO_INSTALL_MAX_POLLS = 90
+
+    def _mp_update_mode(self) -> str:
+        """系统更新的执行方式；缺省与旧配置一律按手动处理。"""
+        mode = str(getattr(self, "_mp_update_execution_mode", "manual") or "manual").strip().lower()
+        return "auto" if mode == "auto" else "manual"
+
+    _INSTALL_GUARD_SECONDS = 1800
+
+    def _moviepilot_install_in_progress(self) -> bool:
+        """安装重启窗口内不让新一轮检查覆盖状态，否则重启后的版本核对永不执行。
+
+        窗口有上限：状态超过运行时限仍停在 installing 时不再拦检查，避免一次
+        没有真正重启的失败安装让系统更新检查永久失效。
+        """
+        try:
+            state = self.get_data("tg_console_state") or {}
+        except Exception:
+            return False
+        if not isinstance(state, dict):
+            return False
+        jobs = state.get("update_jobs") if isinstance(state.get("update_jobs"), dict) else {}
+        job = jobs.get("mp_update") if isinstance(jobs.get("mp_update"), dict) else {}
+        if not str(job.get("phase") or ""):
+            job = state.get("moviepilot_update_panel") if isinstance(state.get("moviepilot_update_panel"), dict) else {}
+        if str(job.get("phase") or "") != "installing":
+            return False
+        updated_at = float(job.get("updated_at") or 0)
+        if updated_at and datetime.now().timestamp() - updated_at > UpdateGovernanceMixin._INSTALL_GUARD_SECONDS:
+            return False
+        return True
+
+    @staticmethod
+    def _moviepilot_upgrade_target(mp: Dict[str, Any]) -> str:
+        checks = mp.get("checks") if isinstance(mp.get("checks"), list) else []
+        for item in checks:
+            if isinstance(item, dict) and item.get("has_update"):
+                return str(item.get("latest_version") or item.get("latest") or "").strip()
+        return ""
+
+    def _start_moviepilot_auto_update(self, mp: Dict[str, Any]) -> None:
+        """全自动模式：立刻让宿主状态机开始下载，下载完成后再自动安装重启。"""
+        from ..infrastructure import notice_transport
+        target = UpdateGovernanceMixin._moviepilot_upgrade_target(mp)
+        if not target:
+            mp["upgrade_auto_error"] = "未取得目标版本，已改为通知后手动更新"
+            return
+        already = ""
+        try:
+            probe_ok, _probe_message, probe = notice_transport.moviepilot_release_action("status", target)
+            if probe_ok:
+                already = str((probe or {}).get("state") or "")
+        except Exception:
+            already = ""
+        if already in {"downloading", "ready", "installing"}:
+            # 宿主侧已经在推进（上一次检查起过，或用户手动点过）：接力，不重开下载，
+            # 也不把「已经在下载」误报成自动更新失败。
+            UpdateGovernanceMixin._adopt_moviepilot_auto_update(mp, target, already)
+            return
+        try:
+            ok, message, status = notice_transport.moviepilot_release_action("download", target)
+        except Exception as err:
+            mp["upgrade_auto_error"] = f"自动下载启动失败：{self._update_error_detail(err)}"
+            return
+        if not ok:
+            mp["upgrade_auto_error"] = str(message or "自动下载未能启动")
+            return
+        UpdateGovernanceMixin._adopt_moviepilot_auto_update(mp, target, str((status or {}).get("state") or ""))
+
+    @staticmethod
+    def _adopt_moviepilot_auto_update(mp: Dict[str, Any], target: str, host_state: str) -> None:
+        """把「自动更新已经在跑」写回检查结果，供卡片与通知共用同一口径。"""
+        mp["upgrade_manual_required"] = False
+        mp["upgrade_download_started"] = host_state in {"downloading", "ready"}
+        mp["upgrade_auto_install"] = True
+        mp["upgrade_target_version"] = target
+        mp["upgrade_host_state"] = host_state
+
+    def _schedule_moviepilot_auto_install(self, version: str, attempt: int = 0) -> None:
+        """下载就绪即自动安装：无人确认模式下由这里接力按下安装与重启。"""
+        from ..infrastructure import notice_transport
+        target = str(version or "")
+        if not target or self._should_cancel():
+            return
+        if not notice_transport.moviepilot_release_ports():
+            UpdateGovernanceMixin._finish_moviepilot_auto_update(
+                self, False, "宿主更新接口不可用，已改为通知后手动更新")
+            return
+        try:
+            timer = self._track_runtime_timer(threading.Timer(
+                UpdateGovernanceMixin._AUTO_INSTALL_POLL_SECONDS,
+                self._poll_moviepilot_auto_install, args=(target, attempt)))
+            timer.daemon = True
+            timer.name = "Signal-mp-auto-install"
+            timer.start()
+        except Exception as err:
+            logger.warning(f"Signal 全自动更新推进器未能启动：{err}")
+
+    def _poll_moviepilot_auto_install(self, version: str, attempt: int) -> None:
+        """轮询宿主下载状态；就绪就安装，失败或超时退回人工能接手的状态。"""
+        from ..infrastructure import notice_transport
+        if self._should_cancel():
+            return
+        try:
+            ok, message, status = notice_transport.moviepilot_release_action("status", version)
+        except Exception as err:
+            UpdateGovernanceMixin._finish_moviepilot_auto_update(
+                self, False, f"自动安装中止：{self._update_error_detail(err)}")
+            return
+        phase = str(status.get("state") or "")
+        if phase == "ready" and status.get("can_install"):
+            self._install_moviepilot_auto_update(version)
+            return
+        if phase == "installing":
+            return
+        if phase == "downloading" or (ok and phase in {"available", "ready"}):
+            if attempt >= UpdateGovernanceMixin._AUTO_INSTALL_MAX_POLLS:
+                UpdateGovernanceMixin._finish_moviepilot_auto_update(
+                    self, False, "自动安装等待超时，已改为通知后手动更新", phase)
+                return
+            self._schedule_moviepilot_auto_install(version, attempt + 1)
+            return
+        UpdateGovernanceMixin._finish_moviepilot_auto_update(
+            self, False, str(message or "更新包未能就绪，已改为通知后手动更新"), phase)
+
+    def _install_moviepilot_auto_update(self, version: str) -> None:
+        """先落地「正在安装」状态与通知，再请求宿主安装重启。"""
+        from ..infrastructure import notice_transport
+        UpdateGovernanceMixin._set_update_center_job(self, "mp_update", {
+            "phase": "installing", "message": "更新包已就绪，正在自动安装并重启 MoviePilot…",
+            "error": "", "progress": 100, "target_version": version, "steps": ["status", "check"],
+        }, persist=True)
+        self._notify_moviepilot_auto_update(
+            True, "系统更新", "更新包已就绪，正在自动安装并重启 MoviePilot。服务恢复后 Signal 会核对版本。")
+        try:
+            ok, message, status = notice_transport.moviepilot_release_action("install", version)
+        except Exception as err:
+            ok, message, status = False, self._update_error_detail(err), {}
+        if not ok:
+            # 宿主可能已经把包下好（ready）只是重启被拒：那就把「确认重启安装」留给用户，
+            # 而不是给一个只会原地打转的重新检查。
+            UpdateGovernanceMixin._finish_moviepilot_auto_update(
+                self, False, str(message or "安装重启请求失败"),
+                str((status or {}).get("state") or ""))
+
+    def _finish_moviepilot_auto_update(self, ok: bool, message: str, host_state: str = "") -> None:
+        """自动流程失败时退回可人工接手的状态，绝不让更新卡在中间态。
+
+        宿主已经把包下好（ready）时不能落到 failed：那一步需要的是「确认重启安装」
+        按钮，而不是重新检查，否则用户会看到按不动或者原地打转的入口。
+        """
+        detail = str(message or "").strip() or "自动更新未完成"
+        if not ok and str(host_state or "") == "ready":
+            UpdateGovernanceMixin._set_update_center_job(self, "mp_update", {
+                "phase": "ready", "message": detail, "error": detail,
+                "steps": ["install", "status", "check"],
+            }, persist=True)
+        else:
+            UpdateGovernanceMixin._set_update_center_job(self, "mp_update", {
+                "phase": "success" if ok else "failed", "message": detail,
+                "error": "" if ok else detail, "steps": ["check", "status"],
+            }, persist=True)
+        self._notify_moviepilot_auto_update(bool(ok), "系统更新" if ok else "系统更新异常", detail)
+
+    def _notify_moviepilot_auto_update(self, ok: bool, title: str, text: str) -> None:
+        """全自动流程没有用户点击，结果必须自己说清楚。"""
+        if not self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
+            return
+        try:
+            self._notify_fusion_task_outcome(
+                mtype=self._notification_type(getattr(self, "_mp_update_notify_type", "Plugin")),
+                title=title, text=text, outcome=text, success=bool(ok),
+                component="mp_update", task_key="mp_update", task_group="更新管理",
+                affected_owner="moviepilot",
+                notification_status="changed" if ok else "error",
+                notification_target="moviepilot")
+        except Exception as err:
+            logger.warning(f"Signal 系统更新通知发送失败：{err}")
 
     @staticmethod
     def _read_frontend_package_version() -> str:
@@ -333,6 +522,10 @@ class UpdateGovernanceMixin:
             lines.append(f"⦁ 更新检查：{mp['check_warning']}")
         if mp.get("upgrade_dispatched"):
             lines.append(f"⦁ 更新执行：已触发 MoviePilot 升级重启{('｜' + str(mp.get('upgrade_message'))) if mp.get('upgrade_message') else ''}")
+        elif mp.get("upgrade_auto_error"):
+            lines.append(f"⦁ 自动更新未启动：{mp.get('upgrade_auto_error')}（已改为通知后手动更新）")
+        elif mp.get("upgrade_auto_install"):
+            lines.append("⦁ 自动更新：已开始下载，下载完成后会自动重启安装")
         elif mp.get("upgrade_manual_required"):
             lines.append("⦁ 正式版更新：请在 MoviePilot 系统更新页面确认安装")
         elif mp.get("upgrade_error"):
@@ -571,6 +764,8 @@ class UpdateGovernanceMixin:
         if success:
             if mp.get("upgrade_dispatched"):
                 return "已触发 MoviePilot 升级并重启"
+            if mp.get("upgrade_auto_install"):
+                return "已自动开始下载更新包，下载完成后会自动重启安装"
             if mp.get("upgrade_download_started"):
                 return "已自动开始下载更新包，下载完成后请在通知里确认重启"
             if mp.get("upgrade_manual_required"):
@@ -1020,6 +1215,9 @@ class UpdateGovernanceMixin:
         if not getattr(self, "_mp_update_enabled", False):
             state.setdefault("fusion_update_actions", {}).pop("mp_update", None)
             return
+        if _moviepilot_install_guard(self):
+            # 安装重启期间只读刷新会把 installing 覆盖成 available，毁掉重启后的版本核对。
+            return
         checks = []
         success = False
         try:
@@ -1044,6 +1242,9 @@ class UpdateGovernanceMixin:
         ok, _ = self._guard_task("系统更新检查", "mp_update")
         if not ok:
             return False
+        if _moviepilot_install_guard(self):
+            logger.info("Signal 系统更新正在安装，本次预览跳过，避免覆盖重启后的版本核对。")
+            return True
         data = self._build_update_status()
         text = self._format_update_status_text(data)
         mp = data.get("moviepilot") or {}
@@ -1064,6 +1265,9 @@ class UpdateGovernanceMixin:
         ok, _ = self._guard_task("系统更新检查", "mp_update")
         if not ok:
             return False
+        if _moviepilot_install_guard(self):
+            logger.info("Signal 系统更新正在安装，本次检查跳过，避免覆盖重启后的版本核对。")
+            return True
         UpdateGovernanceMixin._set_update_center_job(self, "mp_update", {
             "phase": "checking", "message": "正在检查 MoviePilot 更新…", "error": "",
         }, persist=True)
@@ -1103,15 +1307,24 @@ class UpdateGovernanceMixin:
             errors.append(f"本地版本：{mp.get('version_error')}")
         if not errors and mp.get("has_update"):
             self._dispatch_moviepilot_upgrade(data)
+            if mp.get("upgrade_auto_install"):
+                UpdateGovernanceMixin._schedule_moviepilot_auto_install(
+                    self, str(mp.get("upgrade_target_version") or ""))
             text = self._format_update_status_text(data)
         UpdateGovernanceMixin._publish_mp_update_job(
             self, data, persist=True, explicit_error=errors[0] if errors else "")
-        execution_failed = bool(mp.get("has_update") and not mp.get("upgrade_dispatched") and not mp.get("upgrade_manual_required"))
+        execution_failed = bool(mp.get("has_update") and not mp.get("upgrade_dispatched")
+                                and not mp.get("upgrade_manual_required") and not mp.get("upgrade_auto_install"))
         success = bool(checks) and not errors and not execution_failed
-        title = "系统更新" if success else "系统更新异常"
+        # 自动更新没启动时不能报成功：用户以为全自动在跑，实际还在等他点。
+        auto_error = str(mp.get("upgrade_auto_error") or "").strip()
+        notify_success = bool(success) and not auto_error
+        title = "系统更新" if notify_success else "系统更新异常"
         if (scheduled or notify) and self._task_outcome_notification_enabled(self._mp_update_scheduled_notify):
-            outcome = errors[0][:120] if errors else self._moviepilot_update_outcome(data, success)
-            notification_status = "error" if not success else ("changed" if mp.get("has_update") else "noop")
+            outcome = (errors[0][:120] if errors else
+                       (f"自动更新未启动：{auto_error}" if auto_error else
+                        self._moviepilot_update_outcome(data, success)))
+            notification_status = "error" if not notify_success else ("changed" if mp.get("has_update") else "noop")
             error_payload = {
                 "checks": sorted([
                     {
@@ -1123,13 +1336,14 @@ class UpdateGovernanceMixin:
                 ], key=lambda item: (item["type"], item["latest_version"], item["error"])),
                 "version_error": self._normalize_notification_error_summary(mp.get("version_error")),
                 "upgrade_error": self._normalize_notification_error_summary(mp.get("upgrade_error") or mp.get("restart_error")),
+                "auto_error": self._normalize_notification_error_summary(mp.get("upgrade_auto_error")),
             }
             self._notify_fusion_task_outcome(
                 mtype=self._notification_type(self._mp_update_notify_type),
                 title=title,
                 text=text,
                 outcome=outcome,
-                success=success,
+                success=notify_success,
                 component="mp_update",
                 task_key="mp_update",
                 task_group="更新管理",
@@ -1149,7 +1363,7 @@ class UpdateGovernanceMixin:
                          if isinstance(item, dict) and item.get("has_update") and not item.get("error")]
         _capture_fusion_update_action_if_possible(self, "mp_update", {"checks": manual_checks},
                                                        title=title, text=text)
-        self._save_task_result(result_name, success, 0 if success else 1, text)
+        self._save_task_result(result_name, notify_success, 0 if notify_success else 1, text)
         return success
 
     def run_mp_update_apply(self, notify: bool = False) -> bool:
@@ -1367,19 +1581,29 @@ class UpdateGovernanceMixin:
         frontend = str(mp.get("frontend_version") or "")
         version_mismatch = bool(backend and frontend and self._version_nums(backend) != self._version_nums(frontend))
         mismatch_message = f"MoviePilot 前后端版本不一致：后端 {backend}，前端 {frontend}"
+        auto_error = str(mp.get("upgrade_auto_error") or "").strip()
+        auto_suffix = f"；自动更新未启动：{auto_error}" if auto_error else ""
+        auto_download = bool(mp.get("upgrade_auto_install")) and not auto_error
         if errors:
             phase, message, error = "failed", errors[0], errors[0]
+        elif auto_download and str(mp.get("upgrade_host_state") or "") == "installing":
+            # 宿主已经在安装（例如用户在宿主侧点了安装）：必须保住 installing，
+            # 否则重启后的版本核对不会执行，一次成功的更新会被超时器误判成失败。
+            phase, message, error = "installing", "正在安装 MoviePilot…", ""
+        elif auto_download:
+            phase, message, error = "downloading", "已自动开始下载更新包", ""
         elif version_mismatch and has_update:
-            phase, message, error = "available", f"发现 MoviePilot 更新；{mismatch_message}", ""
+            phase, message, error = "available", f"发现 MoviePilot 更新{auto_suffix}；{mismatch_message}", ""
         elif has_update:
-            phase, message, error = "available", "发现 MoviePilot 更新", ""
+            phase, message, error = "available", f"发现 MoviePilot 更新{auto_suffix}", ""
         elif version_mismatch:
             phase, message, error = "partial", mismatch_message, mismatch_message
         else:
             phase, message, error = "up_to_date", "MoviePilot 已是最新版", ""
         return UpdateGovernanceMixin._set_update_center_job(self, "mp_update", {
             "phase": phase, "message": message, "error": error,
-            "target_version": target, "target_component": target_component,
+            "target_version": str(mp.get("upgrade_target_version") or target),
+            "target_component": target_component,
             # 发布本次检查的动作能力，不能继承上次只读/下载中状态的 steps。
             "steps": ["download", "status", "check"] if phase == "available" else ["status", "check"],
             "backend_version": backend,
