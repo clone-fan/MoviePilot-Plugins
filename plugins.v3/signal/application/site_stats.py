@@ -90,6 +90,37 @@ class SiteStatsMixin:
             alert_detail=alert_detail,
         )
 
+    @classmethod
+    def _aggregate_storage_health(cls, outcomes: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """存储检查收敛：有异常时只展开异常项，其余压成一句「其余 N 项正常」。
+
+        一块盘、几个网盘全塞进同一条 detail，会把「需要注意」撑成一大段；
+        正常项本来也不需要在告警里复述。
+        """
+        normalized = [cls._normalize_health_result(item) for item in outcomes]
+        faults = [item for item in normalized if item["status"] == "fault"]
+        others = [item for item in normalized if item["status"] != "fault"]
+        if not faults:
+            return cls._aggregate_health_results(
+                "storage",
+                normalized,
+                affected_owner="persistent-storage",
+                unavailable_detail="未检测到可检查的存储",
+            )
+        parts = [str(item.get("detail") or "") for item in faults if item.get("detail")]
+        tight = [str(item.get("detail") or "") for item in others if "偏紧" in str(item.get("detail") or "")]
+        parts.extend(tight)
+        rest = len(others) - len(tight)
+        if rest > 0:
+            parts.append(f"其余 {rest} 项正常")
+        detail = "；".join(parts)
+        return cls._health_result(
+            "storage",
+            "fault",
+            detail,
+            affected_owner=str(faults[0].get("affected_owner") or "persistent-storage"),
+            alert_detail=detail,
+        )
 
     SITE_STAT_STATE_LABELS = {
         "ok": "正常",
@@ -1047,29 +1078,48 @@ class SiteStatsMixin:
             )
 
         selected = set(getattr(self, "_health_check_storage_targets", None) or ["storages", "config", "download", "library"])
-        outcomes: List[Dict[str, Any]] = []
+        extras: List[Dict[str, Any]] = []
+        # 同一块盘常被配置/下载/媒体库多个目录重复统计：按 (总容量, 已用) 折叠成一行，
+        # 否则一块盘就能刷出四五条一模一样的话。
+        readings: Dict[Any, Dict[str, Any]] = {}
+
+        def fold_reading(label: str, total: Any, used: Any, free: Any, target: str = "") -> None:
+            try:
+                total_value = int(total or 0)
+                if total_value <= 0:
+                    raise ValueError("总容量无效")
+                if used is None and free is not None:
+                    used_value = total_value - int(free or 0)
+                else:
+                    used_value = int(used or 0)
+                used_value = min(max(used_value, 0), total_value)
+            except Exception as err:
+                extras.append(self._health_result("storage", "checker_error", f"{label} 容量解析失败：{str(err)[:80]}", affected_owner="signal-health-checker", target=target or label))
+                return
+            key = (total_value, used_value)
+            record = readings.get(key)
+            if record is None:
+                readings[key] = {"labels": [label], "total": total_value, "used": used_value,
+                                 "free": total_value - used_value, "target": target or label}
+            elif label not in record["labels"]:
+                record["labels"].append(label)
 
         def add_usage(label: str, path: str, storage: Any = "local") -> None:
             if not path:
-                outcomes.append(self._health_result("storage", "unavailable", f"{label} 无可检查路径", affected_owner="persistent-storage", target=label))
+                extras.append(self._health_result("storage", "unavailable", f"{label} 无可检查路径", affected_owner="persistent-storage", target=label))
                 return
             if not self._is_local_storage(storage):
-                outcomes.append(self._health_result("storage", "unavailable", f"{label} {storage} 无本地容量接口", affected_owner="persistent-storage", target=label))
+                extras.append(self._health_result("storage", "unavailable", f"{label} {storage} 无本地容量接口", affected_owner="persistent-storage", target=label))
                 return
             try:
                 stat = shutil.disk_usage(path)
             except (FileNotFoundError, PermissionError, OSError) as err:
-                outcomes.append(self._health_result("storage", "fault", f"{label} 容量查询失败：{err}", affected_owner="persistent-storage", target=path))
+                extras.append(self._health_result("storage", "fault", f"{label} 容量查询失败：{str(err)[:80]}", affected_owner="persistent-storage", target=path))
                 return
             except Exception as err:
-                outcomes.append(self._health_result("storage", "checker_error", f"{label} 容量解析失败：{err}", affected_owner="signal-health-checker", target=path))
+                extras.append(self._health_result("storage", "checker_error", f"{label} 容量解析失败：{str(err)[:80]}", affected_owner="signal-health-checker", target=path))
                 return
-            try:
-                item_ok, detail = self._storage_usage_detail(label, stat.total, stat.used, stat.free)
-                status = "ok" if item_ok else "fault"
-                outcomes.append(self._health_result("storage", status, detail, affected_owner="persistent-storage", target=path))
-            except Exception as err:
-                outcomes.append(self._health_result("storage", "checker_error", f"{label} 容量解析失败：{err}", affected_owner="signal-health-checker", target=path))
+            fold_reading(label, stat.total, stat.used, stat.free, target=path)
 
         if "config" in selected:
             add_usage("配置目录", str(self._settings_value(settings, "CONFIG_PATH", "config_path", default="/config")))
@@ -1078,7 +1128,7 @@ class SiteStatsMixin:
             try:
                 directory_entries = self._health_directory_entries()
             except Exception as err:
-                outcomes.append(self._health_result("storage", "checker_error", f"目录配置解析失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
+                extras.append(self._health_result("storage", "checker_error", f"目录配置解析失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
             else:
                 for label, path, storage in directory_entries:
                     if label.startswith("下载目录") and "download" in selected:
@@ -1091,54 +1141,60 @@ class SiteStatsMixin:
                 from app.db.oper.systemconfig import SystemConfigOper
                 from app.schemas.types import SystemConfigKey
             except Exception as err:
-                outcomes.append(self._health_result("storage", "checker_error", f"存储检查依赖加载失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
+                extras.append(self._health_result("storage", "checker_error", f"存储检查依赖加载失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
             else:
                 try:
                     storages = SystemConfigOper().get(SystemConfigKey.Storages) or []
                 except Exception as err:
-                    outcomes.append(self._health_result("storage", "checker_error", f"存储配置读取失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
+                    extras.append(self._health_result("storage", "checker_error", f"存储配置读取失败：{str(err)[:100]}", affected_owner="signal-health-checker"))
                     storages = []
                 if not storages:
-                    outcomes.append(self._health_result("storage", "unavailable", "未配置可查询容量的存储", affected_owner="persistent-storage"))
+                    extras.append(self._health_result("storage", "unavailable", "未配置可查询容量的存储", affected_owner="persistent-storage"))
                 else:
                     for storage in storages:
                         if not isinstance(storage, dict):
-                            outcomes.append(self._health_result("storage", "checker_error", "存储配置条目格式无效", affected_owner="signal-health-checker"))
+                            extras.append(self._health_result("storage", "checker_error", "存储配置条目格式无效", affected_owner="signal-health-checker"))
                             continue
                         name = storage.get("name") or storage.get("type") or "存储"
                         storage_type = storage.get("type") or "local"
                         try:
                             usage, reason = self._query_storage_usage(storage_type)
                         except (ImportError, AttributeError, TypeError, ValueError):
-                            outcomes.append(self._health_result("storage", "checker_error", f"{name} 容量接口调用异常", affected_owner="signal-health-checker", target=str(name)))
+                            extras.append(self._health_result("storage", "checker_error", f"{name} 容量接口调用异常", affected_owner="signal-health-checker", target=str(name)))
                             continue
                         except Exception as err:
-                            outcomes.append(self._health_result("storage", "fault", f"{name} 容量查询失败：{str(err)[:100]}", affected_owner="persistent-storage", target=str(name)))
+                            extras.append(self._health_result("storage", "fault", f"{name} 容量查询失败：{str(err)[:100]}", affected_owner="persistent-storage", target=str(name)))
                             continue
                         if not usage:
                             unavailable = not reason or any(word in reason for word in ("不支持", "未启用", "未配置"))
                             status = "unavailable" if unavailable else "fault"
-                            outcomes.append(self._health_result("storage", status, f"{name} 无法检查容量" + (f"：{reason[:100]}" if reason else ""), affected_owner="persistent-storage", target=str(name)))
+                            extras.append(self._health_result("storage", status, f"{name} 无法检查容量" + (f"：{reason[:100]}" if reason else ""), affected_owner="persistent-storage", target=str(name)))
                             continue
                         try:
                             total = usage.get("total") if isinstance(usage, dict) else getattr(usage, "total", None)
                             used = usage.get("used") if isinstance(usage, dict) else getattr(usage, "used", None)
                             free = usage.get("available") if usage.get("available") is not None else usage.get("free")
                             if int(total or 0) <= 0:
-                                outcomes.append(self._health_result("storage", "unavailable", f"{name} 无法检查容量", affected_owner="persistent-storage", target=str(name)))
+                                extras.append(self._health_result("storage", "unavailable", f"{name} 无法检查容量", affected_owner="persistent-storage", target=str(name)))
                                 continue
-                            item_ok, detail = self._storage_usage_detail(str(name), total, used, free)
                         except Exception as err:
-                            outcomes.append(self._health_result("storage", "checker_error", f"{name} 容量数据解析失败：{str(err)[:100]}", affected_owner="signal-health-checker", target=str(name)))
+                            extras.append(self._health_result("storage", "checker_error", f"{name} 容量数据解析失败：{str(err)[:100]}", affected_owner="signal-health-checker", target=str(name)))
                             continue
-                        outcomes.append(self._health_result("storage", "ok" if item_ok else "fault", detail, affected_owner="persistent-storage", target=str(name)))
+                        fold_reading(str(name), total, used, free, target=str(name))
 
-        return self._aggregate_health_results(
-            "storage",
-            outcomes,
-            affected_owner="persistent-storage",
-            unavailable_detail="未检测到可检查的存储",
-        )
+        outcomes: List[Dict[str, Any]] = list(extras)
+        for record in readings.values():
+            try:
+                item_ok, detail = self._storage_usage_detail(
+                    self._merge_storage_labels(record["labels"]), record["total"], record["used"], record["free"])
+            except Exception as err:
+                outcomes.append(self._health_result("storage", "checker_error", f"容量数据解析失败：{str(err)[:80]}", affected_owner="signal-health-checker"))
+                continue
+            outcomes.append(self._health_result(
+                "storage", "ok" if item_ok else "fault", detail,
+                affected_owner="persistent-storage", target=str(record.get("target") or "")))
+        return self._aggregate_storage_health(outcomes)
+
     def _build_health_summary(self, persist: bool = True) -> Dict[str, Any]:
         checks: List[Dict[str, Any]] = []
         try:
@@ -1498,9 +1554,25 @@ class SiteStatsMixin:
             used = total - int(free or 0)
         used = int(used or 0)
         pct = used / total * 100 if total else 0
-        ok = pct < self._health_check_storage_threshold
-        risk = "" if ok else f" 超过阈值 {self._health_check_storage_threshold}%"
-        return ok, f"{label} {pct:.0f}% 已用｜{self._format_bytes(used)}/{self._format_bytes(total)}{risk}"
+        threshold = int(self._health_check_storage_threshold or 90)
+        ok = pct < threshold
+        if not ok:
+            mark = f" 超过阈值 {threshold}%"
+        elif pct >= 85:
+            mark = " 偏紧"
+        else:
+            mark = ""
+        return ok, f"{label} {pct:.0f}% 已用｜{self._format_bytes(used)}/{self._format_bytes(total)}{mark}"
+
+    @staticmethod
+    def _merge_storage_labels(labels: Any) -> str:
+        """同一块盘被多个目录统计时，标签合并成「配置目录／下载目录」而不是重复多行。"""
+        items = [str(item) for item in (labels or []) if str(item or "").strip()]
+        if not items:
+            return "存储"
+        if len(items) <= 2:
+            return "／".join(items)
+        return f"／".join(items[:2]) + f" 等 {len(items)} 个目录"
 
     def _check_directory(self) -> Dict[str, Any]:
         """按选择范围检查关键目录是否存在且可读写进入。"""

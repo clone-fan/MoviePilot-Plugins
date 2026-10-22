@@ -824,7 +824,7 @@ class LifecycleMixin:
         self._health_check_database_targets = self._parse_csv(config.get("health_check_database_targets"))
         self._health_check_storage_targets = self._parse_csv(config.get("health_check_storage_targets"))
         self._health_check_directory_targets = self._parse_csv(config.get("health_check_directory_targets"))
-        self._health_check_storage_threshold = self._safe_int(config.get("health_check_storage_threshold"), 85, 1)
+        self._health_check_storage_threshold = self._safe_int(config.get("health_check_storage_threshold"), 90, 1)
         if self._health_check_storage_threshold > 99:
             self._health_check_storage_threshold = 99
         self._health_check_notify = self._config_bool(config, "health_check_notify", True)

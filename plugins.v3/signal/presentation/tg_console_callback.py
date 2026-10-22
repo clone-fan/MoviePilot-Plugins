@@ -22,6 +22,11 @@ from ..domain.update_jobs import set_update_job
 # 不影响同进程内调度器触发的周期刷新。
 _FUSION_INTERACTIVE_REFRESH = threading.local()
 
+# Telegram 在内容完全一致时会回 400「message is not modified」，卡片看起来
+# 一点变化都没有。记录最近一次重绘是否被判为「未变化」，好让刷新动作能
+# 老实告诉用户「刷新完成，内容没有变化」，而不是让人以为按钮失灵。
+_FUSION_EDIT_UNCHANGED = threading.local()
+
 
 class TgConsoleCallbackMixin:
     """Telegram polling, message/callback handling, action execution, card upsert"""
@@ -199,6 +204,14 @@ class TgConsoleCallbackMixin:
             mp_session_hint = str(job.get("session") or panel.get("session") or "")
             state.pop("moviepilot_update_panel", None)
         label = "🔄 更新进度" if payload.get("expired_confirmation") else str(action.get("label") or "更新操作")
+        if kind == "card_refresh" and any(
+                item.get("kind") == kind and item.get("status") == "running"
+                and time.time() - float(item.get("updated_at") or 0) < 900
+                for item in state.get("fusion_action_feed") or []):
+            # 上一次刷新还在跑：静默 return False 看起来就是「按了没反应」，
+            # 这里必须回一句明确的提示。
+            self._tg_console_answer_callback(str(callback.get("id") or ""), "上一次刷新还没结束，请稍候…")
+            return False
         action_id = str(action.get("action_key") or nonce)
         running = self._fusion_update_running_text(kind, action, payload)
         action["done"] = True
@@ -293,11 +306,20 @@ class TgConsoleCallbackMixin:
             if ok and not isinstance(plugin_result, dict) and (not panel or panel.get("phase") in {"idle", "installing"}):
                 self._fusion_action_remove_candidate(state, kind, payload)
             self._save_tg_console_state(state)
+            _FUSION_EDIT_UNCHANGED.flag = False
+            redrawn = False
             try:
-                self._tg_console_upsert_card(token, chat_id, state, generation=generation)
+                redrawn = bool(self._tg_console_upsert_card(token, chat_id, state, generation=generation))
             except Exception as err:
                 state["last_error"] = f"更新动作结果卡片更新异常：{self._telegram_safe_error(err, limit=300)}"
             self._save_tg_console_state(state)
+            if kind == "card_refresh":
+                # 卡片没能重绘（断连、Telegram 拒收）或内容完全没变时，用户看到的
+                # 只是「点了没反应」；这里补一条明确回报。
+                if not redrawn:
+                    self._emit_console_notice("Signal 融合卡刷新", f"刷新没能写回卡片：{message}", "error")
+                elif getattr(_FUSION_EDIT_UNCHANGED, "flag", False):
+                    self._emit_console_notice("Signal 融合卡刷新", "刷新完成，卡片内容没有变化", "info")
         if settled:
             self._schedule_fusion_status_expiry(action_id, token, chat_id, generation)
         if (context.get("moviepilot_update_panel") or {}).get("phase") == "downloading":
@@ -881,6 +903,7 @@ class TgConsoleCallbackMixin:
                 f"tab={state.get('active_tab')} ok={bool(ok)} unchanged={unchanged} "
                 f"elapsed={int((time.monotonic() - started) * 1000)}ms"
             )
+            _FUSION_EDIT_UNCHANGED.flag = bool(unchanged)
             if ok or unchanged:
                 self._tg_console_last_error = ""
                 state["last_error"] = ""

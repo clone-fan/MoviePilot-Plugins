@@ -34,7 +34,7 @@ class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "3.2.0"
+    plugin_version = "3.2.1"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -123,7 +123,7 @@ class RuntimeStateMixin:
     _health_check_database_targets: List[str] = []
     _health_check_storage_targets: List[str] = []
     _health_check_directory_targets: List[str] = []
-    _health_check_storage_threshold: int = 85
+    _health_check_storage_threshold: int = 90
     _health_check_notify: bool = True
     _health_check_completion_notify_enabled: bool = False
     _health_check_notify_type: str = "Plugin"
@@ -378,7 +378,7 @@ class RuntimeStateMixin:
             "health_check_database_targets": ["current"],
             "health_check_storage_targets": ["storages", "config", "download", "library"],
             "health_check_directory_targets": ["config", "plugin", "download", "library"],
-            "health_check_storage_threshold": 85,
+            "health_check_storage_threshold": 90,
             "health_check_notify": True,
             "health_check_completion_notify_enabled": False,
             "health_check_notify_type": "Plugin",
