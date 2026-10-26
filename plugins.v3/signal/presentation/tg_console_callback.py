@@ -817,7 +817,7 @@ class TgConsoleCallbackMixin:
             return ok, f"{action.get('label')}执行{'成功' if ok else '失败'}"
         except Exception as err:
             logger.error(f"Signal TG 远控 {action_key} 执行失败：{telegram_secrets.telegram_safe_error(err)}")
-            return False, str(err)
+            return False, telegram_secrets.telegram_safe_error(err, limit=300)
 
     def _tg_console_action_registry(self) -> Dict[str, Dict[str, Any]]:
         return {

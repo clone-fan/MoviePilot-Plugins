@@ -16,6 +16,7 @@ from app.schemas.types import MessageType
 from app.sdk.logging import logger
 
 from ..domain import site_helpers
+from ..domain import telegram_secrets
 from ..domain.fusion_event import FusionEvent
 from ..domain.fusion_event_ledger import normalize_actual_task_event
 
@@ -110,6 +111,9 @@ class FusionMixin:
         notice_action: Optional[Dict[str, Any]] = None,
     ) -> bool:
         notice_kwargs = {"notice_action": notice_action} if notice_action else {}
+        # 任务文案可能夹带 Telegram 请求 URL：进通知历史/卡片前统一打码。
+        text = telegram_secrets.telegram_safe_error(text, limit=2000)
+        outcome = telegram_secrets.telegram_safe_error(outcome, limit=2000)
         concrete_outcome = str(outcome or "").strip()
         if not concrete_outcome:
             raise ValueError("Fusion task outcome requires concrete humanized copy")

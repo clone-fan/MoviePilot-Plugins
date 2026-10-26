@@ -673,7 +673,7 @@ class TgConsoleFusionMixin:
             except Exception as err:
                 ok = False
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                error_text = f"栏目刷新失败：{err}"
+                error_text = f"栏目刷新失败：{self._telegram_safe_error(err, limit=300)}"
                 state["last_error"] = error_text
                 state.setdefault("columns", {})[key] = {
                     "items": [{

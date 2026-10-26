@@ -673,7 +673,7 @@ class FusionReportMixin:
         try:
             check = self._check_one_release("后端", "https://api.github.com/repos/jxxghp/MoviePilot/releases", be)
         except Exception as err:
-            check = {"error": str(err)}
+            check = {"error": self._telegram_safe_error(str(err), limit=300)}
         latest = check.get("latest_version") or ""
         err = check.get("error") or ""
         if err or not latest:
