@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.sdk.logging import logger
 from app.schemas.types import MessageType
 
+from ..domain.fusion_card_state import can_update_fusion_card
 from ..domain.fusion_composition import media_playback_url, media_session_ip
 from ..domain.fusion_stream import apply_v7_realtime_update
 from .tg_console_callback import _FUSION_INTERACTIVE_REFRESH
@@ -59,7 +60,7 @@ class TgConsoleFusionMixin:
             state = self._new_tg_console_card_state(chat_id=target_chat_id, trigger=trigger)
             self._prepare_tg_console_v7_loading(state)
             try:
-                sent = bool(self._tg_console_upsert_card(token, target_chat_id, state))
+                sent = bool(self._tg_console_upsert_card(token, target_chat_id, state, allow_create=True))
             except Exception as err:
                 self._tg_console_last_error = f"融合通知卡补建异常：{self._telegram_safe_error(err, limit=300)}"
                 state["last_error"] = self._tg_console_last_error
@@ -76,25 +77,35 @@ class TgConsoleFusionMixin:
         if not isinstance(state, dict):
             return
         card = state.get("fusion_card") if isinstance(state.get("fusion_card"), dict) else {}
-        current_id = self._safe_int(card.get("message_id"), 0, 0)
+        # 只有「当天可写卡」才是不能被销毁的当前卡；已退役的卡即使还留着旧消息号也要清掉。
+        current_id = self._safe_int(card.get("message_id"), 0, 0) if can_update_fusion_card(card) else 0
         entries = []
         seen = set()
         candidates = []
-        if isinstance(card.get("previous_card"), dict):
-            candidates.append(card["previous_card"])
+        previous = card.get("previous_card") if isinstance(card.get("previous_card"), dict) else None
+        if previous and not previous.get("gc_done"):
+            candidates.append(previous)
         candidates.extend(item for item in (state.get("fusion_card_gc") or []) if isinstance(item, dict))
         for item in candidates:
             message_id = self._safe_int(item.get("message_id"), 0, 0)
             if not message_id or message_id == current_id or message_id in seen:
                 continue
             seen.add(message_id)
-            entries.append({"message_id": message_id, "card_id": str(item.get("card_id") or "")})
-        if isinstance(card.get("previous_card"), dict):
-            card["previous_card"]["gc_done"] = True
+            entries.append({
+                "message_id": message_id,
+                "card_id": str(item.get("card_id") or ""),
+                "attempts": self._safe_int(item.get("attempts"), 0, 0),
+            })
+        if previous:
+            # previous_card 只是一次性指针，处理完就并入销毁队列（带重试次数），
+            # 否则已销毁的旧卡会被反复重删重改，也再没有别的路径读 gc_done。
+            card.pop("previous_card", None)
         if not entries:
             state["fusion_card_gc"] = []
+            self._save_tg_console_state(state)
             return
         remaining = []
+        done = [self._safe_int(item, 0, 0) for item in (state.get("fusion_card_gc_done") or [])]
         for entry in entries:
             message_id = entry["message_id"]
             deleted = False
@@ -103,15 +114,25 @@ class TgConsoleFusionMixin:
             except Exception as err:
                 logger.debug(f"Signal 旧融合卡删除异常：{self._telegram_safe_error(err, limit=200)}")
             if deleted:
+                done.append(message_id)
                 continue
             marked = False
             try:
                 marked = self._telegram_disable_message(token, chat_id, message_id)
             except Exception as err:
                 logger.debug(f"Signal 旧融合卡停用标记异常：{self._telegram_safe_error(err, limit=200)}")
-            if not marked:
-                remaining.append(entry)
+            if marked:
+                done.append(message_id)
+                continue
+            attempts = self._safe_int(entry.get("attempts"), 0, 0) + 1
+            if attempts < 3:
+                remaining.append({**entry, "attempts": attempts})
+            else:
+                # 连续三次删不掉也改不掉：放弃这条，不再产生无效请求。
+                done.append(message_id)
         state["fusion_card_gc"] = remaining
+        # 已经删除/改写的旧卡记进名单：陈旧快照整份覆盖保存时不能把它们重新塞回队列。
+        state["fusion_card_gc_done"] = [mid for mid in dict.fromkeys(done) if mid][-20:]
         self._save_tg_console_state(state)
 
     def _telegram_delete_message(self, token: str, chat_id: str, message_id: Any) -> bool:

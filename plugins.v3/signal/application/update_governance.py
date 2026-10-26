@@ -42,7 +42,7 @@ def _capture_fusion_update_action_if_possible(owner: Any, kind: str, payload: Di
     try:
         capture({"kind": kind, "payload": dict(payload or {})}, title=title, text=text)
     except Exception as err:
-        logger.debug(f"Signal 更新候选写入卡片状态失败：{err}")
+        logger.debug(f"Signal 更新候选写入卡片状态失败：{telegram_secrets.telegram_safe_error(err)}")
 
 
 def _moviepilot_install_guard(owner: Any) -> bool:
@@ -282,7 +282,7 @@ class UpdateGovernanceMixin:
             timer.name = "Signal-mp-auto-install"
             timer.start()
         except Exception as err:
-            logger.warning(f"Signal 全自动更新推进器未能启动：{err}")
+            logger.warning(f"Signal 全自动更新推进器未能启动：{telegram_secrets.telegram_safe_error(err)}")
 
     def _poll_moviepilot_auto_install(self, version: str, attempt: int) -> None:
         """轮询宿主下载状态；就绪就安装，失败或超时退回人工能接手的状态。"""
@@ -363,7 +363,7 @@ class UpdateGovernanceMixin:
                 notification_status="changed" if ok else "error",
                 notification_target="moviepilot")
         except Exception as err:
-            logger.warning(f"Signal 系统更新通知发送失败：{err}")
+            logger.warning(f"Signal 系统更新通知发送失败：{telegram_secrets.telegram_safe_error(err)}")
 
     @staticmethod
     def _read_frontend_package_version() -> str:
@@ -1299,7 +1299,7 @@ class UpdateGovernanceMixin:
                     notification_manual=notify,
                 )
             self._save_task_result(result_name, False, -1, text)
-            logger.error(f"Signal 系统更新检查失败：{err}")
+            logger.error(f"Signal 系统更新检查失败：{telegram_secrets.telegram_safe_error(err)}")
             return False
         text = self._format_update_status_text(data)
         mp = data.get("moviepilot") or {}
@@ -1441,7 +1441,7 @@ class UpdateGovernanceMixin:
                     notification_cooldown=True,
                     notification_manual=notify,
                 )
-            logger.error(f"Signal 插件库同步失败：{err}")
+            logger.error(f"Signal 插件库同步失败：{telegram_secrets.telegram_safe_error(err)}")
             return False
 
     @staticmethod
@@ -1679,7 +1679,7 @@ class UpdateGovernanceMixin:
                 "skipped": [],
                 "error": str(err),
             }
-            logger.error(f"Signal 插件更新检查失败：{err}")
+            logger.error(f"Signal 插件更新检查失败：{telegram_secrets.telegram_safe_error(err)}")
         data["auto_install"] = auto_install_enabled
         text = self._format_plugin_update_text(data)
         unconfigured = data.get("error_code") == "market_unconfigured"
@@ -1780,7 +1780,7 @@ class UpdateGovernanceMixin:
                 self._save_task_result(name, False, -1, str(err))
             except Exception:
                 pass
-            logger.error(f"Signal {name}执行异常：{err}")
+            logger.error(f"Signal {name}执行异常：{telegram_secrets.telegram_safe_error(err)}")
             return {"code": 1, "msg": f"{name}执行失败：{err}"}
 
     def _run_named_task(self, name: str, cmd: List[str], expect: str = "") -> bool:
@@ -1815,7 +1815,7 @@ class UpdateGovernanceMixin:
         try:
             capture({"kind": kind, "payload": dict(payload or {})}, title=title, text=text)
         except Exception as err:
-            logger.debug(f"Signal 更新候选写入卡片状态失败：{err}")
+            logger.debug(f"Signal 更新候选写入卡片状态失败：{telegram_secrets.telegram_safe_error(err)}")
 
     def _save_task_result(self, name: str, success: bool, returncode: int, output: str):
         slug = self._slug(name)
@@ -1824,7 +1824,7 @@ class UpdateGovernanceMixin:
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "returncode": returncode,
             "success": bool(success),
-            "output": (output or "")[-2000:],
+            "output": telegram_secrets.telegram_safe_error(output or "", limit=2000)[-2000:],
         }
         if slug == "market_update":
             snapshot = self.get_data(key) or {}

@@ -59,7 +59,7 @@ class MpApiMixin:
             state = self._new_tg_console_card_state(chat_id=chat_id, trigger=trigger)
             self._prepare_tg_console_v7_loading(state)
             try:
-                ok = self._tg_console_upsert_card(token, chat_id, state, generation=generation)
+                ok = self._tg_console_upsert_card(token, chat_id, state, generation=generation, allow_create=True)
             except Exception as err:
                 with self._site_refresh_condition:
                     if self._should_cancel(generation):

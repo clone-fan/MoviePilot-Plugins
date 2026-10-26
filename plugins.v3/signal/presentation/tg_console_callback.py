@@ -13,6 +13,7 @@ from ..domain.fusion_transport import (
     build_send_rich_message_draft_payload,
     build_send_rich_message_payload,
 )
+from ..domain import telegram_secrets
 from ..domain.update_jobs import set_update_job
 
 
@@ -90,7 +91,7 @@ class TgConsoleCallbackMixin:
                 ok, message = self._tg_console_execute_action(action_key, user_id=user_id)
                 self._emit_console_notice(f"TG 远控 - {label}", message, "success" if ok else "error")
             except Exception as err:
-                logger.warning(f"Signal TG 远控后台执行失败：{err}")
+                logger.warning(f"Signal TG 远控后台执行失败：{telegram_secrets.telegram_safe_error(err)}")
 
         try:
             threading.Thread(target=work, name=f"Signal-tg-{action_key}", daemon=True).start()
@@ -182,6 +183,8 @@ class TgConsoleCallbackMixin:
             step = payload.get("step", "open")
             callback_message = (callback.get("message") or {}).get("message_id") or callback.get("original_message_id")
             if str(callback_message) != str(state.get("message_id")):
+                # 旧卡上的按钮：给一句明确回应，不要让按钮空转一圈再超时。
+                self._tg_console_answer_callback(str(callback.get("id") or ""), "该卡片已过期，请使用最新卡片")
                 return False
             if step not in {"open", "status", "check", "download", "install"}:
                 return self._show_fusion_action_problem(state, callback, token, chat_id, user_id,
@@ -646,6 +649,13 @@ class TgConsoleCallbackMixin:
                 self._save_tg_console_state(state)
                 self._tg_console_answer_callback(callback_id, "未授权的 Telegram 用户")
                 return False
+            cb_message = (callback or {}).get("message") or {}
+            cb_message_id = self._safe_int(cb_message.get("message_id"), 0, 0)
+            if cb_message_id and state.get("message_id") and cb_message_id != self._safe_int(state.get("message_id"), 0, 0):
+                # 点击来自一张已经退役的旧卡：绝不能借这次点击改掉当天的新卡。
+                self._save_tg_console_state(state)
+                self._tg_console_answer_callback(callback_id, "该卡片已过期，请使用最新卡片")
+                return False
             # 「总览」这类页签本身没有子栏目，children 为空属于正常情况，
             # 只有「有子栏目但全部未启用」才拒绝切换。
             children = self._fusion_category_children(active_tab)
@@ -681,6 +691,17 @@ class TgConsoleCallbackMixin:
                         # 期间用户又点了别的页签：让最新那次点击负责重绘，避免多余闪动。
                         self._save_tg_console_state(state)
                         return True
+                    if not state.get("message_id"):
+                        # 当天还没有卡片（跨天尚未建卡）：先走补建入口，再按新页签重绘。
+                        ensured = self._ensure_fusion_card(chat_id=chat_id, trigger="tab")
+                        if not ensured or not ensured.get("message_id"):
+                            self._save_tg_console_state(state)
+                            self._tg_console_answer_callback(callback_id, "当天卡片尚未建立，请稍后重试")
+                            return False
+                        ensured["active_tab"] = active_tab
+                        ensured["tab_touched"] = True
+                        ensured["tab_seq"] = tab_seq
+                        state = ensured
                     ok = bool(self._tg_console_upsert_card_locked(token, chat_id, state))
             except Exception as err:
                 ok = False
@@ -795,7 +816,7 @@ class TgConsoleCallbackMixin:
             ok = bool(result)
             return ok, f"{action.get('label')}执行{'成功' if ok else '失败'}"
         except Exception as err:
-            logger.error(f"Signal TG 远控 {action_key} 执行失败：{err}")
+            logger.error(f"Signal TG 远控 {action_key} 执行失败：{telegram_secrets.telegram_safe_error(err)}")
             return False, str(err)
 
     def _tg_console_action_registry(self) -> Dict[str, Dict[str, Any]]:
@@ -858,14 +879,29 @@ class TgConsoleCallbackMixin:
         text = str(value or "").lower()
         return "message is not modified" in text or "message not modified" in text
 
-    def _tg_console_upsert_card(self, token: str, chat_id: str, state: Dict[str, Any], *, generation: Optional[int] = None) -> bool:
+    def _tg_console_upsert_card(
+        self,
+        token: str,
+        chat_id: str,
+        state: Dict[str, Any],
+        *,
+        generation: Optional[int] = None,
+        allow_create: bool = False,
+    ) -> bool:
         # Telegram can cancel an edit when another edit of the same card arrives.
         with self._tg_console_card_lock:
             if generation is not None and self._should_cancel(generation):
                 return False
-            return self._tg_console_upsert_card_locked(token, chat_id, state)
+            return self._tg_console_upsert_card_locked(token, chat_id, state, allow_create=allow_create)
 
-    def _tg_console_upsert_card_locked(self, token: str, chat_id: str, state: Dict[str, Any]) -> bool:
+    def _tg_console_upsert_card_locked(
+        self,
+        token: str,
+        chat_id: str,
+        state: Dict[str, Any],
+        *,
+        allow_create: bool = False,
+    ) -> bool:
         ok, _ = self._runtime_gate("telegram", component="fusion_notify", name="Telegram fusion card upsert")
         if not ok:
             return False
@@ -917,6 +953,12 @@ class TgConsoleCallbackMixin:
                 save_state(state)
             return False
         payload = build_send_rich_message_payload(chat_id, rich_message, reply_markup)
+        if not allow_create:
+            # 只有建卡流程与 refresh 的补建入口可以真正「发一条新卡」。
+            # 其余路径（栏目切换、通知重绘、定时补发）看到没有当天卡时只放弃本次写入，
+            # 否则会凭空发出第二张卡，旧卡上残留的按钮又会把人引回那张孤儿卡。
+            logger.debug("Signal 融合卡 upsert 跳过：当天没有可写卡片，且本路径不允许建卡")
+            return False
         res = self._telegram_http_post_json(f"{base_url}/sendRichMessage", payload, timeout=15)
         ok, data = self._telegram_response_data(res, "sendRichMessage")
         if ok:

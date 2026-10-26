@@ -325,8 +325,8 @@ class FusionReportMixin:
             "chars": len(text or ""),
             "sections": self._count_fusion_report_sections(text or ""),
             "text": (text or "")[:2000],
-            "message": (message or "")[:1000],
-            "error": (error or "")[:1000],
+            "message": telegram_secrets.telegram_safe_error(message or "", limit=1000),
+            "error": telegram_secrets.telegram_safe_error(error or "", limit=1000),
             "calendar_status": str(getattr(snapshot, "status", "") or ""),
             "calendar_errors": list(getattr(snapshot, "errors", ()) or ())[:3],
     })
@@ -357,7 +357,7 @@ class FusionReportMixin:
             from app.schemas.types import SystemConfigKey
             notifications = SystemConfigOper().get(SystemConfigKey.Notifications) or []
         except Exception as err:
-            logger.warning(f"Signal 读取 MoviePilot Telegram 通知配置失败：{err}")
+            logger.warning(f"Signal 读取 MoviePilot Telegram 通知配置失败：{telegram_secrets.telegram_safe_error(err)}")
             return "", "", ""
 
         preferred_switches = self._notification_switch_labels(msgtype or "Plugin")
@@ -709,7 +709,7 @@ class FusionReportMixin:
         try:
             return list_transfer_history_for_date_prefix(self._today_prefix())
         except Exception as err:
-            logger.warning(f"Signal 当日整理记录读取失败，本次汇报按空列表处理：{err}")
+            logger.warning(f"Signal 当日整理记录读取失败，本次汇报按空列表处理：{telegram_secrets.telegram_safe_error(err)}")
             return []
 
     def _get_transfer_failures_locked(self) -> List[str]:

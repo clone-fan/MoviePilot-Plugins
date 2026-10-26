@@ -229,7 +229,71 @@ class TgConsoleStateMixin:
                 # 持久化里的当天卡片比本次快照新：旧快照不能把身份顶回旧卡。
                 state["fusion_card"] = latest_card
                 state["message_id"] = latest_card.get("message_id", 0) if can_update_fusion_card(latest_card) else 0
+            latest_date = str(latest.get("date") or "")
+            if latest_date and latest_date > str(state.get("date") or ""):
+                # 陈旧快照（例如跨零点仍未结束的长轮询）不能把日期写回昨天，
+                # 否则后续所有逻辑都会按昨天的日期重建，卡片指针跟着一起错。
+                state["date"] = latest_date
+            merged = self._merge_fusion_notices(latest.get("notices"), state.get("notices"))
+            if merged:
+                state["notices"] = merged[:self._tg_console_max_notices]
+            merged_done = self._merge_fusion_card_gc_done(
+                latest.get("fusion_card_gc_done"), state.get("fusion_card_gc_done"))
+            state["fusion_card_gc_done"] = merged_done[-20:]
+            merged_gc = self._merge_fusion_card_gc(latest.get("fusion_card_gc"), state.get("fusion_card_gc"),
+                                                   merged_done)
+            state["fusion_card_gc"] = merged_gc[-5:]
         self.save_data("tg_console_state", state)
+
+    def _merge_fusion_card_gc_done(self, latest: Any, incoming: Any) -> list:
+        """合并「已处理」名单：陈旧快照不能把已经销毁的旧卡重新塞回队列。"""
+        ids = []
+        for source in (latest, incoming):
+            for item in (source or []):
+                message_id = self._safe_int(item, 0, 0)
+                if message_id:
+                    ids.append(message_id)
+        return list(dict.fromkeys(ids))
+
+    def _merge_fusion_card_gc(self, latest: Any, incoming: Any, done: Any = None) -> list:
+        """合并待销毁队列：旧快照整份覆盖保存时，不能把还没销毁的旧卡从队列里弄丢。"""
+        done_ids = {self._safe_int(item, 0, 0) for item in (done or [])}
+        rows: Dict[int, Dict[str, Any]] = {}
+        order: list = []
+        for source in (latest, incoming):
+            for item in (source or []):
+                if not isinstance(item, dict):
+                    continue
+                message_id = self._safe_int(item.get("message_id"), 0, 0)
+                if not message_id or message_id in done_ids:
+                    continue
+                if message_id not in rows:
+                    rows[message_id] = dict(item)
+                    order.append(message_id)
+                    continue
+                base = rows[message_id]
+                base["attempts"] = max(
+                    self._safe_int(base.get("attempts"), 0, 0),
+                    self._safe_int(item.get("attempts"), 0, 0),
+                )
+        return [rows[message_id] for message_id in order]
+
+    @staticmethod
+    def _merge_fusion_notices(latest: Any, incoming: Any) -> list:
+        """合并双方通知列表：按（标题, 时间）取并集，旧快照写入时不丢当天新通知。"""
+        rows = []
+        seen = set()
+        for source in (latest, incoming):
+            for item in (source or []):
+                if not isinstance(item, dict):
+                    continue
+                key = (str(item.get("title") or ""), str(item.get("updated_at") or item.get("time") or ""))
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(item)
+        rows.sort(key=lambda item: str(item.get("updated_at") or item.get("time") or ""), reverse=True)
+        return rows
 
     @staticmethod
     def _fusion_card_supersedes(latest: Any, incoming: Any) -> bool:
