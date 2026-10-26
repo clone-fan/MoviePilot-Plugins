@@ -324,7 +324,7 @@ class FusionReportMixin:
             "returncode": int(returncode),
             "chars": len(text or ""),
             "sections": self._count_fusion_report_sections(text or ""),
-            "text": (text or "")[:2000],
+            "text": telegram_secrets.telegram_safe_error(text or "", limit=2000),
             "message": telegram_secrets.telegram_safe_error(message or "", limit=1000),
             "error": telegram_secrets.telegram_safe_error(error or "", limit=1000),
             "calendar_status": str(getattr(snapshot, "status", "") or ""),

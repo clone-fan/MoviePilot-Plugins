@@ -655,8 +655,10 @@ class MpApiMixin:
             return {"code": 1, "msg": msg, "data": self._skipped_data(msg)}
         token, chat_id, _source = self._resolve_fusion_telegram_config()
         state = self._tg_console_state(chat_id=chat_id)
-        state["message_id"] = 0
+        # 卡片绑定由卡片状态决定：当天卡片仍可写时不能被本入口摘下来（否则刷新会以为
+        # 需要重建卡片）。重置只做内容清空，不改变卡片身份。
         state["notices"] = []
+        state["notices_cleared"] = True
         state["reports"] = {}
         state["pending_actions"] = {}
         state["running_actions"] = {}

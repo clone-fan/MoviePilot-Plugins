@@ -129,6 +129,8 @@ class TgConsoleFusionMixin:
                 remaining.append({**entry, "attempts": attempts})
             else:
                 # 连续三次删不掉也改不掉：放弃这条，不再产生无效请求。
+                # 旧卡会留在聊天里，只能靠它自己的按钮回「已过期」，所以要留痕。
+                logger.warning(f"Signal 旧融合卡清理放弃：message_id={message_id} 连续三次删除与停用标记均失败")
                 done.append(message_id)
         state["fusion_card_gc"] = remaining
         # 已经删除/改写的旧卡记进名单：陈旧快照整份覆盖保存时不能把它们重新塞回队列。

@@ -701,6 +701,21 @@ class TgConsoleCallbackMixin:
                         ensured["active_tab"] = active_tab
                         ensured["tab_touched"] = True
                         ensured["tab_seq"] = tab_seq
+                        # 补建走的是另一份状态快照：把本轮已经记下的回调去重标记与
+                        # update 游标带过去，否则补建成功后一落盘就把它们顶回旧值，
+                        # 下一轮轮询会重放刚处理过的同一条回调。
+                        ensured["last_update_id"] = max(
+                            self._safe_int(ensured.get("last_update_id"), 0, 0),
+                            self._safe_int(state.get("last_update_id"), 0, 0),
+                        )
+                        merged_callbacks = [
+                            str(x) for x in list(state.get("processed_callbacks") or []) if str(x)
+                        ]
+                        for item in list(ensured.get("processed_callbacks") or []):
+                            text_item = str(item)
+                            if text_item and text_item not in merged_callbacks:
+                                merged_callbacks.append(text_item)
+                        ensured["processed_callbacks"] = merged_callbacks[-100:]
                         state = ensured
                     ok = bool(self._tg_console_upsert_card_locked(token, chat_id, state))
             except Exception as err:

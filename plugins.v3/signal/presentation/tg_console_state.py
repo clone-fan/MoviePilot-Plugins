@@ -188,6 +188,8 @@ class TgConsoleStateMixin:
         }
 
     def _save_tg_console_state(self, state: Dict[str, Any]) -> None:
+        # 显式清空标记（重置卡片状态）先摘出来：它是本次写入的意图，不落盘。
+        notices_cleared = bool(state.pop("notices_cleared", False))
         normalized = normalize_update_center_state(state)
         state.clear()
         state.update(normalized)
@@ -230,13 +232,25 @@ class TgConsoleStateMixin:
                 state["fusion_card"] = latest_card
                 state["message_id"] = latest_card.get("message_id", 0) if can_update_fusion_card(latest_card) else 0
             latest_date = str(latest.get("date") or "")
-            if latest_date and latest_date > str(state.get("date") or ""):
+            incoming_date = str(state.get("date") or "")
+            stale_day = bool(latest_date and incoming_date and latest_date > incoming_date)
+            if stale_day:
                 # 陈旧快照（例如跨零点仍未结束的长轮询）不能把日期写回昨天，
                 # 否则后续所有逻辑都会按昨天的日期重建，卡片指针跟着一起错。
                 state["date"] = latest_date
-            merged = self._merge_fusion_notices(latest.get("notices"), state.get("notices"))
-            if merged:
-                state["notices"] = merged[:self._tg_console_max_notices]
+                incoming_date = latest_date
+            if stale_day:
+                # 昨天的快照带着昨天的通知，跨天之后一律由当天状态说了算。
+                state["notices"] = list(latest.get("notices") or [])[:self._tg_console_max_notices]
+            elif notices_cleared:
+                # 重置入口显式清空：写入方意图就是空列表，不能把旧通知并回来。
+                state["notices"] = notices[:self._tg_console_max_notices]
+            elif not latest_date or incoming_date == latest_date:
+                # 只有同一天的陈旧快照才取并集，避免丢掉当天刚产生的通知；
+                # 新一天的第一笔写入从空列表开始，不继承昨天的通知。
+                merged = self._merge_fusion_notices(latest.get("notices"), state.get("notices"))
+                if merged:
+                    state["notices"] = merged[:self._tg_console_max_notices]
             merged_done = self._merge_fusion_card_gc_done(
                 latest.get("fusion_card_gc_done"), state.get("fusion_card_gc_done"))
             state["fusion_card_gc_done"] = merged_done[-20:]

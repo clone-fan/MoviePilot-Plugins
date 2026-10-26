@@ -3,7 +3,7 @@
     "name": "媒体融合 Signal",
     "description": "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。",
     "labels": "MoviePilot,媒体融合,Signal,通知汇报,数据监控,下载管理,系统维护,插件卸载,每日汇报,TG融合汇报卡,订阅追新,站点统计,健康巡查,日志清理,自动备份,更新检查,自动删种,媒体通知",
-    "version": "3.2.4",
+    "version": "3.2.5",
     "icon": "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png",
     "author": "wenking",
     "author_url": "https://github.com/clone-fan",
@@ -11,6 +11,7 @@
     "system_version": ">=3.0.0",
     "release": true,
     "history": {
+      "v3.2.5": "融合卡第二轮复核回归修补：重置清空不被通知并集捞回、跨天不继承昨天通知、页签补建保留回调游标、任务结果 text 打码",
       "v3.2.4": "通知与任务结果文案统一打码（融合事件、栏目刷新、动作执行返回值），关闭剩余明文 Token 落盘口",
       "v3.2.3": "复核修复：建卡唯一入口(allow_create)、旧卡销毁队列重试与已处理名单、页签点击旧卡只回过期提示、通知/销毁队列抗陈旧覆盖、任务结果落盘打码下沉",
       "v3.2.2": "融合卡跨天绑定修复：跨天后旧卡不可写、建卡唯一换卡并销毁旧卡、刷新自动补建当天卡；Telegram Token 日志打码",
