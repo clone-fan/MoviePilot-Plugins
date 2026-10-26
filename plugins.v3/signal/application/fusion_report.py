@@ -327,8 +327,11 @@ class FusionReportMixin:
             "text": telegram_secrets.telegram_safe_error(text or "", limit=2000),
             "message": telegram_secrets.telegram_safe_error(message or "", limit=1000),
             "error": telegram_secrets.telegram_safe_error(error or "", limit=1000),
-            "calendar_status": str(getattr(snapshot, "status", "") or ""),
-            "calendar_errors": list(getattr(snapshot, "errors", ()) or ())[:3],
+            "calendar_status": telegram_secrets.telegram_safe_error(str(getattr(snapshot, "status", "") or ""), limit=100),
+            "calendar_errors": [
+                telegram_secrets.telegram_safe_error(str(item or ""), limit=200)
+                for item in list(getattr(snapshot, "errors", ()) or ())[:3]
+            ],
     })
 
     @staticmethod
