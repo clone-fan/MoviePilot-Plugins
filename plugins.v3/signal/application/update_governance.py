@@ -16,6 +16,8 @@ from app.sdk.config import settings
 from app.sdk.logging import logger
 from app.sdk.network import RequestUtils
 
+from ..domain import telegram_secrets
+
 
 # 自更新会先停掉正在运行的实例，结果必须由重启后的新实例回填；这条执行
 # 记录是跨越那次重载的唯一凭据。
@@ -112,7 +114,7 @@ class UpdateGovernanceMixin:
             try:
                 hook(kind, job, target)
             except Exception as err:
-                logger.debug(f"Signal 更新中心卡片同步失败：{err}")
+                logger.debug(f"Signal 更新中心卡片同步失败：{telegram_secrets.telegram_safe_error(err)}")
         return job
 
     def _build_update_status(self) -> Dict[str, Any]:

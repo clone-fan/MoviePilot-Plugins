@@ -15,6 +15,7 @@ from ..domain.fusion_card_state import (
     begin_fusion_card_creation,
     can_update_fusion_card,
     disable_fusion_card,
+    fusion_card_day,
     normalize_fusion_card_state,
     resume_fusion_card,
     retire_fusion_card,
@@ -107,6 +108,7 @@ class TgConsoleStateMixin:
                 "pending_actions": {},
                 "fusion_update_actions": update_actions,
                 "update_jobs": deepcopy(state.get("update_jobs") or {}),
+                "fusion_card_gc": deepcopy(state.get("fusion_card_gc") or []),
                 "last_error": "",
                 "fusion_card": previous_card,
                 "v7_event_ledger": empty_event_ledger(today),
@@ -142,6 +144,8 @@ class TgConsoleStateMixin:
         card = resume_fusion_card(card, enabled=bool(getattr(self, "_fusion_notify_enabled", False)))
         state["fusion_card"] = card
         state["message_id"] = card.get("message_id", 0) if can_update_fusion_card(card) else 0
+        if card.get("lifecycle") == "retired" and card.get("retirement_reason") == "day-rolled":
+            self._queue_fusion_card_gc(state, card)
         if self._tg_console_prune_actions(state):
             changed = True
         if self._sanitize_fusion_update_state(state):
@@ -154,7 +158,7 @@ class TgConsoleStateMixin:
         previous = self._tg_console_state(chat_id=chat_id)
         today = self._today_prefix()
         previous_card = previous.get("fusion_card") if isinstance(previous.get("fusion_card"), dict) else {}
-        same_day = str(previous_card.get("created_at") or "").startswith(today)
+        same_day = fusion_card_day(previous_card) == today
         fusion_card = begin_fusion_card_creation(
             previous_card,
             trigger=trigger,
@@ -176,6 +180,7 @@ class TgConsoleStateMixin:
             "pending_actions": {},
             "fusion_update_actions": deepcopy(previous.get("fusion_update_actions") or {}),
             "update_jobs": deepcopy(previous.get("update_jobs") or {}),
+            "fusion_card_gc": deepcopy(previous.get("fusion_card_gc") or []),
             "last_error": "",
             "fusion_card": fusion_card,
             "v7_event_ledger": normalize_event_ledger(previous.get("v7_event_ledger"), today),
@@ -199,6 +204,10 @@ class TgConsoleStateMixin:
         state["reports"] = reports if isinstance(reports, dict) else {}
         columns = state.get("columns") or {}
         state["columns"] = columns if isinstance(columns, dict) else {}
+        state["fusion_card_gc"] = [
+            item for item in (state.get("fusion_card_gc") or [])
+            if isinstance(item, dict) and self._safe_int(item.get("message_id"), 0, 0)
+        ][-5:]
         ledger_date = str(state.get("date") or datetime.now().strftime("%Y-%m-%d"))
         state["v7_event_ledger"] = normalize_event_ledger(state.get("v7_event_ledger"), ledger_date)
         state.pop("v7_completion_events", None)
@@ -210,7 +219,49 @@ class TgConsoleStateMixin:
             card = activate_fusion_card(card, message_id=state.get("message_id"), chat_id=str(state.get("chat_id") or ""))
         state["fusion_card"] = card
         state["message_id"] = card.get("message_id", 0) if can_update_fusion_card(card) else 0
+        latest = self.get_data("tg_console_state")
+        if isinstance(latest, dict):
+            latest_card = normalize_fusion_card_state(
+                latest.get("fusion_card"),
+                enabled=bool(getattr(self, "_fusion_notify_enabled", False)),
+            )
+            if self._fusion_card_supersedes(latest_card, card):
+                # 持久化里的当天卡片比本次快照新：旧快照不能把身份顶回旧卡。
+                state["fusion_card"] = latest_card
+                state["message_id"] = latest_card.get("message_id", 0) if can_update_fusion_card(latest_card) else 0
         self.save_data("tg_console_state", state)
+
+    @staticmethod
+    def _fusion_card_supersedes(latest: Any, incoming: Any) -> bool:
+        """持久化卡片是否应当压过本次写入：新卡永远赢，旧快照不能复活旧卡。"""
+        if not isinstance(latest, dict) or not isinstance(incoming, dict):
+            return False
+        latest_writable = can_update_fusion_card(latest)
+        if not latest_writable:
+            return False
+        if not can_update_fusion_card(incoming):
+            return True
+        try:
+            return int(latest.get("generation") or 0) > int(incoming.get("generation") or 0)
+        except (TypeError, ValueError):
+            return False
+
+    def _queue_fusion_card_gc(self, state: Dict[str, Any], card: Any) -> None:
+        """旧卡退役后登记待销毁，避免删除失败后残留一张永远不更新的卡。"""
+        if not isinstance(card, dict):
+            return
+        message_id = self._safe_int(card.get("message_id"), 0, 0)
+        if not message_id:
+            return
+        entries = [item for item in (state.get("fusion_card_gc") or []) if isinstance(item, dict)]
+        if any(self._safe_int(item.get("message_id"), 0, 0) == message_id for item in entries):
+            return
+        entries.append({
+            "message_id": message_id,
+            "card_id": str(card.get("card_id") or ""),
+            "retired_at": str(card.get("retired_at") or ""),
+        })
+        state["fusion_card_gc"] = entries[-5:]
 
     def _sync_fusion_card_enablement(self, previous_enabled: Optional[bool]) -> None:
         state = self.get_data("tg_console_state") or {}

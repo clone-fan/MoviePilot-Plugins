@@ -38,6 +38,113 @@ class TgConsoleFusionMixin:
                 and (state.get("fusion_card") or {}).get("lifecycle") == "active"
                 and self._fusion_card_identity(state) == self._fusion_card_identity(latest))
 
+    def _ensure_fusion_card(self, chat_id: str = "", trigger: str = "refresh") -> Optional[Dict[str, Any]]:
+        """取当天活动卡：已有就直接返回，没有就补建一张并把旧卡销毁。
+
+        建卡是唯一能更换活动卡身份的动作；刷新发现手里不是当天卡时也走这里补建，
+        这样「刷新」永远不会写旧卡，撞车时也只会留下一次建卡动作。
+        """
+        with self._tg_console_card_lock:
+            current = self._tg_console_state(chat_id=chat_id)
+            if current.get("message_id"):
+                return current
+            if not bool(getattr(self, "_fusion_notify_enabled", False)):
+                return None
+            token, target_chat_id, _source = self._resolve_fusion_telegram_config()
+            if not token or not target_chat_id:
+                self._tg_console_last_error = "Telegram 融合通知 Bot Token/Chat ID 未配置"
+                current["last_error"] = self._tg_console_last_error
+                self._save_tg_console_state(current)
+                return None
+            state = self._new_tg_console_card_state(chat_id=target_chat_id, trigger=trigger)
+            self._prepare_tg_console_v7_loading(state)
+            try:
+                sent = bool(self._tg_console_upsert_card(token, target_chat_id, state))
+            except Exception as err:
+                self._tg_console_last_error = f"融合通知卡补建异常：{self._telegram_safe_error(err, limit=300)}"
+                state["last_error"] = self._tg_console_last_error
+                self._save_tg_console_state(state)
+                return None
+            self._save_tg_console_state(state)
+            if not sent or not state.get("message_id"):
+                return None
+            self._retire_previous_fusion_card(token, target_chat_id, state)
+            return state
+
+    def _retire_previous_fusion_card(self, token: str, chat_id: str, state: Dict[str, Any]) -> None:
+        """新卡发出后销毁被替换的旧卡：能删就删，删不掉就改写成「已停止更新」。"""
+        if not isinstance(state, dict):
+            return
+        card = state.get("fusion_card") if isinstance(state.get("fusion_card"), dict) else {}
+        current_id = self._safe_int(card.get("message_id"), 0, 0)
+        entries = []
+        seen = set()
+        candidates = []
+        if isinstance(card.get("previous_card"), dict):
+            candidates.append(card["previous_card"])
+        candidates.extend(item for item in (state.get("fusion_card_gc") or []) if isinstance(item, dict))
+        for item in candidates:
+            message_id = self._safe_int(item.get("message_id"), 0, 0)
+            if not message_id or message_id == current_id or message_id in seen:
+                continue
+            seen.add(message_id)
+            entries.append({"message_id": message_id, "card_id": str(item.get("card_id") or "")})
+        if isinstance(card.get("previous_card"), dict):
+            card["previous_card"]["gc_done"] = True
+        if not entries:
+            state["fusion_card_gc"] = []
+            return
+        remaining = []
+        for entry in entries:
+            message_id = entry["message_id"]
+            deleted = False
+            try:
+                deleted = self._telegram_delete_message(token, chat_id, message_id)
+            except Exception as err:
+                logger.debug(f"Signal 旧融合卡删除异常：{self._telegram_safe_error(err, limit=200)}")
+            if deleted:
+                continue
+            marked = False
+            try:
+                marked = self._telegram_disable_message(token, chat_id, message_id)
+            except Exception as err:
+                logger.debug(f"Signal 旧融合卡停用标记异常：{self._telegram_safe_error(err, limit=200)}")
+            if not marked:
+                remaining.append(entry)
+        state["fusion_card_gc"] = remaining
+        self._save_tg_console_state(state)
+
+    def _telegram_delete_message(self, token: str, chat_id: str, message_id: Any) -> bool:
+        poster = getattr(self, "_telegram_http_post_json", None)
+        responder = getattr(self, "_telegram_response_data", None)
+        if not callable(poster) or not callable(responder) or not token or not chat_id:
+            return False
+        response = poster(
+            f"https://api.telegram.org/bot{token}/deleteMessage",
+            {"chat_id": str(chat_id), "message_id": self._safe_int(message_id, 0, 0)},
+            timeout=15,
+        )
+        ok, _data = responder(response, "deleteMessage")
+        return bool(ok)
+
+    def _telegram_disable_message(self, token: str, chat_id: str, message_id: Any) -> bool:
+        poster = getattr(self, "_telegram_http_post_json", None)
+        responder = getattr(self, "_telegram_response_data", None)
+        if not callable(poster) or not callable(responder) or not token or not chat_id:
+            return False
+        response = poster(
+            f"https://api.telegram.org/bot{token}/editMessageText",
+            {
+                "chat_id": str(chat_id),
+                "message_id": self._safe_int(message_id, 0, 0),
+                "text": "本卡已停止更新，请查看当天的新卡片。",
+                "reply_markup": {"inline_keyboard": []},
+            },
+            timeout=15,
+        )
+        ok, _data = responder(response, "editMessageText")
+        return bool(ok)
+
     @staticmethod
     def _remember_fusion_site_refresh(state: Dict[str, Any], refresh: Any, task_name: str) -> None:
         if not isinstance(refresh, dict):
@@ -435,9 +542,13 @@ class TgConsoleFusionMixin:
                 self._save_tg_console_state(state)
                 return False
             if not state.get("message_id"):
-                state["last_error"] = "融合通知当前没有可刷新的 active card"
-                self._save_tg_console_state(state)
-                return False
+                # 手里不是当天卡：先补建再刷新，绝不在旧卡上写。
+                ensured = self._ensure_fusion_card(chat_id=chat_id, trigger="refresh")
+                if not ensured or not ensured.get("message_id"):
+                    state["last_error"] = "融合通知当天卡片不可用，自动补建失败"
+                    self._save_tg_console_state(state)
+                    return False
+                state = ensured
         refresh = (live_result or {}).get("site_refresh") if getattr(self, "_site_stat_enabled", False) else None
         site_error = self._site_refresh_failure_message(refresh)
         live_failed = isinstance(live_result, dict) and live_result.get("success") is False

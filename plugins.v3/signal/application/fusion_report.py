@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.sdk.config import settings
 from app.sdk.logging import logger
-from ..domain import html_utils
+from ..domain import html_utils, telegram_secrets
 
 
 # Telegram API 调用是页签切换延迟的大头：宿主在把回调转给插件之前就已经
@@ -215,19 +215,22 @@ class FusionReportMixin:
             self._save_fusion_report_result(updated=False, success=False, text=text, error=error, message=error, returncode=1)
             return False
         except Exception as err:
+            # Telegram 调用异常可能把 bot token 带在请求 URL 里，日志与任务结果
+            # 都在此落地，所以先打码一次再写出，避免持久化明文凭据。
+            safe_error = self._telegram_safe_error(str(err), limit=1000)
             with self._tg_console_card_lock, self._site_refresh_condition:
                 if cancelled():
                     return False
-                self._save_task_result(name, False, -1, str(err))
-                self._save_fusion_report_result(updated=False, success=False, text="", error=str(err), message=str(err), returncode=-1)
+                self._save_task_result(name, False, -1, safe_error)
+                self._save_fusion_report_result(updated=False, success=False, text="", error=safe_error, message=safe_error, returncode=-1)
             try:
                 from ..infrastructure.subscription_calendar import SubscriptionCalendarError
                 if isinstance(err, SubscriptionCalendarError):
                     self._notify_fusion_task_outcome(
                         mtype=self._notification_type("Plugin"),
                         title="Signal - 融合卡订阅日历异常",
-                        text=f"融合卡读取订阅日历失败：{err}",
-                        outcome=f"融合卡读取订阅日历失败：{str(err)[:120]}",
+                        text=f"融合卡读取订阅日历失败：{safe_error}",
+                        outcome=f"融合卡读取订阅日历失败：{self._telegram_safe_error(str(err), limit=120)}",
                         success=False,
                         component="fusion_notify",
                         affected_owner="persistent-subscriptions",
@@ -239,8 +242,8 @@ class FusionReportMixin:
                         notification_cooldown=True,
                     )
             except Exception as notify_err:
-                logger.warning(f"Signal 融合卡订阅日历失败通知发送异常：{notify_err}")
-            logger.error(f"Signal 融合卡刷新失败：{err}")
+                logger.warning(f"Signal 融合卡订阅日历失败通知发送异常：{self._telegram_safe_error(str(notify_err), limit=200)}")
+            logger.error(f"Signal 融合卡刷新失败：{safe_error}")
             return False
 
     def _refresh_fusion_report_live_data(self, *, generation=None) -> Dict[str, Any]:
@@ -449,12 +452,8 @@ class FusionReportMixin:
 
     @staticmethod
     def _telegram_safe_error(value: Any, limit: int = 200) -> str:
-        text = str(value or "")
-        text = re.sub(r"bot\d{5,}:[A-Za-z0-9_-]+", "bot***", text)
-        text = re.sub(r"\d{5,}:[A-Za-z0-9_-]{20,}", "***TOKEN***", text)
-        if limit and len(text) > limit:
-            return text[:limit]
-        return text
+        """Mask Telegram bot tokens; the regex lives in ``domain.telegram_secrets``."""
+        return telegram_secrets.telegram_safe_error(value, limit)
 
     def _telegram_response_data(self, response: Any, action: str) -> Tuple[bool, Dict[str, Any]]:
         if not getattr(response, "ok", False):

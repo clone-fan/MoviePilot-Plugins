@@ -57,6 +57,38 @@ def _timestamp(now: Optional[datetime] = None) -> str:
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _local_day(now: Optional[datetime] = None) -> str:
+    """返回本地日历日期；卡片的可写资格按这个口径判定。"""
+    value = now or datetime.now()
+    if value.tzinfo is not None:
+        value = value.astimezone()
+    return value.strftime("%Y-%m-%d")
+
+
+def _day_of_timestamp(timestamp: Any) -> str:
+    """把 UTC 时间戳换算成本地日期；历史持久化数据缺 card_date 时用它兜底。"""
+    text = str(timestamp or "").strip()
+    if not text:
+        return ""
+    try:
+        value = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    try:
+        return value.astimezone().strftime("%Y-%m-%d")
+    except (OverflowError, OSError, ValueError):
+        return ""
+
+
+def fusion_card_day(state: Any) -> str:
+    """融合卡归属的本地日期；缺 card_date 的历史状态由 created_at 换算。"""
+    if not isinstance(state, dict):
+        return ""
+    return str(state.get("card_date") or "") or _day_of_timestamp(state.get("created_at"))
+
+
 def empty_fusion_card_state(now: Optional[datetime] = None) -> Dict[str, Any]:
     stamp = _timestamp(now)
     return {
@@ -68,6 +100,7 @@ def empty_fusion_card_state(now: Optional[datetime] = None) -> Dict[str, Any]:
         "chat_id": "",
         "trigger": "",
         "created_at": "",
+        "card_date": "",
         "activated_at": "",
         "updated_at": stamp,
         "retired_at": "",
@@ -121,8 +154,10 @@ def normalize_fusion_card_state(
     state["tier_order"] = list(FUSION_TIER_ORDER)
     state["modules"] = state.get("modules") if isinstance(state.get("modules"), dict) else {}
     state.setdefault("previous_card", None)
-    for key in ("card_id", "trigger", "created_at", "activated_at", "retired_at", "retirement_reason", "last_refresh_at"):
+    for key in ("card_id", "trigger", "created_at", "card_date", "activated_at", "retired_at", "retirement_reason", "last_refresh_at"):
         state[key] = str(state.get(key) or "")
+    if not state["card_date"]:
+        state["card_date"] = _day_of_timestamp(state["created_at"])
     lifecycle = str(state.get("lifecycle") or "awaiting_create")
     if lifecycle not in {"awaiting_create", "creating", "active", "retired", "disabled"}:
         lifecycle = "awaiting_create"
@@ -133,6 +168,11 @@ def normalize_fusion_card_state(
     if lifecycle == "creating" and state["message_id"]:
         lifecycle = "active"
         state["activated_at"] = state["activated_at"] or stamp
+    if lifecycle in ACTIVE_LIFECYCLES and state["card_date"] != _local_day(now):
+        # 跨天后活动卡立即失去活动资格：任何写路径都不可能再指向旧卡。
+        lifecycle = "retired"
+        state["retired_at"] = state["retired_at"] or stamp
+        state["retirement_reason"] = state["retirement_reason"] or "day-rolled"
     if not enabled and lifecycle in ACTIVE_LIFECYCLES:
         lifecycle = "disabled"
         state["retired_at"] = state["retired_at"] or stamp
@@ -158,6 +198,7 @@ def begin_fusion_card_creation(
         reused.update({
             "lifecycle": "active",
             "trigger": str(trigger or reused.get("trigger") or "manual"),
+            "card_date": _local_day(now),
             "updated_at": stamp,
             "last_refresh_at": stamp,
             "retired_at": "",
@@ -182,6 +223,7 @@ def begin_fusion_card_creation(
         "chat_id": str(chat_id or old.get("chat_id") or ""),
         "trigger": str(trigger or "manual"),
         "created_at": stamp,
+        "card_date": _local_day(now),
         "updated_at": stamp,
         "previous_card": previous_summary,
     }
@@ -242,8 +284,13 @@ def resume_fusion_card(state: Any, *, enabled: bool, now: Optional[datetime] = N
     return result
 
 
-def can_update_fusion_card(state: Any) -> bool:
-    return bool(isinstance(state, dict) and state.get("lifecycle") == "active" and _positive_int(state.get("message_id")))
+def can_update_fusion_card(state: Any, *, today: Optional[str] = None) -> bool:
+    """当天活动卡才可写：跨天后任何写路径都取不到旧卡的 message_id。"""
+    if not isinstance(state, dict) or state.get("lifecycle") != "active":
+        return False
+    if not _positive_int(state.get("message_id")):
+        return False
+    return fusion_card_day(state) == str(today or _local_day())
 
 
 def touch_fusion_card_refresh(state: Any, *, now: Optional[datetime] = None) -> Dict[str, Any]:

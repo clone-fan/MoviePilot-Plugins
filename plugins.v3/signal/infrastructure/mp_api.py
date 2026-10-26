@@ -75,6 +75,8 @@ class MpApiMixin:
                 if self._should_cancel(generation):
                     return self._cancelled_fusion_action()
                 self._save_tg_console_state(state)
+            # 新卡落地后销毁被替换的旧卡（删不掉就改写停用）。
+            self._retire_previous_fusion_card(token, chat_id, state)
         site_error = ""
         refresh = {}
         sent = card_ready = ok
