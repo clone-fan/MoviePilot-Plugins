@@ -400,6 +400,7 @@ const defaults = defineConfigDefaults({
   local_plugin_repo: '',
   fusion_notify_enabled: true,
   fusion_notify_msgtype: 'Plugin',
+  fusion_notify_channel: '',
   fusion_card_create_cron: '5 0 * * *',
   fusion_card_refresh_cron: '0 * * * *',
   health_check_enabled: true,
@@ -547,6 +548,18 @@ const fusionNotificationSchemaFieldDescriptors = Object.freeze([
     "help": "融合卡片通过 MoviePilot 对应消息类型发送。",
     "control": "select",
     "itemSource": "notificationTypeItems",
+    "sourceProfile": "remote-form"
+  },
+  {
+    "key": "fusion_notify_channel",
+    "type": "string",
+    "cardType": "notify",
+    "module": "fusion_notify",
+    "subtab": "fusion",
+    "label": "通知渠道",
+    "help": "留空自动挑选；指定后融合卡固定发到这个 Telegram 渠道，所选渠道不可用时会回退并在卡片状态里注明。",
+    "control": "select",
+    "itemSource": "notificationChannels",
     "sourceProfile": "remote-form"
   },
 ]);
@@ -1195,11 +1208,17 @@ function normalizeFusionNotifyMsgtype(value) {
   return normalizeConfigOption(value, notificationTypeValues, defaults.fusion_notify_msgtype)
 }
 
+// 渠道保存 MoviePilot 的稳定 id；留空表示自动挑选。
+function normalizeFusionNotifyChannel(value) {
+  return String(value == null ? '' : value).trim()
+}
+
 function normalizeCurrentFusionConfig(config = {}) {
   const source = config && typeof config === 'object' && !Array.isArray(config) ? config : {};
   const normalized = { ...source };
   if (Object.hasOwn(source, 'fusion_notify_enabled')) normalized.fusion_notify_enabled = !!source.fusion_notify_enabled;
   if (Object.hasOwn(source, 'fusion_notify_msgtype')) normalized.fusion_notify_msgtype = normalizeFusionNotifyMsgtype(source.fusion_notify_msgtype);
+  if (Object.hasOwn(source, 'fusion_notify_channel')) normalized.fusion_notify_channel = normalizeFusionNotifyChannel(source.fusion_notify_channel);
   if (Object.hasOwn(source, 'fusion_card_create_cron')) normalized.fusion_card_create_cron = normalizeFusionCreateCron(source.fusion_card_create_cron);
   if (Object.hasOwn(source, 'fusion_card_refresh_cron')) normalized.fusion_card_refresh_cron = normalizeFusionRefreshCron(source.fusion_card_refresh_cron);
   return normalized

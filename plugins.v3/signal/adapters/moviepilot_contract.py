@@ -44,6 +44,7 @@ class PluginContractMixin:
             {"path": "/reset_tg_console_card", "endpoint": self.api_reset_tg_console_card, "auth": "bear", "methods": ["POST"], "summary": "重置 Telegram 融合汇报卡"},
             {"path": "/installed_plugins", "endpoint": self.api_installed_plugins, "auth": "bear", "methods": ["GET"], "summary": "已安装插件列表，供插件卸载下拉选择"},
             {"path": "/plugin_markets", "endpoint": self.api_plugin_markets, "auth": "bear", "methods": ["GET"], "summary": "已配置插件库仓库列表，供更新黑名单下拉选择"},
+            {"path": "/notification_channels", "endpoint": self.api_notification_channels, "auth": "bear", "methods": ["GET"], "summary": "MoviePilot 通知渠道候选，供融合卡指定发送渠道"},
             {"path": "/refresh_tg_console_card", "endpoint": self.api_refresh_tg_console_card, "auth": "bear", "methods": ["POST"], "summary": "刷新当前融合通知卡"},
             {"path": "/run_subscribe_reminder", "endpoint": self.api_run_subscribe_reminder, "auth": "bear", "methods": ["POST"], "summary": "立即推送订阅追新"},
             {"path": "/run_today_transfer", "endpoint": self.api_run_today_transfer, "auth": "bear", "methods": ["POST"], "summary": "立即刷新今日入库"},

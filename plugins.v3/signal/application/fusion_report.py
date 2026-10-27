@@ -343,6 +343,20 @@ class FusionReportMixin:
         return self._build_fusion_report_content(preview=preview)
 
     def _resolve_fusion_telegram_config(self) -> Tuple[str, str, str]:
+        """解析融合卡要用的 Telegram 凭据，并给出可用于卡片状态提示的来源说明。"""
+        selected = str(getattr(self, "_fusion_notify_channel", "") or "").strip()
+        if selected:
+            channel = next(
+                (item for item in self._moviepilot_notification_channels() if item["id"] == selected),
+                None,
+            )
+            if channel and channel["usable"]:
+                return channel["token"], channel["chat_id"], f"指定通知渠道：{channel['name']}"
+            reason = (channel or {}).get("reason") or "渠道已删除"
+            token, chat_id, name = self._find_moviepilot_telegram_config(self._fusion_notify_msgtype)
+            if token and chat_id:
+                return token, chat_id, f"所选渠道不可用（{reason}），已回退：{name or 'Telegram'}"
+            return "", "", ""
         global_token, global_chat_id, name = self._find_moviepilot_telegram_config(self._fusion_notify_msgtype)
         if global_token and global_chat_id:
             return global_token, global_chat_id, f"复用 MoviePilot 通知渠道：{name or 'Telegram'}"
@@ -354,30 +368,51 @@ class FusionReportMixin:
             return value.get(key, default)
         return getattr(value, key, default)
 
-    def _find_moviepilot_telegram_config(self, msgtype: str = "") -> Tuple[str, str, str]:
+    def _moviepilot_notification_channels(self) -> List[Dict[str, Any]]:
+        """MoviePilot 已配置的通知渠道；融合卡只认可承载富消息卡片的 Telegram 渠道。"""
         try:
-            from app.db.oper.systemconfig import SystemConfigOper
-            from app.schemas.types import SystemConfigKey
-            notifications = SystemConfigOper().get(SystemConfigKey.Notifications) or []
+            from ..infrastructure import notice_transport
+            notifications = notice_transport.notification_configs() or []
         except Exception as err:
-            logger.warning(f"Signal 读取 MoviePilot Telegram 通知配置失败：{telegram_secrets.telegram_safe_error(err)}")
-            return "", "", ""
+            logger.warning(f"Signal 读取 MoviePilot 通知配置失败：{telegram_secrets.telegram_safe_error(err)}")
+            return []
 
-        preferred_switches = self._notification_switch_labels(msgtype or "Plugin")
-        candidates: List[Tuple[int, str, str, str]] = []
+        channels: List[Dict[str, Any]] = []
         for item in notifications or []:
+            cid = str(self._dict_or_attr(item, "id", "") or "").strip()
             ntype = str(self._dict_or_attr(item, "type", "") or "").strip().lower()
-            if ntype != "telegram":
-                continue
-            enabled = self._dict_or_attr(item, "enabled", True)
-            if enabled is False or str(enabled).strip().lower() in {"false", "0", "no", "off"}:
-                continue
+            name = str(self._dict_or_attr(item, "name", "") or "").strip() or cid or "未命名渠道"
             config = self._dict_or_attr(item, "config", {}) or {}
             token = str(self._dict_or_attr(config, "TELEGRAM_TOKEN", "") or "").strip()
             chat_id = str(self._dict_or_attr(config, "TELEGRAM_CHAT_ID", "") or "").strip()
-            if not token or not chat_id:
+            enabled = self._dict_or_attr(item, "enabled", True)
+            if enabled is False or str(enabled).strip().lower() in {"false", "0", "no", "off"}:
+                usable, reason = False, "渠道已停用"
+            elif ntype != "telegram":
+                usable, reason = False, f"不是 Telegram 渠道（{ntype or '未知类型'}），发不了带按钮的卡片"
+            elif not token or not chat_id:
+                usable, reason = False, "未填写 Bot Token 或 Chat ID"
+            else:
+                usable, reason = True, ""
+            channels.append({
+                "id": cid,
+                "name": name,
+                "type": ntype,
+                "usable": usable,
+                "reason": reason,
+                "switchs": self._parse_csv(self._dict_or_attr(item, "switchs", []) or []),
+                "token": token,
+                "chat_id": chat_id,
+            })
+        return channels
+
+    def _find_moviepilot_telegram_config(self, msgtype: str = "") -> Tuple[str, str, str]:
+        preferred_switches = self._notification_switch_labels(msgtype or "Plugin")
+        candidates: List[Tuple[int, str, str, str]] = []
+        for channel in self._moviepilot_notification_channels():
+            if not channel["usable"]:
                 continue
-            switches = self._parse_csv(self._dict_or_attr(item, "switchs", []) or [])
+            switches = channel["switchs"]
             score = 1
             if preferred_switches and any(str(x) in preferred_switches for x in switches):
                 score += 100
@@ -385,8 +420,7 @@ class FusionReportMixin:
                 score += 20
             if any(x in switches for x in ("其它", "其他", "Other")):
                 score += 5
-            name = str(self._dict_or_attr(item, "name", "") or "Telegram").strip()
-            candidates.append((score, token, chat_id, name))
+            candidates.append((score, channel["token"], channel["chat_id"], channel["name"]))
 
         if not candidates:
             return "", "", ""

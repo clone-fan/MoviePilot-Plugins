@@ -790,6 +790,7 @@ class LifecycleMixin:
         self._fusion_notify_schedule_enabled = self._fusion_notify_enabled
         self._fusion_notify_cron = self._fusion_card_refresh_cron
         self._fusion_notify_msgtype = config.get("fusion_notify_msgtype") or "Plugin"
+        self._fusion_notify_channel = str(config.get("fusion_notify_channel") or "").strip()
         self._fusion_notify_columns = [x["key"] for x in self._fusion_column_registry()]
         self._report_storage_targets = ["config", "download", "library", "storages"]
         self._tg_console_enabled = self._fusion_notify_enabled

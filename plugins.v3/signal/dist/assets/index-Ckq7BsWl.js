@@ -1,7 +1,7 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-BwXk-EF0.js","assets/__federation_fn_import-JrT3xvdd.js","assets/BackupRestoreOperationContent-BYWDHpjj.js","assets/mdi-DveizHBi.js","assets/BackupRestoreOperationContent-DBmPFkvg.css","assets/__federation_expose_Dashboard-Cwo6uF_M.css","assets/__federation_expose_Config-CgK1BS_T.js","assets/__federation_expose_AppPageConfig-4H-_ieZa.js","assets/save-payload-iABx0Agv.js","assets/__federation_expose_AppPageConfig-CeN80QaB.css"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/__federation_expose_Dashboard-BwXk-EF0.js","assets/__federation_fn_import-JrT3xvdd.js","assets/BackupRestoreOperationContent-BYWDHpjj.js","assets/mdi-DveizHBi.js","assets/BackupRestoreOperationContent-DBmPFkvg.css","assets/__federation_expose_Dashboard-Cwo6uF_M.css","assets/__federation_expose_Config-D0dRyN4H.js","assets/__federation_expose_AppPageConfig-Dy_WKUBa.js","assets/save-payload-COK3uaVH.js","assets/__federation_expose_AppPageConfig-CeN80QaB.css"])))=>i.map(i=>d[i]);
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { i as includes, a as isOn, e as eventName, p as propsFactory, g as getCurrentInstance$1, m as mergeDeep, t as toKebabCase, c as consoleWarn, b as pick, d as getObjectValueByPath, f as consoleError, h as padStart, j as createRange, I as IN_BROWSER, S as SUPPORTS_TOUCH, k as getCurrentInstanceName, l as clamp, r as refElement, n as templateRef, o as convertToUnit, q as findChildrenWithProvide, s as getUid, u as createTheme, T as ThemeSymbol, v as provideTheme, w as makeThemeProps, x as destructComputed, y as isCssColor, z as isParsableColor, A as parseColor, B as getForeground, C as SUPPORTS_INTERSECTION, D as deepEqual, E as wrapInArray, F as flattenFragments, G as hasEvent, H as isObject, J as keyCodes, K as EventProp, L as filterInputAttrs, M as matchesSelector, N as omit, O as only, P as focusableChildren, Q as deprecate, R as getPropertyFromItem, U as focusChild, V as defer, W as isClickInsideElement, X as getNextElement, Y as callEvent, Z as debounce, _ as ensureValidVNode, $ as checkPrintable, a0 as noop, a1 as useTheme, a2 as pickWithRest, a3 as keys, a4 as getEventCoordinates, a5 as HexToHSV, a6 as HSVtoHex, a7 as HSLtoHSV, a8 as HSVtoHSL, a9 as RGBtoHSV, aa as HSVtoRGB, ab as has, ac as getDecimals, ad as keyValues, ae as SUPPORTS_EYE_DROPPER, af as HSVtoCSS, ag as RGBtoCSS, ah as getContrast, ai as isComposingIgnoreKey, aj as isEmpty, ak as humanReadableFileSize, al as CircularBuffer, am as _export_sfc, an as chunkArray, ao as mdiWeight, ap as mdiWeb, aq as mdiViewGridOutline, ar as mdiViewDashboardOutline, as as mdiUpdate, at as mdiTuneVariant, au as mdiTimerOutline, av as mdiTimerCogOutline, aw as mdiTelevisionPlay, ax as mdiTelevision, ay as mdiTagPlusOutline, az as mdiTagOutline, aA as mdiTagMultipleOutline, aB as mdiSync, aC as mdiSignal, aD as mdiShieldSyncOutline, aE as mdiShieldOutline, aF as mdiShieldHalfFull, aG as mdiShieldCheckOutline, aH as mdiShieldAlertOutline, aI as mdiServerNetwork, aJ as mdiServer, aK as mdiSendOutline, aL as mdiScaleBalance, aM as mdiSatelliteUplink, aN as mdiRssBox, aO as mdiRocketLaunchOutline, aP as mdiRefresh, aQ as mdiPuzzleRemoveOutline, aR as mdiPuzzlePlusOutline, aS as mdiPuzzleOutline, aT as mdiPuzzleCheckOutline, aU as mdiPuzzle, aV as mdiPowerStandby, aW as mdiPlusCircleOutline, aX as mdiPlay, aY as mdiPercent, aZ as mdiPencilOutline, a_ as mdiNewspaperVariantOutline, a$ as mdiMovieOpenOutline, b0 as mdiMovieOpenCogOutline, b1 as mdiMessageBadgeOutline, b2 as mdiLockOutline, b3 as mdiLockCheckOutline, b4 as mdiLinkVariant, b5 as mdiLightningBoltOutline, b6 as mdiLayersTripleOutline, b7 as mdiLayersOutline, b8 as mdiInformationOutline, b9 as mdiHistory, ba as mdiHeartPulse, bb as mdiHarddisk, bc as mdiGauge, bd as mdiFormatListNumbered, be as mdiFormatListChecks, bf as mdiFormatListBulleted, bg as mdiFormTextbox, bh as mdiFolderOutline, bi as mdiFolderKeyOutline, bj as mdiFolderCheckOutline, bk as mdiFolderArrowUpOutline, bl as mdiFilterOutline, bm as mdiFileEyeOutline, bn as mdiFileDocumentRemoveOutline, bo as mdiEmailOutline, bp as mdiDownloadOutline, bq as mdiDownloadNetworkOutline, br as mdiDownloadCircleOutline, bs as mdiDownload, bt as mdiDeleteSweepOutline, bu as mdiDeleteOutline, bv as mdiDatabaseOutline, bw as mdiDatabaseCheckOutline, bx as mdiDatabaseArrowUpOutline, by as mdiCubeOutline, bz as mdiContentSaveOutline, bA as mdiContentCopy, bB as mdiCogOutline, bC as mdiCodeTags, bD as mdiCloudUploadOutline, bE as mdiCloudSyncOutline, bF as mdiCloudSearchOutline, bG as mdiCloudRefreshOutline, bH as mdiCloudOutline, bI as mdiClose, bJ as mdiChevronRight, bK as mdiCheckDecagramOutline, bL as mdiCheckCircleOutline, bM as mdiCheck, bN as mdiChartPie, bO as mdiChartLineVariant, bP as mdiChartLine, bQ as mdiChartBar, bR as mdiCardPlusOutline, bS as mdiCardAccountDetailsOutline, bT as mdiCalendarClock, bU as mdiBroom, bV as mdiBlockHelper, bW as mdiBellRingOutline, bX as mdiBellOutline, bY as mdiBellCogOutline, bZ as mdiBellBadgeOutline, b_ as mdiBell, b$ as mdiBackupRestore, c0 as mdiAutoFix, c1 as mdiArchiveSearchOutline, c2 as mdiArchiveArrowUpOutline, c3 as mdiAlphaMBoxOutline, c4 as mdiAlertOutline, c5 as mdiAlertCircleOutline, c6 as mdiAccountOutline } from './mdi-DveizHBi.js';
-import { s as serializeConfigSavePayload, r as reloadConfigSavePayload } from './save-payload-iABx0Agv.js';
+import { s as serializeConfigSavePayload, r as reloadConfigSavePayload } from './save-payload-COK3uaVH.js';
 
 true&&(function polyfill() {
   const relList = document.createElement("link").relList;
@@ -26781,6 +26781,12 @@ const listPayloads = {
     { title: 'Emby', value: 'emby' },
     { title: 'Jellyfin', value: 'jellyfin' },
   ],
+  notification_channels: [
+    { title: '自动匹配（当前：派蒙管理员）', value: '', props: { subtitle: '留空时按消息类型自动选择已启用的 Telegram 渠道' } },
+    { title: '家庭群机器人 · Telegram', value: 'tg-family' },
+    { title: '派蒙管理员 · Telegram', value: 'tg-admin' },
+    { title: '微信推送 · wechat', value: 'wx-push', props: { disabled: true, subtitle: '不是 Telegram 渠道（wechat），发不了带按钮的卡片' } },
+  ],
   backup_archives: [
     { name: 'signal-20260702-0900.zip', title: 'signal-20260702-0900.zip', value: 'signal-20260702-0900.zip' },
   ],
@@ -27021,6 +27027,7 @@ const previewConfig = {
   enabled: true,
   fusion_notify_enabled: true,
   fusion_notify_msgtype: 'Plugin',
+  fusion_notify_channel: '',
   health_check_enabled: true,
   site_stat_enabled: true,
   health_check_items: ['数据库', '存储空间', '目录权限'],
@@ -27228,7 +27235,7 @@ const DashboardComponent = defineAsyncComponent(() => (
 
 const ConfigComponent = defineAsyncComponent(() => (
   loaderMode.value === 'source'
-    ? __vitePreload(() => import('./__federation_expose_Config-CgK1BS_T.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
+    ? __vitePreload(() => import('./__federation_expose_Config-D0dRyN4H.js'),true?__vite__mapDeps([6,7,1,3,8,2,4,9]):void 0).then(module => module.default)
     : loadAgentOpsRemoteComponent('./Config', remoteEntryUrl)
 ));
 const modeTitle = computed$h(() => {

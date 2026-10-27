@@ -34,7 +34,7 @@ class RuntimeStateMixin:
     plugin_name = "媒体融合 Signal"
     plugin_desc = "通知汇报、数据监控、下载管理、系统维护、插件卸载，你要的全在里面。"
     plugin_icon = "https://raw.githubusercontent.com/clone-fan/MoviePilot-Plugins/main/icons/signal.png"
-    plugin_version = "3.2.5"
+    plugin_version = "3.3.0"
     plugin_author = "wenking"
     author_url = "https://github.com/clone-fan"
     plugin_config_prefix = "signal_"
@@ -94,6 +94,7 @@ class RuntimeStateMixin:
     _fusion_card_create_cron = "5 0 * * *"
     _fusion_card_refresh_cron = "0 * * * *"
     _fusion_notify_msgtype = "Plugin"
+    _fusion_notify_channel = ""
     _fusion_notify_columns: List[str] = []
     _report_storage_targets: List[str] = ["config", "download", "library", "storages"]
     _health_in_report = True
@@ -369,6 +370,7 @@ class RuntimeStateMixin:
             "local_plugin_repo": DEFAULT_LOCAL_PLUGIN_REPO,
             "fusion_notify_enabled": True,
             "fusion_notify_msgtype": "Plugin",
+            "fusion_notify_channel": "",
             "fusion_card_create_cron": "5 0 * * *",
             "fusion_card_refresh_cron": "0 * * * *",
             "health_check_enabled": True,

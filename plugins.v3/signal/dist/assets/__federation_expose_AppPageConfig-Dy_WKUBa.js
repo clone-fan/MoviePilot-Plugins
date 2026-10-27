@@ -1,6 +1,6 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { aG as mdiShieldCheckOutline, bl as mdiFilterOutline, bB as mdiCogOutline, b4 as mdiLinkVariant, c7 as mdiChevronDown, am as _export_sfc, c4 as mdiAlertOutline, bu as mdiDeleteOutline, aX as mdiPlay, ao as mdiWeight, aC as mdiSignal, aF as mdiShieldHalfFull, aK as mdiSendOutline, aY as mdiPercent, aZ as mdiPencilOutline, b7 as mdiLayersOutline, c3 as mdiAlphaMBoxOutline, c5 as mdiAlertCircleOutline, ba as mdiHeartPulse, ax as mdiTelevision, bS as mdiCardAccountDetailsOutline, b$ as mdiBackupRestore, b9 as mdiHistory, aS as mdiPuzzleOutline, aU as mdiPuzzle, bs as mdiDownload, bX as mdiBellOutline, b_ as mdiBell, c8 as mdiShieldRemoveOutline, c9 as mdiEyeOutline, aW as mdiPlusCircleOutline, by as mdiCubeOutline, bC as mdiCodeTags, bv as mdiDatabaseOutline, bD as mdiCloudUploadOutline, aE as mdiShieldOutline, bp as mdiDownloadOutline, aB as mdiSync, bU as mdiBroom, aO as mdiRocketLaunchOutline, bh as mdiFolderOutline, b3 as mdiLockCheckOutline, bA as mdiContentCopy, c6 as mdiAccountOutline, ap as mdiWeb, bH as mdiCloudOutline, b2 as mdiLockOutline, az as mdiTagOutline, au as mdiTimerOutline, aL as mdiScaleBalance, bb as mdiHarddisk, bc as mdiGauge, bQ as mdiChartBar, a$ as mdiMovieOpenOutline, be as mdiFormatListChecks, aJ as mdiServer, bo as mdiEmailOutline, bd as mdiFormatListNumbered, bT as mdiCalendarClock, aV as mdiPowerStandby, as as mdiUpdate, bn as mdiFileDocumentRemoveOutline, c2 as mdiArchiveArrowUpOutline, c0 as mdiAutoFix, aA as mdiTagMultipleOutline, bt as mdiDeleteSweepOutline, bW as mdiBellRingOutline, aw as mdiTelevisionPlay, aQ as mdiPuzzleRemoveOutline, bq as mdiDownloadNetworkOutline, bP as mdiChartLine, b1 as mdiMessageBadgeOutline } from './mdi-DveizHBi.js';
-import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginUpdateModeItems, t as pluginAutoInstallScopeItems, u as marketUpdateStrategies, v as mpUpdateTypes, w as mpUpdateModeItems, x as messageTypeItems, y as marketUpdateModeItems, z as marketNotifyItems, A as healthStorageTargets, B as healthDirectoryTargets, C as healthDatabaseTargets, E as healthCheckItems, F as keepCountPresets } from './save-payload-iABx0Agv.js';
+import { c as configSchemaFields, i as isConfigFieldVisible, n as normalizeConfigOption, d as defaults, p as pluginAutoInstallScopeValues, s as serializeConfigSavePayload, b as buildConfigSavePayload, e as emitConfigSaved, a as normalizeCurrentConfig, f as resolveBackupDatabaseEnabled, D as DEFAULT_DLTAG_CRON, g as dltagDeleteStrategyItems, h as dltagTaskItems, j as subfillDetailItems, k as siteStatRangeItems, l as seedActionsItems, m as notificationTypeItems, o as msgGroupItems, q as pluginUpdateModeItems, t as pluginAutoInstallScopeItems, u as marketUpdateStrategies, v as mpUpdateTypes, w as mpUpdateModeItems, x as messageTypeItems, y as marketUpdateModeItems, z as marketNotifyItems, A as healthStorageTargets, B as healthDirectoryTargets, C as healthDatabaseTargets, E as healthCheckItems, F as keepCountPresets } from './save-payload-COK3uaVH.js';
 import { g as getPluginApi, D as DEFAULT_PLUGIN_API_TIMEOUT_MS, r as resolvePluginApi, w as withTimeout, a as getActionForSurface, A as ACTION_OPERATION_MODE, u as useAgentOpsTheme, b as useBackupRestore, c as useConfigActionRunner, d as getActionsForSurface, e as ActionOperationPanel, B as BackupRestoreOperationContent, f as actionRefreshes } from './BackupRestoreOperationContent-BYWDHpjj.js';
 
 const {resolveComponent:_resolveComponent$4,createVNode:_createVNode$k,createElementVNode:_createElementVNode$d,toDisplayString:_toDisplayString$d,openBlock:_openBlock$s,createElementBlock:_createElementBlock$p,createCommentVNode:_createCommentVNode$c,renderSlot:_renderSlot$e,normalizeClass:_normalizeClass$a} = await importShared('vue');
@@ -1173,6 +1173,7 @@ const _sfc_main$l = {
   form: { type: Object, required: true },
   fields: { type: Array, default: () => [] },
   notificationTypeItems: { type: Array, default: () => [] },
+  notificationChannelItems: { type: Array, default: () => [] },
   effectiveState: { type: String, default: '' },
 },
   setup(__props) {
@@ -1201,11 +1202,21 @@ const fusionFields = computed$f(() => [
     label: '消息类型',
     items: props.notificationTypeItems,
   }),
+  fieldFor('fusion_notify_channel', {
+    key: 'fusion_notify_channel',
+    control: 'select',
+    icon: 'mdi-send-outline',
+    label: '通知渠道',
+    hint: '留空自动挑选已启用的 Telegram 渠道；指定后固定发送，不可用时回退并标注原因。',
+    items: props.notificationChannelItems,
+  }),
 ].map(field => ({
   ...field,
   items: field.key === 'fusion_notify_msgtype'
     ? (field.items?.length ? field.items : props.notificationTypeItems)
-    : field.items,
+    : field.key === 'fusion_notify_channel'
+      ? (field.items?.length ? field.items : props.notificationChannelItems)
+      : field.items,
 })));
 
 function resolveDisabled(field) {
@@ -1270,6 +1281,7 @@ const _sfc_main$k = {
   form: { type: Object, required: true },
   fields: { type: Array, default: () => [] },
   notificationTypeItems: { type: Array, default: () => [] },
+  notificationChannelItems: { type: Array, default: () => [] },
   status: { type: Object, default: () => ({}) },
   loading: { type: Boolean, default: false },
   effectiveState: { type: String, default: '' },
@@ -1301,8 +1313,9 @@ return (_ctx, _cache) => {
       form: __props.form,
       fields: __props.fields,
       "notification-type-items": __props.notificationTypeItems,
+      "notification-channel-items": __props.notificationChannelItems,
       "effective-state": __props.effectiveState
-    }, null, 8, ["form", "fields", "notification-type-items", "effective-state"]),
+    }, null, 8, ["form", "fields", "notification-type-items", "notification-channel-items", "effective-state"]),
     _createElementVNode$9("div", _hoisted_2$c, [
       _createElementVNode$9("div", _hoisted_3$9, [
         _createElementVNode$9("strong", _hoisted_4$9, _toDisplayString$9(cardStatus.value), 1),
@@ -3359,6 +3372,21 @@ function useDataLoader(api) {
     }
   }
 
+  // MoviePilot 通知渠道（融合卡指定发送渠道用）
+  const notificationChannels = ref$5([]);
+  const notificationChannelsLoading = ref$5(false);
+  async function loadNotificationChannels() {
+    notificationChannelsLoading.value = true;
+    try {
+      const res = await getPluginApi(api, 'notification_channels');
+      notificationChannels.value = Array.isArray(res) ? res : (res?.data || []);
+    } catch {
+      notificationChannels.value = [];
+    } finally {
+      notificationChannelsLoading.value = false;
+    }
+  }
+
   // 下载器列表（自动删种用）
   const downloaderOptions = ref$5([]);
   const downloadersLoading = ref$5(false);
@@ -3397,6 +3425,7 @@ function useDataLoader(api) {
       loadPluginMarkets(),
       loadDownloaders(),
       loadMediaservers(),
+      loadNotificationChannels(),
     ])
   }
 
@@ -3406,6 +3435,7 @@ function useDataLoader(api) {
     pluginMarkets, marketsLoading, loadPluginMarkets,
     downloaderOptions, downloadersLoading, loadDownloaders,
     mediaserverOptions, mediaserversLoading, loadMediaservers,
+    notificationChannels, notificationChannelsLoading, loadNotificationChannels,
     loadAll,
   }
 }
@@ -4430,6 +4460,7 @@ const {
   tgConsoleStatus, tgConsoleLoading, loadTgConsoleStatus,
   downloaderOptions, loadDownloaders,
   mediaserverOptions, loadMediaservers,
+  notificationChannels, loadNotificationChannels,
 } = useDataLoader(apiHandle);
 
 const replicaItemSources = computed(() => ({
@@ -4450,6 +4481,7 @@ const replicaItemSources = computed(() => ({
   pluginAutoInstallScopeItems,
   pluginUpdateModeItems,
   msgGroupItems,
+  notificationChannels: notificationChannels.value,
   notificationTypeItems,
   seedActionsItems,
   siteStatRangeItems,
@@ -5050,6 +5082,7 @@ async function loadRemoteData() {
     loadTgConsoleStatus(),
     loadDownloaders(),
     loadMediaservers(),
+    loadNotificationChannels(),
   ]);
 }
 
@@ -5441,6 +5474,7 @@ return (_ctx, _cache) => {
                                     form: _unref(form),
                                     fields: currentSinglePageFields.value,
                                     "notification-type-items": _unref(notificationTypeItems),
+                                    "notification-channel-items": _unref(notificationChannels),
                                     status: _unref(tgConsoleStatus),
                                     loading: _unref(tgConsoleLoading),
                                     "effective-state": currentEffectiveState.value.code
@@ -5456,7 +5490,7 @@ return (_ctx, _cache) => {
                                         : _createCommentVNode("", true)
                                     ]),
                                     _: 1
-                                  }, 8, ["form", "fields", "notification-type-items", "status", "loading", "effective-state"])
+                                  }, 8, ["form", "fields", "notification-type-items", "notification-channel-items", "status", "loading", "effective-state"])
                                 ]),
                                 _: 1
                               }, 8, ["card", "effective-state"]))

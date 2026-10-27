@@ -288,6 +288,42 @@ class MpApiMixin:
             logger.error(f"已安装插件列表获取失败：{err}")
             return {"code": 1, "msg": f"已安装插件列表获取失败：{err}", "data": []}
 
+    def api_notification_channels(self) -> Dict[str, Any]:
+        """MoviePilot 通知渠道候选，供融合卡指定发送渠道（只有能发卡片的 Telegram 渠道可选）。"""
+        try:
+            channels = self._moviepilot_notification_channels()
+        except Exception as err:
+            logger.error(f"通知渠道列表获取失败：{err}")
+            return {"code": 1, "msg": "通知渠道列表获取失败", "data": []}
+        items: List[Dict[str, Any]] = []
+        try:
+            auto_name = str(self._find_moviepilot_telegram_config(getattr(self, "_fusion_notify_msgtype", "") or "Plugin")[2] or "")
+        except Exception:
+            auto_name = ""
+        auto_title = f"自动匹配（当前：{auto_name}）" if auto_name else "自动匹配（当前没有可用渠道）"
+        items.append({
+            "value": "",
+            "title": auto_title,
+            "props": {"subtitle": "留空时按消息类型自动选择已启用的 Telegram 渠道"},
+        })
+        for channel in channels:
+            cid = str(channel.get("id") or "").strip()
+            if not cid:
+                # 极老的 MoviePilot 配置没有渠道 id，无法稳定绑定，只参与自动匹配。
+                continue
+            name = str(channel.get("name") or "").strip() or "未命名渠道"
+            ntype = str(channel.get("type") or "").strip()
+            title = f"{name} · Telegram" if ntype == "telegram" else f"{name} · {ntype or '未知类型'}"
+            item: Dict[str, Any] = {"value": cid, "title": title}
+            if not channel.get("usable"):
+                item["props"] = {"disabled": True, "subtitle": str(channel.get("reason") or "")}
+            items.append(item)
+        disabled_items = [entry for entry in items[1:] if (entry.get("props") or {}).get("disabled")]
+        enabled_items = [entry for entry in items[1:] if not (entry.get("props") or {}).get("disabled")]
+        enabled_items.sort(key=lambda entry: str(entry["title"]))
+        disabled_items.sort(key=lambda entry: str(entry["title"]))
+        return {"code": 0, "data": [items[0], *enabled_items, *disabled_items]}
+
     def api_plugin_markets(self) -> Dict[str, Any]:
         """插件库仓库地址候选：已配置、上次同步发现与已拉黑三者并集，供插件库黑名单下拉多选。"""
         try:
